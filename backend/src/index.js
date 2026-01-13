@@ -12,11 +12,18 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Handle preflight requests explicitly
+app.options('*', cors());
+
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
+
 app.use(express.json());
 
 // Routes
