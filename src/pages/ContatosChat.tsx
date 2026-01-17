@@ -49,6 +49,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
 
 interface ChatContact {
   id: string;
@@ -122,6 +123,11 @@ const ContatosChat = () => {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importData, setImportData] = useState("");
   const [validateWhatsApp, setValidateWhatsApp] = useState(true);
+  
+  // Excel import for chat contacts
+  const [showChatImportDialog, setShowChatImportDialog] = useState(false);
+  const [showExcelDialog, setShowExcelDialog] = useState(false);
+  const [selectedConnectionForImport, setSelectedConnectionForImport] = useState("");
 
   useEffect(() => {
     loadData();
@@ -368,6 +374,41 @@ const ContatosChat = () => {
     }
   };
 
+  // Import chat contacts from Excel
+  const handleImportChatContacts = async (contacts: { name: string; phone: string }[]) => {
+    if (!selectedConnectionForImport) {
+      toast.error("Selecione uma conexão para importar");
+      return;
+    }
+
+    try {
+      const result = await api<{ imported: number; duplicates: number }>(
+        "/api/chat/conversations/import",
+        {
+          method: "POST",
+          body: {
+            connection_id: selectedConnectionForImport,
+            contacts: contacts.map(c => ({
+              name: c.name,
+              phone: c.phone,
+            })),
+          },
+        }
+      );
+
+      let description = `${result.imported} contatos importados`;
+      if (result.duplicates) description += `, ${result.duplicates} já existiam`;
+
+      toast.success("Importação concluída!", { description });
+      setShowChatImportDialog(false);
+      setSelectedConnectionForImport("");
+      loadData();
+    } catch (err) {
+      toast.error("Erro ao importar contatos");
+      throw err;
+    }
+  };
+
   const getInitials = (name: string | null, phone: string) => {
     if (name) {
       return name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
@@ -413,18 +454,74 @@ const ContatosChat = () => {
 
           {/* Chat Contacts Tab */}
           <TabsContent value="chat" className="space-y-4 mt-6">
-            {/* Stats */}
+            {/* Stats and Actions */}
             <Card>
               <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Total de Contatos</p>
                     <p className="text-2xl font-bold">{chatContacts.length}</p>
                   </div>
-                  <Button onClick={loadData} disabled={loading} variant="outline" size="sm">
-                    <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
-                    Atualizar
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Dialog open={showChatImportDialog} onOpenChange={(open) => {
+                      setShowChatImportDialog(open);
+                      if (!open) setSelectedConnectionForImport("");
+                    }}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <FileSpreadsheet className="h-4 w-4 mr-2" />
+                          Importar Excel
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>Importar Contatos do Excel</DialogTitle>
+                          <DialogDescription>
+                            Selecione a conexão e importe os contatos da planilha
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label>Conexão *</Label>
+                            <Select 
+                              value={selectedConnectionForImport} 
+                              onValueChange={setSelectedConnectionForImport}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione a conexão" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {connections.filter(c => c.status === "connected").map(conn => (
+                                  <SelectItem key={conn.id} value={conn.id}>
+                                    {conn.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Os contatos serão importados como conversas nesta conexão
+                            </p>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button
+                            variant="gradient"
+                            disabled={!selectedConnectionForImport}
+                            onClick={() => {
+                              setShowChatImportDialog(false);
+                              setShowExcelDialog(true);
+                            }}
+                          >
+                            Continuar
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    <Button onClick={loadData} disabled={loading} variant="outline" size="sm">
+                      <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+                      Atualizar
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -881,6 +978,16 @@ const ContatosChat = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Excel Import Dialog for Chat Contacts */}
+      <ExcelImportDialog
+        open={showExcelDialog}
+        onOpenChange={(open) => {
+          setShowExcelDialog(open);
+          if (!open) setSelectedConnectionForImport("");
+        }}
+        onImport={handleImportChatContacts}
+      />
     </MainLayout>
   );
 };

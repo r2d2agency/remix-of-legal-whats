@@ -1565,6 +1565,121 @@ router.post('/alerts/read-all', authenticate, async (req, res) => {
 });
 
 // ==========================================
+// IMPORT CONTACTS (create conversations in bulk)
+// ==========================================
+
+router.post('/conversations/import', authenticate, async (req, res) => {
+  try {
+    const { contacts, connection_id } = req.body;
+
+    if (!Array.isArray(contacts) || contacts.length === 0) {
+      return res.status(400).json({ error: 'Lista de contatos é obrigatória' });
+    }
+
+    if (!connection_id) {
+      return res.status(400).json({ error: 'Conexão é obrigatória' });
+    }
+
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Verify user has access to this connection
+    if (!connectionIds.includes(connection_id)) {
+      return res.status(403).json({ error: 'Sem acesso a esta conexão' });
+    }
+
+    // Check if connection exists and is active
+    const connResult = await query(
+      `SELECT id, status, instance_name FROM connections WHERE id = $1`,
+      [connection_id]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    let imported = 0;
+    let duplicates = 0;
+    const errors = [];
+
+    for (const contact of contacts) {
+      const { name, phone } = contact;
+
+      if (!phone) {
+        errors.push(`Contato sem telefone: ${name || 'sem nome'}`);
+        continue;
+      }
+
+      // Normalize phone number
+      let normalizedPhone = phone.replace(/\D/g, '');
+      
+      // Remove country code 55 if present for comparison, then add it back
+      let phoneWithoutCountry = normalizedPhone;
+      if (normalizedPhone.startsWith('55') && normalizedPhone.length > 11) {
+        phoneWithoutCountry = normalizedPhone.substring(2);
+      }
+      
+      // Ensure country code
+      if (!normalizedPhone.startsWith('55')) {
+        normalizedPhone = '55' + normalizedPhone;
+      }
+
+      // Generate remote JID
+      const remoteJid = `${normalizedPhone}@s.whatsapp.net`;
+      const remoteJidLid = `${normalizedPhone}@lid`;
+
+      // Check if conversation already exists
+      const existingConv = await query(
+        `SELECT id FROM conversations 
+         WHERE connection_id = $1 AND (
+           remote_jid = $2 OR 
+           remote_jid = $3 OR 
+           remote_jid LIKE $4 OR
+           contact_phone = $5 OR 
+           contact_phone = $6
+         )
+         LIMIT 1`,
+        [
+          connection_id, 
+          remoteJid, 
+          remoteJidLid,
+          `%${phoneWithoutCountry}@%`,
+          normalizedPhone, 
+          phoneWithoutCountry
+        ]
+      );
+
+      if (existingConv.rows.length > 0) {
+        // Update contact name if provided
+        if (name) {
+          await query(
+            `UPDATE conversations SET contact_name = $1, updated_at = NOW() 
+             WHERE id = $2 AND (contact_name IS NULL OR contact_name = contact_phone OR contact_name = '')`,
+            [name, existingConv.rows[0].id]
+          );
+        }
+        duplicates++;
+        continue;
+      }
+
+      // Create new conversation
+      await query(
+        `INSERT INTO conversations 
+          (connection_id, remote_jid, contact_phone, contact_name, assigned_to, is_archived, unread_count, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, false, 0, NOW(), NOW())`,
+        [connection_id, remoteJid, normalizedPhone, name || normalizedPhone, req.userId]
+      );
+
+      imported++;
+    }
+
+    res.json({ imported, duplicates, errors: errors.slice(0, 10) });
+  } catch (error) {
+    console.error('Import contacts error:', error);
+    res.status(500).json({ error: 'Erro ao importar contatos' });
+  }
+});
+
+// ==========================================
 // CREATE NEW CONVERSATION
 // ==========================================
 
