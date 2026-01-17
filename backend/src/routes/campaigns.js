@@ -55,7 +55,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Create campaign
+// Create campaign with pre-allocated messages for each contact
 router.post('/', async (req, res) => {
   try {
     const { 
@@ -63,14 +63,26 @@ router.post('/', async (req, res) => {
       connection_id, 
       list_id, 
       message_id,
-      message_ids, // Support both single and array
+      message_ids, // Support array of messages
       scheduled_at,
+      start_date,
+      end_date,
+      start_time,
+      end_time,
       min_delay,
-      max_delay 
+      max_delay,
+      pause_after_messages,
+      pause_duration,
+      random_order,
+      random_messages
     } = req.body;
 
-    // Accept message_id or message_ids (take first if array)
-    const finalMessageId = message_id || (Array.isArray(message_ids) ? message_ids[0] : null);
+    // Accept message_id or message_ids
+    const allMessageIds = message_ids && Array.isArray(message_ids) && message_ids.length > 0 
+      ? message_ids 
+      : (message_id ? [message_id] : []);
+    
+    const finalMessageId = allMessageIds[0] || null;
 
     if (!name || !connection_id || !list_id || !finalMessageId) {
       return res.status(400).json({ 
@@ -81,29 +93,19 @@ router.post('/', async (req, res) => {
     const org = await getUserOrganization(req.userId);
 
     // Verify ownership of related resources (including org-level access)
-    let connectionCheck, listCheck, messageCheck;
+    let connectionCheck, listCheck;
 
     if (org) {
-      // Allow using organization's connections
       connectionCheck = await query(
         'SELECT id FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id = $3)',
         [connection_id, req.userId, org.organization_id]
       );
-      // Allow using organization's lists
       listCheck = await query(
         `SELECT id FROM contact_lists WHERE id = $1 AND (
           user_id = $2 OR 
           connection_id IN (SELECT id FROM connections WHERE organization_id = $3)
         )`,
         [list_id, req.userId, org.organization_id]
-      );
-      // Allow using organization's messages
-      messageCheck = await query(
-        `SELECT id FROM message_templates WHERE id = $1 AND (
-          user_id = $2 OR 
-          user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $3)
-        )`,
-        [finalMessageId, req.userId, org.organization_id]
       );
     } else {
       connectionCheck = await query(
@@ -114,10 +116,6 @@ router.post('/', async (req, res) => {
         'SELECT id FROM contact_lists WHERE id = $1 AND user_id = $2',
         [list_id, req.userId]
       );
-      messageCheck = await query(
-        'SELECT id FROM message_templates WHERE id = $1 AND user_id = $2',
-        [finalMessageId, req.userId]
-      );
     }
 
     if (connectionCheck.rows.length === 0) {
@@ -126,28 +124,179 @@ router.post('/', async (req, res) => {
     if (listCheck.rows.length === 0) {
       return res.status(400).json({ error: 'Lista não encontrada ou sem permissão' });
     }
-    if (messageCheck.rows.length === 0) {
-      return res.status(400).json({ error: 'Mensagem não encontrada ou sem permissão' });
+
+    // Verify all message IDs
+    for (const msgId of allMessageIds) {
+      let messageCheck;
+      if (org) {
+        messageCheck = await query(
+          `SELECT id FROM message_templates WHERE id = $1 AND (
+            user_id = $2 OR 
+            user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $3)
+          )`,
+          [msgId, req.userId, org.organization_id]
+        );
+      } else {
+        messageCheck = await query(
+          'SELECT id FROM message_templates WHERE id = $1 AND user_id = $2',
+          [msgId, req.userId]
+        );
+      }
+      if (messageCheck.rows.length === 0) {
+        return res.status(400).json({ error: `Mensagem ${msgId} não encontrada ou sem permissão` });
+      }
     }
 
-    const result = await query(
+    // Get all contacts from the list
+    const contactsResult = await query(
+      'SELECT id, phone, name FROM contacts WHERE list_id = $1',
+      [list_id]
+    );
+
+    if (contactsResult.rows.length === 0) {
+      return res.status(400).json({ error: 'A lista de contatos está vazia' });
+    }
+
+    let contacts = contactsResult.rows;
+
+    // Shuffle contacts if random_order is enabled
+    if (random_order) {
+      contacts = contacts.sort(() => Math.random() - 0.5);
+    }
+
+    // Calculate schedule parameters
+    const minDelayVal = min_delay || 120;
+    const maxDelayVal = max_delay || 300;
+    const pauseAfter = pause_after_messages || 20;
+    const pauseDur = (pause_duration || 10) * 60; // Convert to seconds
+
+    // Determine start time
+    let currentScheduleTime = new Date();
+    if (start_date) {
+      const sd = new Date(start_date);
+      currentScheduleTime = new Date(sd);
+    }
+    if (start_time) {
+      const [hours, minutes] = start_time.split(':').map(Number);
+      currentScheduleTime.setHours(hours, minutes, 0, 0);
+    }
+
+    // Parse time bounds
+    const startTimeHours = start_time ? parseInt(start_time.split(':')[0]) : 0;
+    const startTimeMinutes = start_time ? parseInt(start_time.split(':')[1]) : 0;
+    const endTimeHours = end_time ? parseInt(end_time.split(':')[0]) : 23;
+    const endTimeMinutes = end_time ? parseInt(end_time.split(':')[1]) : 59;
+
+    // If current time is before start_time today, move to start_time
+    const now = new Date();
+    if (currentScheduleTime < now) {
+      currentScheduleTime = now;
+    }
+
+    // Create campaign
+    const campaignResult = await query(
       `INSERT INTO campaigns 
-       (user_id, name, connection_id, list_id, message_id, scheduled_at, min_delay, max_delay)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+       (user_id, name, connection_id, list_id, message_id, scheduled_at, 
+        start_date, end_date, start_time, end_time,
+        min_delay, max_delay, pause_after_messages, pause_duration, random_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
        RETURNING *`,
       [
         req.userId, 
         name, 
         connection_id, 
         list_id, 
-        finalMessageId, 
+        finalMessageId,
         scheduled_at || null,
-        min_delay || 5,
-        max_delay || 15
+        start_date || null,
+        end_date || null,
+        start_time || null,
+        end_time || null,
+        minDelayVal,
+        maxDelayVal,
+        pauseAfter,
+        pause_duration || 10,
+        random_order || false
       ]
     );
 
-    res.status(201).json(result.rows[0]);
+    const campaign = campaignResult.rows[0];
+
+    // Pre-allocate messages for each contact with scheduled times
+    const campaignMessages = [];
+    let messagesSincePause = 0;
+
+    for (let i = 0; i < contacts.length; i++) {
+      const contact = contacts[i];
+      
+      // Assign message (random if multiple messages selected)
+      let assignedMessageId = finalMessageId;
+      if (allMessageIds.length > 1 && random_messages) {
+        assignedMessageId = allMessageIds[Math.floor(Math.random() * allMessageIds.length)];
+      } else if (allMessageIds.length > 1) {
+        // Round-robin distribution
+        assignedMessageId = allMessageIds[i % allMessageIds.length];
+      }
+
+      // Check if we need to respect time bounds
+      let scheduleHour = currentScheduleTime.getHours();
+      let scheduleMinute = currentScheduleTime.getMinutes();
+      
+      // If past end time, move to next day's start time
+      if (scheduleHour > endTimeHours || (scheduleHour === endTimeHours && scheduleMinute > endTimeMinutes)) {
+        currentScheduleTime.setDate(currentScheduleTime.getDate() + 1);
+        currentScheduleTime.setHours(startTimeHours, startTimeMinutes, 0, 0);
+      }
+      
+      // If before start time, move to start time
+      if (scheduleHour < startTimeHours || (scheduleHour === startTimeHours && scheduleMinute < startTimeMinutes)) {
+        currentScheduleTime.setHours(startTimeHours, startTimeMinutes, 0, 0);
+      }
+
+      campaignMessages.push({
+        contact_id: contact.id,
+        phone: contact.phone,
+        message_id: assignedMessageId,
+        scheduled_at: new Date(currentScheduleTime).toISOString()
+      });
+
+      // Calculate next message time
+      const delay = Math.floor(Math.random() * (maxDelayVal - minDelayVal + 1)) + minDelayVal;
+      currentScheduleTime = new Date(currentScheduleTime.getTime() + delay * 1000);
+      messagesSincePause++;
+
+      // Add pause if needed
+      if (messagesSincePause >= pauseAfter && i < contacts.length - 1) {
+        currentScheduleTime = new Date(currentScheduleTime.getTime() + pauseDur * 1000);
+        messagesSincePause = 0;
+      }
+    }
+
+    // Insert all campaign messages
+    if (campaignMessages.length > 0) {
+      const values = campaignMessages.map((_, i) => 
+        `($1, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4}, $${i * 4 + 5})`
+      ).join(', ');
+      
+      const insertParams = [
+        campaign.id,
+        ...campaignMessages.flatMap(m => [m.contact_id, m.phone, m.message_id, m.scheduled_at])
+      ];
+
+      await query(
+        `INSERT INTO campaign_messages (campaign_id, contact_id, phone, message_id, scheduled_at) 
+         VALUES ${values}`,
+        insertParams
+      );
+    }
+
+    res.status(201).json({
+      ...campaign,
+      total_messages: campaignMessages.length,
+      estimated_completion: campaignMessages.length > 0 
+        ? campaignMessages[campaignMessages.length - 1].scheduled_at 
+        : null
+    });
   } catch (error) {
     console.error('Create campaign error:', error);
     res.status(500).json({ error: 'Erro ao criar campanha' });
@@ -280,14 +429,16 @@ router.get('/:id/details', async (req, res) => {
 
     const campaign = campaignResult.rows[0];
 
-    // Get all campaign messages with contact info
+    // Get all campaign messages with contact info and message template
     const messagesResult = await query(
       `SELECT cm.*, 
-              co.name as contact_name
+              co.name as contact_name,
+              mt.name as message_template_name
        FROM campaign_messages cm
        LEFT JOIN contacts co ON cm.contact_id = co.id
+       LEFT JOIN message_templates mt ON cm.message_id = mt.id
        WHERE cm.campaign_id = $1
-       ORDER BY cm.created_at ASC`,
+       ORDER BY cm.scheduled_at ASC NULLS LAST, cm.created_at ASC`,
       [id]
     );
 
@@ -300,42 +451,18 @@ router.get('/:id/details', async (req, res) => {
       pending: messages.filter(m => m.status === 'pending').length,
     };
 
-    // Calculate estimated completion time
+    // Calculate estimated completion time based on last scheduled message
     let estimatedCompletion = null;
-    if (campaign.status === 'running' && stats.pending > 0) {
-      const avgDelay = (campaign.min_delay + campaign.max_delay) / 2;
-      const pauseMessages = campaign.pause_after_messages || 20;
-      const pauseDuration = (campaign.pause_duration || 10) * 60; // Convert to seconds
-      
-      // Calculate time including pauses
-      const remainingMessages = stats.pending;
-      const pausesNeeded = Math.floor(remainingMessages / pauseMessages);
-      const totalSeconds = (remainingMessages * avgDelay) + (pausesNeeded * pauseDuration);
-      
-      estimatedCompletion = new Date(Date.now() + totalSeconds * 1000).toISOString();
+    const pendingMessages = messages.filter(m => m.status === 'pending' && m.scheduled_at);
+    if (campaign.status === 'running' && pendingMessages.length > 0) {
+      // Get the last scheduled message time
+      const lastScheduled = pendingMessages[pendingMessages.length - 1];
+      estimatedCompletion = lastScheduled.scheduled_at;
     }
-
-    // Calculate scheduled times for pending messages
-    let currentTime = new Date();
-    const avgDelay = (campaign.min_delay + campaign.max_delay) / 2;
-    const pauseMessages = campaign.pause_after_messages || 20;
-    const pauseDuration = (campaign.pause_duration || 10) * 60;
-    
-    let sentCount = stats.sent + stats.failed;
-    const messagesWithSchedule = messages.map((msg, index) => {
-      if (msg.status === 'pending') {
-        const position = index - sentCount;
-        const pausesBeforeThis = Math.floor(position / pauseMessages);
-        const secondsFromNow = (position * avgDelay) + (pausesBeforeThis * pauseDuration);
-        const scheduledTime = new Date(currentTime.getTime() + secondsFromNow * 1000);
-        return { ...msg, scheduled_time: scheduledTime.toISOString() };
-      }
-      return msg;
-    });
 
     res.json({
       campaign,
-      messages: messagesWithSchedule,
+      messages,
       stats,
       estimatedCompletion,
     });

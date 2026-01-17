@@ -26,9 +26,10 @@ interface CampaignMessage {
   id: string;
   phone: string;
   contact_name?: string;
+  message_template_name?: string;
   status: 'pending' | 'sent' | 'failed';
   sent_at?: string;
-  scheduled_time?: string;
+  scheduled_at?: string;
   error_message?: string;
   created_at: string;
 }
@@ -230,9 +231,9 @@ export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetai
                           config.bgColor
                         )}
                       >
-                        <div className="flex items-center gap-3">
-                          <StatusIcon className={cn("h-4 w-4", config.color)} />
-                          <div>
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <StatusIcon className={cn("h-4 w-4 flex-shrink-0", config.color)} />
+                          <div className="min-w-0">
                             <div className="font-medium text-sm">
                               {msg.contact_name || 'Contato'}
                             </div>
@@ -240,6 +241,12 @@ export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetai
                               <Phone className="h-3 w-3" />
                               {msg.phone}
                             </div>
+                            {msg.message_template_name && (
+                              <div className="text-xs text-primary/80 truncate mt-0.5" title={msg.message_template_name}>
+                                <MessageSquare className="h-3 w-3 inline mr-1" />
+                                {msg.message_template_name}
+                              </div>
+                            )}
                           </div>
                         </div>
                         
@@ -261,11 +268,16 @@ export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetai
                               )}
                             </div>
                           )}
-                          {msg.status === 'pending' && msg.scheduled_time && (
+                          {msg.status === 'pending' && msg.scheduled_at && (
                             <div className="text-xs text-muted-foreground">
                               <span className="text-yellow-500 font-medium">Agendado</span>
                               <br />
-                              {format(new Date(msg.scheduled_time), "HH:mm:ss", { locale: ptBR })}
+                              {format(new Date(msg.scheduled_at), "dd/MM HH:mm", { locale: ptBR })}
+                            </div>
+                          )}
+                          {msg.status === 'pending' && !msg.scheduled_at && (
+                            <div className="text-xs text-muted-foreground">
+                              <span className="text-yellow-500 font-medium">Pendente</span>
                             </div>
                           )}
                         </div>

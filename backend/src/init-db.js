@@ -242,25 +242,55 @@ CREATE TABLE IF NOT EXISTS campaigns (
     message_id UUID REFERENCES message_templates(id) ON DELETE SET NULL,
     status VARCHAR(50) DEFAULT 'pending',
     scheduled_at TIMESTAMP WITH TIME ZONE,
-    min_delay INTEGER DEFAULT 5,
-    max_delay INTEGER DEFAULT 15,
+    start_date TIMESTAMP WITH TIME ZONE,
+    end_date TIMESTAMP WITH TIME ZONE,
+    start_time VARCHAR(10),
+    end_time VARCHAR(10),
+    min_delay INTEGER DEFAULT 120,
+    max_delay INTEGER DEFAULT 300,
+    pause_after_messages INTEGER DEFAULT 20,
+    pause_duration INTEGER DEFAULT 10,
+    random_order BOOLEAN DEFAULT false,
     sent_count INTEGER DEFAULT 0,
     failed_count INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add new campaign columns if not exists (for existing databases)
+DO $$ BEGIN
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS start_date TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS start_time VARCHAR(10);
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS end_time VARCHAR(10);
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS pause_after_messages INTEGER DEFAULT 20;
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS pause_duration INTEGER DEFAULT 10;
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS random_order BOOLEAN DEFAULT false;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
 -- Campaign Messages Log
 CREATE TABLE IF NOT EXISTS campaign_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE NOT NULL,
     contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
+    message_id UUID REFERENCES message_templates(id) ON DELETE SET NULL,
     phone VARCHAR(50) NOT NULL,
     status VARCHAR(50) DEFAULT 'pending',
+    scheduled_at TIMESTAMP WITH TIME ZONE,
     sent_at TIMESTAMP WITH TIME ZONE,
     error_message TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add new campaign_messages columns if not exists (for existing databases)
+DO $$ BEGIN
+    ALTER TABLE campaign_messages ADD COLUMN IF NOT EXISTS message_id UUID REFERENCES message_templates(id) ON DELETE SET NULL;
+    ALTER TABLE campaign_messages ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP WITH TIME ZONE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
 `;
 
 // ============================================
