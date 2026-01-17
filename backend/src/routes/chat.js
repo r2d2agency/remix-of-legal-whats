@@ -1654,7 +1654,7 @@ router.post('/contacts/import', authenticate, async (req, res) => {
   }
 });
 
-// Get contacts from agenda (for starting conversations)
+// Get contacts from agenda (combines chat_contacts and conversation contacts)
 router.get('/contacts', authenticate, async (req, res) => {
   try {
     const connectionIds = await getUserConnections(req.userId);
@@ -1665,36 +1665,62 @@ router.get('/contacts', authenticate, async (req, res) => {
 
     const { search, connection } = req.query;
 
+    // Combine contacts from chat_contacts table AND from conversations
+    // This ensures we show all contacts whether imported to agenda or from active chats
     let sql = `
-      SELECT 
-        cc.*,
-        c.name as connection_name,
-        EXISTS (
-          SELECT 1 FROM conversations conv 
-          WHERE conv.connection_id = cc.connection_id 
-          AND (conv.contact_phone = cc.phone OR conv.remote_jid = cc.jid)
-        ) as has_conversation
-      FROM chat_contacts cc
-      JOIN connections c ON c.id = cc.connection_id
-      WHERE cc.connection_id = ANY($1)
+      WITH all_contacts AS (
+        -- Contacts from chat_contacts table (imported agenda)
+        SELECT 
+          cc.id,
+          cc.name,
+          cc.phone,
+          cc.jid,
+          cc.connection_id,
+          c.name as connection_name,
+          true as has_conversation,
+          cc.created_at
+        FROM chat_contacts cc
+        JOIN connections c ON c.id = cc.connection_id
+        WHERE cc.connection_id = ANY($1)
+        
+        UNION ALL
+        
+        -- Contacts from conversations (existing chats)
+        SELECT 
+          conv.id,
+          conv.contact_name as name,
+          conv.contact_phone as phone,
+          conv.remote_jid as jid,
+          conv.connection_id,
+          c.name as connection_name,
+          true as has_conversation,
+          conv.created_at
+        FROM conversations conv
+        JOIN connections c ON c.id = conv.connection_id
+        WHERE conv.connection_id = ANY($1)
+          AND conv.contact_phone IS NOT NULL
+      )
+      SELECT DISTINCT ON (connection_id, phone) *
+      FROM all_contacts
+      WHERE phone IS NOT NULL AND phone != ''
     `;
 
     const params = [connectionIds];
     let paramIndex = 2;
 
     if (connection && connection !== 'all') {
-      sql += ` AND cc.connection_id = $${paramIndex}`;
+      sql += ` AND connection_id = $${paramIndex}`;
       params.push(connection);
       paramIndex++;
     }
 
     if (search) {
-      sql += ` AND (cc.name ILIKE $${paramIndex} OR cc.phone ILIKE $${paramIndex})`;
+      sql += ` AND (name ILIKE $${paramIndex} OR phone ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
       paramIndex++;
     }
 
-    sql += ` ORDER BY cc.name ASC LIMIT 100`;
+    sql += ` ORDER BY connection_id, phone, name ASC NULLS LAST LIMIT 100`;
 
     const result = await query(sql, params);
     res.json(result.rows);
