@@ -4,10 +4,33 @@ import { pool } from './db.js';
 // STEP 1: ENUMS (must be first)
 // ============================================
 const step1Enums = `
-DO $$ BEGIN
+DO $$
+BEGIN
+  -- Create enum if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN
     CREATE TYPE app_role AS ENUM ('owner', 'admin', 'manager', 'agent', 'user');
-EXCEPTION
-    WHEN duplicate_object THEN null;
+  ELSE
+    -- Ensure all expected values exist (supports older schemas)
+    BEGIN
+      ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'owner';
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+
+    BEGIN
+      ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'admin';
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+
+    BEGIN
+      ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'manager';
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+
+    BEGIN
+      ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'agent';
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+
+    BEGIN
+      ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'user';
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+  END IF;
 END $$;
 `;
 

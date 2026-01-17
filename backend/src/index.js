@@ -57,10 +57,15 @@ app.get('/health', (req, res) => {
 });
 
 // Initialize database and start server
-initDatabase().then(() => {
+initDatabase().then((ok) => {
+  if (!ok) {
+    console.error('🛑 Server not started because database initialization failed (critical step).');
+    process.exit(1);
+  }
+
   app.listen(PORT, () => {
     console.log(`🚀 Whatsale API running on port ${PORT}`);
-    
+
     // Schedule billing notifications - runs every hour to check rules with matching send_time
     // Each rule has its own send_time, the scheduler only executes rules matching current hour
     cron.schedule('0 * * * *', async () => {
@@ -73,7 +78,7 @@ initDatabase().then(() => {
     }, {
       timezone: 'America/Sao_Paulo'
     });
-    
+
     console.log('⏰ Notification scheduler started - checks every hour (timezone: America/Sao_Paulo)');
   });
 });
