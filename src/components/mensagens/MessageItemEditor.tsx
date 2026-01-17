@@ -176,32 +176,45 @@ export function MessageItemEditor({
           {/* Media Upload */}
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground">
-              {item.mediaUrl ? "URL da mídia" : `Enviar ${config.label.toLowerCase()}`}
+              {item.mediaUrl ? `${config.label} carregado` : `Enviar ${config.label.toLowerCase()}`}
             </Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder={`URL do ${config.label.toLowerCase()} ou faça upload`}
-                value={item.mediaUrl || ""}
-                onChange={(e) => onUpdate(item.id, { mediaUrl: e.target.value })}
-              />
+            
+            {item.mediaUrl ? (
+              <div className="flex items-center gap-2 p-2 rounded-lg border bg-muted/50">
+                <div className={cn("p-2 rounded", config.bgColor)}>
+                  <Icon className={cn("h-4 w-4", config.color)} />
+                </div>
+                <span className="text-sm flex-1 truncate">
+                  {item.fileName || "Arquivo carregado"}
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => onUpdate(item.id, { mediaUrl: undefined, fileName: undefined })}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
               <Button 
                 variant="outline" 
-                size="icon" 
-                className="shrink-0"
+                className="w-full h-20 border-dashed flex flex-col gap-2"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
               >
                 {isUploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <>
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="text-xs">Enviando...</span>
+                  </>
                 ) : (
-                  <Upload className="h-4 w-4" />
+                  <>
+                    <Upload className="h-6 w-6" />
+                    <span className="text-xs">Clique para selecionar {config.label.toLowerCase()}</span>
+                  </>
                 )}
               </Button>
-            </div>
-            {!item.mediaUrl && (
-              <p className="text-xs text-muted-foreground">
-                Clique no botão de upload ou arraste um arquivo
-              </p>
             )}
           </div>
 
