@@ -49,6 +49,16 @@ export interface TeamMember {
   role: string;
 }
 
+export interface ConversationNote {
+  id: string;
+  conversation_id: string;
+  user_id: string | null;
+  user_name: string | null;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export const useChat = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +210,55 @@ export const useChat = () => {
     return data;
   }, []);
 
+  // Notes
+  const getNotes = useCallback(async (conversationId: string): Promise<ConversationNote[]> => {
+    try {
+      const data = await api<ConversationNote[]>(`/api/chat/conversations/${conversationId}/notes`);
+      return data;
+    } catch (err: any) {
+      console.error('Erro ao buscar anotações:', err);
+      return [];
+    }
+  }, []);
+
+  const createNote = useCallback(async (conversationId: string, content: string): Promise<ConversationNote | null> => {
+    try {
+      const data = await api<ConversationNote>(`/api/chat/conversations/${conversationId}/notes`, {
+        method: 'POST',
+        body: { content },
+      });
+      return data;
+    } catch (err: any) {
+      setError(err.message || 'Erro ao criar anotação');
+      return null;
+    }
+  }, []);
+
+  const updateNote = useCallback(async (conversationId: string, noteId: string, content: string): Promise<ConversationNote | null> => {
+    try {
+      const data = await api<ConversationNote>(`/api/chat/conversations/${conversationId}/notes/${noteId}`, {
+        method: 'PATCH',
+        body: { content },
+      });
+      return data;
+    } catch (err: any) {
+      setError(err.message || 'Erro ao atualizar anotação');
+      return null;
+    }
+  }, []);
+
+  const deleteNote = useCallback(async (conversationId: string, noteId: string): Promise<boolean> => {
+    try {
+      await api(`/api/chat/conversations/${conversationId}/notes/${noteId}`, {
+        method: 'DELETE',
+      });
+      return true;
+    } catch (err: any) {
+      setError(err.message || 'Erro ao excluir anotação');
+      return false;
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -222,5 +281,10 @@ export const useChat = () => {
     getTeam,
     // History sync
     syncChatHistory,
+    // Notes
+    getNotes,
+    createNote,
+    updateNote,
+    deleteNote,
   };
 };

@@ -563,4 +563,158 @@ router.post('/conversations/:id/transfer', authenticate, async (req, res) => {
   }
 });
 
+// ==========================================
+// INTERNAL NOTES
+// ==========================================
+
+// Get notes for a conversation
+router.get('/conversations/:id/notes', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Verify user has access to this conversation
+    const conv = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (conv.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const result = await query(
+      `SELECT cn.*, u.name as user_name
+       FROM conversation_notes cn
+       LEFT JOIN users u ON u.id = cn.user_id
+       WHERE cn.conversation_id = $1
+       ORDER BY cn.created_at DESC`,
+      [id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get notes error:', error);
+    res.status(500).json({ error: 'Erro ao buscar anotações' });
+  }
+});
+
+// Create note
+router.post('/conversations/:id/notes', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (!content?.trim()) {
+      return res.status(400).json({ error: 'Conteúdo é obrigatório' });
+    }
+
+    // Verify user has access to this conversation
+    const conv = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (conv.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const result = await query(
+      `INSERT INTO conversation_notes (conversation_id, user_id, content)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [id, req.userId, content.trim()]
+    );
+
+    // Get user name
+    const user = await query(`SELECT name FROM users WHERE id = $1`, [req.userId]);
+    const note = {
+      ...result.rows[0],
+      user_name: user.rows[0]?.name || null,
+    };
+
+    res.status(201).json(note);
+  } catch (error) {
+    console.error('Create note error:', error);
+    res.status(500).json({ error: 'Erro ao criar anotação' });
+  }
+});
+
+// Update note
+router.patch('/conversations/:id/notes/:noteId', authenticate, async (req, res) => {
+  try {
+    const { id, noteId } = req.params;
+    const { content } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (!content?.trim()) {
+      return res.status(400).json({ error: 'Conteúdo é obrigatório' });
+    }
+
+    // Verify user has access to this conversation
+    const conv = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (conv.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    // Only allow editing own notes
+    const result = await query(
+      `UPDATE conversation_notes 
+       SET content = $1, updated_at = NOW()
+       WHERE id = $2 AND conversation_id = $3 AND user_id = $4
+       RETURNING *`,
+      [content.trim(), noteId, id, req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Anotação não encontrada ou sem permissão' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update note error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar anotação' });
+  }
+});
+
+// Delete note
+router.delete('/conversations/:id/notes/:noteId', authenticate, async (req, res) => {
+  try {
+    const { id, noteId } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Verify user has access to this conversation
+    const conv = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (conv.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    // Only allow deleting own notes
+    const result = await query(
+      `DELETE FROM conversation_notes 
+       WHERE id = $1 AND conversation_id = $2 AND user_id = $3
+       RETURNING id`,
+      [noteId, id, req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Anotação não encontrada ou sem permissão' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete note error:', error);
+    res.status(500).json({ error: 'Erro ao excluir anotação' });
+  }
+});
+
 export default router;
