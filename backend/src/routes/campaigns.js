@@ -170,65 +170,75 @@ router.post('/', async (req, res) => {
     const pauseAfter = pause_after_messages || 20;
     const pauseDur = (pause_duration || 10) * 60; // Convert to seconds
 
-    // Helper to get current time in São Paulo timezone
-    const getSaoPauloTime = () => {
-      const now = new Date();
-      // Get São Paulo offset (UTC-3, or UTC-2 during DST)
-      const saoPauloOffset = -3 * 60; // -3 hours in minutes
-      const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
-      return new Date(utcTime + (saoPauloOffset * 60000));
+    // =========================================================
+    // Timezone handling
+    // We always store scheduled_at as UTC (ISO) in DB.
+    // Inputs (start_date/start_time) are treated as America/Sao_Paulo.
+    // Server timezone might be UTC, so we must NEVER use getHours/setHours.
+    // =========================================================
+    const SP_OFFSET_MS = -3 * 60 * 60 * 1000; // São Paulo is UTC-3 (fixed)
+
+    const toSaoPauloDate = (utcDate) => new Date(utcDate.getTime() + SP_OFFSET_MS);
+    const fromSaoPauloDate = (spDate) => new Date(spDate.getTime() - SP_OFFSET_MS);
+
+    const getTodayInSaoPaulo = () => {
+      const spNow = toSaoPauloDate(new Date());
+      return {
+        year: spNow.getUTCFullYear(),
+        month: spNow.getUTCMonth() + 1,
+        day: spNow.getUTCDate(),
+      };
     };
 
-    // Helper to create a São Paulo time from date/time strings
-    const createSaoPauloTime = (dateStr, timeStr) => {
-      const [year, month, day] = dateStr ? dateStr.split('-').map(Number) : [null, null, null];
-      const [hours, minutes] = timeStr ? timeStr.split(':').map(Number) : [0, 0];
-      
-      // Create date in São Paulo timezone
-      // São Paulo is UTC-3
-      const saoPauloOffset = -3;
-      
-      if (year && month && day) {
-        // Create ISO string for São Paulo time
-        const isoString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00.000${saoPauloOffset >= 0 ? '+' : '-'}${String(Math.abs(saoPauloOffset)).padStart(2, '0')}:00`;
-        return new Date(isoString);
+    const makeUtcFromSaoPauloLocal = (dateStr, timeStr) => {
+      const [hours, minutes] = (timeStr || '00:00').split(':').map(Number);
+
+      let year;
+      let month;
+      let day;
+
+      if (dateStr) {
+        [year, month, day] = dateStr.split('-').map(Number);
+      } else {
+        const today = getTodayInSaoPaulo();
+        year = today.year;
+        month = today.month;
+        day = today.day;
       }
-      
-      // If no date provided, use today in São Paulo
-      const now = getSaoPauloTime();
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      const isoString = `${todayStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00.000${saoPauloOffset >= 0 ? '+' : '-'}${String(Math.abs(saoPauloOffset)).padStart(2, '0')}:00`;
-      return new Date(isoString);
+
+      // Create a date as if São Paulo local were UTC, then shift back to real UTC.
+      const spAsUtcMs = Date.UTC(year, month - 1, day, hours, minutes, 0, 0);
+      return new Date(spAsUtcMs - SP_OFFSET_MS);
     };
 
-    // Determine start time
+    // Determine start time (UTC Date)
     let currentScheduleTime;
-    
+
     if (start_date && start_time) {
-      currentScheduleTime = createSaoPauloTime(start_date, start_time);
+      currentScheduleTime = makeUtcFromSaoPauloLocal(start_date, start_time);
     } else if (start_date) {
-      currentScheduleTime = createSaoPauloTime(start_date, '00:00');
+      currentScheduleTime = makeUtcFromSaoPauloLocal(start_date, '00:00');
     } else if (start_time) {
-      currentScheduleTime = createSaoPauloTime(null, start_time);
+      currentScheduleTime = makeUtcFromSaoPauloLocal(null, start_time);
     } else {
       currentScheduleTime = new Date();
     }
 
-    // Parse time bounds
+    // Parse time bounds (São Paulo clock)
     const startTimeHours = start_time ? parseInt(start_time.split(':')[0]) : 0;
     const startTimeMinutes = start_time ? parseInt(start_time.split(':')[1]) : 0;
     const endTimeHours = end_time ? parseInt(end_time.split(':')[0]) : 23;
     const endTimeMinutes = end_time ? parseInt(end_time.split(':')[1]) : 59;
 
-    // Get current time for comparison
+    // Get current time for comparison (UTC)
     const now = new Date();
-    
+
     // Only adjust if scheduled time is in the past
     if (currentScheduleTime < now) {
       if (start_time) {
-        // Try today with the specified time
-        currentScheduleTime = createSaoPauloTime(null, start_time);
-        
+        // Try today with the specified time (São Paulo)
+        currentScheduleTime = makeUtcFromSaoPauloLocal(null, start_time);
+
         // If that time already passed today, use current time
         if (currentScheduleTime < now) {
           currentScheduleTime = now;
@@ -237,14 +247,16 @@ router.post('/', async (req, res) => {
         currentScheduleTime = now;
       }
     }
-    
+
+    const scheduledStartSp = toSaoPauloDate(currentScheduleTime);
+
     console.log('Campaign scheduling:', {
       start_date,
       start_time,
       end_time,
-      scheduledStart: currentScheduleTime.toISOString(),
-      scheduledStartLocal: currentScheduleTime.toString(),
-      now: now.toISOString()
+      scheduledStartUtc: currentScheduleTime.toISOString(),
+      scheduledStartSp: `${scheduledStartSp.getUTCFullYear()}-${String(scheduledStartSp.getUTCMonth() + 1).padStart(2, '0')}-${String(scheduledStartSp.getUTCDate()).padStart(2, '0')} ${String(scheduledStartSp.getUTCHours()).padStart(2, '0')}:${String(scheduledStartSp.getUTCMinutes()).padStart(2, '0')}`,
+      nowUtc: now.toISOString(),
     });
 
     // Create campaign
@@ -292,19 +304,27 @@ router.post('/', async (req, res) => {
         assignedMessageId = allMessageIds[i % allMessageIds.length];
       }
 
-      // Check if we need to respect time bounds
-      let scheduleHour = currentScheduleTime.getHours();
-      let scheduleMinute = currentScheduleTime.getMinutes();
-      
+      // Check if we need to respect time bounds (using São Paulo clock)
+      let spTime = toSaoPauloDate(currentScheduleTime);
+      let scheduleHour = spTime.getUTCHours();
+      let scheduleMinute = spTime.getUTCMinutes();
+
       // If past end time, move to next day's start time
       if (scheduleHour > endTimeHours || (scheduleHour === endTimeHours && scheduleMinute > endTimeMinutes)) {
-        currentScheduleTime.setDate(currentScheduleTime.getDate() + 1);
-        currentScheduleTime.setHours(startTimeHours, startTimeMinutes, 0, 0);
+        spTime.setUTCDate(spTime.getUTCDate() + 1);
+        spTime.setUTCHours(startTimeHours, startTimeMinutes, 0, 0);
+        currentScheduleTime = fromSaoPauloDate(spTime);
       }
-      
+
+      // Recompute after potential day-shift
+      spTime = toSaoPauloDate(currentScheduleTime);
+      scheduleHour = spTime.getUTCHours();
+      scheduleMinute = spTime.getUTCMinutes();
+
       // If before start time, move to start time
       if (scheduleHour < startTimeHours || (scheduleHour === startTimeHours && scheduleMinute < startTimeMinutes)) {
-        currentScheduleTime.setHours(startTimeHours, startTimeMinutes, 0, 0);
+        spTime.setUTCHours(startTimeHours, startTimeMinutes, 0, 0);
+        currentScheduleTime = fromSaoPauloDate(spTime);
       }
 
       campaignMessages.push({
