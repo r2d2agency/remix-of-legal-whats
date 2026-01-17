@@ -7,10 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { TestMessageDialog } from "@/components/conexao/TestMessageDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface Connection {
   id: string;
@@ -45,6 +46,10 @@ const Conexao = () => {
   // Test message state
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testConnection, setTestConnection] = useState<Connection | null>(null);
+  
+  // Webhook diagnostic state
+  const [diagLoading, setDiagLoading] = useState<string | null>(null);
+  const [diagResults, setDiagResults] = useState<Record<string, any>>({});
 
   useEffect(() => {
     loadConnections();
@@ -184,6 +189,39 @@ const Conexao = () => {
       toast.success('Conexão excluída');
     } catch (error) {
       toast.error('Erro ao excluir conexão');
+    }
+  };
+
+  const handleWebhookDiagnostic = async (connection: Connection) => {
+    setDiagLoading(connection.id);
+    try {
+      const result = await api<any>(`/api/evolution/${connection.id}/webhook-diagnostic`);
+      setDiagResults(prev => ({ ...prev, [connection.id]: result }));
+      
+      if (result.healthy) {
+        toast.success('Webhook está saudável!');
+      } else if (result.errors?.length > 0) {
+        toast.warning(`Problemas encontrados: ${result.errors.length}`);
+      }
+    } catch (error: any) {
+      toast.error('Erro ao diagnosticar webhook');
+      setDiagResults(prev => ({ ...prev, [connection.id]: { error: error.message } }));
+    } finally {
+      setDiagLoading(null);
+    }
+  };
+
+  const handleReconfigureWebhook = async (connection: Connection) => {
+    setDiagLoading(connection.id);
+    try {
+      await api(`/api/evolution/${connection.id}/reconfigure-webhook`, { method: 'POST' });
+      toast.success('Webhook reconfigurado!');
+      // Re-run diagnostic
+      await handleWebhookDiagnostic(connection);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao reconfigurar webhook');
+    } finally {
+      setDiagLoading(null);
     }
   };
 
@@ -390,6 +428,47 @@ const Conexao = () => {
                         Conectar
                       </Button>
                     )}
+                    
+                    {/* Webhook Diagnostic */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleWebhookDiagnostic(connection)}
+                          disabled={diagLoading === connection.id}
+                        >
+                          {diagLoading === connection.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : diagResults[connection.id]?.healthy ? (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          ) : diagResults[connection.id]?.errors?.length > 0 ? (
+                            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                          ) : (
+                            <Settings2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      {diagResults[connection.id] && (
+                        <PopoverContent className="w-80">
+                          <div className="space-y-2">
+                            <h4 className="font-semibold">Diagnóstico Webhook</h4>
+                            <div className="text-xs space-y-1">
+                              <p>Status: {diagResults[connection.id].instanceStatus?.state || 'unknown'}</p>
+                              <p>URL: {diagResults[connection.id].evolutionWebhook?.url || 'Não configurado'}</p>
+                              {diagResults[connection.id].errors?.map((err: string, i: number) => (
+                                <p key={i} className="text-destructive">⚠️ {err}</p>
+                              ))}
+                            </div>
+                            {!diagResults[connection.id].healthy && (
+                              <Button size="sm" onClick={() => handleReconfigureWebhook(connection)} className="w-full mt-2">
+                                Reconfigurar Webhook
+                              </Button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      )}
+                    </Popover>
                     
                     {/* Delete button - always visible */}
                     <AlertDialog>

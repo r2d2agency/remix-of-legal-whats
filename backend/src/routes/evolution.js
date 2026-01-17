@@ -12,6 +12,7 @@ const typingStatus = new Map(); // Map<conversationId, { isTyping: boolean, time
 
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
+const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const API_BASE_URL = process.env.API_BASE_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
 
@@ -812,7 +813,168 @@ router.post('/webhook', async (req, res) => {
 // Test webhook endpoint (GET for easy testing)
 router.get('/webhook', async (req, res) => {
   console.log('Webhook test GET received');
-  res.json({ status: 'ok', message: 'Webhook endpoint is working' });
+  res.json({ status: 'ok', message: 'Webhook endpoint is working', timestamp: new Date().toISOString() });
+});
+
+// Diagnose webhook configuration for a connection
+router.get('/:connectionId/webhook-diagnostic', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    // Get connection
+    const connResult = await query(
+      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
+      [connectionId, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    const connection = connResult.rows[0];
+    const diagnostics = {
+      connection: {
+        id: connection.id,
+        name: connection.name,
+        instanceName: connection.instance_name,
+        status: connection.status,
+        webhookUrl: connection.webhook_url,
+      },
+      evolutionApi: {
+        configured: !!EVOLUTION_API_URL && !!EVOLUTION_API_KEY,
+        url: EVOLUTION_API_URL || 'NOT SET',
+      },
+      webhookBase: {
+        configured: !!WEBHOOK_BASE_URL,
+        url: WEBHOOK_BASE_URL || 'NOT SET',
+        expectedEndpoint: WEBHOOK_BASE_URL ? `${WEBHOOK_BASE_URL}/api/evolution/webhook` : 'NOT SET',
+      },
+      evolutionWebhook: null,
+      instanceStatus: null,
+      errors: [],
+    };
+
+    // Check Evolution API instance status
+    try {
+      const statusResult = await evolutionRequest(`/instance/connectionState/${connection.instance_name}`, 'GET');
+      diagnostics.instanceStatus = {
+        state: statusResult.instance?.state || 'unknown',
+        phoneNumber: statusResult.instance?.phoneNumber || null,
+      };
+    } catch (e) {
+      diagnostics.errors.push(`Instance status check failed: ${e.message}`);
+    }
+
+    // Get webhook configuration from Evolution API
+    try {
+      const webhookResult = await evolutionRequest(`/webhook/find/${connection.instance_name}`, 'GET');
+      diagnostics.evolutionWebhook = {
+        url: webhookResult.webhook?.url || webhookResult.url || null,
+        enabled: webhookResult.webhook?.enabled !== false,
+        events: webhookResult.webhook?.events || webhookResult.events || [],
+        webhookBase64: webhookResult.webhook?.webhook_base64 ?? webhookResult.webhook_base64 ?? null,
+      };
+
+      // Check if URL matches expected
+      const expectedUrl = connection.webhook_url || (WEBHOOK_BASE_URL ? `${WEBHOOK_BASE_URL}/api/evolution/webhook` : null);
+      if (expectedUrl && diagnostics.evolutionWebhook.url !== expectedUrl) {
+        diagnostics.errors.push(`Webhook URL mismatch! Evolution has: "${diagnostics.evolutionWebhook.url}", expected: "${expectedUrl}"`);
+      }
+      
+      // Check if MESSAGES_UPSERT event is enabled
+      const events = diagnostics.evolutionWebhook.events || [];
+      const hasMessageEvent = events.some(e => 
+        e.toLowerCase().includes('messages_upsert') || 
+        e.toLowerCase().includes('messages.upsert')
+      );
+      if (!hasMessageEvent && events.length > 0) {
+        diagnostics.errors.push('MESSAGES_UPSERT event not found in webhook events');
+      }
+    } catch (e) {
+      diagnostics.errors.push(`Webhook config check failed: ${e.message}`);
+    }
+
+    // Test if webhook endpoint is reachable
+    if (WEBHOOK_BASE_URL) {
+      try {
+        const testUrl = `${WEBHOOK_BASE_URL}/api/evolution/webhook`;
+        const testResponse = await fetch(testUrl, { 
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(5000)
+        });
+        diagnostics.webhookReachability = {
+          url: testUrl,
+          reachable: testResponse.ok,
+          status: testResponse.status,
+        };
+      } catch (e) {
+        diagnostics.webhookReachability = {
+          url: `${WEBHOOK_BASE_URL}/api/evolution/webhook`,
+          reachable: false,
+          error: e.message,
+        };
+        diagnostics.errors.push(`Webhook endpoint not reachable: ${e.message}`);
+      }
+    }
+
+    // Summary
+    diagnostics.healthy = diagnostics.errors.length === 0 && 
+                          diagnostics.instanceStatus?.state === 'open' &&
+                          diagnostics.evolutionWebhook?.url;
+
+    res.json(diagnostics);
+  } catch (error) {
+    console.error('Webhook diagnostic error:', error);
+    res.status(500).json({ error: 'Erro ao diagnosticar webhook', details: error.message });
+  }
+});
+
+// Reconfigure webhook for a connection
+router.post('/:connectionId/reconfigure-webhook', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const { webhookUrl: customWebhookUrl } = req.body;
+
+    // Get connection
+    const connResult = await query(
+      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
+      [connectionId, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    const connection = connResult.rows[0];
+    const webhookUrl = customWebhookUrl || connection.webhook_url || (WEBHOOK_BASE_URL ? `${WEBHOOK_BASE_URL}/api/evolution/webhook` : null);
+
+    if (!webhookUrl) {
+      return res.status(400).json({ error: 'Nenhuma URL de webhook configurada' });
+    }
+
+    // Configure webhook on Evolution API
+    const success = await configureInstanceWebhook(connection.instance_name, webhookUrl);
+
+    if (success) {
+      // Update database
+      await query(
+        'UPDATE connections SET webhook_url = $1, updated_at = NOW() WHERE id = $2',
+        [webhookUrl, connectionId]
+      );
+
+      res.json({ 
+        success: true, 
+        message: 'Webhook reconfigurado com sucesso',
+        webhookUrl 
+      });
+    } else {
+      res.status(500).json({ error: 'Falha ao reconfigurar webhook na Evolution API' });
+    }
+  } catch (error) {
+    console.error('Reconfigure webhook error:', error);
+    res.status(500).json({ error: 'Erro ao reconfigurar webhook', details: error.message });
+  }
 });
 
 // Normalize remoteJid to avoid duplicates (handles @lid, @s.whatsapp.net, @c.us)
