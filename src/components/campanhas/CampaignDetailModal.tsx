@@ -72,6 +72,46 @@ const statusConfig = {
   pending: { icon: Clock, label: "Aguardando", color: "text-yellow-500", bgColor: "bg-yellow-500/10" },
 };
 
+// Translate common error messages to Portuguese
+const translateError = (error?: string): string => {
+  if (!error) return "Erro desconhecido";
+  
+  const errorTranslations: Record<string, string> = {
+    "not a whatsapp number": "Número não é WhatsApp",
+    "number not on whatsapp": "Número não está no WhatsApp",
+    "invalid number": "Número inválido",
+    "connection closed": "Conexão fechada",
+    "timeout": "Tempo esgotado",
+    "rate limit": "Limite de envio atingido",
+    "blocked": "Número bloqueado",
+    "not found": "Número não encontrado",
+    "unauthorized": "Não autorizado",
+    "instance not connected": "Conexão não ativa",
+    "failed to send": "Falha no envio",
+    "media not found": "Mídia não encontrada",
+    "invalid media": "Mídia inválida",
+    "file too large": "Arquivo muito grande",
+    "unsupported media type": "Tipo de mídia não suportado",
+    "network error": "Erro de rede",
+    "server error": "Erro do servidor",
+  };
+
+  const lowerError = error.toLowerCase();
+  
+  for (const [key, translation] of Object.entries(errorTranslations)) {
+    if (lowerError.includes(key)) {
+      return translation;
+    }
+  }
+
+  // If no translation found, return a cleaned version
+  if (error.length > 50) {
+    return error.substring(0, 47) + "...";
+  }
+  
+  return error;
+};
+
 export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetailModalProps) {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<CampaignDetails | null>(null);
@@ -259,20 +299,19 @@ export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetai
                             </div>
                           )}
                           {msg.status === 'failed' && (
-                            <div className="text-xs">
+                            <div className="text-xs text-right">
                               <span className="text-red-500 font-medium">Falhou</span>
-                              {msg.error_message && (
-                                <div className="text-muted-foreground max-w-[150px] truncate" title={msg.error_message}>
-                                  {msg.error_message}
-                                </div>
-                              )}
+                              <div className="text-red-400 max-w-[180px]" title={msg.error_message}>
+                                {translateError(msg.error_message)}
+                              </div>
                             </div>
                           )}
                           {msg.status === 'pending' && msg.scheduled_at && (
-                            <div className="text-xs text-muted-foreground">
-                              <span className="text-yellow-500 font-medium">Agendado</span>
-                              <br />
-                              {format(new Date(msg.scheduled_at), "dd/MM HH:mm", { locale: ptBR })}
+                            <div className="text-xs text-right">
+                              <span className="text-yellow-500 font-medium">Agendado para</span>
+                              <div className="text-muted-foreground font-medium">
+                                {format(new Date(msg.scheduled_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                              </div>
                             </div>
                           )}
                           {msg.status === 'pending' && !msg.scheduled_at && (
