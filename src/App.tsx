@@ -14,6 +14,7 @@ import Mensagens from "./pages/Mensagens";
 import Campanhas from "./pages/Campanhas";
 import Cobranca from "./pages/Cobranca";
 import Organizacoes from "./pages/Organizacoes";
+import Admin from "./pages/Admin";
 import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/campanhas" element={<ProtectedRoute><Campanhas /></ProtectedRoute>} />
             <Route path="/cobranca" element={<ProtectedRoute><Cobranca /></ProtectedRoute>} />
             <Route path="/organizacoes" element={<ProtectedRoute><Organizacoes /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

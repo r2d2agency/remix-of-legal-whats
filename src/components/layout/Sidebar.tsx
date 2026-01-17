@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -10,7 +11,11 @@ import {
   Settings,
   Zap,
   Building2,
+  Shield,
 } from "lucide-react";
+import { getAuthToken } from "@/lib/api";
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -25,23 +30,48 @@ const navigation = [
 
 export function Sidebar() {
   const location = useLocation();
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
+
+  useEffect(() => {
+    checkSuperadmin();
+  }, []);
+
+  const checkSuperadmin = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+      
+      const response = await fetch(`${API_URL}/api/admin/check`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setIsSuperadmin(data.isSuperadmin);
+      }
+    } catch {
+      setIsSuperadmin(false);
+    }
+  };
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-card border-r border-border shadow-card">
       <div className="flex h-full flex-col">
         {/* Logo */}
         <div className="flex h-16 items-center gap-3 px-6 border-b border-border">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary neon-glow">
             <Zap className="h-5 w-5 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-foreground">Blaster</h1>
+            <h1 className="text-lg font-bold text-foreground">Whatsale</h1>
             <p className="text-xs text-muted-foreground">Disparo em Massa</p>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href;
             return (
@@ -60,6 +90,22 @@ export function Sidebar() {
               </Link>
             );
           })}
+
+          {/* Superadmin Link */}
+          {isSuperadmin && (
+            <Link
+              to="/admin"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 mt-4 border border-primary/30",
+                location.pathname === "/admin"
+                  ? "bg-primary/20 text-primary neon-glow"
+                  : "text-primary hover:bg-primary/10"
+              )}
+            >
+              <Shield className="h-5 w-5" />
+              Superadmin
+            </Link>
+          )}
         </nav>
 
         {/* Footer */}

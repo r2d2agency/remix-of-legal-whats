@@ -2,7 +2,7 @@ import { pool } from './db.js';
 
 const schema = `
 -- ============================================
--- BLASTER DATABASE SCHEMA (Auto-migration)
+-- WHATSALE DATABASE SCHEMA (Auto-migration)
 -- ============================================
 
 -- Users table
@@ -11,9 +11,17 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
+    is_superadmin BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add is_superadmin column if not exists (for existing databases)
+DO $$ BEGIN
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN DEFAULT false;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
 
 -- Roles enum (use DO block to handle existing type)
 DO $$ BEGIN

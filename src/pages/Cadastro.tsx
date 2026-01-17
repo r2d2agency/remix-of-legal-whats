@@ -62,14 +62,14 @@ const Cadastro = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md shadow-neon">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="bg-primary/10 p-3 rounded-full">
-              <Zap className="h-8 w-8 text-primary" />
+            <div className="gradient-primary p-3 rounded-full neon-glow">
+              <Zap className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Criar Conta</CardTitle>
+          <CardTitle className="text-2xl neon-text">Criar Conta</CardTitle>
           <CardDescription>Preencha seus dados para começar</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>

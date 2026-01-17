@@ -221,7 +221,7 @@ export default function Organizacoes() {
                     onChange={(e) => setNewOrgSlug(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Usado na URL: blaster.app/{newOrgSlug || 'slug'}
+                    Usado na URL: whatsale.app/{newOrgSlug || 'slug'}
                   </p>
                 </div>
               </div>

@@ -8,6 +8,7 @@ import contactsRoutes from './routes/contacts.js';
 import campaignsRoutes from './routes/campaigns.js';
 import organizationsRoutes from './routes/organizations.js';
 import asaasRoutes from './routes/asaas.js';
+import adminRoutes from './routes/admin.js';
 import { initDatabase } from './init-db.js';
 
 dotenv.config();
@@ -37,6 +38,7 @@ app.use('/api/contacts', contactsRoutes);
 app.use('/api/campaigns', campaignsRoutes);
 app.use('/api/organizations', organizationsRoutes);
 app.use('/api/asaas', asaasRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -46,6 +48,6 @@ app.get('/health', (req, res) => {
 // Initialize database and start server
 initDatabase().then(() => {
   app.listen(PORT, () => {
-    console.log(`🚀 Blaster API running on port ${PORT}`);
+    console.log(`🚀 Whatsale API running on port ${PORT}`);
   });
 });

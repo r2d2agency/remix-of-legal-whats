@@ -58,6 +58,10 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        neon: {
+          DEFAULT: "hsl(var(--neon-blue))",
+          glow: "hsl(var(--neon-glow))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -95,6 +99,14 @@ export default {
           from: { opacity: "0", transform: "scale(0.95)" },
           to: { opacity: "1", transform: "scale(1)" },
         },
+        "neon-pulse": {
+          "0%, 100%": { 
+            boxShadow: "0 0 10px hsl(200 100% 50% / 0.5), 0 0 20px hsl(200 100% 50% / 0.3)" 
+          },
+          "50%": { 
+            boxShadow: "0 0 15px hsl(200 100% 50% / 0.7), 0 0 30px hsl(200 100% 50% / 0.5)" 
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -102,6 +114,7 @@ export default {
         "fade-in": "fade-in 0.5s ease-out",
         "slide-up": "slide-up 0.5s ease-out",
         "scale-in": "scale-in 0.3s ease-out",
+        "neon-pulse": "neon-pulse 2s ease-in-out infinite",
       },
     },
   },
