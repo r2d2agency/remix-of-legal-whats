@@ -173,7 +173,7 @@ const Contatos = () => {
   };
 
   const handleImportContacts = async (
-    contactsToImport: { name: string; phone: string; customFields?: Record<string, string> }[]
+    contactsToImport: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[]
   ) => {
     if (!selectedList) {
       toast.error("Selecione uma lista primeiro");
@@ -183,7 +183,11 @@ const Contatos = () => {
     try {
       const count = await importContacts(
         selectedList,
-        contactsToImport.map((c) => ({ name: c.name, phone: c.phone }))
+        contactsToImport.map((c) => ({
+          name: c.name,
+          phone: c.phone,
+          is_whatsapp: c.is_whatsapp ?? null,
+        }))
       );
       toast.success(`${count} contatos importados com sucesso!`);
       loadContacts(selectedList);

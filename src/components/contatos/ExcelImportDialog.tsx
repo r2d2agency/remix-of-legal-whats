@@ -62,7 +62,7 @@ interface ColumnMapping {
 interface ExcelImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImport: (contacts: { name: string; phone: string; customFields?: Record<string, string> }[]) => Promise<void>;
+  onImport: (contacts: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[]) => Promise<void>;
   validateWhatsApp?: (phone: string) => Promise<boolean>;
   customFields?: string[];
 }
@@ -83,7 +83,7 @@ export function ExcelImportDialog({
   const [isValidatingAll, setIsValidatingAll] = useState(false);
   const [validationProgress, setValidationProgress] = useState(0);
   const [editingContact, setEditingContact] = useState<string | null>(null);
-
+  const [importOnlyValidated, setImportOnlyValidated] = useState(false);
   const resetState = () => {
     setStep("upload");
     setColumns([]);
@@ -93,6 +93,7 @@ export function ExcelImportDialog({
     setIsValidatingAll(false);
     setValidationProgress(0);
     setEditingContact(null);
+    setImportOnlyValidated(false);
   };
 
   const handleClose = () => {
@@ -333,22 +334,28 @@ export function ExcelImportDialog({
   };
 
   const handleImport = async () => {
-    const validContacts = contacts
-      .filter((c) => c.selected && (c.isValidWhatsApp === null || c.isValidWhatsApp === true))
+    const contactsToImport = contacts
+      .filter((c) => c.selected)
+      .filter((c) => {
+        if (importOnlyValidated) return c.isValidWhatsApp === true;
+        // default: allow not-yet-validated (null) and validated (true), but never invalid (false)
+        return c.isValidWhatsApp === null || c.isValidWhatsApp === true;
+      })
       .map((c) => ({
         name: c.name,
         phone: c.phone,
+        is_whatsapp: c.isValidWhatsApp,
         customFields: c.rawData,
       }));
 
-    if (validContacts.length === 0) {
-      alert("Nenhum contato válido para importar");
+    if (contactsToImport.length === 0) {
+      alert(importOnlyValidated ? "Nenhum contato validado para importar" : "Nenhum contato válido para importar");
       return;
     }
 
     setIsImporting(true);
     try {
-      await onImport(validContacts);
+      await onImport(contactsToImport);
       handleClose();
     } catch (error) {
       console.error("Import error:", error);
@@ -362,6 +369,7 @@ export function ExcelImportDialog({
   const validCount = contacts.filter((c) => c.selected && c.isValidWhatsApp === true).length;
   const invalidCount = contacts.filter((c) => c.selected && c.isValidWhatsApp === false).length;
   const pendingCount = contacts.filter((c) => c.selected && c.isValidWhatsApp === null).length;
+  const importCount = importOnlyValidated ? validCount : selectedCount;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -511,24 +519,37 @@ export function ExcelImportDialog({
                 )}
                 <div className="flex-1" />
                 {validateWhatsApp && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={validateAllContacts}
-                    disabled={isValidatingAll}
-                  >
-                    {isValidatingAll ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Validando...
-                      </>
-                    ) : (
-                      <>
-                        <Phone className="h-4 w-4 mr-2" />
-                        Validar WhatsApp
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="import-only-validated"
+                        checked={importOnlyValidated}
+                        onCheckedChange={(v) => setImportOnlyValidated(v === true)}
+                      />
+                      <Label htmlFor="import-only-validated" className="text-sm text-muted-foreground">
+                        Importar só validados
+                      </Label>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={validateAllContacts}
+                      disabled={isValidatingAll}
+                    >
+                      {isValidatingAll ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          Validando...
+                        </>
+                      ) : (
+                        <>
+                          <Phone className="h-4 w-4 mr-2" />
+                          Validar WhatsApp
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 )}
               </div>
 
@@ -646,7 +667,7 @@ export function ExcelImportDialog({
                 <Button
                   variant="gradient"
                   onClick={handleImport}
-                  disabled={isImporting || selectedCount === 0}
+                  disabled={isImporting || importCount === 0}
                 >
                   {isImporting ? (
                     <>
@@ -656,7 +677,7 @@ export function ExcelImportDialog({
                   ) : (
                     <>
                       <Upload className="h-4 w-4 mr-2" />
-                      Importar {selectedCount} Contatos
+                      Importar {importCount} {importOnlyValidated ? "Validados" : "Contatos"}
                     </>
                   )}
                 </Button>

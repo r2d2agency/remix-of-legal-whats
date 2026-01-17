@@ -97,7 +97,7 @@ router.get('/lists/:listId/contacts', async (req, res) => {
 router.post('/lists/:listId/contacts', async (req, res) => {
   try {
     const { listId } = req.params;
-    const { name, phone } = req.body;
+    const { name, phone, is_whatsapp } = req.body;
 
     if (!name || !phone) {
       return res.status(400).json({ error: 'Nome e telefone são obrigatórios' });
@@ -114,8 +114,8 @@ router.post('/lists/:listId/contacts', async (req, res) => {
     }
 
     const result = await query(
-      'INSERT INTO contacts (list_id, name, phone) VALUES ($1, $2, $3) RETURNING *',
-      [listId, name, phone]
+      'INSERT INTO contacts (list_id, name, phone, is_whatsapp) VALUES ($1, $2, $3, $4) RETURNING *',
+      [listId, name, phone, typeof is_whatsapp === 'boolean' ? is_whatsapp : null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -145,19 +145,82 @@ router.post('/lists/:listId/import', async (req, res) => {
       return res.status(404).json({ error: 'Lista não encontrada' });
     }
 
+    const normalized = contacts.map((c) => ({
+      name: String(c?.name || '').trim(),
+      phone: String(c?.phone || '').trim(),
+      is_whatsapp: typeof c?.is_whatsapp === 'boolean' ? c.is_whatsapp : null,
+    })).filter((c) => c.name && c.phone);
+
+    if (normalized.length === 0) {
+      return res.status(400).json({ error: 'Lista de contatos inválida' });
+    }
+
     // Insert contacts in batch
-    const values = contacts.map((c, i) => `($1, $${i * 2 + 2}, $${i * 2 + 3})`).join(', ');
-    const params = [listId, ...contacts.flatMap(c => [c.name, c.phone])];
+    const values = normalized.map((c, i) => `($1, $${i * 3 + 2}, $${i * 3 + 3}, $${i * 3 + 4})`).join(', ');
+    const params = [listId, ...normalized.flatMap((c) => [c.name, c.phone, c.is_whatsapp])];
 
     await query(
-      `INSERT INTO contacts (list_id, name, phone) VALUES ${values}`,
+      `INSERT INTO contacts (list_id, name, phone, is_whatsapp) VALUES ${values}`,
       params
     );
 
-    res.json({ success: true, imported: contacts.length });
+    res.json({ success: true, imported: normalized.length });
   } catch (error) {
     console.error('Import contacts error:', error);
     res.status(500).json({ error: 'Erro ao importar contatos' });
+  }
+});
+
+// Update contact (name/phone/whatsapp status)
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, phone, is_whatsapp } = req.body;
+
+    const sets = [];
+    const params = [];
+    let idx = 1;
+
+    if (typeof name === 'string') {
+      sets.push(`name = $${idx++}`);
+      params.push(name);
+    }
+
+    if (typeof phone === 'string') {
+      sets.push(`phone = $${idx++}`);
+      params.push(phone);
+    }
+
+    if (typeof is_whatsapp === 'boolean') {
+      sets.push(`is_whatsapp = $${idx++}`);
+      params.push(is_whatsapp);
+    }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+    }
+
+    params.push(id);
+    params.push(req.userId);
+
+    const result = await query(
+      `UPDATE contacts
+       SET ${sets.join(', ')}
+       WHERE id = $${idx} AND list_id IN (
+         SELECT id FROM contact_lists WHERE user_id = $${idx + 1}
+       )
+       RETURNING *`,
+      params
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contato não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update contact error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar contato' });
   }
 });
 

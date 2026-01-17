@@ -104,7 +104,7 @@ export const useContacts = () => {
     }
   }, []);
 
-  const importContacts = useCallback(async (listId: string, contacts: { name: string; phone: string }[]): Promise<number> => {
+  const importContacts = useCallback(async (listId: string, contacts: { name: string; phone: string; is_whatsapp?: boolean | null }[]): Promise<number> => {
     setLoading(true);
     setError(null);
     try {

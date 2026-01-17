@@ -196,6 +196,13 @@ CREATE TABLE IF NOT EXISTS contacts (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- WhatsApp validation status (nullable)
+DO $$ BEGIN
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_whatsapp BOOLEAN;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
 -- Message Templates
 CREATE TABLE IF NOT EXISTS message_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
