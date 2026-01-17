@@ -127,6 +127,11 @@ const ContatosChat = () => {
   const [showChatImportDialog, setShowChatImportDialog] = useState(false);
   const [showExcelDialog, setShowExcelDialog] = useState(false);
   const [selectedConnectionForImport, setSelectedConnectionForImport] = useState("");
+  
+  // Multi-select for bulk delete
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [deletingBulk, setDeletingBulk] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -439,6 +444,50 @@ const ContatosChat = () => {
     }
   };
 
+  // Toggle single contact selection
+  const toggleContactSelection = (contactId: string) => {
+    setSelectedContactIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(contactId)) {
+        newSet.delete(contactId);
+      } else {
+        newSet.add(contactId);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle select all
+  const toggleSelectAll = () => {
+    if (selectedContactIds.size === filteredChatContacts.length) {
+      setSelectedContactIds(new Set());
+    } else {
+      setSelectedContactIds(new Set(filteredChatContacts.map(c => c.id)));
+    }
+  };
+
+  // Bulk delete contacts
+  const handleBulkDelete = async () => {
+    if (selectedContactIds.size === 0) return;
+
+    setDeletingBulk(true);
+    try {
+      await api("/api/chat/contacts/bulk-delete", {
+        method: "POST",
+        body: { contact_ids: Array.from(selectedContactIds) },
+      });
+      
+      toast.success(`${selectedContactIds.size} contato(s) excluído(s) da agenda`);
+      setSelectedContactIds(new Set());
+      setShowBulkDeleteDialog(false);
+      loadData();
+    } catch (err) {
+      toast.error("Erro ao excluir contatos");
+    } finally {
+      setDeletingBulk(false);
+    }
+  };
+
   const getInitials = (name: string, phone: string) => {
     if (name) {
       return name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
@@ -590,9 +639,21 @@ const ContatosChat = () => {
             {/* Contacts List */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">
-                  Contatos ({filteredChatContacts.length})
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">
+                    Contatos ({filteredChatContacts.length})
+                  </CardTitle>
+                  {selectedContactIds.size > 0 && (
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => setShowBulkDeleteDialog(true)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir {selectedContactIds.size} selecionado(s)
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {loading ? (
@@ -605,18 +666,39 @@ const ContatosChat = () => {
                     <p>Nenhum contato encontrado</p>
                   </div>
                 ) : (
-                  <ScrollArea className="h-[400px]">
-                    <div className="space-y-2">
-                      {filteredChatContacts.map((contact) => (
-                        <div
-                          key={contact.id}
-                          className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/30 transition-colors group"
-                        >
-                          <Avatar className="h-12 w-12">
-                            <AvatarFallback className="bg-primary/10 text-primary">
-                              {getInitials(contact.name, contact.phone)}
-                            </AvatarFallback>
-                          </Avatar>
+                  <>
+                    {/* Select All */}
+                    <div className="flex items-center gap-3 mb-4 p-3 bg-muted/50 rounded-lg">
+                      <Checkbox
+                        id="select-all"
+                        checked={selectedContactIds.size === filteredChatContacts.length && filteredChatContacts.length > 0}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                      <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                        Selecionar todos ({filteredChatContacts.length})
+                      </label>
+                    </div>
+                    
+                    <ScrollArea className="h-[400px]">
+                      <div className="space-y-2">
+                        {filteredChatContacts.map((contact) => (
+                          <div
+                            key={contact.id}
+                            className={cn(
+                              "flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/30 transition-colors group",
+                              selectedContactIds.has(contact.id) && "bg-primary/5 border-primary/30"
+                            )}
+                          >
+                            <Checkbox
+                              checked={selectedContactIds.has(contact.id)}
+                              onCheckedChange={() => toggleContactSelection(contact.id)}
+                            />
+                            
+                            <Avatar className="h-12 w-12">
+                              <AvatarFallback className="bg-primary/10 text-primary">
+                                {getInitials(contact.name, contact.phone)}
+                              </AvatarFallback>
+                            </Avatar>
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
@@ -666,12 +748,52 @@ const ContatosChat = () => {
                             </Button>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </>
                 )}
               </CardContent>
             </Card>
+
+            {/* Bulk Delete Confirmation Dialog */}
+            <Dialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirmar exclusão</DialogTitle>
+                  <DialogDescription>
+                    Tem certeza que deseja excluir {selectedContactIds.size} contato(s) da agenda?
+                    Esta ação não pode ser desfeita.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowBulkDeleteDialog(false)}
+                    disabled={deletingBulk}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleBulkDelete}
+                    disabled={deletingBulk}
+                  >
+                    {deletingBulk ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Excluindo...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Excluir {selectedContactIds.size} contato(s)
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* Contact Lists Tab */}

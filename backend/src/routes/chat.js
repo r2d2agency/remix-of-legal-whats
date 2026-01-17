@@ -1758,6 +1758,34 @@ router.delete('/contacts/:id', authenticate, async (req, res) => {
   }
 });
 
+// Bulk delete contacts from agenda
+router.post('/contacts/bulk-delete', authenticate, async (req, res) => {
+  try {
+    const { contact_ids } = req.body;
+
+    if (!Array.isArray(contact_ids) || contact_ids.length === 0) {
+      return res.status(400).json({ error: 'Nenhum contato selecionado' });
+    }
+
+    const connectionIds = await getUserConnections(req.userId);
+
+    const result = await query(
+      `DELETE FROM chat_contacts 
+       WHERE id = ANY($1) AND connection_id = ANY($2)
+       RETURNING id`,
+      [contact_ids, connectionIds]
+    );
+
+    res.json({ 
+      success: true, 
+      deleted: result.rows.length 
+    });
+  } catch (error) {
+    console.error('Bulk delete chat contacts error:', error);
+    res.status(500).json({ error: 'Erro ao excluir contatos' });
+  }
+});
+
 // ==========================================
 // CREATE NEW CONVERSATION
 // ==========================================
