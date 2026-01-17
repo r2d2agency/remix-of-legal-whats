@@ -998,8 +998,10 @@ async function handleMessageUpsert(connection, data) {
     // For fromMe messages: also check if there's a pending optimistic message waiting for this confirmation
     // Match by conversation, from_me, same type, and recent timestamp (within 60 seconds)
     if (!existingRow && fromMe) {
+      // For outgoing messages from our system: look for a pending optimistic message
+      // that was saved before Evolution confirmed. Match by conversation + content/type + recent time.
       const pendingMsg = await query(
-        `SELECT id, media_url, message_type, media_mimetype, status, message_id
+        `SELECT id, media_url, message_type, media_mimetype, status, message_id, content
          FROM chat_messages 
          WHERE conversation_id = $1 
            AND from_me = true 
@@ -1019,8 +1021,15 @@ async function handleMessageUpsert(connection, data) {
         );
         console.log('Webhook: Linked pending optimistic message to Evolution ID:', messageId);
 
+        // Mark as existing so we don't insert a duplicate
         existingRow = { ...pendingMsg.rows[0], message_id: messageId, status: 'sent' };
       }
+    }
+
+    // For incoming messages (fromMe=false), check if we somehow already have this exact message_id
+    // This should only happen if webhook is called twice
+    if (!existingRow && !fromMe) {
+      // Already checked at line ~991, so nothing to do here - proceed to insert
     }
 
     if (existingRow) {
@@ -1157,27 +1166,32 @@ async function handleMessageUpsert(connection, data) {
       : new Date();
 
     // Insert message
-    await query(
-      `INSERT INTO chat_messages 
-        (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [
-        conversationId,
-        messageId,
-        fromMe,
-        content,
-        messageType,
-        mediaUrl,
-        mediaMimetype,
-        quotedMessageId,
-        fromMe ? 'sent' : 'received',
-        timestamp
-      ]
-    );
+    try {
+      await query(
+        `INSERT INTO chat_messages 
+          (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, status, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          conversationId,
+          messageId,
+          fromMe,
+          content,
+          messageType,
+          mediaUrl,
+          mediaMimetype,
+          quotedMessageId,
+          fromMe ? 'sent' : 'received',
+          timestamp
+        ]
+      );
 
-    console.log('Webhook: Message saved:', messageId, 'Type:', messageType, 'FromMe:', fromMe, 'MediaUrl:', mediaUrl);
+      console.log('Webhook: Message saved:', messageId, 'Type:', messageType, 'FromMe:', fromMe, 'Content:', content?.substring(0, 50));
+    } catch (insertError) {
+      console.error('Webhook: Insert message failed:', insertError.message, 'MessageId:', messageId);
+      throw insertError;
+    }
   } catch (error) {
-    console.error('Handle message upsert error:', error);
+    console.error('Handle message upsert error:', error.message);
   }
 }
 

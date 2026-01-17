@@ -484,6 +484,11 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add unique index on message_id to prevent duplicates (excludes temp_ messages)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_message_id 
+  ON chat_messages (message_id) 
+  WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%';
+
 -- Backward compatibility: if older DB has quoted_message_id as VARCHAR, convert to UUID
 DO $$
 BEGIN
