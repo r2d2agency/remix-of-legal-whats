@@ -52,6 +52,7 @@ import {
   PenLine,
   Play,
   Pause,
+  Zap,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -60,6 +61,7 @@ import { ChatMessage, Conversation, ConversationTag, TeamMember } from "@/hooks/
 import { useUpload } from "@/hooks/use-upload";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { QuickRepliesPanel } from "./QuickRepliesPanel";
 
 interface ChatAreaProps {
   conversation: Conversation | null;
@@ -128,6 +130,7 @@ export function ChatArea({
     const saved = localStorage.getItem('chat-sign-messages');
     return saved === 'true';
   });
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -236,7 +239,9 @@ export function ChatArea({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div className="flex-1 flex h-full">
+      {/* Main chat area */}
+      <div className="flex-1 flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-card">
         <div className="flex items-center gap-3">
@@ -542,6 +547,17 @@ export function ChatArea({
             onChange={handleFileSelect}
           />
 
+          {/* Quick Replies button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 flex-shrink-0"
+            onClick={() => setShowQuickReplies(!showQuickReplies)}
+            title="Respostas rápidas"
+          >
+            <Zap className="h-5 w-5" />
+          </Button>
+
           {/* Attachment button */}
           <Button
             variant="ghost"
@@ -701,6 +717,20 @@ export function ChatArea({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
+
+      {/* Quick Replies Panel */}
+      {showQuickReplies && (
+        <QuickRepliesPanel
+          onSelect={(content) => {
+            // Replace {{nome}} with contact name
+            const contactName = conversation?.contact_name || '';
+            const processedContent = content.replace(/\{\{nome\}\}/gi, contactName);
+            setMessageText(processedContent);
+          }}
+          onClose={() => setShowQuickReplies(false)}
+        />
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import uploadsRoutes from './routes/uploads.js';
 import notificationsRoutes from './routes/notifications.js';
 import evolutionRoutes from './routes/evolution.js';
 import chatRoutes from './routes/chat.js';
+import quickRepliesRoutes from './routes/quick-replies.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -87,6 +88,7 @@ app.use('/api/uploads', uploadsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/evolution', evolutionRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/quick-replies', quickRepliesRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
