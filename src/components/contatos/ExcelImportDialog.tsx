@@ -222,21 +222,24 @@ export function ExcelImportDialog({
   const validateSingleContact = async (contactId: string) => {
     if (!validateWhatsApp) return;
 
+    // Normalize phone before validating
     setContacts((prev) =>
       prev.map((c) =>
-        c.id === contactId ? { ...c, isValidating: true } : c
+        c.id === contactId ? { ...c, phone: normalizePhone(c.phone), isValidating: true } : c
       )
     );
 
     const contact = contacts.find((c) => c.id === contactId);
     if (!contact) return;
 
+    const normalizedPhone = normalizePhone(contact.phone);
+
     try {
-      const isValid = await validateWhatsApp(contact.phone);
+      const isValid = await validateWhatsApp(normalizedPhone);
       setContacts((prev) =>
         prev.map((c) =>
           c.id === contactId
-            ? { ...c, isValidWhatsApp: isValid, isValidating: false }
+            ? { ...c, phone: normalizedPhone, isValidWhatsApp: isValid, isValidating: false }
             : c
         )
       );
@@ -244,7 +247,7 @@ export function ExcelImportDialog({
       setContacts((prev) =>
         prev.map((c) =>
           c.id === contactId
-            ? { ...c, isValidWhatsApp: false, isValidating: false }
+            ? { ...c, phone: normalizedPhone, isValidWhatsApp: false, isValidating: false }
             : c
         )
       );
@@ -257,22 +260,31 @@ export function ExcelImportDialog({
     setIsValidatingAll(true);
     setValidationProgress(0);
 
+    // First normalize all phones
+    setContacts((prev) =>
+      prev.map((c) =>
+        c.selected ? { ...c, phone: normalizePhone(c.phone) } : c
+      )
+    );
+
     const selectedContacts = contacts.filter((c) => c.selected);
     let validated = 0;
 
     for (const contact of selectedContacts) {
+      const normalizedPhone = normalizePhone(contact.phone);
+      
       setContacts((prev) =>
         prev.map((c) =>
-          c.id === contact.id ? { ...c, isValidating: true } : c
+          c.id === contact.id ? { ...c, phone: normalizedPhone, isValidating: true } : c
         )
       );
 
       try {
-        const isValid = await validateWhatsApp(contact.phone);
+        const isValid = await validateWhatsApp(normalizedPhone);
         setContacts((prev) =>
           prev.map((c) =>
             c.id === contact.id
-              ? { ...c, isValidWhatsApp: isValid, isValidating: false }
+              ? { ...c, phone: normalizedPhone, isValidWhatsApp: isValid, isValidating: false }
               : c
           )
         );
@@ -280,7 +292,7 @@ export function ExcelImportDialog({
         setContacts((prev) =>
           prev.map((c) =>
             c.id === contact.id
-              ? { ...c, isValidWhatsApp: false, isValidating: false }
+              ? { ...c, phone: normalizedPhone, isValidWhatsApp: false, isValidating: false }
               : c
           )
         );
