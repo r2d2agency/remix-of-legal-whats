@@ -53,6 +53,7 @@ import {
   Play,
   Pause,
   Zap,
+  StickyNote,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -62,6 +63,7 @@ import { useUpload } from "@/hooks/use-upload";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { QuickRepliesPanel } from "./QuickRepliesPanel";
+import { NotesPanel } from "./NotesPanel";
 
 interface ChatAreaProps {
   conversation: Conversation | null;
@@ -131,6 +133,7 @@ export function ChatArea({
     return saved === 'true';
   });
   const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -362,6 +365,11 @@ export function ChatArea({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowNotes(!showNotes)}>
+                <StickyNote className="h-4 w-4 mr-2" />
+                Anotações internas
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
                 <ArrowLeftRight className="h-4 w-4 mr-2" />
                 Transferir atendimento
@@ -729,6 +737,14 @@ export function ChatArea({
             setMessageText(processedContent);
           }}
           onClose={() => setShowQuickReplies(false)}
+        />
+      )}
+
+      {/* Notes Panel */}
+      {showNotes && conversation && (
+        <NotesPanel
+          conversationId={conversation.id}
+          onClose={() => setShowNotes(false)}
         />
       )}
     </div>
