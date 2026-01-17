@@ -144,15 +144,36 @@ async function sendEvolutionMessage(connection, phone, messageItems, contact) {
 
 // Execute pending campaign messages
 export async function executeCampaignMessages() {
-  console.log('📤 [CAMPAIGN] Checking for pending campaign messages...');
-  
   const stats = {
     processed: 0,
     sent: 0,
     failed: 0,
+    campaignsStarted: 0,
   };
 
   try {
+    // First, auto-start campaigns that have pending messages with scheduled_at <= NOW()
+    // and campaign status is 'pending' (scheduled but not started)
+    const campaignsToStart = await query(`
+      SELECT DISTINCT c.id, c.name
+      FROM campaigns c
+      JOIN campaign_messages cm ON cm.campaign_id = c.id
+      WHERE c.status = 'pending'
+        AND cm.status = 'pending'
+        AND cm.scheduled_at <= NOW()
+    `);
+
+    if (campaignsToStart.rows.length > 0) {
+      for (const campaign of campaignsToStart.rows) {
+        await query(
+          `UPDATE campaigns SET status = 'running', updated_at = NOW() WHERE id = $1`,
+          [campaign.id]
+        );
+        stats.campaignsStarted++;
+        console.log(`📤 [CAMPAIGN] Auto-started campaign: ${campaign.name}`);
+      }
+    }
+
     // Get pending messages that should be sent now (scheduled_at <= now)
     // Include contact data for variable replacement
     const pendingMessages = await query(`
@@ -189,7 +210,9 @@ export async function executeCampaignMessages() {
     `);
 
     if (pendingMessages.rows.length === 0) {
-      console.log('📤 [CAMPAIGN] No pending messages to send.');
+      if (stats.campaignsStarted > 0) {
+        console.log(`📤 [CAMPAIGN] ${stats.campaignsStarted} campaign(s) started, processing on next cycle.`);
+      }
       return stats;
     }
 
