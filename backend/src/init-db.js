@@ -569,6 +569,21 @@ CREATE TABLE IF NOT EXISTS user_alerts (
     is_read BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Chat Contacts (agenda de contatos para chat - não campanhas)
+CREATE TABLE IF NOT EXISTS chat_contacts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    connection_id UUID REFERENCES connections(id) ON DELETE CASCADE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50) NOT NULL,
+    jid VARCHAR(100),
+    profile_picture_url TEXT,
+    push_name VARCHAR(255),
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (connection_id, phone)
+);
 `;
 
 // ============================================
@@ -628,6 +643,8 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_messages_status_time ON scheduled_messa
 CREATE INDEX IF NOT EXISTS idx_quick_replies_org ON quick_replies(organization_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_quick_replies_shortcut_org ON quick_replies(organization_id, shortcut) WHERE shortcut IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_user_alerts_user_unread ON user_alerts(user_id, is_read) WHERE is_read = false;
+CREATE INDEX IF NOT EXISTS idx_chat_contacts_conn ON chat_contacts(connection_id);
+CREATE INDEX IF NOT EXISTS idx_chat_contacts_phone ON chat_contacts(phone);
 `;
 
 

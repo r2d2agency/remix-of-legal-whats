@@ -41,7 +41,6 @@ import {
   Search,
   Trash2,
   Upload,
-  User,
   Users,
   XCircle,
 } from "lucide-react";
@@ -53,13 +52,13 @@ import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
 
 interface ChatContact {
   id: string;
-  conversation_id: string;
-  contact_name: string | null;
-  contact_phone: string;
+  name: string;
+  phone: string;
+  jid: string | null;
   connection_id: string;
   connection_name: string;
-  last_message_at: string | null;
-  unread_count: number;
+  has_conversation: boolean;
+  created_at: string;
 }
 
 interface Connection {
@@ -188,7 +187,7 @@ const ContatosChat = () => {
   // Chat contact handlers
   const handleEdit = (contact: ChatContact) => {
     setSelectedContact(contact);
-    setEditName(contact.contact_name || "");
+    setEditName(contact.name || "");
     setEditDialogOpen(true);
   };
 
@@ -197,9 +196,10 @@ const ContatosChat = () => {
 
     setSaving(true);
     try {
-      await api(`/api/chat/conversations/${selectedContact.conversation_id}/contact`, {
+      // Update contact in agenda
+      await api(`/api/chat/contacts/${selectedContact.id}`, {
         method: "PATCH",
-        body: { contact_name: editName.trim() || null },
+        body: { name: editName.trim() || selectedContact.phone },
       });
       toast.success("Contato atualizado");
       setEditDialogOpen(false);
@@ -209,10 +209,6 @@ const ContatosChat = () => {
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleOpenConversation = (contact: ChatContact) => {
-    navigate(`/chat?conversation=${contact.conversation_id}`);
   };
 
   // List handlers
@@ -374,7 +370,7 @@ const ContatosChat = () => {
     }
   };
 
-  // Import chat contacts from Excel
+  // Import chat contacts from Excel (to agenda, not conversations)
   const handleImportChatContacts = async (contacts: { name: string; phone: string }[]) => {
     if (!selectedConnectionForImport) {
       toast.error("Selecione uma conexão para importar");
@@ -383,7 +379,7 @@ const ContatosChat = () => {
 
     try {
       const result = await api<{ imported: number; duplicates: number }>(
-        "/api/chat/conversations/import",
+        "/api/chat/contacts/import",
         {
           method: "POST",
           body: {
@@ -396,7 +392,7 @@ const ContatosChat = () => {
         }
       );
 
-      let description = `${result.imported} contatos importados`;
+      let description = `${result.imported} contatos importados para a agenda`;
       if (result.duplicates) description += `, ${result.duplicates} já existiam`;
 
       toast.success("Importação concluída!", { description });
@@ -409,7 +405,41 @@ const ContatosChat = () => {
     }
   };
 
-  const getInitials = (name: string | null, phone: string) => {
+  // Start conversation with a contact from agenda
+  const handleStartConversation = async (contact: ChatContact) => {
+    try {
+      const result = await api<{ id: string; existed: boolean }>(
+        "/api/chat/conversations",
+        {
+          method: "POST",
+          body: {
+            connection_id: contact.connection_id,
+            contact_phone: contact.phone,
+            contact_name: contact.name,
+          },
+        }
+      );
+      
+      navigate(`/chat?conversation=${result.id}`);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao iniciar conversa");
+    }
+  };
+
+  // Delete contact from agenda
+  const handleDeleteChatContact = async (contactId: string) => {
+    if (!confirm("Tem certeza que deseja excluir este contato da agenda?")) return;
+
+    try {
+      await api(`/api/chat/contacts/${contactId}`, { method: "DELETE" });
+      toast.success("Contato excluído da agenda");
+      loadData();
+    } catch (err) {
+      toast.error("Erro ao excluir contato");
+    }
+  };
+
+  const getInitials = (name: string, phone: string) => {
     if (name) {
       return name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
     }
@@ -418,11 +448,12 @@ const ContatosChat = () => {
 
   const filteredChatContacts = chatContacts.filter(contact => {
     const matchesSearch = !search || 
-      contact.contact_name?.toLowerCase().includes(search.toLowerCase()) ||
-      contact.contact_phone.includes(search);
+      contact.name?.toLowerCase().includes(search.toLowerCase()) ||
+      contact.phone.includes(search);
     const matchesConnection = connectionFilter === "all" || contact.connection_id === connectionFilter;
     return matchesSearch && matchesConnection;
   });
+
 
   return (
     <MainLayout>
@@ -499,7 +530,7 @@ const ContatosChat = () => {
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
-                              Os contatos serão importados como conversas nesta conexão
+                              Os contatos serão salvos na agenda. Para iniciar uma conversa, clique no contato.
                             </p>
                           </div>
                         </div>
@@ -583,17 +614,24 @@ const ContatosChat = () => {
                         >
                           <Avatar className="h-12 w-12">
                             <AvatarFallback className="bg-primary/10 text-primary">
-                              {getInitials(contact.contact_name, contact.contact_phone)}
+                              {getInitials(contact.name, contact.phone)}
                             </AvatarFallback>
                           </Avatar>
 
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">
-                              {contact.contact_name || "Sem nome"}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium truncate">
+                                {contact.name || "Sem nome"}
+                              </p>
+                              {contact.has_conversation && (
+                                <Badge variant="outline" className="text-xs">
+                                  Conversa ativa
+                                </Badge>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Phone className="h-3 w-3" />
-                              <span>{contact.contact_phone}</span>
+                              <span>{contact.phone}</span>
                             </div>
                             <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
                               {contact.connection_name}
@@ -612,10 +650,19 @@ const ContatosChat = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleOpenConversation(contact)}
-                              title="Abrir conversa"
+                              onClick={() => handleStartConversation(contact)}
+                              title="Iniciar conversa"
                             >
                               <MessageSquare className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteChatContact(contact.id)}
+                              title="Excluir da agenda"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
@@ -719,7 +766,7 @@ const ContatosChat = () => {
                                 <p className="font-medium text-sm truncate">{list.name}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                   <Badge variant="secondary" className="text-xs">
-                                    <User className="h-3 w-3 mr-1" />
+                                    <Users className="h-3 w-3 mr-1" />
                                     {list.contact_count}
                                   </Badge>
                                   {list.connection_name && (
@@ -954,7 +1001,7 @@ const ContatosChat = () => {
           <div className="space-y-4 py-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground">Telefone</label>
-              <p className="text-sm mt-1">{selectedContact?.contact_phone}</p>
+              <p className="text-sm mt-1">{selectedContact?.phone}</p>
             </div>
             <div>
               <label className="text-sm font-medium">Nome</label>

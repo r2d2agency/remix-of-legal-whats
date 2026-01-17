@@ -75,7 +75,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       return res.json([]);
     }
 
-    const { search, tag, assigned, archived, connection } = req.query;
+    const { search, tag, assigned, archived, connection, includeEmpty } = req.query;
     
     let sql = `
       SELECT 
@@ -100,6 +100,11 @@ router.get('/conversations', authenticate, async (req, res) => {
     
     const params = [connectionIds];
     let paramIndex = 2;
+
+    // IMPORTANT: Only show conversations with messages (unless explicitly requested)
+    if (includeEmpty !== 'true') {
+      sql += ` AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)`;
+    }
 
     // Filter by archived status
     if (archived === 'true') {
@@ -1565,10 +1570,10 @@ router.post('/alerts/read-all', authenticate, async (req, res) => {
 });
 
 // ==========================================
-// IMPORT CONTACTS (create conversations in bulk)
+// IMPORT CONTACTS TO AGENDA (chat_contacts - not conversations)
 // ==========================================
 
-router.post('/conversations/import', authenticate, async (req, res) => {
+router.post('/contacts/import', authenticate, async (req, res) => {
   try {
     const { contacts, connection_id } = req.body;
 
@@ -1587,7 +1592,7 @@ router.post('/conversations/import', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Sem acesso a esta conexão' });
     }
 
-    // Check if connection exists and is active
+    // Check if connection exists
     const connResult = await query(
       `SELECT id, status, instance_name FROM connections WHERE id = $1`,
       [connection_id]
@@ -1612,70 +1617,144 @@ router.post('/conversations/import', authenticate, async (req, res) => {
       // Normalize phone number
       let normalizedPhone = phone.replace(/\D/g, '');
       
-      // Remove country code 55 if present for comparison, then add it back
-      let phoneWithoutCountry = normalizedPhone;
-      if (normalizedPhone.startsWith('55') && normalizedPhone.length > 11) {
-        phoneWithoutCountry = normalizedPhone.substring(2);
-      }
-      
       // Ensure country code
-      if (!normalizedPhone.startsWith('55')) {
+      if (!normalizedPhone.startsWith('55') && normalizedPhone.length <= 11) {
         normalizedPhone = '55' + normalizedPhone;
       }
 
-      // Generate remote JID
-      const remoteJid = `${normalizedPhone}@s.whatsapp.net`;
-      const remoteJidLid = `${normalizedPhone}@lid`;
+      // Generate JID
+      const jid = `${normalizedPhone}@s.whatsapp.net`;
 
-      // Check if conversation already exists
-      const existingConv = await query(
-        `SELECT id FROM conversations 
-         WHERE connection_id = $1 AND (
-           remote_jid = $2 OR 
-           remote_jid = $3 OR 
-           remote_jid LIKE $4 OR
-           contact_phone = $5 OR 
-           contact_phone = $6
-         )
-         LIMIT 1`,
-        [
-          connection_id, 
-          remoteJid, 
-          remoteJidLid,
-          `%${phoneWithoutCountry}@%`,
-          normalizedPhone, 
-          phoneWithoutCountry
-        ]
-      );
+      try {
+        // Insert or update contact in agenda
+        const result = await query(
+          `INSERT INTO chat_contacts 
+            (connection_id, name, phone, jid, created_by, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+           ON CONFLICT (connection_id, phone) 
+           DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
+           RETURNING id, (xmax = 0) as is_new`,
+          [connection_id, name || normalizedPhone, normalizedPhone, jid, req.userId]
+        );
 
-      if (existingConv.rows.length > 0) {
-        // Update contact name if provided
-        if (name) {
-          await query(
-            `UPDATE conversations SET contact_name = $1, updated_at = NOW() 
-             WHERE id = $2 AND (contact_name IS NULL OR contact_name = contact_phone OR contact_name = '')`,
-            [name, existingConv.rows[0].id]
-          );
+        if (result.rows[0].is_new) {
+          imported++;
+        } else {
+          duplicates++;
         }
-        duplicates++;
-        continue;
+      } catch (err) {
+        errors.push(`Erro ao importar ${name || phone}: ${err.message}`);
       }
-
-      // Create new conversation
-      await query(
-        `INSERT INTO conversations 
-          (connection_id, remote_jid, contact_phone, contact_name, assigned_to, is_archived, unread_count, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, false, 0, NOW(), NOW())`,
-        [connection_id, remoteJid, normalizedPhone, name || normalizedPhone, req.userId]
-      );
-
-      imported++;
     }
 
     res.json({ imported, duplicates, errors: errors.slice(0, 10) });
   } catch (error) {
     console.error('Import contacts error:', error);
     res.status(500).json({ error: 'Erro ao importar contatos' });
+  }
+});
+
+// Get contacts from agenda (for starting conversations)
+router.get('/contacts', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+    
+    if (connectionIds.length === 0) {
+      return res.json([]);
+    }
+
+    const { search, connection } = req.query;
+
+    let sql = `
+      SELECT 
+        cc.*,
+        c.name as connection_name,
+        EXISTS (
+          SELECT 1 FROM conversations conv 
+          WHERE conv.connection_id = cc.connection_id 
+          AND (conv.contact_phone = cc.phone OR conv.remote_jid = cc.jid)
+        ) as has_conversation
+      FROM chat_contacts cc
+      JOIN connections c ON c.id = cc.connection_id
+      WHERE cc.connection_id = ANY($1)
+    `;
+
+    const params = [connectionIds];
+    let paramIndex = 2;
+
+    if (connection && connection !== 'all') {
+      sql += ` AND cc.connection_id = $${paramIndex}`;
+      params.push(connection);
+      paramIndex++;
+    }
+
+    if (search) {
+      sql += ` AND (cc.name ILIKE $${paramIndex} OR cc.phone ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    sql += ` ORDER BY cc.name ASC LIMIT 100`;
+
+    const result = await query(sql, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get chat contacts error:', error);
+    res.status(500).json({ error: 'Erro ao buscar contatos' });
+  }
+});
+
+// Update contact in agenda
+router.patch('/contacts/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Nome é obrigatório' });
+    }
+
+    const result = await query(
+      `UPDATE chat_contacts 
+       SET name = $1, updated_at = NOW()
+       WHERE id = $2 AND connection_id = ANY($3)
+       RETURNING *`,
+      [name.trim(), id, connectionIds]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contato não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update chat contact error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar contato' });
+  }
+});
+
+// Delete contact from agenda
+router.delete('/contacts/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+
+    const result = await query(
+      `DELETE FROM chat_contacts 
+       WHERE id = $1 AND connection_id = ANY($2)
+       RETURNING id`,
+      [id, connectionIds]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contato não encontrado' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete chat contact error:', error);
+    res.status(500).json({ error: 'Erro ao excluir contato' });
   }
 });
 
