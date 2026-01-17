@@ -55,8 +55,12 @@ async function sendEvolutionMessage(connection, phone, messageItems, contact) {
       let body;
       const remoteJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
 
+      // Support both camelCase (frontend) and snake_case formats
+      const mediaUrl = item.mediaUrl || item.media_url;
+      const fileName = item.fileName || item.file_name;
+
       // Replace variables in content
-      const processedContent = replaceVariables(item.content, contact);
+      const processedContent = replaceVariables(item.content || item.caption, contact);
 
       if (item.type === 'text') {
         endpoint = `/message/sendText/${connection.instance_name}`;
@@ -69,7 +73,7 @@ async function sendEvolutionMessage(connection, phone, messageItems, contact) {
         body = {
           number: remoteJid,
           mediatype: 'image',
-          media: item.media_url,
+          media: mediaUrl,
           caption: processedContent || undefined,
         };
       } else if (item.type === 'video') {
@@ -77,14 +81,14 @@ async function sendEvolutionMessage(connection, phone, messageItems, contact) {
         body = {
           number: remoteJid,
           mediatype: 'video',
-          media: item.media_url,
+          media: mediaUrl,
           caption: processedContent || undefined,
         };
       } else if (item.type === 'audio') {
         endpoint = `/message/sendWhatsAppAudio/${connection.instance_name}`;
         body = {
           number: remoteJid,
-          audio: item.media_url,
+          audio: mediaUrl,
           delay: 1200,
         };
       } else if (item.type === 'document') {
@@ -92,9 +96,9 @@ async function sendEvolutionMessage(connection, phone, messageItems, contact) {
         body = {
           number: remoteJid,
           mediatype: 'document',
-          media: item.media_url,
+          media: mediaUrl,
           caption: processedContent || undefined,
-          fileName: item.file_name || 'documento',
+          fileName: fileName || 'documento',
         };
       } else {
         // Default to text
@@ -105,7 +109,7 @@ async function sendEvolutionMessage(connection, phone, messageItems, contact) {
         };
       }
 
-      console.log(`  Sending ${item.type} to ${phone}:`, { endpoint, mediaUrl: item.media_url });
+      console.log(`  Sending ${item.type} to ${phone}:`, { endpoint, mediaUrl });
 
       const response = await fetch(`${connection.api_url}${endpoint}`, {
         method: 'POST',
