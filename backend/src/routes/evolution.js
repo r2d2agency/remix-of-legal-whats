@@ -252,10 +252,11 @@ async function configureInstanceWebhook(instanceName, webhookUrl) {
     const webhookConfig = {
       enabled: true,
       url: webhookUrl,
-      // Evolution API v2 uses camelCase (webhookByEvents/webhookBase64)
-      // Using these fields ensures events like MESSAGES_UPSERT are actually delivered.
+      // Compatibility: some Evolution builds expect camelCase, others expect snake_case.
       webhookByEvents: true,
+      webhook_by_events: true,
       webhookBase64: false,
+      webhook_base64: false,
       events: [
         'APPLICATION_STARTUP',
         'QRCODE_UPDATED',
@@ -384,7 +385,9 @@ router.post('/create', authenticate, async (req, res) => {
         enabled: true,
         url: webhookUrl,
         webhookByEvents: true,
+        webhook_by_events: true,
         webhookBase64: false,
+        webhook_base64: false,
         events: [
           'MESSAGES_UPSERT',
           'MESSAGES_UPDATE',
@@ -1581,8 +1584,10 @@ router.post('/:connectionId/configure-webhook', authenticate, async (req, res) =
       enabled: true,
       url: webhookUrl,
       webhookByEvents: true,
+      webhook_by_events: true,
       // Keep payloads smaller; media is fetched on-demand by getBase64FromMediaMessage.
       webhookBase64: false,
+      webhook_base64: false,
       events: [
         'APPLICATION_STARTUP',
         'QRCODE_UPDATED',
