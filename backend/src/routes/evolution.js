@@ -808,6 +808,31 @@ router.get('/webhook', async (req, res) => {
   res.json({ status: 'ok', message: 'Webhook endpoint is working' });
 });
 
+// Normalize remoteJid to avoid duplicates (handles @lid, @s.whatsapp.net, @c.us)
+function normalizeRemoteJid(remoteJid) {
+  if (!remoteJid) return null;
+  
+  // Extract the phone number part
+  let phone = remoteJid
+    .replace('@s.whatsapp.net', '')
+    .replace('@c.us', '')
+    .replace('@lid', '')
+    .replace(/[^0-9]/g, ''); // Remove any non-numeric characters
+  
+  // Return normalized JID with standard suffix
+  return phone ? `${phone}@s.whatsapp.net` : remoteJid;
+}
+
+// Extract phone from any JID format
+function extractPhoneFromJid(remoteJid) {
+  if (!remoteJid) return '';
+  return remoteJid
+    .replace('@s.whatsapp.net', '')
+    .replace('@c.us', '')
+    .replace('@lid', '')
+    .replace(/[^0-9]/g, '');
+}
+
 // Handle incoming/outgoing messages
 async function handleMessageUpsert(connection, data) {
   try {
@@ -819,30 +844,37 @@ async function handleMessageUpsert(connection, data) {
       return;
     }
 
-    const remoteJid = key.remoteJid;
+    const rawRemoteJid = key.remoteJid;
     const messageId = key.id;
     const fromMe = key.fromMe || false;
     const pushName = message.pushName || data.pushName;
 
     // Skip status messages and group messages for now
-    if (remoteJid === 'status@broadcast' || remoteJid.includes('@g.us')) {
+    if (rawRemoteJid === 'status@broadcast' || rawRemoteJid.includes('@g.us')) {
       console.log('Webhook: Skipping broadcast/group message');
       return;
     }
 
-    // Extract phone number from remoteJid
-    const contactPhone = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+    // Normalize the remoteJid to prevent duplicates
+    const remoteJid = normalizeRemoteJid(rawRemoteJid);
+    const contactPhone = extractPhoneFromJid(rawRemoteJid);
 
-    // Find or create conversation
+    console.log('Webhook: Processing message from', rawRemoteJid, '-> normalized:', remoteJid);
+
+    // Find existing conversation by phone number (more flexible)
     let convResult = await query(
-      `SELECT * FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
-      [connection.id, remoteJid]
+      `SELECT * FROM conversations 
+       WHERE connection_id = $1 
+       AND (remote_jid = $2 OR contact_phone = $3)
+       ORDER BY last_message_at DESC
+       LIMIT 1`,
+      [connection.id, remoteJid, contactPhone]
     );
 
     let conversationId;
 
     if (convResult.rows.length === 0) {
-      // Create new conversation
+      // Create new conversation with normalized JID
       const newConv = await query(
         `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, last_message_at, unread_count)
          VALUES ($1, $2, $3, $4, NOW(), $5)
@@ -853,6 +885,15 @@ async function handleMessageUpsert(connection, data) {
       console.log('Webhook: Created new conversation:', conversationId);
     } else {
       conversationId = convResult.rows[0].id;
+      
+      // Update remote_jid if it was different (migrate old format)
+      if (convResult.rows[0].remote_jid !== remoteJid) {
+        await query(
+          `UPDATE conversations SET remote_jid = $1 WHERE id = $2`,
+          [remoteJid, conversationId]
+        );
+        console.log('Webhook: Updated conversation remote_jid to normalized format');
+      }
       
       // Update conversation
       if (!fromMe) {
