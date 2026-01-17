@@ -33,6 +33,7 @@ import {
   Check,
   X,
   Phone,
+  UserPlus,
 } from "lucide-react";
 import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
 import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
@@ -48,6 +49,7 @@ const Contatos = () => {
     createList,
     deleteList,
     getContacts,
+    addContact,
     importContacts,
     deleteContact,
     updateContact,
@@ -59,7 +61,10 @@ const Contatos = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateListOpen, setIsCreateListOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [editingContact, setEditingContact] = useState<string | null>(null);
   const [validatingContact, setValidatingContact] = useState<string | null>(null);
@@ -112,6 +117,35 @@ const Contatos = () => {
       loadLists();
     } catch (err) {
       toast.error("Erro ao criar lista");
+    }
+  };
+
+  const handleAddContact = async () => {
+    if (!newContactName.trim() || !newContactPhone.trim()) {
+      toast.error("Preencha nome e telefone");
+      return;
+    }
+    if (!selectedList) {
+      toast.error("Selecione uma lista primeiro");
+      return;
+    }
+
+    // Normalize phone: add 55 if needed
+    let phone = newContactPhone.replace(/\D/g, "");
+    if (phone.length === 10 || phone.length === 11) {
+      phone = "55" + phone;
+    }
+
+    try {
+      await addContact(selectedList, newContactName.trim(), phone);
+      toast.success("Contato adicionado com sucesso!");
+      setNewContactName("");
+      setNewContactPhone("");
+      setIsAddContactOpen(false);
+      loadContacts(selectedList);
+      loadLists();
+    } catch (err) {
+      toast.error("Erro ao adicionar contato");
     }
   };
 
@@ -359,6 +393,10 @@ const Contatos = () => {
                     <Upload className="h-4 w-4" />
                     Importar Excel
                   </Button>
+                  <Button variant="gradient" onClick={() => setIsAddContactOpen(true)}>
+                    <UserPlus className="h-4 w-4" />
+                    Adicionar
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -371,11 +409,17 @@ const Contatos = () => {
                 <div className="text-center py-8 text-muted-foreground">
                   <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>Nenhum contato nesta lista</p>
-                  <p className="text-sm mb-4">Importe um arquivo Excel para adicionar contatos</p>
-                  <Button variant="outline" onClick={() => setIsImportOpen(true)}>
-                    <Upload className="h-4 w-4" />
-                    Importar do Excel
-                  </Button>
+                  <p className="text-sm mb-4">Adicione contatos manualmente ou importe do Excel</p>
+                  <div className="flex justify-center gap-2">
+                    <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                      <Upload className="h-4 w-4" />
+                      Importar do Excel
+                    </Button>
+                    <Button variant="gradient" onClick={() => setIsAddContactOpen(true)}>
+                      <UserPlus className="h-4 w-4" />
+                      Adicionar Contato
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <Table>
@@ -465,6 +509,52 @@ const Contatos = () => {
           onImport={handleImportContacts}
           validateWhatsApp={validateWhatsAppNumber}
         />
+
+        {/* Add Contact Dialog */}
+        <Dialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-primary" />
+                Adicionar Contato
+              </DialogTitle>
+              <DialogDescription>
+                Adicione um novo contato à lista
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="contactName">Nome</Label>
+                <Input
+                  id="contactName"
+                  placeholder="Nome do contato"
+                  value={newContactName}
+                  onChange={(e) => setNewContactName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contactPhone">Telefone</Label>
+                <Input
+                  id="contactPhone"
+                  placeholder="Ex: 65999999999"
+                  value={newContactPhone}
+                  onChange={(e) => setNewContactPhone(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  O código 55 será adicionado automaticamente se necessário
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsAddContactOpen(false)}>
+                Cancelar
+              </Button>
+              <Button variant="gradient" onClick={handleAddContact} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Adicionar"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
