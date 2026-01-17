@@ -353,7 +353,7 @@ export function ExcelImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
@@ -473,7 +473,7 @@ export function ExcelImportDialog({
 
           {/* Preview Step */}
           {step === "preview" && (
-            <div className="space-y-4 h-full flex flex-col">
+            <div className="flex flex-col gap-4 min-h-0 flex-1">
               {/* Stats */}
               <div className="flex items-center gap-4 flex-wrap">
                 <Badge variant="secondary">
@@ -525,7 +525,7 @@ export function ExcelImportDialog({
               )}
 
               {/* Table */}
-              <ScrollArea className="flex-1 border rounded-lg">
+              <ScrollArea className="flex-1 min-h-0 border rounded-lg max-h-[45vh]">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -629,7 +629,7 @@ export function ExcelImportDialog({
                 </Table>
               </ScrollArea>
 
-              <div className="flex justify-between pt-4">
+              <div className="flex justify-between pt-4 pb-2 flex-shrink-0 border-t mt-2">
                 <Button variant="outline" onClick={() => setStep("mapping")}>Voltar</Button>
                 <Button
                   variant="gradient"
