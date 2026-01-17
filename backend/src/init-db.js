@@ -190,6 +190,13 @@ CREATE TABLE IF NOT EXISTS contact_lists (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add connection_id column if not exists (for existing databases)
+DO $$ BEGIN
+    ALTER TABLE contact_lists ADD COLUMN IF NOT EXISTS connection_id UUID REFERENCES connections(id) ON DELETE CASCADE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
 -- Contacts
 CREATE TABLE IF NOT EXISTS contacts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
