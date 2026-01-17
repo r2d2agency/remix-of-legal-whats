@@ -1166,6 +1166,33 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                           Variáveis: {"{{nome}}"}, {"{{valor}}"}, {"{{vencimento}}"}, {"{{link}}"}, {"{{boleto}}"}, {"{{pix}}"}, {"{{descricao}}"}
                         </p>
                       </div>
+
+                      {/* Message Preview */}
+                      {ruleForm.message_template && (
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <Eye className="h-4 w-4" />
+                            Preview da Mensagem
+                          </Label>
+                          <div className="rounded-lg bg-[#0d1418] border border-border p-4">
+                            <div className="flex gap-2">
+                              <div className="flex-1 bg-[#005c4b] rounded-lg p-3 text-sm text-white whitespace-pre-wrap">
+                                {ruleForm.message_template
+                                  .replace(/\{\{nome\}\}/g, "João Silva")
+                                  .replace(/\{\{valor\}\}/g, "R$ 150,00")
+                                  .replace(/\{\{vencimento\}\}/g, "25/01/2026")
+                                  .replace(/\{\{link\}\}/g, "https://asaas.com/i/abc123")
+                                  .replace(/\{\{boleto\}\}/g, "23793.38128 60000.000003 00000.000400 1 92850000015000")
+                                  .replace(/\{\{pix\}\}/g, "00020126...")
+                                  .replace(/\{\{descricao\}\}/g, "Mensalidade Janeiro/2026")}
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-2 text-right">
+                              Dados de exemplo para visualização
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setShowRuleDialog(false)}>
