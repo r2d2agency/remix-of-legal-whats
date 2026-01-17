@@ -1671,28 +1671,34 @@ router.get('/contacts', authenticate, async (req, res) => {
 
     // Auto-populate agenda with contacts from existing conversations
     // IMPORTANT: do not resurrect contacts that the user deleted (is_deleted=true)
-    await query(
-      `INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, created_at, updated_at)
-       SELECT 
-         conv.connection_id,
-         COALESCE(NULLIF(conv.contact_name, ''), conv.contact_phone) as name,
-         conv.contact_phone as phone,
-         conv.remote_jid as jid,
-         conv.assigned_to as created_by,
-         conv.created_at,
-         NOW()
-       FROM conversations conv
-       WHERE conv.connection_id = ANY($1)
-         AND conv.contact_phone IS NOT NULL
-         AND conv.contact_phone <> ''
-       ON CONFLICT (connection_id, phone)
-       DO UPDATE SET
-         name = COALESCE(NULLIF(EXCLUDED.name, ''), chat_contacts.name),
-         jid = COALESCE(EXCLUDED.jid, chat_contacts.jid),
-         updated_at = NOW()
-       WHERE chat_contacts.is_deleted = false`,
-      [connectionIds]
-    );
+    try {
+      await query(
+        `INSERT INTO chat_contacts (connection_id, name, phone, jid, created_by, created_at, updated_at, is_deleted)
+         SELECT 
+           conv.connection_id,
+           COALESCE(NULLIF(conv.contact_name, ''), conv.contact_phone) as name,
+           conv.contact_phone as phone,
+           conv.remote_jid as jid,
+           conv.assigned_to as created_by,
+           conv.created_at,
+           NOW(),
+           false
+         FROM conversations conv
+         WHERE conv.connection_id = ANY($1)
+           AND conv.contact_phone IS NOT NULL
+           AND conv.contact_phone <> ''
+         ON CONFLICT (connection_id, phone)
+         DO UPDATE SET
+           name = COALESCE(NULLIF(EXCLUDED.name, ''), chat_contacts.name),
+           jid = COALESCE(EXCLUDED.jid, chat_contacts.jid),
+           updated_at = NOW()
+         WHERE COALESCE(chat_contacts.is_deleted, false) = false`,
+        [connectionIds]
+      );
+    } catch (autoPopulateError) {
+      // Log but don't fail if auto-populate has issues
+      console.warn('Auto-populate chat contacts failed (non-critical):', autoPopulateError.message);
+    }
 
     let sql = `
       SELECT 

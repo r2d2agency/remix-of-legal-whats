@@ -595,7 +595,6 @@ EXCEPTION
     WHEN duplicate_column THEN null;
     WHEN others THEN null;
 END $$;
-);
 `;
 
 // ============================================
