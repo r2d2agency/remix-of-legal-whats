@@ -1,0 +1,566 @@
+import { Router } from 'express';
+import { query } from '../db.js';
+import { authenticate } from '../middleware/auth.js';
+
+const router = Router();
+
+// Get user's organization
+async function getUserOrganization(userId) {
+  const result = await query(
+    `SELECT om.organization_id 
+     FROM organization_members om 
+     WHERE om.user_id = $1 
+     LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0]?.organization_id;
+}
+
+// Get user's connections
+async function getUserConnections(userId) {
+  const result = await query(
+    `SELECT c.id FROM connections c
+     LEFT JOIN connection_members cm ON cm.connection_id = c.id
+     WHERE c.user_id = $1 OR cm.user_id = $1`,
+    [userId]
+  );
+  return result.rows.map(r => r.id);
+}
+
+// ==========================================
+// CONVERSATIONS
+// ==========================================
+
+// Get all conversations for user's connections
+router.get('/conversations', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+    
+    if (connectionIds.length === 0) {
+      return res.json([]);
+    }
+
+    const { search, tag, assigned, archived } = req.query;
+    
+    let sql = `
+      SELECT 
+        conv.*,
+        conn.name as connection_name,
+        conn.phone_number as connection_phone,
+        u.name as assigned_name,
+        COALESCE(
+          (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+           FROM conversation_tag_links ctl
+           JOIN conversation_tags t ON t.id = ctl.tag_id
+           WHERE ctl.conversation_id = conv.id
+          ), '[]'::json
+        ) as tags,
+        (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message,
+        (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type
+      FROM conversations conv
+      JOIN connections conn ON conn.id = conv.connection_id
+      LEFT JOIN users u ON u.id = conv.assigned_to
+      WHERE conv.connection_id = ANY($1)
+    `;
+    
+    const params = [connectionIds];
+    let paramIndex = 2;
+
+    // Filter by archived status
+    if (archived === 'true') {
+      sql += ` AND conv.is_archived = true`;
+    } else {
+      sql += ` AND conv.is_archived = false`;
+    }
+
+    // Filter by search
+    if (search) {
+      sql += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    // Filter by tag
+    if (tag) {
+      sql += ` AND EXISTS (
+        SELECT 1 FROM conversation_tag_links ctl 
+        WHERE ctl.conversation_id = conv.id AND ctl.tag_id = $${paramIndex}
+      )`;
+      params.push(tag);
+      paramIndex++;
+    }
+
+    // Filter by assigned user
+    if (assigned === 'me') {
+      sql += ` AND conv.assigned_to = $${paramIndex}`;
+      params.push(req.userId);
+      paramIndex++;
+    } else if (assigned === 'unassigned') {
+      sql += ` AND conv.assigned_to IS NULL`;
+    } else if (assigned && assigned !== 'all') {
+      sql += ` AND conv.assigned_to = $${paramIndex}`;
+      params.push(assigned);
+      paramIndex++;
+    }
+
+    sql += ` ORDER BY conv.last_message_at DESC NULLS LAST, conv.created_at DESC`;
+
+    const result = await query(sql, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get conversations error:', error);
+    res.status(500).json({ error: 'Erro ao buscar conversas' });
+  }
+});
+
+// Get single conversation
+router.get('/conversations/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+
+    const result = await query(
+      `SELECT 
+        conv.*,
+        conn.name as connection_name,
+        conn.phone_number as connection_phone,
+        conn.instance_name,
+        conn.api_url,
+        conn.api_key,
+        u.name as assigned_name,
+        COALESCE(
+          (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+           FROM conversation_tag_links ctl
+           JOIN conversation_tags t ON t.id = ctl.tag_id
+           WHERE ctl.conversation_id = conv.id
+          ), '[]'::json
+        ) as tags
+      FROM conversations conv
+      JOIN connections conn ON conn.id = conv.connection_id
+      LEFT JOIN users u ON u.id = conv.assigned_to
+      WHERE conv.id = $1 AND conv.connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get conversation error:', error);
+    res.status(500).json({ error: 'Erro ao buscar conversa' });
+  }
+});
+
+// Update conversation (assign, archive, etc)
+router.patch('/conversations/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { assigned_to, is_archived } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Check if conversation belongs to user
+    const check = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (assigned_to !== undefined) {
+      updates.push(`assigned_to = $${paramIndex}`);
+      values.push(assigned_to || null);
+      paramIndex++;
+    }
+
+    if (is_archived !== undefined) {
+      updates.push(`is_archived = $${paramIndex}`);
+      values.push(is_archived);
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Nenhuma atualização fornecida' });
+    }
+
+    updates.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const result = await query(
+      `UPDATE conversations SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update conversation error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar conversa' });
+  }
+});
+
+// Mark conversation as read
+router.post('/conversations/:id/read', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await query(
+      `UPDATE conversations SET unread_count = 0, updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Mark read error:', error);
+    res.status(500).json({ error: 'Erro ao marcar como lida' });
+  }
+});
+
+// ==========================================
+// MESSAGES
+// ==========================================
+
+// Get messages for a conversation
+router.get('/conversations/:id/messages', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50, before } = req.query;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Check access
+    const check = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    let sql = `
+      SELECT 
+        m.*,
+        u.name as sender_name
+      FROM chat_messages m
+      LEFT JOIN users u ON u.id = m.sender_id
+      WHERE m.conversation_id = $1
+    `;
+    const params = [id];
+    let paramIndex = 2;
+
+    if (before) {
+      sql += ` AND m.timestamp < $${paramIndex}`;
+      params.push(before);
+      paramIndex++;
+    }
+
+    sql += ` ORDER BY m.timestamp DESC LIMIT $${paramIndex}`;
+    params.push(parseInt(limit));
+
+    const result = await query(sql, params);
+    
+    // Return in chronological order
+    res.json(result.rows.reverse());
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({ error: 'Erro ao buscar mensagens' });
+  }
+});
+
+// Send message
+router.post('/conversations/:id/messages', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content, message_type = 'text', media_url, media_mimetype, quoted_message_id } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Get conversation with connection details
+    const convResult = await query(
+      `SELECT 
+        conv.*,
+        conn.api_url,
+        conn.api_key,
+        conn.instance_name,
+        conn.status as connection_status
+      FROM conversations conv
+      JOIN connections conn ON conn.id = conv.connection_id
+      WHERE conv.id = $1 AND conv.connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const conversation = convResult.rows[0];
+
+    if (conversation.connection_status !== 'connected') {
+      return res.status(400).json({ error: 'Conexão não está ativa' });
+    }
+
+    // Send via Evolution API
+    const remoteJid = conversation.remote_jid;
+    let evolutionEndpoint;
+    let evolutionBody;
+
+    if (message_type === 'text') {
+      evolutionEndpoint = `/message/sendText/${conversation.instance_name}`;
+      evolutionBody = {
+        number: remoteJid,
+        text: content,
+      };
+    } else if (message_type === 'audio') {
+      evolutionEndpoint = `/message/sendWhatsAppAudio/${conversation.instance_name}`;
+      evolutionBody = {
+        number: remoteJid,
+        audio: media_url,
+        delay: 1200,
+      };
+    } else {
+      // image, video, document
+      evolutionEndpoint = `/message/sendMedia/${conversation.instance_name}`;
+      evolutionBody = {
+        number: remoteJid,
+        mediatype: message_type,
+        media: media_url,
+      };
+      if (content) {
+        evolutionBody.caption = content;
+      }
+    }
+
+    const evolutionResponse = await fetch(`${conversation.api_url}${evolutionEndpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: conversation.api_key,
+      },
+      body: JSON.stringify(evolutionBody),
+    });
+
+    if (!evolutionResponse.ok) {
+      const errorData = await evolutionResponse.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Falha ao enviar mensagem');
+    }
+
+    const evolutionResult = await evolutionResponse.json();
+
+    // Save message to database
+    const messageResult = await query(
+      `INSERT INTO chat_messages 
+        (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, quoted_message_id, status, timestamp)
+       VALUES ($1, $2, true, $3, $4, $5, $6, $7, $8, 'sent', NOW())
+       RETURNING *`,
+      [
+        id,
+        evolutionResult.key?.id || null,
+        req.userId,
+        content,
+        message_type,
+        media_url || null,
+        media_mimetype || null,
+        quoted_message_id || null,
+      ]
+    );
+
+    // Update conversation last_message_at
+    await query(
+      `UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    res.status(201).json(messageResult.rows[0]);
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({ error: error.message || 'Erro ao enviar mensagem' });
+  }
+});
+
+// ==========================================
+// TAGS
+// ==========================================
+
+// Get all tags
+router.get('/tags', authenticate, async (req, res) => {
+  try {
+    const organizationId = await getUserOrganization(req.userId);
+    
+    if (!organizationId) {
+      return res.json([]);
+    }
+
+    const result = await query(
+      `SELECT * FROM conversation_tags WHERE organization_id = $1 ORDER BY name`,
+      [organizationId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get tags error:', error);
+    res.status(500).json({ error: 'Erro ao buscar tags' });
+  }
+});
+
+// Create tag
+router.post('/tags', authenticate, async (req, res) => {
+  try {
+    const { name, color = '#6366f1' } = req.body;
+    const organizationId = await getUserOrganization(req.userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Usuário não pertence a uma organização' });
+    }
+
+    const result = await query(
+      `INSERT INTO conversation_tags (organization_id, name, color)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (organization_id, name) DO UPDATE SET color = $3
+       RETURNING *`,
+      [organizationId, name, color]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create tag error:', error);
+    res.status(500).json({ error: 'Erro ao criar tag' });
+  }
+});
+
+// Delete tag
+router.delete('/tags/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizationId = await getUserOrganization(req.userId);
+
+    await query(
+      `DELETE FROM conversation_tags WHERE id = $1 AND organization_id = $2`,
+      [id, organizationId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete tag error:', error);
+    res.status(500).json({ error: 'Erro ao deletar tag' });
+  }
+});
+
+// Add tag to conversation
+router.post('/conversations/:id/tags', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tag_id } = req.body;
+
+    await query(
+      `INSERT INTO conversation_tag_links (conversation_id, tag_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [id, tag_id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Add tag error:', error);
+    res.status(500).json({ error: 'Erro ao adicionar tag' });
+  }
+});
+
+// Remove tag from conversation
+router.delete('/conversations/:id/tags/:tagId', authenticate, async (req, res) => {
+  try {
+    const { id, tagId } = req.params;
+
+    await query(
+      `DELETE FROM conversation_tag_links WHERE conversation_id = $1 AND tag_id = $2`,
+      [id, tagId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Remove tag error:', error);
+    res.status(500).json({ error: 'Erro ao remover tag' });
+  }
+});
+
+// ==========================================
+// TEAM MEMBERS (for assignment)
+// ==========================================
+
+// Get team members
+router.get('/team', authenticate, async (req, res) => {
+  try {
+    const organizationId = await getUserOrganization(req.userId);
+    
+    if (!organizationId) {
+      return res.json([]);
+    }
+
+    const result = await query(
+      `SELECT u.id, u.name, u.email, om.role
+       FROM organization_members om
+       JOIN users u ON u.id = om.user_id
+       WHERE om.organization_id = $1
+       ORDER BY u.name`,
+      [organizationId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get team error:', error);
+    res.status(500).json({ error: 'Erro ao buscar equipe' });
+  }
+});
+
+// Transfer conversation
+router.post('/conversations/:id/transfer', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { to_user_id, note } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Check access
+    const check = await query(
+      `SELECT id, assigned_to FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const previousAssigned = check.rows[0].assigned_to;
+
+    // Update assignment
+    await query(
+      `UPDATE conversations SET assigned_to = $1, updated_at = NOW() WHERE id = $2`,
+      [to_user_id, id]
+    );
+
+    // Add system message about transfer
+    const fromUser = await query(`SELECT name FROM users WHERE id = $1`, [req.userId]);
+    const toUser = to_user_id ? await query(`SELECT name FROM users WHERE id = $1`, [to_user_id]) : null;
+
+    const transferMessage = to_user_id
+      ? `📋 Conversa transferida por ${fromUser.rows[0]?.name || 'Sistema'} para ${toUser?.rows[0]?.name || 'Outro atendente'}${note ? `: "${note}"` : ''}`
+      : `📋 Conversa liberada por ${fromUser.rows[0]?.name || 'Sistema'}${note ? `: "${note}"` : ''}`;
+
+    await query(
+      `INSERT INTO chat_messages 
+        (conversation_id, from_me, content, message_type, status, timestamp)
+       VALUES ($1, true, $2, 'system', 'sent', NOW())`,
+      [id, transferMessage]
+    );
+
+    res.json({ success: true, message: 'Conversa transferida com sucesso' });
+  } catch (error) {
+    console.error('Transfer conversation error:', error);
+    res.status(500).json({ error: 'Erro ao transferir conversa' });
+  }
+});
+
+export default router;

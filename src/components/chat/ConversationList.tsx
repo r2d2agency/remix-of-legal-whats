@@ -1,0 +1,298 @@
+import { useState, useEffect, useCallback } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Search,
+  Archive,
+  Users,
+  Tag,
+  MessageSquare,
+  Image,
+  Mic,
+  FileText,
+  Video,
+  RefreshCw,
+  Loader2,
+  UserCheck,
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { Conversation, ConversationTag, TeamMember } from "@/hooks/use-chat";
+
+interface ConversationListProps {
+  conversations: Conversation[];
+  selectedId: string | null;
+  onSelect: (conversation: Conversation) => void;
+  tags: ConversationTag[];
+  team: TeamMember[];
+  loading: boolean;
+  onRefresh: () => void;
+  filters: {
+    search: string;
+    tag: string;
+    assigned: string;
+    archived: boolean;
+  };
+  onFiltersChange: (filters: {
+    search: string;
+    tag: string;
+    assigned: string;
+    archived: boolean;
+  }) => void;
+}
+
+const getMessageTypeIcon = (type: string | null) => {
+  switch (type) {
+    case 'image':
+      return <Image className="h-3 w-3" />;
+    case 'audio':
+      return <Mic className="h-3 w-3" />;
+    case 'video':
+      return <Video className="h-3 w-3" />;
+    case 'document':
+      return <FileText className="h-3 w-3" />;
+    default:
+      return null;
+  }
+};
+
+const getMessagePreview = (message: string | null, type: string | null) => {
+  if (!message && type === 'image') return '📷 Imagem';
+  if (!message && type === 'audio') return '🎤 Áudio';
+  if (!message && type === 'video') return '🎬 Vídeo';
+  if (!message && type === 'document') return '📄 Documento';
+  if (!message) return 'Sem mensagens';
+  
+  const maxLength = 40;
+  return message.length > maxLength ? message.substring(0, maxLength) + '...' : message;
+};
+
+export function ConversationList({
+  conversations,
+  selectedId,
+  onSelect,
+  tags,
+  team,
+  loading,
+  onRefresh,
+  filters,
+  onFiltersChange,
+}: ConversationListProps) {
+  const [localSearch, setLocalSearch] = useState(filters.search);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== filters.search) {
+        onFiltersChange({ ...filters, search: localSearch });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localSearch, filters, onFiltersChange]);
+
+  const getInitials = (name: string | null) => {
+    if (!name) return '?';
+    return name
+      .split(' ')
+      .slice(0, 2)
+      .map(n => n[0])
+      .join('')
+      .toUpperCase();
+  };
+
+  return (
+    <div className="flex flex-col h-full border-r bg-card">
+      {/* Header */}
+      <div className="p-4 border-b space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-lg flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            Conversas
+          </h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRefresh}
+            disabled={loading}
+          >
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+          </Button>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar conversas..."
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        {/* Filters */}
+        <div className="flex gap-2">
+          {/* Status filter */}
+          <Select
+            value={filters.assigned}
+            onValueChange={(v) => onFiltersChange({ ...filters, assigned: v })}
+          >
+            <SelectTrigger className="flex-1 h-8 text-xs">
+              <UserCheck className="h-3 w-3 mr-1" />
+              <SelectValue placeholder="Atendente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="me">Minhas</SelectItem>
+              <SelectItem value="unassigned">Sem atendente</SelectItem>
+              {team.map(member => (
+                <SelectItem key={member.id} value={member.id}>
+                  {member.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Tag filter */}
+          <Select
+            value={filters.tag}
+            onValueChange={(v) => onFiltersChange({ ...filters, tag: v })}
+          >
+            <SelectTrigger className="flex-1 h-8 text-xs">
+              <Tag className="h-3 w-3 mr-1" />
+              <SelectValue placeholder="Tag" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              {tags.map(tag => (
+                <SelectItem key={tag.id} value={tag.id}>
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: tag.color }}
+                    />
+                    {tag.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Archive toggle */}
+          <Button
+            variant={filters.archived ? "secondary" : "ghost"}
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => onFiltersChange({ ...filters, archived: !filters.archived })}
+            title={filters.archived ? "Ver ativas" : "Ver arquivadas"}
+          >
+            <Archive className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Conversation List */}
+      <ScrollArea className="flex-1">
+        {loading && conversations.length === 0 ? (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : conversations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
+            <MessageSquare className="h-12 w-12 mb-2 opacity-50" />
+            <p className="text-sm">Nenhuma conversa encontrada</p>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {conversations.map((conv) => (
+              <div
+                key={conv.id}
+                onClick={() => onSelect(conv)}
+                className={cn(
+                  "flex items-start gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/50",
+                  selectedId === conv.id && "bg-accent"
+                )}
+              >
+                {/* Avatar */}
+                <Avatar className="h-12 w-12 flex-shrink-0">
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {getInitials(conv.contact_name)}
+                  </AvatarFallback>
+                </Avatar>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium truncate">
+                      {conv.contact_name || conv.contact_phone || 'Desconhecido'}
+                    </span>
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      {conv.last_message_at
+                        ? formatDistanceToNow(new Date(conv.last_message_at), {
+                            addSuffix: false,
+                            locale: ptBR,
+                          })
+                        : ''}
+                    </span>
+                  </div>
+
+                  {/* Last message preview */}
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
+                    {getMessageTypeIcon(conv.last_message_type)}
+                    <span className="truncate">
+                      {getMessagePreview(conv.last_message, conv.last_message_type)}
+                    </span>
+                  </div>
+
+                  {/* Tags and unread */}
+                  <div className="flex items-center gap-2 mt-1.5">
+                    {conv.tags.slice(0, 2).map(tag => (
+                      <Badge
+                        key={tag.id}
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0"
+                        style={{ borderColor: tag.color, color: tag.color }}
+                      >
+                        {tag.name}
+                      </Badge>
+                    ))}
+                    {conv.tags.length > 2 && (
+                      <span className="text-[10px] text-muted-foreground">
+                        +{conv.tags.length - 2}
+                      </span>
+                    )}
+                    
+                    {/* Assigned */}
+                    {conv.assigned_name && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-auto">
+                        {conv.assigned_name.split(' ')[0]}
+                      </Badge>
+                    )}
+
+                    {/* Unread count */}
+                    {conv.unread_count > 0 && (
+                      <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 min-w-[20px] justify-center">
+                        {conv.unread_count}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  );
+}

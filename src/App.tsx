@@ -14,6 +14,7 @@ import Conexao from "./pages/Conexao";
 import Contatos from "./pages/Contatos";
 import Mensagens from "./pages/Mensagens";
 import Campanhas from "./pages/Campanhas";
+import Chat from "./pages/Chat";
 import Cobranca from "./pages/Cobranca";
 import Organizacoes from "./pages/Organizacoes";
 import Admin from "./pages/Admin";
@@ -59,6 +60,7 @@ const App = () => (
             <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
             <Route path="/mensagens" element={<ProtectedRoute><Mensagens /></ProtectedRoute>} />
             <Route path="/campanhas" element={<ProtectedRoute><Campanhas /></ProtectedRoute>} />
+            <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
             <Route path="/cobranca" element={<ProtectedRoute><Cobranca /></ProtectedRoute>} />
             <Route path="/organizacoes" element={<ProtectedRoute><Organizacoes /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />

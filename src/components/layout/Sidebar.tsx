@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  MessagesSquare,
   Plug,
   Receipt,
   Send,
@@ -39,6 +40,13 @@ interface NavSection {
 }
 
 const navSections: NavSection[] = [
+  {
+    title: "Atendimento",
+    icon: MessagesSquare,
+    items: [
+      { name: "Chat", href: "/chat", icon: MessagesSquare },
+    ],
+  },
   {
     title: "Disparos",
     icon: Send,
