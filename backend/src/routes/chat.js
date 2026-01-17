@@ -246,9 +246,15 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
     let sql = `
       SELECT 
         m.*,
-        u.name as sender_name
+        u.name as sender_name,
+        qm.content as quoted_content,
+        qm.message_type as quoted_message_type,
+        qm.from_me as quoted_from_me,
+        qu.name as quoted_sender_name
       FROM chat_messages m
       LEFT JOIN users u ON u.id = m.sender_id
+      LEFT JOIN chat_messages qm ON qm.id = m.quoted_message_id
+      LEFT JOIN users qu ON qu.id = qm.sender_id
       WHERE m.conversation_id = $1
     `;
     const params = [id];
@@ -309,12 +315,32 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     let evolutionEndpoint;
     let evolutionBody;
 
+    // Get quoted message key if replying
+    let quotedMessageKey = null;
+    if (quoted_message_id) {
+      const quotedMsg = await query(
+        `SELECT message_id FROM chat_messages WHERE id = $1`,
+        [quoted_message_id]
+      );
+      if (quotedMsg.rows.length > 0 && quotedMsg.rows[0].message_id) {
+        quotedMessageKey = quotedMsg.rows[0].message_id;
+      }
+    }
+
     if (message_type === 'text') {
       evolutionEndpoint = `/message/sendText/${conversation.instance_name}`;
       evolutionBody = {
         number: remoteJid,
         text: content,
       };
+      if (quotedMessageKey) {
+        evolutionBody.quoted = {
+          key: {
+            remoteJid: remoteJid,
+            id: quotedMessageKey,
+          },
+        };
+      }
     } else if (message_type === 'audio') {
       evolutionEndpoint = `/message/sendWhatsAppAudio/${conversation.instance_name}`;
       evolutionBody = {
@@ -322,6 +348,14 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
         audio: media_url,
         delay: 1200,
       };
+      if (quotedMessageKey) {
+        evolutionBody.quoted = {
+          key: {
+            remoteJid: remoteJid,
+            id: quotedMessageKey,
+          },
+        };
+      }
     } else {
       // image, video, document
       evolutionEndpoint = `/message/sendMedia/${conversation.instance_name}`;
@@ -332,6 +366,14 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
       };
       if (content) {
         evolutionBody.caption = content;
+      }
+      if (quotedMessageKey) {
+        evolutionBody.quoted = {
+          key: {
+            remoteJid: remoteJid,
+            id: quotedMessageKey,
+          },
+        };
       }
     }
 

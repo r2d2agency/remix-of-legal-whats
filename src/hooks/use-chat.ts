@@ -38,6 +38,10 @@ export interface ChatMessage {
   media_url: string | null;
   media_mimetype: string | null;
   quoted_message_id: string | null;
+  quoted_content: string | null;
+  quoted_message_type: string | null;
+  quoted_from_me: boolean | null;
+  quoted_sender_name: string | null;
   status: string;
   timestamp: string;
 }

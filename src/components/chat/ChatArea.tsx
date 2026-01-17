@@ -54,6 +54,8 @@ import {
   Pause,
   Zap,
   StickyNote,
+  Reply,
+  CornerDownRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -75,7 +77,7 @@ interface ChatAreaProps {
   tags: ConversationTag[];
   team: TeamMember[];
   onSyncHistory?: (days: number) => Promise<void>;
-  onSendMessage: (content: string, type?: string, mediaUrl?: string) => Promise<void>;
+  onSendMessage: (content: string, type?: string, mediaUrl?: string, quotedMessageId?: string) => Promise<void>;
   onLoadMore: () => void;
   hasMore: boolean;
   onAddTag: (tagId: string) => void;
@@ -136,6 +138,7 @@ export function ChatArea({
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [notesCount, setNotesCount] = useState(0);
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -173,10 +176,12 @@ export function ChatArea({
       text = `*${user.name}*\n${text}`;
     }
     
+    const quotedId = replyingTo?.id;
     setMessageText("");
+    setReplyingTo(null);
     
     try {
-      await onSendMessage(text, 'text');
+      await onSendMessage(text, 'text', undefined, quotedId);
     } catch (error) {
       setMessageText(messageText.trim()); // Restore original text on error
     }
@@ -420,10 +425,23 @@ export function ChatArea({
             <div
               key={msg.id}
               className={cn(
-                "flex",
+                "flex group",
                 msg.from_me ? "justify-end" : "justify-start"
               )}
             >
+              {/* Reply button - left side for received messages */}
+              {!msg.from_me && msg.message_type !== 'system' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity self-center mr-1"
+                  onClick={() => setReplyingTo(msg)}
+                  title="Responder"
+                >
+                  <Reply className="h-3 w-3" />
+                </Button>
+              )}
+
               <div
                 className={cn(
                   "max-w-[70%] rounded-lg p-3",
@@ -433,6 +451,31 @@ export function ChatArea({
                   msg.message_type === 'system' && "bg-accent text-accent-foreground text-center max-w-full text-xs italic"
                 )}
               >
+                {/* Quoted message */}
+                {msg.quoted_message_id && msg.quoted_content && (
+                  <div className={cn(
+                    "mb-2 p-2 rounded border-l-4 text-xs",
+                    msg.from_me 
+                      ? "bg-primary-foreground/10 border-primary-foreground/50" 
+                      : "bg-background/50 border-primary/50"
+                  )}>
+                    <div className="font-medium opacity-80 mb-0.5">
+                      <CornerDownRight className="h-3 w-3 inline mr-1" />
+                      {msg.quoted_from_me ? 'Você' : (msg.quoted_sender_name || 'Contato')}
+                    </div>
+                    <p className="line-clamp-2 opacity-70">
+                      {msg.quoted_message_type !== 'text' ? (
+                        <span className="italic">
+                          {msg.quoted_message_type === 'image' && '📷 Imagem'}
+                          {msg.quoted_message_type === 'video' && '🎥 Vídeo'}
+                          {msg.quoted_message_type === 'audio' && '🎤 Áudio'}
+                          {msg.quoted_message_type === 'document' && '📄 Documento'}
+                        </span>
+                      ) : msg.quoted_content}
+                    </p>
+                  </div>
+                )}
+
                 {/* Media content */}
                 {(msg.message_type === 'image' || (msg.media_mimetype?.startsWith('image/') ?? false)) && msg.media_url && (
                   <a href={msg.media_url} target="_blank" rel="noopener noreferrer">
@@ -536,6 +579,19 @@ export function ChatArea({
                   {msg.from_me && messageStatusIcon(msg.status)}
                 </div>
               </div>
+
+              {/* Reply button - right side for sent messages */}
+              {msg.from_me && msg.message_type !== 'system' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity self-center ml-1"
+                  onClick={() => setReplyingTo(msg)}
+                  title="Responder"
+                >
+                  <Reply className="h-3 w-3" />
+                </Button>
+              )}
             </div>
           ))}
           <div ref={messagesEndRef} />
@@ -544,6 +600,36 @@ export function ChatArea({
 
       {/* Input */}
       <div className="p-4 border-t bg-card">
+        {/* Reply preview */}
+        {replyingTo && (
+          <div className="flex items-center gap-2 mb-2 p-2 rounded-lg bg-muted border-l-4 border-primary">
+            <CornerDownRight className="h-4 w-4 text-primary flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium text-primary">
+                Respondendo a {replyingTo.from_me ? 'você mesmo' : (conversation?.contact_name || 'Contato')}
+              </div>
+              <p className="text-xs text-muted-foreground line-clamp-1">
+                {replyingTo.message_type !== 'text' ? (
+                  <span className="italic">
+                    {replyingTo.message_type === 'image' && '📷 Imagem'}
+                    {replyingTo.message_type === 'video' && '🎥 Vídeo'}
+                    {replyingTo.message_type === 'audio' && '🎤 Áudio'}
+                    {replyingTo.message_type === 'document' && '📄 Documento'}
+                  </span>
+                ) : replyingTo.content}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 flex-shrink-0"
+              onClick={() => setReplyingTo(null)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         {/* Signature toggle */}
         <div className="flex items-center gap-2 mb-2">
           <Checkbox

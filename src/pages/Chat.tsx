@@ -145,7 +145,7 @@ const Chat = () => {
     }
   };
 
-  const handleSendMessage = async (content: string, type: string = 'text', mediaUrl?: string) => {
+  const handleSendMessage = async (content: string, type: string = 'text', mediaUrl?: string, quotedMessageId?: string) => {
     if (!selectedConversation) return;
 
     setSendingMessage(true);
@@ -154,6 +154,7 @@ const Chat = () => {
         content,
         message_type: type,
         media_url: mediaUrl,
+        quoted_message_id: quotedMessageId,
       });
       
       setMessages(prev => [...prev, newMessage]);
