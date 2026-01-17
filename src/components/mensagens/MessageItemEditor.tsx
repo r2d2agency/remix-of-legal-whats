@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -12,8 +13,11 @@ import {
   GripVertical,
   Variable,
   Upload,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUpload } from "@/hooks/use-upload";
+import { toast } from "sonner";
 
 export type MessageItemType = "text" | "image" | "video" | "audio";
 
@@ -41,24 +45,28 @@ const typeConfig = {
     label: "Texto",
     color: "text-blue-500",
     bgColor: "bg-blue-500/10",
+    accept: "",
   },
   image: {
     icon: Image,
     label: "Imagem",
     color: "text-green-500",
     bgColor: "bg-green-500/10",
+    accept: "image/jpeg,image/png,image/gif,image/webp",
   },
   video: {
     icon: Video,
     label: "Vídeo",
     color: "text-purple-500",
     bgColor: "bg-purple-500/10",
+    accept: "video/mp4,video/webm,video/ogg,video/quicktime",
   },
   audio: {
     icon: Mic,
     label: "Áudio",
     color: "text-orange-500",
     bgColor: "bg-orange-500/10",
+    accept: "audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/webm,audio/aac,audio/m4a",
   },
 };
 
@@ -72,6 +80,28 @@ export function MessageItemEditor({
 }: MessageItemEditorProps) {
   const config = typeConfig[item.type];
   const Icon = config.icon;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { uploadFile, isUploading } = useUpload();
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const url = await uploadFile(file);
+      if (url) {
+        onUpdate(item.id, { mediaUrl: url });
+        toast.success("Arquivo enviado com sucesso!");
+      }
+    } catch (error) {
+      toast.error("Erro ao enviar arquivo");
+    }
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   return (
     <div className="group relative rounded-lg border border-border bg-card p-4 transition-all hover:border-primary/50">
@@ -124,19 +154,45 @@ export function MessageItemEditor({
         </div>
       ) : (
         <div className="space-y-3">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={config.accept}
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+
           {/* Media Upload */}
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">URL da mídia</Label>
+            <Label className="text-xs text-muted-foreground">
+              {item.mediaUrl ? "URL da mídia" : `Enviar ${config.label.toLowerCase()}`}
+            </Label>
             <div className="flex gap-2">
               <Input
-                placeholder={`URL do ${config.label.toLowerCase()}`}
+                placeholder={`URL do ${config.label.toLowerCase()} ou faça upload`}
                 value={item.mediaUrl || ""}
                 onChange={(e) => onUpdate(item.id, { mediaUrl: e.target.value })}
               />
-              <Button variant="outline" size="icon" className="shrink-0">
-                <Upload className="h-4 w-4" />
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+              >
+                {isUploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
               </Button>
             </div>
+            {!item.mediaUrl && (
+              <p className="text-xs text-muted-foreground">
+                Clique no botão de upload ou arraste um arquivo
+              </p>
+            )}
           </div>
 
           {/* PTT option for audio */}
