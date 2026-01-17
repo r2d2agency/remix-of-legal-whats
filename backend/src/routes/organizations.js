@@ -54,10 +54,20 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create organization
+// Create organization - ONLY SUPERADMIN
 router.post('/', async (req, res) => {
   try {
-    const { name, slug } = req.body;
+    // Check if user is superadmin
+    const superadminCheck = await query(
+      `SELECT is_superadmin FROM users WHERE id = $1`,
+      [req.userId]
+    );
+
+    if (!superadminCheck.rows[0]?.is_superadmin) {
+      return res.status(403).json({ error: 'Apenas superadmin pode criar organizações' });
+    }
+
+    const { name, slug, owner_user_id } = req.body;
 
     if (!name || !slug) {
       return res.status(400).json({ error: 'Nome e slug são obrigatórios' });
@@ -72,11 +82,12 @@ router.post('/', async (req, res) => {
     
     const org = orgResult.rows[0];
 
-    // Add creator as owner
+    // Add specified user or creator as owner
+    const ownerId = owner_user_id || req.userId;
     await query(
       `INSERT INTO organization_members (organization_id, user_id, role)
        VALUES ($1, $2, 'owner')`,
-      [org.id, req.userId]
+      [org.id, ownerId]
     );
 
     res.status(201).json({ ...org, role: 'owner' });
