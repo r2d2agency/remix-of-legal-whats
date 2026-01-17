@@ -1016,9 +1016,38 @@ async function handleMessageUpsert(connection, data) {
     } else if (msgContent.locationMessage) {
       messageType = 'location';
       content = `${msgContent.locationMessage.degreesLatitude},${msgContent.locationMessage.degreesLongitude}`;
+    } else if (msgContent.reactionMessage) {
+      // Reactions are not displayed as messages
+      console.log('Webhook: Ignoring reaction message');
+      return;
+    } else if (msgContent.protocolMessage || msgContent.senderKeyDistributionMessage) {
+      // Protocol/system messages - ignore
+      console.log('Webhook: Ignoring protocol/system message');
+      return;
+    } else if (msgContent.messageContextInfo && Object.keys(msgContent).length <= 2) {
+      // Message only contains context info without actual content - ignore
+      console.log('Webhook: Ignoring message with only context info');
+      return;
     } else {
       // Try to get text from other message types
-      content = message.body || message.text || JSON.stringify(msgContent).substring(0, 500);
+      // But avoid saving raw JSON as content
+      const possibleText = message.body || message.text || '';
+      if (possibleText) {
+        content = possibleText;
+      } else {
+        // Check if there's any meaningful content we can extract
+        const knownMetaKeys = ['messageContextInfo', 'senderKeyDistributionMessage', 'protocolMessage'];
+        const contentKeys = Object.keys(msgContent).filter(k => !knownMetaKeys.includes(k));
+        
+        if (contentKeys.length === 0) {
+          console.log('Webhook: Ignoring message with no extractable content');
+          return;
+        }
+        
+        // For unknown message types, log but don't save raw JSON
+        console.log('Webhook: Unknown message type, keys:', contentKeys);
+        content = '[Mensagem não suportada]';
+      }
     }
 
     // If Evolution provides media URL directly
