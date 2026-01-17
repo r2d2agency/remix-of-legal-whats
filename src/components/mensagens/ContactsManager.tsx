@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Users,
   Plus,
@@ -20,6 +21,8 @@ import {
   Link2,
   User,
   FileSpreadsheet,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -63,6 +66,7 @@ export function ContactsManager() {
   // Import dialog
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importData, setImportData] = useState("");
+  const [validateWhatsApp, setValidateWhatsApp] = useState(true);
 
   // Load connections and lists on mount
   useEffect(() => {
@@ -235,15 +239,22 @@ export function ContactsManager() {
 
     setLoading(true);
     try {
-      const result = await api<{ imported: number; duplicates: number }>(
+      const result = await api<{ imported: number; duplicates: number; invalid_whatsapp?: number }>(
         `/api/contacts/lists/${selectedList.id}/import`,
         {
           method: 'POST',
-          body: JSON.stringify({ contacts: parsedContacts }),
+          body: JSON.stringify({ 
+            contacts: parsedContacts,
+            validate_whatsapp: validateWhatsApp && !!selectedList.connection_id
+          }),
         }
       );
       
-      toast.success(`${result.imported} contatos importados!${result.duplicates ? ` (${result.duplicates} duplicados)` : ''}`);
+      let description = `${result.imported} contatos importados`;
+      if (result.duplicates) description += `, ${result.duplicates} duplicados`;
+      if (result.invalid_whatsapp) description += `, ${result.invalid_whatsapp} números inválidos`;
+      
+      toast.success("Importação concluída!", { description });
       setImportData("");
       setShowImportDialog(false);
       loadContacts(selectedList.id);
@@ -455,14 +466,45 @@ export function ContactsManager() {
                           className="min-h-[200px] font-mono text-sm"
                         />
                       </div>
+                      
+                      {/* WhatsApp validation option */}
+                      {selectedList?.connection_id && (
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50 border">
+                          <Checkbox
+                            id="validateWhatsApp"
+                            checked={validateWhatsApp}
+                            onCheckedChange={(checked) => setValidateWhatsApp(checked === true)}
+                          />
+                          <label htmlFor="validateWhatsApp" className="text-sm cursor-pointer flex-1">
+                            <span className="font-medium flex items-center gap-1">
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                              Validar números no WhatsApp
+                            </span>
+                            <br />
+                            <span className="text-xs text-muted-foreground">
+                              Importa apenas números que existem no WhatsApp (mais lento)
+                            </span>
+                          </label>
+                        </div>
+                      )}
+
                       <div className="rounded-lg bg-accent/50 p-3 text-xs text-muted-foreground">
                         <p className="font-medium mb-1">Formato aceito:</p>
                         <p>nome,telefone (separado por vírgula, ponto-e-vírgula ou tab)</p>
                         <p className="mt-1">Telefone deve ter pelo menos 10 dígitos (DDD + número)</p>
                       </div>
                       <Button onClick={handleImportContacts} className="w-full" disabled={loading}>
-                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                        Importar Contatos
+                        {loading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            {validateWhatsApp && selectedList?.connection_id ? 'Validando...' : 'Importando...'}
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4" />
+                            Importar Contatos
+                          </>
+                        )}
                       </Button>
                     </div>
                   </DialogContent>
@@ -494,6 +536,7 @@ export function ContactsManager() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>Telefone</TableHead>
+                    <TableHead className="w-20">WhatsApp</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -502,6 +545,17 @@ export function ContactsManager() {
                     <TableRow key={contact.id}>
                       <TableCell className="font-medium">{contact.name}</TableCell>
                       <TableCell className="text-muted-foreground">{contact.phone}</TableCell>
+                      <TableCell>
+                        {contact.is_whatsapp === true && (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        )}
+                        {contact.is_whatsapp === false && (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
+                        {contact.is_whatsapp === null && (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Button
                           variant="ghost"

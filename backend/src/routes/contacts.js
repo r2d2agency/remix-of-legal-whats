@@ -5,6 +5,61 @@ import { authenticate } from '../middleware/auth.js';
 const router = Router();
 router.use(authenticate);
 
+// Validate WhatsApp numbers via Evolution API
+async function validateWhatsAppNumbers(connectionId, phones) {
+  try {
+    // Get connection details
+    const connResult = await query(
+      'SELECT api_url, api_key, instance_name FROM connections WHERE id = $1',
+      [connectionId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return null; // No connection, skip validation
+    }
+
+    const { api_url, api_key, instance_name } = connResult.rows[0];
+
+    if (!api_url || !api_key || !instance_name) {
+      return null; // Connection not properly configured
+    }
+
+    // Call Evolution API to validate numbers
+    const response = await fetch(`${api_url}/chat/whatsappNumbers/${instance_name}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api_key,
+      },
+      body: JSON.stringify({ numbers: phones }),
+    });
+
+    if (!response.ok) {
+      console.error('WhatsApp validation failed:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    // Create a map of phone -> exists
+    const validMap = {};
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (item.jid) {
+          // Extract phone from jid (e.g., "5511999999999@s.whatsapp.net")
+          const phone = item.jid.split('@')[0];
+          validMap[phone] = item.exists === true;
+        }
+      }
+    }
+
+    return validMap;
+  } catch (error) {
+    console.error('Error validating WhatsApp numbers:', error);
+    return null;
+  }
+}
+
 // Helper to get user's organization
 async function getUserOrganization(userId) {
   const result = await query(
@@ -233,11 +288,11 @@ router.post('/lists/:listId/contacts', async (req, res) => {
   }
 });
 
-// Bulk import contacts
+// Bulk import contacts with optional WhatsApp validation
 router.post('/lists/:listId/import', async (req, res) => {
   try {
     const { listId } = req.params;
-    const { contacts } = req.body;
+    const { contacts, validate_whatsapp } = req.body;
 
     if (!Array.isArray(contacts) || contacts.length === 0) {
       return res.status(400).json({ error: 'Lista de contatos inválida' });
@@ -245,7 +300,7 @@ router.post('/lists/:listId/import', async (req, res) => {
 
     const org = await getUserOrganization(req.userId);
 
-    // Verify list access
+    // Verify list access and get connection_id
     let whereClause = 'id = $1 AND user_id = $2';
     let params = [listId, req.userId];
 
@@ -257,7 +312,7 @@ router.post('/lists/:listId/import', async (req, res) => {
     }
 
     const listCheck = await query(
-      `SELECT id FROM contact_lists WHERE ${whereClause}`,
+      `SELECT id, connection_id FROM contact_lists WHERE ${whereClause}`,
       params
     );
 
@@ -265,15 +320,48 @@ router.post('/lists/:listId/import', async (req, res) => {
       return res.status(404).json({ error: 'Lista não encontrada' });
     }
 
+    const connectionId = listCheck.rows[0].connection_id;
+
     // Normalize contacts
-    const normalized = contacts.map((c) => ({
-      name: String(c?.name || '').trim(),
-      phone: String(c?.phone || '').trim(),
-      is_whatsapp: typeof c?.is_whatsapp === 'boolean' ? c.is_whatsapp : null,
-    })).filter((c) => c.name && c.phone);
+    let normalized = contacts.map((c) => {
+      let phone = String(c?.phone || '').trim().replace(/\D/g, '');
+      // Ensure country code
+      if (phone && !phone.startsWith('55') && phone.length <= 11) {
+        phone = '55' + phone;
+      }
+      return {
+        name: String(c?.name || '').trim(),
+        phone,
+        is_whatsapp: typeof c?.is_whatsapp === 'boolean' ? c.is_whatsapp : null,
+      };
+    }).filter((c) => c.name && c.phone && c.phone.length >= 12);
 
     if (normalized.length === 0) {
       return res.status(400).json({ error: 'Lista de contatos inválida' });
+    }
+
+    // Validate WhatsApp numbers if requested and connection exists
+    let invalidCount = 0;
+    if (validate_whatsapp && connectionId) {
+      const phones = normalized.map(c => c.phone);
+      const validationResult = await validateWhatsAppNumbers(connectionId, phones);
+
+      if (validationResult) {
+        const validContacts = [];
+        for (const contact of normalized) {
+          const isValid = validationResult[contact.phone];
+          if (isValid === true) {
+            contact.is_whatsapp = true;
+            validContacts.push(contact);
+          } else if (isValid === false) {
+            invalidCount++;
+          } else {
+            // Unknown status, include with null
+            validContacts.push(contact);
+          }
+        }
+        normalized = validContacts;
+      }
     }
 
     // Get existing phones in this list to detect duplicates
@@ -311,7 +399,8 @@ router.post('/lists/:listId/import', async (req, res) => {
     res.json({ 
       success: true, 
       imported: uniqueContacts.length,
-      duplicates: duplicateCount
+      duplicates: duplicateCount,
+      invalid_whatsapp: invalidCount
     });
   } catch (error) {
     console.error('Import contacts error:', error);
@@ -319,7 +408,56 @@ router.post('/lists/:listId/import', async (req, res) => {
   }
 });
 
-// Update contact (name/phone/whatsapp status)
+// Validate WhatsApp numbers endpoint
+router.post('/validate-whatsapp', async (req, res) => {
+  try {
+    const { connection_id, phones } = req.body;
+
+    if (!connection_id || !Array.isArray(phones) || phones.length === 0) {
+      return res.status(400).json({ error: 'connection_id e phones são obrigatórios' });
+    }
+
+    // Verify connection access
+    const org = await getUserOrganization(req.userId);
+    
+    let connCheck;
+    if (org) {
+      connCheck = await query(
+        'SELECT id FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id = $3)',
+        [connection_id, req.userId, org.organization_id]
+      );
+    } else {
+      connCheck = await query(
+        'SELECT id FROM connections WHERE id = $1 AND user_id = $2',
+        [connection_id, req.userId]
+      );
+    }
+
+    if (connCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Conexão não encontrada ou sem permissão' });
+    }
+
+    // Normalize phones
+    const normalizedPhones = phones.map(p => {
+      let phone = String(p).replace(/\D/g, '');
+      if (!phone.startsWith('55') && phone.length <= 11) {
+        phone = '55' + phone;
+      }
+      return phone;
+    }).filter(p => p.length >= 12);
+
+    const result = await validateWhatsAppNumbers(connection_id, normalizedPhones);
+
+    if (!result) {
+      return res.status(500).json({ error: 'Erro ao validar números. Verifique se a conexão está ativa.' });
+    }
+
+    res.json({ results: result });
+  } catch (error) {
+    console.error('Validate WhatsApp error:', error);
+    res.status(500).json({ error: 'Erro ao validar números' });
+  }
+});
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params;

@@ -124,6 +124,7 @@ export function ConversationList({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [conversationToDelete, setConversationToDelete] = useState<Conversation | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [keepContact, setKeepContact] = useState(true);
   const { toast } = useToast();
 
   // Debounce search
@@ -141,10 +142,14 @@ export function ConversationList({
     
     setDeleting(true);
     try {
-      await api(`/api/chat/conversations/${conversationToDelete.id}`, { method: 'DELETE' });
-      toast({ title: "Conversa excluída com sucesso" });
+      await api(`/api/chat/conversations/${conversationToDelete.id}?keep_contact=${keepContact}`, { method: 'DELETE' });
+      toast({ 
+        title: "Conversa excluída com sucesso",
+        description: keepContact ? "Contato mantido para futuras conversas" : undefined
+      });
       setDeleteDialogOpen(false);
       setConversationToDelete(null);
+      setKeepContact(true);
       onRefresh();
     } catch (error: any) {
       toast({ 
@@ -480,15 +485,43 @@ export function ConversationList({
       </ScrollArea>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) setKeepContact(true);
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir conversa</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir a conversa com{" "}
-              <strong>{conversationToDelete?.contact_name || conversationToDelete?.contact_phone || "este contato"}</strong>?
-              <br /><br />
-              Esta ação irá remover permanentemente todas as mensagens, notas e tags associadas.
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>
+                  Tem certeza que deseja excluir a conversa com{" "}
+                  <strong>{conversationToDelete?.contact_name || conversationToDelete?.contact_phone || "este contato"}</strong>?
+                </p>
+                <p className="text-sm">
+                  Esta ação irá remover permanentemente todas as mensagens, notas e tags associadas.
+                </p>
+                
+                {/* Keep contact option */}
+                {conversationToDelete?.contact_phone && (
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50 border">
+                    <input
+                      type="checkbox"
+                      id="keepContact"
+                      checked={keepContact}
+                      onChange={(e) => setKeepContact(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <label htmlFor="keepContact" className="text-sm cursor-pointer">
+                      <span className="font-medium">Manter contato para futuras conversas</span>
+                      <br />
+                      <span className="text-xs text-muted-foreground">
+                        O contato será salvo e a conversa poderá ser reiniciada depois
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -504,7 +537,7 @@ export function ConversationList({
                   Excluindo...
                 </>
               ) : (
-                "Excluir"
+                "Excluir conversa"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

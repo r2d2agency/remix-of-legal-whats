@@ -386,6 +386,7 @@ router.post('/conversations/:id/pin', authenticate, async (req, res) => {
 router.delete('/conversations/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
+    const { keep_contact } = req.query;
     const connectionIds = await getUserConnections(req.userId);
 
     // Check if user is admin/owner in their organization
@@ -399,14 +400,52 @@ router.delete('/conversations/:id', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Apenas administradores podem excluir conversas' });
     }
 
-    // Check if conversation belongs to user's connections
-    const check = await query(
-      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+    // Get conversation details before deleting
+    const convResult = await query(
+      `SELECT id, connection_id, contact_name, contact_phone, remote_jid 
+       FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
       [id, connectionIds]
     );
 
-    if (check.rows.length === 0) {
+    if (convResult.rows.length === 0) {
       return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const conv = convResult.rows[0];
+
+    // If keep_contact is true, save contact before deleting
+    if (keep_contact === 'true' && conv.contact_phone) {
+      // Find or create a contact list for this connection
+      let listResult = await query(
+        `SELECT id FROM contact_lists WHERE connection_id = $1 AND name = 'Contatos Salvos' LIMIT 1`,
+        [conv.connection_id]
+      );
+
+      let listId;
+      if (listResult.rows.length === 0) {
+        // Create a default list for saved contacts
+        const newList = await query(
+          `INSERT INTO contact_lists (user_id, name, connection_id) VALUES ($1, 'Contatos Salvos', $2) RETURNING id`,
+          [req.userId, conv.connection_id]
+        );
+        listId = newList.rows[0].id;
+      } else {
+        listId = listResult.rows[0].id;
+      }
+
+      // Check if contact already exists
+      const existingContact = await query(
+        `SELECT id FROM contacts WHERE list_id = $1 AND phone = $2`,
+        [listId, conv.contact_phone.replace(/\D/g, '')]
+      );
+
+      if (existingContact.rows.length === 0) {
+        // Add contact to list
+        await query(
+          `INSERT INTO contacts (list_id, name, phone) VALUES ($1, $2, $3)`,
+          [listId, conv.contact_name || conv.contact_phone, conv.contact_phone.replace(/\D/g, '')]
+        );
+      }
     }
 
     // Delete related records first
@@ -415,7 +454,7 @@ router.delete('/conversations/:id', authenticate, async (req, res) => {
     await query(`DELETE FROM chat_messages WHERE conversation_id = $1`, [id]);
     await query(`DELETE FROM conversations WHERE id = $1`, [id]);
 
-    res.json({ success: true });
+    res.json({ success: true, contact_saved: keep_contact === 'true' });
   } catch (error) {
     console.error('Delete conversation error:', error);
     res.status(500).json({ error: 'Erro ao excluir conversa' });
