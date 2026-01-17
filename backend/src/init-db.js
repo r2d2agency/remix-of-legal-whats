@@ -210,9 +210,13 @@ CREATE TABLE IF NOT EXISTS contacts (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- WhatsApp validation status (nullable)
+-- Add missing columns if not exists (for existing databases)
 DO $$ BEGIN
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_whatsapp BOOLEAN;
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS jid VARCHAR(100);
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS push_name VARCHAR(255);
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT false;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
