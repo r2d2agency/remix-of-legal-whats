@@ -58,7 +58,8 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { ChatMessage, Conversation, ConversationTag, TeamMember } from "@/hooks/use-chat";
+import { ChatMessage, Conversation, ConversationTag, TeamMember, ConversationNote } from "@/hooks/use-chat";
+import { useChat } from "@/hooks/use-chat";
 import { useUpload } from "@/hooks/use-upload";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -134,12 +135,23 @@ export function ChatArea({
   });
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [notesCount, setNotesCount] = useState(0);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploadFile, isUploading } = useUpload();
   const { user } = useAuth();
+  const { getNotes } = useChat();
+
+  // Load notes count when conversation changes
+  useEffect(() => {
+    if (conversation?.id) {
+      getNotes(conversation.id).then(notes => setNotesCount(notes.length));
+    } else {
+      setNotesCount(0);
+    }
+  }, [conversation?.id, showNotes]);
 
   // Save signature preference
   useEffect(() => {
@@ -368,6 +380,11 @@ export function ChatArea({
               <DropdownMenuItem onClick={() => setShowNotes(!showNotes)}>
                 <StickyNote className="h-4 w-4 mr-2" />
                 Anotações internas
+                {notesCount > 0 && (
+                  <Badge variant="secondary" className="ml-auto text-[10px] h-5 px-1.5 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300">
+                    {notesCount}
+                  </Badge>
+                )}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
