@@ -33,42 +33,146 @@ async function evolutionRequest(endpoint, method = 'GET', body = null) {
 }
 
 // Generate unique instance name
-function generateInstanceName(orgId, userId) {
+function generateInstanceName(orgId, oddsStr) {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2, 6);
-  return `ws_${orgId?.substring(0, 8) || userId.substring(0, 8)}_${timestamp}${random}`;
+  return `ws_${(orgId || oddsStr || 'default').substring(0, 8)}_${timestamp}${random}`;
 }
 
-// Check plan limits
+// Check plan limits for connections
 async function checkConnectionLimit(userId, organizationId) {
-  // Get user's plan limits
-  const userResult = await query(
-    `SELECT u.max_connections, 
-            (SELECT COUNT(*) FROM connections WHERE user_id = u.id) as current_connections
-     FROM users u WHERE u.id = $1`,
-    [userId]
-  );
+  if (organizationId) {
+    // Check organization's plan limits
+    const result = await query(
+      `SELECT 
+         p.max_connections,
+         p.name as plan_name,
+         (SELECT COUNT(*) FROM connections WHERE organization_id = o.id) as current_connections
+       FROM organizations o
+       LEFT JOIN plans p ON p.id = o.plan_id
+       WHERE o.id = $1`,
+      [organizationId]
+    );
 
-  if (userResult.rows.length === 0) {
-    throw new Error('Usuário não encontrado');
+    if (result.rows.length === 0) {
+      throw new Error('Organização não encontrada');
+    }
+
+    const { max_connections, current_connections, plan_name } = result.rows[0];
+    const limit = max_connections || 1;
+    
+    if (current_connections >= limit) {
+      throw new Error(`Limite de conexões atingido (${current_connections}/${limit}). Plano: ${plan_name || 'Sem plano'}. Faça upgrade.`);
+    }
+
+    return { allowed: true, current: current_connections, limit };
+  } else {
+    // Fallback: check user's own connections (for users without organization)
+    const result = await query(
+      `SELECT COUNT(*) as current_connections FROM connections WHERE user_id = $1`,
+      [userId]
+    );
+
+    const currentConnections = parseInt(result.rows[0].current_connections) || 0;
+    const defaultLimit = 1; // Default limit for users without organization
+
+    if (currentConnections >= defaultLimit) {
+      throw new Error(`Limite de conexões atingido (${currentConnections}/${defaultLimit}). Associe-se a uma organização.`);
+    }
+
+    return { allowed: true, current: currentConnections, limit: defaultLimit };
   }
-
-  const { max_connections, current_connections } = userResult.rows[0];
-  
-  if (current_connections >= (max_connections || 1)) {
-    throw new Error(`Limite de conexões atingido (${max_connections || 1}). Faça upgrade do seu plano.`);
-  }
-
-  return true;
 }
+
+// Get plan limits for connections
+router.get('/limits', authenticate, async (req, res) => {
+  try {
+    // Get user's organization
+    const orgResult = await query(
+      `SELECT om.organization_id 
+       FROM organization_members om 
+       WHERE om.user_id = $1 
+       LIMIT 1`,
+      [req.userId]
+    );
+
+    if (orgResult.rows.length === 0) {
+      return res.json({
+        max_connections: 1,
+        current_connections: 0,
+        plan_name: 'Sem organização'
+      });
+    }
+
+    const organizationId = orgResult.rows[0].organization_id;
+
+    // Get plan limits
+    const limitsResult = await query(
+      `SELECT 
+         p.max_connections,
+         p.name as plan_name,
+         (SELECT COUNT(*) FROM connections WHERE organization_id = o.id) as current_connections
+       FROM organizations o
+       LEFT JOIN plans p ON p.id = o.plan_id
+       WHERE o.id = $1`,
+      [organizationId]
+    );
+
+    if (limitsResult.rows.length === 0) {
+      return res.json({
+        max_connections: 1,
+        current_connections: 0,
+        plan_name: 'Organização não encontrada'
+      });
+    }
+
+    const { max_connections, current_connections, plan_name } = limitsResult.rows[0];
+
+    res.json({
+      max_connections: max_connections || 1,
+      current_connections: parseInt(current_connections) || 0,
+      plan_name: plan_name || 'Sem plano'
+    });
+  } catch (error) {
+    console.error('Get limits error:', error);
+    res.status(500).json({ error: 'Erro ao buscar limites' });
+  }
+});
 
 // Create new Evolution instance
 router.post('/create', authenticate, async (req, res) => {
   try {
-    const { name, organization_id } = req.body;
+    const { name } = req.body;
+    let { organization_id } = req.body;
 
     if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
       return res.status(500).json({ error: 'Evolution API não configurada' });
+    }
+
+    // If no organization_id provided, get user's first organization
+    if (!organization_id) {
+      const orgResult = await query(
+        `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+        [req.userId]
+      );
+      if (orgResult.rows.length > 0) {
+        organization_id = orgResult.rows[0].organization_id;
+      }
+    }
+
+    // Verify user belongs to organization
+    if (organization_id) {
+      const memberCheck = await query(
+        `SELECT id, role FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
+        [organization_id, req.userId]
+      );
+      if (memberCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'Você não pertence a esta organização' });
+      }
+      // Only owner, admin, manager can create connections
+      if (!['owner', 'admin', 'manager'].includes(memberCheck.rows[0].role)) {
+        return res.status(403).json({ error: 'Sem permissão para criar conexões' });
+      }
     }
 
     // Check plan limits

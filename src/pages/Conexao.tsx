@@ -20,12 +20,19 @@ interface Connection {
   created_at: string;
 }
 
+interface PlanLimits {
+  max_connections: number;
+  current_connections: number;
+  plan_name: string;
+}
+
 const Conexao = () => {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newConnectionName, setNewConnectionName] = useState("");
+  const [planLimits, setPlanLimits] = useState<PlanLimits | null>(null);
   
   // QR Code state
   const [qrCodeDialog, setQrCodeDialog] = useState(false);
@@ -36,6 +43,7 @@ const Conexao = () => {
 
   useEffect(() => {
     loadConnections();
+    loadPlanLimits();
   }, []);
 
   const loadConnections = async () => {
@@ -47,6 +55,15 @@ const Conexao = () => {
       toast.error('Erro ao carregar conexões');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPlanLimits = async () => {
+    try {
+      const data = await api<PlanLimits>('/api/evolution/limits');
+      setPlanLimits(data);
+    } catch (error) {
+      console.error('Error loading plan limits:', error);
     }
   };
 
@@ -214,13 +231,27 @@ const Conexao = () => {
             </p>
           </div>
           
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button variant="gradient">
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Conexão
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-4">
+            {/* Plan limits badge */}
+            {planLimits && (
+              <Badge variant="outline" className="text-sm py-1 px-3">
+                {connections.length} / {planLimits.max_connections} conexões
+                {planLimits.plan_name && (
+                  <span className="ml-1 text-muted-foreground">({planLimits.plan_name})</span>
+                )}
+              </Badge>
+            )}
+
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="gradient"
+                  disabled={planLimits && connections.length >= planLimits.max_connections}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nova Conexão
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Nova Conexão WhatsApp</DialogTitle>
@@ -258,6 +289,7 @@ const Conexao = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Connections Grid */}
