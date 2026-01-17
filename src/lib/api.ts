@@ -1,4 +1,4 @@
-const API_URL = 'https://whastsale-backend.exf0ty.easypanel.host';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://whastsale-backend.exf0ty.easypanel.host';
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';

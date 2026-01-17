@@ -1,32 +1,25 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard,
-  Plug,
-  Users,
-  MessageSquare,
-  Send,
-  Receipt,
-  Settings,
-  Zap,
   Building2,
-  Shield,
+  LayoutDashboard,
   LogOut,
   Menu,
-  X,
+  MessageSquare,
+  Plug,
+  Receipt,
+  Send,
+  Settings,
+  Shield,
+  Users,
+  Zap,
 } from "lucide-react";
-import { getAuthToken } from "@/lib/api";
+import { API_URL, getAuthToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -52,17 +45,19 @@ function SidebarContent({ isExpanded, isSuperadmin, onNavigate }: SidebarContent
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate("/login");
     onNavigate?.();
   };
 
   return (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className={cn(
-        "flex h-16 items-center gap-3 border-b border-border transition-all duration-300",
-        isExpanded ? "px-6" : "px-3 justify-center"
-      )}>
+      <div
+        className={cn(
+          "flex h-16 items-center gap-3 border-b border-border transition-all duration-300",
+          isExpanded ? "px-6" : "px-3 justify-center"
+        )}
+      >
         <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary neon-glow shrink-0">
           <Zap className="h-5 w-5 text-primary-foreground" />
         </div>
@@ -99,9 +94,7 @@ function SidebarContent({ isExpanded, isSuperadmin, onNavigate }: SidebarContent
           if (!isExpanded) {
             return (
               <Tooltip key={item.name} delayDuration={0}>
-                <TooltipTrigger asChild>
-                  {linkContent}
-                </TooltipTrigger>
+                <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
                 <TooltipContent side="right" className="font-medium">
                   {item.name}
                 </TooltipContent>
@@ -155,18 +148,18 @@ function SidebarContent({ isExpanded, isSuperadmin, onNavigate }: SidebarContent
       </nav>
 
       {/* Footer */}
-      <div className={cn(
-        "border-t border-border p-3 space-y-2",
-        !isExpanded && "flex flex-col items-center"
-      )}>
+      <div
+        className={cn(
+          "border-t border-border p-3 space-y-2",
+          !isExpanded && "flex flex-col items-center"
+        )}
+      >
         {user && isExpanded && (
           <div className="rounded-lg bg-accent/50 p-3">
             <p className="text-xs font-medium text-accent-foreground truncate">
               {user.name || user.email}
             </p>
-            <p className="text-xs text-muted-foreground truncate">
-              {user.email}
-            </p>
+            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
           </div>
         )}
 
@@ -196,9 +189,7 @@ function SidebarContent({ isExpanded, isSuperadmin, onNavigate }: SidebarContent
 
         {isExpanded && (
           <div className="text-center">
-            <p className="text-xs text-muted-foreground">
-              Versão 1.0.0
-            </p>
+            <p className="text-xs text-muted-foreground">Versão 1.0.0</p>
           </div>
         )}
       </div>
@@ -219,13 +210,13 @@ export function Sidebar() {
     try {
       const token = getAuthToken();
       if (!token) return;
-      
+
       const response = await fetch(`${API_URL}/api/admin/check`, {
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setIsSuperadmin(data.isSuperadmin);
@@ -249,10 +240,10 @@ export function Sidebar() {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0 bg-card border-border">
-            <SidebarContent 
-              isExpanded={true} 
-              isSuperadmin={isSuperadmin} 
-              onNavigate={() => setMobileOpen(false)} 
+            <SidebarContent
+              isExpanded={true}
+              isSuperadmin={isSuperadmin}
+              onNavigate={() => setMobileOpen(false)}
             />
           </SheetContent>
         </Sheet>
@@ -273,6 +264,5 @@ export function Sidebar() {
   );
 }
 
-// Export collapsed width for MainLayout
 export const SIDEBAR_COLLAPSED_WIDTH = 64;
 export const SIDEBAR_EXPANDED_WIDTH = 256;

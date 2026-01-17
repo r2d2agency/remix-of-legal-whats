@@ -1,7 +1,5 @@
 import { useState, useCallback } from 'react';
-import { getAuthToken } from '@/lib/api';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { API_URL, getAuthToken } from '@/lib/api';
 
 interface Organization {
   id: string;
