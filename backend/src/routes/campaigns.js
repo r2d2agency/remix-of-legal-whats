@@ -170,22 +170,48 @@ router.post('/', async (req, res) => {
     const pauseAfter = pause_after_messages || 20;
     const pauseDur = (pause_duration || 10) * 60; // Convert to seconds
 
-    // Determine start time using local date/time values
-    let currentScheduleTime = new Date();
-    
-    // If a start_date is provided (YYYY-MM-DD format), use it
-    if (start_date) {
-      // Parse as local date
-      const [year, month, day] = start_date.split('-').map(Number);
+    // Helper to get current time in São Paulo timezone
+    const getSaoPauloTime = () => {
+      const now = new Date();
+      // Get São Paulo offset (UTC-3, or UTC-2 during DST)
+      const saoPauloOffset = -3 * 60; // -3 hours in minutes
+      const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+      return new Date(utcTime + (saoPauloOffset * 60000));
+    };
+
+    // Helper to create a São Paulo time from date/time strings
+    const createSaoPauloTime = (dateStr, timeStr) => {
+      const [year, month, day] = dateStr ? dateStr.split('-').map(Number) : [null, null, null];
+      const [hours, minutes] = timeStr ? timeStr.split(':').map(Number) : [0, 0];
+      
+      // Create date in São Paulo timezone
+      // São Paulo is UTC-3
+      const saoPauloOffset = -3;
+      
       if (year && month && day) {
-        currentScheduleTime = new Date(year, month - 1, day);
+        // Create ISO string for São Paulo time
+        const isoString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00.000${saoPauloOffset >= 0 ? '+' : '-'}${String(Math.abs(saoPauloOffset)).padStart(2, '0')}:00`;
+        return new Date(isoString);
       }
-    }
+      
+      // If no date provided, use today in São Paulo
+      const now = getSaoPauloTime();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const isoString = `${todayStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00.000${saoPauloOffset >= 0 ? '+' : '-'}${String(Math.abs(saoPauloOffset)).padStart(2, '0')}:00`;
+      return new Date(isoString);
+    };
+
+    // Determine start time
+    let currentScheduleTime;
     
-    // Apply start_time
-    if (start_time) {
-      const [hours, minutes] = start_time.split(':').map(Number);
-      currentScheduleTime.setHours(hours, minutes, 0, 0);
+    if (start_date && start_time) {
+      currentScheduleTime = createSaoPauloTime(start_date, start_time);
+    } else if (start_date) {
+      currentScheduleTime = createSaoPauloTime(start_date, '00:00');
+    } else if (start_time) {
+      currentScheduleTime = createSaoPauloTime(null, start_time);
+    } else {
+      currentScheduleTime = new Date();
     }
 
     // Parse time bounds
@@ -200,10 +226,8 @@ router.post('/', async (req, res) => {
     // Only adjust if scheduled time is in the past
     if (currentScheduleTime < now) {
       if (start_time) {
-        // Use today with the specified time
-        const [hours, minutes] = start_time.split(':').map(Number);
-        currentScheduleTime = new Date();
-        currentScheduleTime.setHours(hours, minutes, 0, 0);
+        // Try today with the specified time
+        currentScheduleTime = createSaoPauloTime(null, start_time);
         
         // If that time already passed today, use current time
         if (currentScheduleTime < now) {
@@ -218,8 +242,9 @@ router.post('/', async (req, res) => {
       start_date,
       start_time,
       end_time,
-      scheduledStart: currentScheduleTime.toString(),
-      now: now.toString()
+      scheduledStart: currentScheduleTime.toISOString(),
+      scheduledStartLocal: currentScheduleTime.toString(),
+      now: now.toISOString()
     });
 
     // Create campaign
