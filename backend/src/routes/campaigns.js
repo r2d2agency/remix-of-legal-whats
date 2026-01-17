@@ -355,6 +355,61 @@ router.patch('/:id/status', async (req, res) => {
       params = [status, id, req.userId, org.organization_id];
     }
 
+    // If starting/resuming campaign, recalculate pending message times from now
+    if (status === 'running') {
+      // Get campaign details
+      const campaignResult = await query(
+        `SELECT * FROM campaigns WHERE id = $1`,
+        [id]
+      );
+      
+      if (campaignResult.rows.length > 0) {
+        const campaign = campaignResult.rows[0];
+        
+        // Get pending messages ordered by their original schedule
+        const pendingMessages = await query(
+          `SELECT id FROM campaign_messages 
+           WHERE campaign_id = $1 AND status = 'pending'
+           ORDER BY scheduled_at ASC`,
+          [id]
+        );
+        
+        if (pendingMessages.rows.length > 0) {
+          const minDelay = campaign.min_delay || 120;
+          const maxDelay = campaign.max_delay || 300;
+          const pauseAfter = campaign.pause_after_messages || 20;
+          const pauseDuration = (campaign.pause_duration || 10) * 60; // seconds
+          
+          // Start from now
+          let currentTime = new Date();
+          let messagesSincePause = 0;
+          
+          // Update each pending message with new scheduled time
+          for (let i = 0; i < pendingMessages.rows.length; i++) {
+            const msgId = pendingMessages.rows[i].id;
+            
+            await query(
+              `UPDATE campaign_messages SET scheduled_at = $1 WHERE id = $2`,
+              [currentTime.toISOString(), msgId]
+            );
+            
+            // Calculate next time
+            const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+            currentTime = new Date(currentTime.getTime() + delay * 1000);
+            messagesSincePause++;
+            
+            // Add pause if needed
+            if (messagesSincePause >= pauseAfter && i < pendingMessages.rows.length - 1) {
+              currentTime = new Date(currentTime.getTime() + pauseDuration * 1000);
+              messagesSincePause = 0;
+            }
+          }
+          
+          console.log(`Recalculated ${pendingMessages.rows.length} message times for campaign ${id}`);
+        }
+      }
+    }
+
     const result = await query(
       `UPDATE campaigns 
        SET status = $1, updated_at = NOW()
