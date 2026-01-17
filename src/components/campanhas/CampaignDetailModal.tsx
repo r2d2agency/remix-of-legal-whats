@@ -116,6 +116,7 @@ export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetai
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<CampaignDetails | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [countdown, setCountdown] = useState(10);
 
   const loadDetails = useCallback(async () => {
     if (!campaignId) return;
@@ -134,16 +135,30 @@ export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetai
   useEffect(() => {
     if (open && campaignId) {
       loadDetails();
+      setCountdown(10);
     }
   }, [open, campaignId, loadDetails]);
 
-  // Auto-refresh when campaign is running
+  // Auto-refresh for running and pending campaigns
   useEffect(() => {
     if (!open || !autoRefresh || !details?.campaign) return;
-    if (details.campaign.status !== 'running') return;
+    
+    // Only auto-refresh for active campaigns
+    const isActive = ['running', 'pending', 'paused'].includes(details.campaign.status);
+    if (!isActive) return;
 
-    const interval = setInterval(loadDetails, 10000); // Refresh every 10 seconds
-    return () => clearInterval(interval);
+    // Countdown timer
+    const countdownInterval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          loadDetails();
+          return 10;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(countdownInterval);
   }, [open, autoRefresh, details?.campaign?.status, loadDetails]);
 
   if (!open) return null;
@@ -161,14 +176,26 @@ export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetai
               <MessageSquare className="h-5 w-5 text-primary" />
               {details?.campaign?.name || 'Carregando...'}
             </DialogTitle>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={loadDetails}
-              disabled={loading}
-            >
-              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Auto-refresh indicator */}
+              {autoRefresh && details?.campaign && ['running', 'pending', 'paused'].includes(details.campaign.status) && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {countdown}s
+                </span>
+              )}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  loadDetails();
+                  setCountdown(10);
+                }}
+                disabled={loading}
+                title={autoRefresh ? "Atualização automática ativa" : "Clique para atualizar"}
+              >
+                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              </Button>
+            </div>
           </div>
           <DialogDescription>
             Acompanhe o progresso e status das mensagens da campanha.
