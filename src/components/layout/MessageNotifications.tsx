@@ -8,8 +8,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
+import { chatEvents } from "@/lib/chat-events";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -57,16 +57,22 @@ export function MessageNotifications() {
   }, [soundEnabled]);
 
   // Fetch unread conversations
-  const fetchUnreadConversations = useCallback(async () => {
+  const fetchUnreadConversations = useCallback(async (emitEvent = false) => {
     try {
       const data = await api<UnreadConversation[]>("/api/chat/conversations/unread");
       setUnreadConversations(data);
       
       const newTotal = data.reduce((sum, c) => sum + c.unread_count, 0);
       
-      // Play sound if there are new unread messages
-      if (soundEnabled && newTotal > previousUnreadRef.current && previousUnreadRef.current > 0) {
-        playNotificationSound();
+      // Play sound and emit event if there are new unread messages
+      if (newTotal > previousUnreadRef.current && previousUnreadRef.current >= 0) {
+        if (soundEnabled && previousUnreadRef.current > 0) {
+          playNotificationSound();
+        }
+        // Broadcast to other components to refresh immediately
+        if (emitEvent) {
+          chatEvents.emit('new_message');
+        }
       }
       
       previousUnreadRef.current = newTotal;
@@ -86,11 +92,11 @@ export function MessageNotifications() {
     }
   }, [soundEnabled]);
 
-  // Poll for unread messages
+  // Poll for unread messages - faster polling (every 3 seconds)
   useEffect(() => {
-    fetchUnreadConversations();
+    fetchUnreadConversations(false); // Initial fetch without event
     
-    const interval = setInterval(fetchUnreadConversations, 10000); // Every 10 seconds
+    const interval = setInterval(() => fetchUnreadConversations(true), 3000);
     
     return () => clearInterval(interval);
   }, [fetchUnreadConversations]);

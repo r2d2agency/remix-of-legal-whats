@@ -7,6 +7,7 @@ import { NewConversationDialog } from "@/components/chat/NewConversationDialog";
 import { useChat, Conversation, ChatMessage, ConversationTag, TeamMember } from "@/hooks/use-chat";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { chatEvents } from "@/lib/chat-events";
 
 interface UserProfile {
   user?: {
@@ -93,15 +94,30 @@ const Chat = () => {
     loadConversationsRef.current();
   }, [filters]);
 
-  // Auto-refresh conversations every 15 seconds (avoid stale closures)
+  // Auto-refresh conversations every 8 seconds (backup - events handle immediate updates)
   useEffect(() => {
     const interval = setInterval(() => {
       loadConversationsRef.current();
-    }, 15000);
+    }, 8000);
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-refresh messages every 5 seconds when conversation is selected
+  // Subscribe to chat events for immediate updates
+  useEffect(() => {
+    const unsubscribe = chatEvents.subscribe('new_message', () => {
+      // Immediate refresh when notification detects new message
+      loadConversationsRef.current();
+      
+      // Also refresh messages if a conversation is selected
+      if (selectedConversation) {
+        getMessages(selectedConversation.id).then(setMessages).catch(console.error);
+      }
+    });
+
+    return unsubscribe;
+  }, [selectedConversation, getMessages]);
+
+  // Auto-refresh messages every 3 seconds when conversation is selected
   useEffect(() => {
     if (!selectedConversation) return;
 
@@ -109,13 +125,10 @@ const Chat = () => {
       try {
         const msgs = await getMessages(selectedConversation.id);
         setMessages(msgs);
-
-        // Also refresh conversation list to update unread counts
-        loadConversationsRef.current();
       } catch (error) {
         console.error('Error refreshing messages:', error);
       }
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [selectedConversation?.id, getMessages]);
