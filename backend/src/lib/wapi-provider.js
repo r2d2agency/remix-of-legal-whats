@@ -81,8 +81,9 @@ export async function checkStatus(instanceId, token) {
   const encodedInstanceId = encodeURIComponent(instanceId || '');
 
   try {
+    // W-API uses /instance/status-instance endpoint
     const response = await fetch(
-      `${W_API_BASE_URL}/instance/status?instanceId=${encodedInstanceId}`,
+      `${W_API_BASE_URL}/instance/status-instance?instanceId=${encodedInstanceId}`,
       { headers: getHeaders(token) }
     );
 
