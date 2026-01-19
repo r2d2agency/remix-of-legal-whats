@@ -5,6 +5,7 @@ import { ptBR } from "date-fns/locale";
 import { Clock, Sun, Sunset, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MessageNotifications } from "./MessageNotifications";
+import { ConnectionStatusIndicator } from "./ConnectionStatusIndicator";
 
 function getGreeting(hour: number): { text: string; icon: typeof Sun } {
   if (hour >= 5 && hour < 12) {
@@ -34,6 +35,12 @@ export function TopBar() {
 
   return (
     <div className="hidden lg:flex fixed top-0 right-0 left-16 h-14 items-center justify-end gap-4 px-6 bg-background/80 backdrop-blur-sm border-b border-border/50 z-40">
+      {/* Connection Status Indicator */}
+      <ConnectionStatusIndicator />
+
+      {/* Divider */}
+      <div className="h-6 w-px bg-border" />
+
       {/* Message Notifications */}
       <MessageNotifications />
 
