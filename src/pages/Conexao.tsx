@@ -61,6 +61,9 @@ const Conexao = () => {
   const [diagLoading, setDiagLoading] = useState<string | null>(null);
   const [diagResults, setDiagResults] = useState<Record<string, any>>({});
 
+  // W-API webhook config state
+  const [configuringWapiWebhooks, setConfiguringWapiWebhooks] = useState<string | null>(null);
+
   // Webhook viewer state (shows what the backend is actually receiving)
   const [webhookViewerOpen, setWebhookViewerOpen] = useState(false);
   const [webhookViewerConnection, setWebhookViewerConnection] = useState<Connection | null>(null);
@@ -284,6 +287,33 @@ const handleGetQRCode = async (connection: Connection) => {
       toast.error(error.message || 'Erro ao reconfigurar webhook');
     } finally {
       setDiagLoading(null);
+    }
+  };
+
+  const handleConfigureWapiWebhooks = async (connection: Connection) => {
+    const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+
+    if (!isWapi) {
+      toast.info('Esta ação é apenas para conexões W-API');
+      return;
+    }
+
+    setConfiguringWapiWebhooks(connection.id);
+    try {
+      const result = await api<{ success: boolean; message?: string }>(
+        `/api/connections/${connection.id}/configure-webhooks`,
+        { method: 'POST' }
+      );
+
+      if (result.success) {
+        toast.success(result.message || 'Webhooks configurados com sucesso');
+      } else {
+        toast.error(result.message || 'Falha ao configurar webhooks');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao configurar webhooks');
+    } finally {
+      setConfiguringWapiWebhooks(null);
     }
   };
 
@@ -618,47 +648,66 @@ const handleGetQRCode = async (connection: Connection) => {
                     >
                       <Activity className="h-4 w-4" />
                     </Button>
+
+                    {/* W-API: Configure webhooks */}
+                    {(connection.provider === 'wapi' || !!connection.instance_id) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleConfigureWapiWebhooks(connection)}
+                        disabled={configuringWapiWebhooks === connection.id}
+                        title="Configurar webhooks (W-API)"
+                      >
+                        {configuringWapiWebhooks === connection.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Settings2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                     
-                    {/* Webhook Diagnostic */}
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleWebhookDiagnostic(connection)}
-                          disabled={diagLoading === connection.id}
-                        >
-                          {diagLoading === connection.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : diagResults[connection.id]?.healthy ? (
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                          ) : diagResults[connection.id]?.errors?.length > 0 ? (
-                            <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                          ) : (
-                            <Settings2 className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      {diagResults[connection.id] && (
-                        <PopoverContent className="w-80">
-                          <div className="space-y-2">
-                            <h4 className="font-semibold">Diagnóstico Webhook</h4>
-                            <div className="text-xs space-y-1">
-                              <p>Status: {diagResults[connection.id].instanceStatus?.state || 'unknown'}</p>
-                              <p>URL: {diagResults[connection.id].evolutionWebhook?.url || 'Não configurado'}</p>
-                              {diagResults[connection.id].errors?.map((err: string, i: number) => (
-                                <p key={i} className="text-destructive">⚠️ {err}</p>
-                              ))}
-                            </div>
-                            {!diagResults[connection.id].healthy && (
-                              <Button size="sm" onClick={() => handleReconfigureWebhook(connection)} className="w-full mt-2">
-                                Reconfigurar Webhook
-                              </Button>
+                    {/* Webhook Diagnostic (Evolution only) */}
+                    {!(connection.provider === 'wapi' || !!connection.instance_id) && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleWebhookDiagnostic(connection)}
+                            disabled={diagLoading === connection.id}
+                          >
+                            {diagLoading === connection.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : diagResults[connection.id]?.healthy ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : diagResults[connection.id]?.errors?.length > 0 ? (
+                              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                            ) : (
+                              <Settings2 className="h-4 w-4" />
                             )}
-                          </div>
-                        </PopoverContent>
-                      )}
-                    </Popover>
+                          </Button>
+                        </PopoverTrigger>
+                        {diagResults[connection.id] && (
+                          <PopoverContent className="w-80">
+                            <div className="space-y-2">
+                              <h4 className="font-semibold">Diagnóstico Webhook</h4>
+                              <div className="text-xs space-y-1">
+                                <p>Status: {diagResults[connection.id].instanceStatus?.state || 'unknown'}</p>
+                                <p>URL: {diagResults[connection.id].evolutionWebhook?.url || 'Não configurado'}</p>
+                                {diagResults[connection.id].errors?.map((err: string, i: number) => (
+                                  <p key={i} className="text-destructive">⚠️ {err}</p>
+                                ))}
+                              </div>
+                              {!diagResults[connection.id].healthy && (
+                                <Button size="sm" onClick={() => handleReconfigureWebhook(connection)} className="w-full mt-2">
+                                  Reconfigurar Webhook
+                                </Button>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        )}
+                      </Popover>
+                    )}
                     
                     {/* Delete button - always visible */}
                     <AlertDialog>
