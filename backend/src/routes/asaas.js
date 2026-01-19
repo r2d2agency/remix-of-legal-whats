@@ -420,23 +420,29 @@ router.get('/customers/:organizationId', async (req, res) => {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
-    let whereClause = 'WHERE c.organization_id = $1';
-    if (show_blacklisted !== 'true') {
-      whereClause += ' AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)';
+    try {
+      let whereClause = 'WHERE c.organization_id = $1';
+      if (show_blacklisted !== 'true') {
+        whereClause += ' AND (c.is_blacklisted = false OR c.is_blacklisted IS NULL)';
+      }
+
+      const result = await query(
+        `SELECT c.*, 
+          (SELECT COUNT(*) FROM asaas_payments p WHERE p.customer_id = c.id AND p.status = 'PENDING') as pending_count,
+          (SELECT COUNT(*) FROM asaas_payments p WHERE p.customer_id = c.id AND p.status = 'OVERDUE') as overdue_count,
+          (SELECT SUM(value) FROM asaas_payments p WHERE p.customer_id = c.id AND p.status IN ('PENDING', 'OVERDUE')) as total_due
+         FROM asaas_customers c
+         ${whereClause}
+         ORDER BY c.is_blacklisted ASC NULLS FIRST, c.billing_paused ASC NULLS FIRST, c.name`,
+        [organizationId]
+      );
+
+      res.json(result.rows);
+    } catch (queryError) {
+      // Tables might not exist yet - return empty array
+      console.log('Customers query error (tables may not exist):', queryError.message);
+      res.json([]);
     }
-
-    const result = await query(
-      `SELECT c.*, 
-        (SELECT COUNT(*) FROM asaas_payments p WHERE p.customer_id = c.id AND p.status = 'PENDING') as pending_count,
-        (SELECT COUNT(*) FROM asaas_payments p WHERE p.customer_id = c.id AND p.status = 'OVERDUE') as overdue_count,
-        (SELECT SUM(value) FROM asaas_payments p WHERE p.customer_id = c.id AND p.status IN ('PENDING', 'OVERDUE')) as total_due
-       FROM asaas_customers c
-       ${whereClause}
-       ORDER BY c.is_blacklisted ASC NULLS FIRST, c.billing_paused ASC NULLS FIRST, c.name`,
-      [organizationId]
-    );
-
-    res.json(result.rows);
   } catch (error) {
     console.error('Get customers error:', error);
     res.status(500).json({ error: 'Erro ao buscar clientes' });
@@ -504,8 +510,19 @@ router.get('/settings/:organizationId', async (req, res) => {
       [organizationId]
     );
 
+    // Return empty settings if no integration configured yet
     if (result.rows.length === 0) {
-      return res.json(null);
+      return res.json({
+        daily_message_limit_per_customer: null,
+        billing_paused: false,
+        billing_paused_until: null,
+        billing_paused_reason: null,
+        critical_alert_threshold: null,
+        critical_alert_days: null,
+        alert_email: null,
+        alert_whatsapp: false,
+        alert_connection_id: null
+      });
     }
 
     res.json(result.rows[0]);
@@ -574,22 +591,29 @@ router.get('/alerts/:organizationId', async (req, res) => {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
-    let whereClause = 'WHERE a.organization_id = $1';
-    if (unread_only === 'true') {
-      whereClause += ' AND a.is_read = false';
+    // Check if billing_alerts table exists (graceful fallback)
+    try {
+      let whereClause = 'WHERE a.organization_id = $1';
+      if (unread_only === 'true') {
+        whereClause += ' AND a.is_read = false';
+      }
+
+      const result = await query(
+        `SELECT a.*, c.name as customer_name, c.phone as customer_phone
+         FROM billing_alerts a
+         LEFT JOIN asaas_customers c ON c.id = a.customer_id
+         ${whereClause}
+         ORDER BY a.created_at DESC
+         LIMIT $2`,
+        [organizationId, parseInt(limit) || 50]
+      );
+
+      res.json(result.rows);
+    } catch (queryError) {
+      // Table might not exist yet - return empty array
+      console.log('Alerts query error (table may not exist):', queryError.message);
+      res.json([]);
     }
-
-    const result = await query(
-      `SELECT a.*, c.name as customer_name, c.phone as customer_phone
-       FROM billing_alerts a
-       LEFT JOIN asaas_customers c ON c.id = a.customer_id
-       ${whereClause}
-       ORDER BY a.created_at DESC
-       LIMIT $2`,
-      [organizationId, parseInt(limit) || 50]
-    );
-
-    res.json(result.rows);
   } catch (error) {
     console.error('Get alerts error:', error);
     res.status(500).json({ error: 'Erro ao buscar alertas' });
@@ -709,119 +733,135 @@ router.get('/dashboard/:organizationId', async (req, res) => {
       return res.status(403).json({ error: 'Acesso negado' });
     }
 
-    // General stats
-    const generalStats = await query(`
-      SELECT 
-        COUNT(*) FILTER (WHERE status = 'PENDING') as pending_count,
-        COUNT(*) FILTER (WHERE status = 'OVERDUE') as overdue_count,
-        COUNT(*) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')) as paid_count,
-        COALESCE(SUM(value) FILTER (WHERE status = 'PENDING'), 0) as pending_value,
-        COALESCE(SUM(value) FILTER (WHERE status = 'OVERDUE'), 0) as overdue_value,
-        COALESCE(SUM(value) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')), 0) as paid_value
-      FROM asaas_payments
-      WHERE organization_id = $1
-    `, [organizationId]);
+    // Return empty dashboard if tables don't exist yet
+    const emptyDashboard = {
+      general: { pending_count: 0, overdue_count: 0, paid_count: 0, pending_value: 0, overdue_value: 0, paid_value: 0 },
+      paymentsByMonth: [],
+      notifications: { total: 0, sent: 0, failed: 0, sent_today: 0, sent_week: 0 },
+      recovery: { notified_payments: 0, recovered_payments: 0 },
+      topDefaulters: [],
+      overdueByDays: []
+    };
 
-    // Payments by month (last 6 months)
-    const paymentsByMonth = await query(`
-      SELECT 
-        TO_CHAR(due_date, 'YYYY-MM') as month,
-        COUNT(*) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')) as paid_count,
-        COUNT(*) FILTER (WHERE status = 'OVERDUE') as overdue_count,
-        COUNT(*) FILTER (WHERE status = 'PENDING') as pending_count,
-        COALESCE(SUM(value) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')), 0) as paid_value,
-        COALESCE(SUM(value) FILTER (WHERE status = 'OVERDUE'), 0) as overdue_value
-      FROM asaas_payments
-      WHERE organization_id = $1 
-        AND due_date >= CURRENT_DATE - INTERVAL '6 months'
-      GROUP BY TO_CHAR(due_date, 'YYYY-MM')
-      ORDER BY month DESC
-      LIMIT 6
-    `, [organizationId]);
+    try {
+      // General stats
+      const generalStats = await query(`
+        SELECT 
+          COUNT(*) FILTER (WHERE status = 'PENDING') as pending_count,
+          COUNT(*) FILTER (WHERE status = 'OVERDUE') as overdue_count,
+          COUNT(*) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')) as paid_count,
+          COALESCE(SUM(value) FILTER (WHERE status = 'PENDING'), 0) as pending_value,
+          COALESCE(SUM(value) FILTER (WHERE status = 'OVERDUE'), 0) as overdue_value,
+          COALESCE(SUM(value) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')), 0) as paid_value
+        FROM asaas_payments
+        WHERE organization_id = $1
+      `, [organizationId]);
 
-    // Notification stats
-    const notificationStats = await query(`
-      SELECT 
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE status = 'sent') as sent,
-        COUNT(*) FILTER (WHERE status = 'failed') as failed,
-        COUNT(*) FILTER (WHERE sent_at >= CURRENT_DATE) as sent_today,
-        COUNT(*) FILTER (WHERE sent_at >= CURRENT_DATE - INTERVAL '7 days') as sent_week
-      FROM billing_notifications
-      WHERE organization_id = $1
-    `, [organizationId]);
+      // Payments by month (last 6 months)
+      const paymentsByMonth = await query(`
+        SELECT 
+          TO_CHAR(due_date, 'YYYY-MM') as month,
+          COUNT(*) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')) as paid_count,
+          COUNT(*) FILTER (WHERE status = 'OVERDUE') as overdue_count,
+          COUNT(*) FILTER (WHERE status = 'PENDING') as pending_count,
+          COALESCE(SUM(value) FILTER (WHERE status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')), 0) as paid_value,
+          COALESCE(SUM(value) FILTER (WHERE status = 'OVERDUE'), 0) as overdue_value
+        FROM asaas_payments
+        WHERE organization_id = $1 
+          AND due_date >= CURRENT_DATE - INTERVAL '6 months'
+        GROUP BY TO_CHAR(due_date, 'YYYY-MM')
+        ORDER BY month DESC
+        LIMIT 6
+      `, [organizationId]);
 
-    // Recovery rate (payments that were overdue and got paid after notification)
-    const recoveryStats = await query(`
-      SELECT 
-        COUNT(DISTINCT bn.payment_id) as notified_payments,
-        COUNT(DISTINCT bn.payment_id) FILTER (
-          WHERE EXISTS (
-            SELECT 1 FROM asaas_payments p 
-            WHERE p.id = bn.payment_id 
-            AND p.status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')
-          )
-        ) as recovered_payments
-      FROM billing_notifications bn
-      WHERE bn.organization_id = $1 AND bn.status = 'sent'
-    `, [organizationId]);
+      // Notification stats
+      const notificationStats = await query(`
+        SELECT 
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'sent') as sent,
+          COUNT(*) FILTER (WHERE status = 'failed') as failed,
+          COUNT(*) FILTER (WHERE sent_at >= CURRENT_DATE) as sent_today,
+          COUNT(*) FILTER (WHERE sent_at >= CURRENT_DATE - INTERVAL '7 days') as sent_week
+        FROM billing_notifications
+        WHERE organization_id = $1
+      `, [organizationId]);
 
-    // Top defaulters
-    const topDefaulters = await query(`
-      SELECT 
-        c.name,
-        c.phone,
-        c.email,
-        COUNT(p.id) as overdue_count,
-        COALESCE(SUM(p.value), 0) as total_overdue
-      FROM asaas_customers c
-      JOIN asaas_payments p ON p.customer_id = c.id
-      WHERE c.organization_id = $1 AND p.status = 'OVERDUE'
-      GROUP BY c.id, c.name, c.phone, c.email
-      ORDER BY total_overdue DESC
-      LIMIT 10
-    `, [organizationId]);
+      // Recovery rate (payments that were overdue and got paid after notification)
+      const recoveryStats = await query(`
+        SELECT 
+          COUNT(DISTINCT bn.payment_id) as notified_payments,
+          COUNT(DISTINCT bn.payment_id) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM asaas_payments p 
+              WHERE p.id = bn.payment_id 
+              AND p.status IN ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')
+            )
+          ) as recovered_payments
+        FROM billing_notifications bn
+        WHERE bn.organization_id = $1 AND bn.status = 'sent'
+      `, [organizationId]);
 
-    // Overdue by days range
-    const overdueByDays = await query(`
-      SELECT 
-        CASE 
-          WHEN CURRENT_DATE - due_date <= 7 THEN '1-7 dias'
-          WHEN CURRENT_DATE - due_date <= 15 THEN '8-15 dias'
-          WHEN CURRENT_DATE - due_date <= 30 THEN '16-30 dias'
-          WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 dias'
-          ELSE '60+ dias'
-        END as range,
-        COUNT(*) as count,
-        COALESCE(SUM(value), 0) as value
-      FROM asaas_payments
-      WHERE organization_id = $1 AND status = 'OVERDUE'
-      GROUP BY 
-        CASE 
-          WHEN CURRENT_DATE - due_date <= 7 THEN '1-7 dias'
-          WHEN CURRENT_DATE - due_date <= 15 THEN '8-15 dias'
-          WHEN CURRENT_DATE - due_date <= 30 THEN '16-30 dias'
-          WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 dias'
-          ELSE '60+ dias'
-        END
-      ORDER BY 
-        CASE range
-          WHEN '1-7 dias' THEN 1
-          WHEN '8-15 dias' THEN 2
-          WHEN '16-30 dias' THEN 3
-          WHEN '31-60 dias' THEN 4
-          ELSE 5
-        END
-    `, [organizationId]);
+      // Top defaulters
+      const topDefaulters = await query(`
+        SELECT 
+          c.name,
+          c.phone,
+          c.email,
+          COUNT(p.id) as overdue_count,
+          COALESCE(SUM(p.value), 0) as total_overdue
+        FROM asaas_customers c
+        JOIN asaas_payments p ON p.customer_id = c.id
+        WHERE c.organization_id = $1 AND p.status = 'OVERDUE'
+        GROUP BY c.id, c.name, c.phone, c.email
+        ORDER BY total_overdue DESC
+        LIMIT 10
+      `, [organizationId]);
 
-    res.json({
-      general: generalStats.rows[0],
-      paymentsByMonth: paymentsByMonth.rows.reverse(),
-      notifications: notificationStats.rows[0],
-      recovery: recoveryStats.rows[0],
-      topDefaulters: topDefaulters.rows,
-      overdueByDays: overdueByDays.rows
-    });
+      // Overdue by days range
+      const overdueByDays = await query(`
+        SELECT 
+          CASE 
+            WHEN CURRENT_DATE - due_date <= 7 THEN '1-7 dias'
+            WHEN CURRENT_DATE - due_date <= 15 THEN '8-15 dias'
+            WHEN CURRENT_DATE - due_date <= 30 THEN '16-30 dias'
+            WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 dias'
+            ELSE '60+ dias'
+          END as range,
+          COUNT(*) as count,
+          COALESCE(SUM(value), 0) as value
+        FROM asaas_payments
+        WHERE organization_id = $1 AND status = 'OVERDUE'
+        GROUP BY 
+          CASE 
+            WHEN CURRENT_DATE - due_date <= 7 THEN '1-7 dias'
+            WHEN CURRENT_DATE - due_date <= 15 THEN '8-15 dias'
+            WHEN CURRENT_DATE - due_date <= 30 THEN '16-30 dias'
+            WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 dias'
+            ELSE '60+ dias'
+          END
+        ORDER BY 
+          CASE range
+            WHEN '1-7 dias' THEN 1
+            WHEN '8-15 dias' THEN 2
+            WHEN '16-30 dias' THEN 3
+            WHEN '31-60 dias' THEN 4
+            ELSE 5
+          END
+      `, [organizationId]);
+
+      res.json({
+        general: generalStats.rows[0],
+        paymentsByMonth: paymentsByMonth.rows.reverse(),
+        notifications: notificationStats.rows[0],
+        recovery: recoveryStats.rows[0],
+        topDefaulters: topDefaulters.rows,
+        overdueByDays: overdueByDays.rows
+      });
+    } catch (queryError) {
+      // Tables might not exist yet - return empty dashboard
+      console.log('Dashboard query error (tables may not exist):', queryError.message);
+      res.json(emptyDashboard);
+    }
   } catch (error) {
     console.error('Dashboard error:', error);
     res.status(500).json({ error: 'Erro ao buscar métricas' });
