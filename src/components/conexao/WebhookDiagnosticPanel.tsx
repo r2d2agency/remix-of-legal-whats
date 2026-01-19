@@ -22,12 +22,15 @@ import {
   ExternalLink,
   Copy,
   Play,
+  Radio,
 } from "lucide-react";
 
 interface Connection {
   id: string;
   name: string;
+  provider?: 'evolution' | 'wapi';
   instance_name: string;
+  instance_id?: string;
   status: string;
   phone_number?: string;
 }
@@ -74,6 +77,35 @@ interface DiagnosticResult {
   errors: string[];
 }
 
+interface WapiDiagnosticResult {
+  connection: {
+    id: string;
+    name: string;
+    instanceId: string;
+    status: string;
+    provider: string;
+  };
+  instanceStatus: {
+    connected: boolean;
+    phoneNumber: string | null;
+    error?: string;
+  } | null;
+  webhooksConfigured: {
+    success: boolean;
+    configured: number;
+    total: number;
+    results: Array<{
+      type: string;
+      success: boolean;
+      status?: number;
+      error?: string;
+    }>;
+  } | null;
+  webhookEndpoint: string;
+  healthy: boolean;
+  errors: string[];
+}
+
 interface WebhookEvent {
   at: string;
   instanceName: string | null;
@@ -89,25 +121,76 @@ interface Props {
 }
 
 export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
+  const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+  
   const [loading, setLoading] = useState(true);
   const [reconfiguring, setReconfiguring] = useState(false);
   const [diagnostic, setDiagnostic] = useState<DiagnosticResult | null>(null);
+  const [wapiDiagnostic, setWapiDiagnostic] = useState<WapiDiagnosticResult | null>(null);
   const [events, setEvents] = useState<WebhookEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
 
   const fetchDiagnostic = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await api<DiagnosticResult>(`/api/evolution/${connection.id}/webhook-diagnostic`);
-      setDiagnostic(result);
+      if (isWapi) {
+        // For W-API, we check status and webhook configuration
+        const statusResult = await api<{ status: string; phoneNumber?: string; provider?: string }>(
+          `/api/evolution/${connection.id}/status`
+        );
+        
+        const wapiDiag: WapiDiagnosticResult = {
+          connection: {
+            id: connection.id,
+            name: connection.name,
+            instanceId: connection.instance_id || '',
+            status: statusResult.status,
+            provider: 'wapi',
+          },
+          instanceStatus: {
+            connected: statusResult.status === 'connected',
+            phoneNumber: statusResult.phoneNumber || null,
+          },
+          webhooksConfigured: null,
+          webhookEndpoint: 'https://whastsale-backend.exf0ty.easypanel.host/api/wapi/webhook',
+          healthy: statusResult.status === 'connected',
+          errors: statusResult.status !== 'connected' ? ['Instância não conectada'] : [],
+        };
+        
+        setWapiDiagnostic(wapiDiag);
+        setDiagnostic(null);
+      } else {
+        const result = await api<DiagnosticResult>(`/api/evolution/${connection.id}/webhook-diagnostic`);
+        setDiagnostic(result);
+        setWapiDiagnostic(null);
+      }
     } catch (error: any) {
       toast.error(error.message || "Erro ao carregar diagnóstico");
+      
+      if (isWapi) {
+        setWapiDiagnostic({
+          connection: {
+            id: connection.id,
+            name: connection.name,
+            instanceId: connection.instance_id || '',
+            status: 'error',
+            provider: 'wapi',
+          },
+          instanceStatus: null,
+          webhooksConfigured: null,
+          webhookEndpoint: 'https://whastsale-backend.exf0ty.easypanel.host/api/wapi/webhook',
+          healthy: false,
+          errors: [error.message || 'Erro ao verificar status'],
+        });
+      }
     } finally {
       setLoading(false);
     }
-  }, [connection.id]);
+  }, [connection.id, connection.name, connection.instance_id, isWapi]);
 
   const fetchEvents = useCallback(async () => {
+    if (isWapi) return; // W-API events are handled differently
+    
     setEventsLoading(true);
     try {
       const result = await api<{ events: WebhookEvent[] }>(`/api/evolution/${connection.id}/webhook-events?limit=100`);
@@ -117,13 +200,26 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     } finally {
       setEventsLoading(false);
     }
-  }, [connection.id]);
+  }, [connection.id, isWapi]);
 
   const handleReconfigure = async () => {
     setReconfiguring(true);
     try {
-      await api(`/api/evolution/${connection.id}/reconfigure-webhook`, { method: "POST" });
-      toast.success("Webhook reconfigurado com sucesso!");
+      if (isWapi) {
+        const result = await api<{ success: boolean; message?: string; configured?: number; total?: number }>(
+          `/api/connections/${connection.id}/configure-webhooks`,
+          { method: "POST" }
+        );
+        
+        if (result.success) {
+          toast.success(result.message || `Webhooks configurados: ${result.configured}/${result.total}`);
+        } else {
+          toast.error(result.message || 'Falha ao configurar webhooks');
+        }
+      } else {
+        await api(`/api/evolution/${connection.id}/reconfigure-webhook`, { method: "POST" });
+        toast.success("Webhook reconfigurado com sucesso!");
+      }
       await fetchDiagnostic();
     } catch (error: any) {
       toast.error(error.message || "Erro ao reconfigurar");
@@ -149,14 +245,17 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
 
   useEffect(() => {
     fetchDiagnostic();
-    fetchEvents();
-  }, [fetchDiagnostic, fetchEvents]);
+    if (!isWapi) {
+      fetchEvents();
+    }
+  }, [fetchDiagnostic, fetchEvents, isWapi]);
 
-  // Auto-refresh events every 3 seconds
+  // Auto-refresh events every 3 seconds (only for Evolution)
   useEffect(() => {
+    if (isWapi) return;
     const interval = setInterval(fetchEvents, 3000);
     return () => clearInterval(interval);
-  }, [fetchEvents]);
+  }, [fetchEvents, isWapi]);
 
   if (loading) {
     return (
@@ -173,6 +272,178 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
       <XCircle className="h-4 w-4 text-destructive" />
     );
 
+  // W-API Diagnostic View
+  if (isWapi && wapiDiagnostic) {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Radio className="h-5 w-5 text-primary" />
+              Diagnóstico W-API: {connection.name}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Instance ID: <code className="text-xs bg-muted px-1 py-0.5 rounded">{connection.instance_id}</code>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={fetchDiagnostic} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Atualizar
+            </Button>
+            {onClose && (
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                Fechar
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Health Status */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              {wapiDiagnostic.healthy ? (
+                <Badge variant="default" className="bg-green-500">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Conectado
+                </Badge>
+              ) : (
+                <Badge variant="destructive">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Problemas Detectados
+                </Badge>
+              )}
+              <Badge variant="outline" className="ml-2">
+                <Radio className="h-3 w-3 mr-1" />
+                W-API
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          {wapiDiagnostic.errors && wapiDiagnostic.errors.length > 0 && (
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {wapiDiagnostic.errors.map((err, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm text-destructive">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>{err}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Instance Status */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              Estado da Instância W-API
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <StatusIcon ok={wapiDiagnostic.instanceStatus?.connected || false} />
+                <span className="text-muted-foreground">Status:</span>
+                <Badge
+                  variant={wapiDiagnostic.instanceStatus?.connected ? "default" : "outline"}
+                  className={wapiDiagnostic.instanceStatus?.connected ? "bg-green-500" : ""}
+                >
+                  {wapiDiagnostic.instanceStatus?.connected ? "Conectado" : "Desconectado"}
+                </Badge>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Telefone:</span>
+                <span className="ml-2">{wapiDiagnostic.instanceStatus?.phoneNumber || "—"}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Webhook Configuration */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Webhook className="h-4 w-4" />
+              Configuração de Webhooks
+            </CardTitle>
+            <CardDescription>
+              Configure os webhooks no painel da W-API ou use o botão abaixo
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Endpoint do Backend:</span>
+                <div className="flex items-center gap-1 flex-1 min-w-0">
+                  <code className="text-xs bg-muted px-1 py-0.5 rounded truncate flex-1">
+                    {wapiDiagnostic.webhookEndpoint}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => copyToClipboard(wapiDiagnostic.webhookEndpoint)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-muted/50 p-3 rounded-lg text-sm">
+              <p className="font-medium mb-2">URLs para configurar no painel W-API:</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                <li>• Ao receber uma mensagem: <code>{wapiDiagnostic.webhookEndpoint}</code></li>
+                <li>• Ao enviar uma mensagem: <code>{wapiDiagnostic.webhookEndpoint}</code></li>
+                <li>• Ao conectar: <code>{wapiDiagnostic.webhookEndpoint}</code></li>
+                <li>• Ao desconectar: <code>{wapiDiagnostic.webhookEndpoint}</code></li>
+              </ul>
+            </div>
+
+            <Button 
+              onClick={handleReconfigure} 
+              disabled={reconfiguring} 
+              className="w-full"
+              variant="default"
+            >
+              {reconfiguring ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Configurando Webhooks...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 mr-2" />
+                  Configurar Webhooks Automaticamente
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Help Card */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Dicas
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-2">
+            <p>1. Se o status mostra "Desconectado", verifique se o QR code foi escaneado no painel da W-API.</p>
+            <p>2. Clique em "Configurar Webhooks Automaticamente" para configurar os webhooks via API.</p>
+            <p>3. Se a configuração automática falhar, configure manualmente no painel da W-API usando as URLs acima.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Evolution Diagnostic View (original)
   return (
     <div className="space-y-6">
       {/* Header */}
