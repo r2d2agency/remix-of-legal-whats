@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { api } from "@/lib/api";
+import { api, API_URL } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -146,10 +146,21 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     try {
       if (isWapi) {
         // For W-API, we check status and webhook configuration
-        const statusResult = await api<{ status: string; phoneNumber?: string; provider?: string }>(
-          `/api/evolution/${connection.id}/status`
-        );
-        
+        const statusResult = await api<{
+          status: string;
+          phoneNumber?: string | null;
+          provider?: string;
+          error?: string | null;
+        }>(`/api/evolution/${connection.id}/status`);
+
+        const webhookEndpoint = `${API_URL}/api/wapi/webhook`;
+        const errors: string[] = [];
+
+        if (statusResult.status !== 'connected') {
+          errors.push('Instância não conectada');
+          if (statusResult.error) errors.push(`Detalhe: ${statusResult.error}`);
+        }
+
         const wapiDiag: WapiDiagnosticResult = {
           connection: {
             id: connection.id,
@@ -161,11 +172,12 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
           instanceStatus: {
             connected: statusResult.status === 'connected',
             phoneNumber: statusResult.phoneNumber || null,
+            error: statusResult.error || undefined,
           },
           webhooksConfigured: null,
-          webhookEndpoint: 'https://whastsale-backend.exf0ty.easypanel.host/api/wapi/webhook',
+          webhookEndpoint,
           healthy: statusResult.status === 'connected',
-          errors: statusResult.status !== 'connected' ? ['Instância não conectada'] : [],
+          errors,
         };
         
         setWapiDiagnostic(wapiDiag);
@@ -189,7 +201,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
           },
           instanceStatus: null,
           webhooksConfigured: null,
-          webhookEndpoint: 'https://whastsale-backend.exf0ty.easypanel.host/api/wapi/webhook',
+          webhookEndpoint: `${API_URL}/api/wapi/webhook`,
           healthy: false,
           errors: [error.message || 'Erro ao verificar status'],
         });

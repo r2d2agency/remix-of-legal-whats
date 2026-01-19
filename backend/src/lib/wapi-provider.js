@@ -78,17 +78,29 @@ export async function configureWebhooks(instanceId, token) {
  * W-API returns different response structures, handle all possibilities
  */
 export async function checkStatus(instanceId, token) {
+  const encodedInstanceId = encodeURIComponent(instanceId || '');
+
   try {
     const response = await fetch(
-      `${W_API_BASE_URL}/instance/status?instanceId=${instanceId}`,
+      `${W_API_BASE_URL}/instance/status?instanceId=${encodedInstanceId}`,
       { headers: getHeaders(token) }
     );
 
     const responseText = await response.text();
-    console.log(`[W-API] Status check for ${instanceId}: HTTP ${response.status}, Body:`, responseText.slice(0, 500));
+    console.log(
+      `[W-API] Status check for ${instanceId}: HTTP ${response.status}, Body:`,
+      responseText.slice(0, 800)
+    );
 
     if (!response.ok) {
-      return { status: 'disconnected', error: `HTTP ${response.status}` };
+      let errMsg = `HTTP ${response.status}`;
+      try {
+        const errData = JSON.parse(responseText);
+        errMsg = errData?.message || errData?.error || errMsg;
+      } catch {
+        // ignore
+      }
+      return { status: 'disconnected', error: errMsg };
     }
 
     let data;
@@ -100,43 +112,55 @@ export async function checkStatus(instanceId, token) {
 
     console.log('[W-API] Parsed status data:', JSON.stringify(data));
 
-    // W-API can return various structures, check all known patterns
-    const isConnected = 
-      data.connected === true ||
-      data.status === 'connected' ||
-      data.status === 'CONNECTED' ||
-      data.state === 'open' ||
-      data.state === 'CONNECTED' ||
-      data.isConnected === true ||
-      data.result?.connected === true ||
-      data.result?.status === 'connected' ||
-      data.data?.connected === true ||
-      data.data?.status === 'connected';
+    const candidates = [
+      data,
+      data?.data,
+      data?.result,
+      data?.instance,
+      data?.data?.instance,
+      data?.result?.instance,
+    ].filter(Boolean);
 
-    // Extract phone number from various possible locations
-    const phoneNumber = 
-      data.phoneNumber ||
-      data.phone ||
-      data.number ||
-      data.wid?.split('@')[0] ||
-      data.result?.phoneNumber ||
-      data.result?.phone ||
-      data.data?.phoneNumber ||
-      data.data?.phone ||
-      data.me?.id?.split('@')[0] ||
-      data.me?.user ||
+    const normalize = (v) => (typeof v === 'string' ? v.toLowerCase() : v);
+
+    const looksConnected = (obj) => {
+      if (!obj) return false;
+      if (obj.connected === true || obj.isConnected === true) return true;
+      const status = normalize(obj.status);
+      const state = normalize(obj.state);
+      return (
+        status === 'connected' ||
+        status === 'open' ||
+        status === 'online' ||
+        state === 'open' ||
+        state === 'connected' ||
+        state === 'online'
+      );
+    };
+
+    const isConnected = candidates.some(looksConnected);
+
+    const pickPhone = (obj) =>
+      obj?.phoneNumber ||
+      obj?.phone ||
+      obj?.number ||
+      obj?.wid?.split?.('@')?.[0] ||
+      obj?.me?.id?.split?.('@')?.[0] ||
+      obj?.me?.user ||
       null;
+
+    let phoneNumber = null;
+    for (const c of candidates) {
+      phoneNumber = pickPhone(c) || phoneNumber;
+    }
 
     if (isConnected) {
       console.log('[W-API] Instance is CONNECTED, phone:', phoneNumber);
-      return {
-        status: 'connected',
-        phoneNumber,
-      };
+      return { status: 'connected', phoneNumber };
     }
 
     console.log('[W-API] Instance is DISCONNECTED');
-    return { status: 'disconnected' };
+    return { status: 'disconnected', phoneNumber: phoneNumber || undefined };
   } catch (error) {
     console.error('[W-API] checkStatus error:', error);
     return { status: 'disconnected', error: error.message };

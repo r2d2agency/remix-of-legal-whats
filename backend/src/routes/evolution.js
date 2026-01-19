@@ -514,7 +514,8 @@ router.get('/:connectionId/status', authenticate, async (req, res) => {
     res.json({
       status: newStatus,
       phoneNumber,
-      provider: connection.provider || 'evolution',
+      provider: whatsappProvider.detectProvider(connection),
+      error: statusResult.error || null,
     });
   } catch (error) {
     console.error('Check status error:', error);

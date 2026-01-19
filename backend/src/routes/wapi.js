@@ -41,7 +41,7 @@ router.post('/webhook', async (req, res) => {
       `SELECT c.*, om.organization_id 
        FROM connections c
        LEFT JOIN organization_members om ON om.user_id = c.user_id
-       WHERE c.instance_id = $1 AND c.provider = 'wapi'
+       WHERE c.instance_id = $1 AND c.wapi_token IS NOT NULL
        LIMIT 1`,
       [instanceId]
     );
