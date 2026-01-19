@@ -122,6 +122,7 @@ export async function executeCampaignMessages() {
 
     // Get pending messages that should be sent now (scheduled_at <= now)
     // Include contact data for variable replacement
+    // For W-API, accept connections with instance_id/wapi_token even if status not 'connected'
     const pendingMessages = await query(`
       SELECT 
         cm.id,
@@ -150,7 +151,7 @@ export async function executeCampaignMessages() {
       LEFT JOIN contacts co ON co.id = cm.contact_id
       WHERE cm.status = 'pending'
         AND c.status = 'running'
-        AND conn.status = 'connected'
+        AND (conn.status = 'connected' OR (conn.instance_id IS NOT NULL AND conn.wapi_token IS NOT NULL))
         AND cm.scheduled_at <= NOW()
       ORDER BY cm.scheduled_at ASC
       LIMIT 50

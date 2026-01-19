@@ -18,6 +18,7 @@ export async function executeScheduledMessages() {
 
   try {
     // Get all pending scheduled messages that are due
+    // For W-API, accept connections with instance_id/wapi_token even if status not 'connected'
     const pendingMessages = await query(`
       SELECT 
         sm.*,
@@ -49,7 +50,12 @@ export async function executeScheduledMessages() {
       stats.processed++;
 
       // Check if connection is still active
-      if (msg.connection_status !== 'connected') {
+      // For W-API, accept if has instance_id and wapi_token
+      const provider = whatsappProvider.detectProvider(msg);
+      const isConnected = msg.connection_status === 'connected' || 
+        (provider === 'wapi' && msg.instance_id && msg.wapi_token);
+
+      if (!isConnected) {
         console.log(`  ⚠ Connection not active for message ${msg.id}, marking as failed`);
         await query(
           `UPDATE scheduled_messages 
