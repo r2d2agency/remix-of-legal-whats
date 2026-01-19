@@ -27,7 +27,12 @@ router.get('/', async (req, res) => {
     if (org) {
       // Get all connections from user's organization
       result = await query(
-        `SELECT c.*, u.name as created_by_name
+        `SELECT c.*, u.name as created_by_name,
+         CASE 
+           WHEN c.provider IS NOT NULL THEN c.provider 
+           WHEN c.instance_id IS NOT NULL AND c.wapi_token IS NOT NULL THEN 'wapi'
+           ELSE 'evolution'
+         END as provider
          FROM connections c
          LEFT JOIN users u ON c.user_id = u.id
          WHERE c.organization_id = $1
@@ -37,7 +42,13 @@ router.get('/', async (req, res) => {
     } else {
       // Fallback: user without organization sees only their own
       result = await query(
-        'SELECT * FROM connections WHERE user_id = $1 ORDER BY created_at DESC',
+        `SELECT *,
+         CASE 
+           WHEN provider IS NOT NULL THEN provider 
+           WHEN instance_id IS NOT NULL AND wapi_token IS NOT NULL THEN 'wapi'
+           ELSE 'evolution'
+         END as provider
+         FROM connections WHERE user_id = $1 ORDER BY created_at DESC`,
         [req.userId]
       );
     }
