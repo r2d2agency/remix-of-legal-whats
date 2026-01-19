@@ -235,7 +235,11 @@ router.post('/:id/configure-webhooks', async (req, res) => {
 
     const connection = connResult.rows[0];
 
-    if (connection.provider !== 'wapi') {
+    const provider =
+      connection.provider ||
+      (connection.instance_id && connection.wapi_token ? 'wapi' : 'evolution');
+
+    if (provider !== 'wapi') {
       return res.status(400).json({ error: 'Esta funcionalidade é apenas para conexões W-API' });
     }
 
@@ -245,6 +249,11 @@ router.post('/:id/configure-webhooks', async (req, res) => {
 
     // Configure webhooks
     const result = await wapiProvider.configureWebhooks(connection.instance_id, connection.wapi_token);
+
+    // Backfill provider for older rows
+    if (connection.provider !== 'wapi') {
+      await query('UPDATE connections SET provider = $1, updated_at = NOW() WHERE id = $2', ['wapi', id]);
+    }
 
     res.json({
       success: result.success,
