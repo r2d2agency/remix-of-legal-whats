@@ -5,21 +5,11 @@ import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, MessageSquare, Send, CheckCircle2, Loader2, Play, Clock, Calendar as CalendarIcon, Pause } from "lucide-react";
-import { api } from "@/lib/api";
 import { useContacts } from "@/hooks/use-contacts";
 import { useMessages } from "@/hooks/use-messages";
 import { useCampaigns, Campaign } from "@/hooks/use-campaigns";
+import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { cn } from "@/lib/utils";
-
-interface Connection {
-  id: string;
-  name: string;
-  instance_name: string;
-  api_url: string;
-  api_key: string;
-  status: string;
-  phone_number: string | null;
-}
 
 interface DashboardStats {
   totalContacts: number;
@@ -40,9 +30,9 @@ const Index = () => {
   const { getLists } = useContacts();
   const { getMessages } = useMessages();
   const { getCampaigns } = useCampaigns();
+  const { connections, hasConnectedConnection, isLoading: connectionLoading } = useConnectionStatus({ intervalSeconds: 30 });
 
   const [loading, setLoading] = useState(true);
-  const [connection, setConnection] = useState<Connection | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     totalContacts: 0,
     totalMessages: 0,
@@ -58,11 +48,10 @@ const Index = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [listsData, messagesData, campaignsData, connectionsData] = await Promise.all([
+      const [listsData, messagesData, campaignsData] = await Promise.all([
         getLists(),
         getMessages(),
         getCampaigns(),
-        api<Connection[]>('/api/connections'),
       ]);
 
       // Calculate stats
@@ -78,38 +67,6 @@ const Index = () => {
         sentMessages,
       });
 
-      // Get first connection and check its real-time status
-      const firstConnection = connectionsData[0];
-      if (firstConnection) {
-        // Check real-time status via Evolution API
-        try {
-          const statusResponse = await fetch(
-            `${firstConnection.api_url}/instance/connectionState/${firstConnection.instance_name}`,
-            {
-              headers: {
-                apikey: firstConnection.api_key,
-              },
-            }
-          );
-          
-          if (statusResponse.ok) {
-            const statusData = await statusResponse.json();
-            const isConnected = statusData.instance?.state === "open";
-            setConnection({
-              ...firstConnection,
-              status: isConnected ? 'connected' : 'disconnected',
-              phone_number: isConnected ? (statusData.instance?.phoneNumber || firstConnection.phone_number) : null,
-            });
-          } else {
-            setConnection({ ...firstConnection, status: 'disconnected' });
-          }
-        } catch {
-          setConnection({ ...firstConnection, status: 'disconnected' });
-        }
-      } else {
-        setConnection(null);
-      }
-
       // Recent campaigns (last 5)
       setRecentCampaigns(campaignsData.slice(0, 5));
 
@@ -120,7 +77,13 @@ const Index = () => {
     }
   };
 
-  if (loading) {
+  // Get first connection for display
+  const firstConnection = connections[0];
+  const connectionStatus = firstConnection?.status === 'connected' ? 'connected' : 'disconnected';
+  const connectionName = firstConnection?.name || "Nenhuma conexão";
+  const connectionPhone = firstConnection?.phoneNumber;
+
+  if (loading || connectionLoading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -143,9 +106,9 @@ const Index = () => {
 
         {/* Connection Status */}
         <ConnectionStatus
-          status={connection?.status === 'connected' ? 'connected' : connection ? 'disconnected' : 'disconnected'}
-          instanceName={connection?.instance_name || "Nenhuma conexão"}
-          phoneNumber={connection?.phone_number || undefined}
+          status={connectionStatus}
+          instanceName={connectionName}
+          phoneNumber={connectionPhone}
         />
 
         {/* Stats Grid */}
