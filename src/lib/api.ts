@@ -41,7 +41,17 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
   }
 
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || `Erro na requisição (${response.status})`);
+    const baseMsg = data?.error || data?.message || `Erro na requisição (${response.status})`;
+    const details = data?.details ? `: ${data.details}` : '';
+    // Helpful for debugging backend issues (keeps UI behavior the same but exposes context in console)
+    // eslint-disable-next-line no-console
+    console.error('[api] request failed', {
+      url: `${API_URL}${endpoint}`,
+      status: response.status,
+      body,
+      response: data,
+    });
+    throw new Error(`${baseMsg}${details}`);
   }
 
   return data as T;
