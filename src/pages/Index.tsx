@@ -4,18 +4,24 @@ import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, MessageSquare, Send, CheckCircle2, Loader2, Play, Clock, Calendar as CalendarIcon, Pause } from "lucide-react";
+import { Users, MessageSquare, Send, CheckCircle2, Loader2, Play, Clock, Calendar as CalendarIcon, Pause, MessageCircle } from "lucide-react";
 import { useContacts } from "@/hooks/use-contacts";
 import { useMessages } from "@/hooks/use-messages";
 import { useCampaigns, Campaign } from "@/hooks/use-campaigns";
 import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { useChat } from "@/hooks/use-chat";
 
 interface DashboardStats {
   totalContacts: number;
   totalMessages: number;
   activeCampaigns: number;
+  scheduledCampaigns: number;
   sentMessages: number;
+  conversationsAssigned: number;
+  conversationsUnassigned: number;
+  totalUsers: number;
 }
 
 const statusConfig = {
@@ -31,13 +37,18 @@ const Index = () => {
   const { getMessages } = useMessages();
   const { getCampaigns } = useCampaigns();
   const { connections, hasConnectedConnection, isLoading: connectionLoading } = useConnectionStatus({ intervalSeconds: 30 });
+  const { getChatStats } = useChat();
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
     totalContacts: 0,
     totalMessages: 0,
     activeCampaigns: 0,
+    scheduledCampaigns: 0,
     sentMessages: 0,
+    conversationsAssigned: 0,
+    conversationsUnassigned: 0,
+    totalUsers: 0,
   });
   const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
 
@@ -48,23 +59,38 @@ const Index = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [listsData, messagesData, campaignsData] = await Promise.all([
+      const [listsData, messagesData, campaignsData, chatStats, orgs] = await Promise.all([
         getLists(),
         getMessages(),
         getCampaigns(),
+        getChatStats().catch(() => null),
+        api<Array<{ id: string; name: string }>>('/api/organizations').catch(() => []),
       ]);
+
+      const orgId = orgs?.[0]?.id;
+      const members = orgId
+        ? await api<Array<{ id: string }>>(`/api/organizations/${orgId}/members`).catch(() => [])
+        : [];
 
       // Calculate stats
       const totalContacts = listsData.reduce((sum, list) => sum + Number(list.contact_count || 0), 0);
       const totalMessages = messagesData.length;
       const activeCampaigns = campaignsData.filter(c => c.status === 'running').length;
+      const scheduledCampaigns = campaignsData.filter(c => c.status === 'pending').length;
       const sentMessages = campaignsData.reduce((sum, c) => sum + c.sent_count, 0);
+
+      const assigned = chatStats?.conversations_by_status?.find(s => s.status === 'assigned')?.count ?? 0;
+      const unassigned = chatStats?.conversations_by_status?.find(s => s.status === 'unassigned')?.count ?? 0;
 
       setStats({
         totalContacts,
         totalMessages,
         activeCampaigns,
+        scheduledCampaigns,
         sentMessages,
+        conversationsAssigned: assigned,
+        conversationsUnassigned: unassigned,
+        totalUsers: members.length,
       });
 
       // Recent campaigns (last 5)
@@ -83,7 +109,8 @@ const Index = () => {
   const connectionName = firstConnection?.name || "Nenhuma conexão";
   const connectionPhone = firstConnection?.phoneNumber;
 
-  if (loading || connectionLoading) {
+  // NOTE: connection status polling runs continuously; don't block the whole dashboard while it refreshes.
+  if (loading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -114,6 +141,12 @@ const Index = () => {
         {/* Stats Grid */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <StatsCard
+            title="WhatsApps Conectados"
+            value={`${connections.filter(c => c.status === 'connected').length}/${connections.length}`}
+            description={connectionLoading ? "Atualizando status..." : (hasConnectedConnection ? "Conectado" : "Sem conexão")}
+            icon={<Users className="h-6 w-6 text-primary" />}
+          />
+          <StatsCard
             title="Total de Contatos"
             value={stats.totalContacts.toLocaleString('pt-BR')}
             description="Em todas as listas"
@@ -126,10 +159,31 @@ const Index = () => {
             icon={<MessageSquare className="h-6 w-6 text-primary" />}
           />
           <StatsCard
-            title="Campanhas Ativas"
-            value={stats.activeCampaigns.toString()}
-            description="Em execução agora"
+            title="Campanhas"
+            value={`${stats.activeCampaigns} ativas`}
+            description={`${stats.scheduledCampaigns} agendadas`}
             icon={<Send className="h-6 w-6 text-primary" />}
+          />
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <StatsCard
+            title="Conversas Atendidas"
+            value={stats.conversationsAssigned.toLocaleString('pt-BR')}
+            description="Atribuídas a alguém"
+            icon={<MessageCircle className="h-6 w-6 text-primary" />}
+          />
+          <StatsCard
+            title="Conversas não atendidas"
+            value={stats.conversationsUnassigned.toLocaleString('pt-BR')}
+            description="Sem responsável"
+            icon={<MessageCircle className="h-6 w-6 text-primary" />}
+          />
+          <StatsCard
+            title="Usuários"
+            value={stats.totalUsers.toLocaleString('pt-BR')}
+            description="Membros da organização"
+            icon={<Users className="h-6 w-6 text-primary" />}
           />
           <StatsCard
             title="Mensagens Enviadas"

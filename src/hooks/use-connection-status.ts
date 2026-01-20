@@ -25,6 +25,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(true);
+  const isCheckingRef = useRef(false);
 
   // Fetch all connections and their current status from the backend
   const fetchConnections = useCallback(async () => {
@@ -80,52 +81,55 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
 
   // Check all connections and update their statuses
   const checkAllConnections = useCallback(async () => {
-    if (isLoading) return;
-    
+    // Prevent overlapping checks (avoids rapid loops / multiple intervals)
+    if (isCheckingRef.current) return;
+    isCheckingRef.current = true;
     setIsLoading(true);
-    
+
     try {
       // First get all connections
       const conns = await fetchConnections();
       if (!conns || conns.length === 0 || !isMounted.current) {
-        setIsLoading(false);
         return;
       }
-      
+
       // Check status for each connection in parallel
-      const statusPromises = conns.map(async (conn) => {
-        const status = await checkConnectionStatus(conn.id);
-        return {
-          ...conn,
-          status: status?.status || conn.status,
-          phoneNumber: status?.phoneNumber || conn.phone_number,
-          provider: status?.provider || conn.provider,
-          error: status?.error,
-        };
-      });
-      
-      const updatedConnections = await Promise.all(statusPromises);
-      
+      const updatedConnections = await Promise.all(
+        conns.map(async (conn) => {
+          const status = await checkConnectionStatus(conn.id);
+          return {
+            ...conn,
+            status: status?.status || conn.status,
+            phoneNumber: status?.phoneNumber ?? conn.phone_number,
+            provider: status?.provider || conn.provider,
+            error: status?.error,
+          };
+        })
+      );
+
       if (!isMounted.current) return;
-      
-      setConnections(updatedConnections.map(c => ({
-        id: c.id,
-        name: c.name,
-        status: c.status as 'connected' | 'disconnected' | 'connecting',
-        phoneNumber: c.phoneNumber,
-        provider: c.provider as 'evolution' | 'wapi',
-        error: c.error,
-      })));
-      
+
+      setConnections(
+        updatedConnections.map((c) => ({
+          id: c.id,
+          name: c.name,
+          status: c.status as 'connected' | 'disconnected' | 'connecting',
+          phoneNumber: c.phoneNumber,
+          provider: c.provider as 'evolution' | 'wapi',
+          error: c.error,
+        }))
+      );
+
       setLastChecked(new Date());
     } catch (error) {
       console.error('Error checking all connections:', error);
     } finally {
+      isCheckingRef.current = false;
       if (isMounted.current) {
         setIsLoading(false);
       }
     }
-  }, [isLoading, fetchConnections, checkConnectionStatus]);
+  }, [fetchConnections, checkConnectionStatus]);
 
   // Start periodic monitoring
   const startMonitoring = useCallback(() => {
