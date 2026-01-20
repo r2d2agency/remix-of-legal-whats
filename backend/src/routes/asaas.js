@@ -460,6 +460,22 @@ router.patch('/customers/:organizationId/:customerId', async (req, res) => {
       return res.status(403).json({ error: 'Sem permissão para editar clientes' });
     }
 
+    // First check if blacklist/pause columns exist, if not add them
+    try {
+      await query(`
+        ALTER TABLE asaas_customers 
+        ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS blacklist_reason TEXT,
+        ADD COLUMN IF NOT EXISTS blacklisted_at TIMESTAMP WITH TIME ZONE,
+        ADD COLUMN IF NOT EXISTS billing_paused BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS billing_paused_until DATE,
+        ADD COLUMN IF NOT EXISTS billing_paused_reason TEXT
+      `);
+    } catch (alterError) {
+      // Ignore if columns already exist or other non-critical errors
+      console.log('Column check/add (may be already present):', alterError.message);
+    }
+
     const result = await query(
       `UPDATE asaas_customers SET
          is_blacklisted = COALESCE($1, is_blacklisted),
@@ -481,7 +497,14 @@ router.patch('/customers/:organizationId/:customerId', async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Update customer error:', error);
-    res.status(500).json({ error: 'Erro ao atualizar cliente' });
+    // Provide more context for schema issues
+    if (error.code === '42703') { // undefined_column
+      return res.status(503).json({ 
+        error: 'Colunas de blacklist/pausa não encontradas. Execute o schema-v3.sql no banco de dados.',
+        details: error.message
+      });
+    }
+    res.status(500).json({ error: 'Erro ao atualizar cliente', details: error.message });
   }
 });
 
