@@ -603,6 +603,7 @@ export async function getGroupInfo(instanceId, token, groupJid) {
     console.error('W-API getGroupInfo error:', error);
     return { success: false, error: error.message };
   }
+}
 
 /**
  * Get all chats from W-API (includes contacts with chat history)
