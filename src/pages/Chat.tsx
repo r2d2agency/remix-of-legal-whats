@@ -9,9 +9,10 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { chatEvents } from "@/lib/chat-events";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Users } from "lucide-react";
+import { MessageSquare, Users, Bell } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
 
 interface UserProfile {
   user?: {
@@ -82,6 +83,11 @@ const Chat = () => {
   const isLoadingConversationsRef = useRef(false);
   // Track the currently selected conversation ID to prevent stale updates
   const selectedIdRef = useRef<string | null>(null);
+  // Track previous waiting count to detect new arrivals
+  const prevWaitingCountRef = useRef<number>(0);
+
+  // Notification sound hook
+  const { notify, playSound } = useNotificationSound();
 
   // Load initial data and start alerts polling
   useEffect(() => {
@@ -98,12 +104,32 @@ const Chat = () => {
     };
   }, []);
 
-  // Load attendance counts
+  // Load attendance counts and notify if new waiting conversations
   const loadAttendanceCounts = useCallback(async () => {
     const isGroup = activeTab === 'groups';
     const counts = await getAttendanceCounts(isGroup);
+    
+    // Check if waiting count increased (new conversation arrived)
+    if (counts.waiting > prevWaitingCountRef.current && prevWaitingCountRef.current > 0) {
+      const newCount = counts.waiting - prevWaitingCountRef.current;
+      
+      // Play sound and show toast notification
+      playSound();
+      toast.info(
+        newCount === 1 
+          ? '🔔 Nova conversa aguardando atendimento!' 
+          : `🔔 ${newCount} novas conversas aguardando atendimento!`,
+        {
+          duration: 5000,
+          icon: <Bell className="h-4 w-4 text-amber-500" />,
+        }
+      );
+    }
+    
+    // Update ref for next comparison
+    prevWaitingCountRef.current = counts.waiting;
     setAttendanceCounts(counts);
-  }, [activeTab, getAttendanceCounts]);
+  }, [activeTab, getAttendanceCounts, playSound]);
 
   const checkUserRole = async () => {
     try {
@@ -124,6 +150,14 @@ const Chat = () => {
     }, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  // Poll for new waiting conversations every 10 seconds (for notifications)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadAttendanceCounts();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [loadAttendanceCounts]);
 
   // Subscribe to chat events for immediate updates
   useEffect(() => {
