@@ -7,6 +7,7 @@ export const NOTIFICATION_SOUNDS = [
   { id: 'pop', name: 'Pop', file: '/sounds/notification-pop.mp3' },
   { id: 'ding', name: 'Ding', file: '/sounds/notification-ding.mp3' },
   { id: 'message', name: 'Mensagem', file: '/sounds/notification-message.mp3' },
+  { id: 'laser', name: 'Laser', file: '/sounds/notification-laser.mp3' },
   { id: 'none', name: 'Sem som', file: null },
 ] as const;
 

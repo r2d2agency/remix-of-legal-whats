@@ -202,10 +202,13 @@ export const useChat = () => {
     try {
       const params = new URLSearchParams();
       if (filters?.search) params.append('search', filters.search);
-      if (filters?.tag) params.append('tag', filters.tag);
-      if (filters?.assigned) params.append('assigned', filters.assigned);
+      // Only append tag if it's a valid UUID (not 'all')
+      if (filters?.tag && filters.tag !== 'all') params.append('tag', filters.tag);
+      // Only append assigned if it's a specific value (not 'all')
+      if (filters?.assigned && filters.assigned !== 'all') params.append('assigned', filters.assigned);
       if (filters?.archived !== undefined) params.append('archived', String(filters.archived));
-      if (filters?.connection) params.append('connection', filters.connection);
+      // Only append connection if it's a valid UUID (not 'all')
+      if (filters?.connection && filters.connection !== 'all') params.append('connection', filters.connection);
       if (filters?.is_group !== undefined) params.append('is_group', String(filters.is_group));
       
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
