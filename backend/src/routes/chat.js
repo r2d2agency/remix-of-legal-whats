@@ -916,7 +916,13 @@ router.patch('/tags/:id', authenticate, async (req, res) => {
 router.post('/tags', authenticate, async (req, res) => {
   try {
     const { name, color = '#6366f1' } = req.body;
+    
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Nome da tag é obrigatório' });
+    }
+    
     const organizationId = await getUserOrganization(req.userId);
+    console.log('Create tag - userId:', req.userId, 'orgId:', organizationId, 'name:', name);
 
     if (!organizationId) {
       return res.status(400).json({ error: 'Usuário não pertence a uma organização' });
@@ -927,13 +933,13 @@ router.post('/tags', authenticate, async (req, res) => {
        VALUES ($1, $2, $3)
        ON CONFLICT (organization_id, name) DO UPDATE SET color = $3
        RETURNING *`,
-      [organizationId, name, color]
+      [organizationId, name.trim(), color]
     );
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Create tag error:', error);
-    res.status(500).json({ error: 'Erro ao criar tag' });
+    res.status(500).json({ error: 'Erro ao criar tag', details: error.message });
   }
 });
 
