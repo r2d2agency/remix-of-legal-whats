@@ -87,7 +87,7 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
       const result = await query(`
         SELECT 
           COUNT(*) FILTER (WHERE COALESCE(conv.attendance_status, 'waiting') = 'waiting') as waiting,
-          COUNT(*) FILTER (WHERE conv.attendance_status = 'attending' OR conv.attendance_status IS NULL) as attending
+          COUNT(*) FILTER (WHERE conv.attendance_status = 'attending') as attending
         FROM conversations conv
         WHERE conv.connection_id = ANY($1)
           AND conv.is_archived = false
@@ -2200,11 +2200,11 @@ router.post('/conversations', authenticate, async (req, res) => {
       return res.json({ ...fullConv.rows[0], existed: true });
     }
 
-    // Create new conversation
+    // Create new conversation - when user creates manually, they are attending it
     const result = await query(
       `INSERT INTO conversations 
-        (connection_id, remote_jid, contact_phone, contact_name, assigned_to, is_archived, unread_count, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, false, 0, NOW(), NOW())
+        (connection_id, remote_jid, contact_phone, contact_name, assigned_to, is_archived, unread_count, attendance_status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, false, 0, 'attending', NOW(), NOW())
        RETURNING *`,
       [connection_id, remoteJid, phone, contact_name || phone, req.userId]
     );
