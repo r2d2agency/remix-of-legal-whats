@@ -493,6 +493,38 @@ async function cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, me
   }
 }
 
+// When W-API webhook does not include a direct media URL (common for outgoing from phone),
+// fetch the media by messageId via W-API and persist in /uploads.
+async function cacheMediaFromWapiDownload({ messageId, messageType, mediaMimetype, connection }) {
+  try {
+    if (!connection?.instance_id || !connection?.wapi_token) return null;
+    if (!messageId) return null;
+
+    const downloadResult = await wapiDownloadMedia(connection.instance_id, connection.wapi_token, messageId);
+
+    if (downloadResult?.success && downloadResult.base64) {
+      return await writeDataUrlToUploads(
+        downloadResult.base64,
+        messageType,
+        downloadResult.mimetype || mediaMimetype
+      );
+    }
+
+    if (downloadResult?.success && downloadResult.url) {
+      return await downloadToUploads(
+        downloadResult.url,
+        messageType,
+        downloadResult.mimetype || mediaMimetype
+      );
+    }
+
+    return null;
+  } catch (err) {
+    console.error('[W-API Cache] cacheMediaFromWapiDownload failed:', err?.message || err);
+    return null;
+  }
+}
+
 /**
  * W-API Webhook handler
  * Receives messages from W-API instances
@@ -964,8 +996,53 @@ async function handleOutgoingMessage(connection, payload) {
       var conversationId = convResult.rows[0].id;
     }
 
-    const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype } = extractMessageContent(payload);
-    const mediaUrl = normalizeUploadsUrl(rawMediaUrl);
+    const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype, waMediaKey } = extractMessageContent(payload);
+    let effectiveMediaUrl = normalizeUploadsUrl(rawMediaUrl);
+    let effectiveMediaMimetype = mediaMimetype || null;
+
+    // Outgoing media sent from the phone often comes WITHOUT a direct URL.
+    // In this case, we must download by messageId to make it renderable in the web UI.
+    if (messageType !== 'text') {
+      // 1) If we already have a URL but it's external/encrypted, try eager cache (best effort)
+      if (effectiveMediaUrl && shouldCacheExternally(effectiveMediaUrl)) {
+        const eager = await withTimeout(
+          cacheMedia({
+            messageId,
+            mediaUrl: effectiveMediaUrl,
+            messageType,
+            mediaMimetype: effectiveMediaMimetype,
+            connection,
+            waMediaKey,
+          }),
+          8000,
+          'eager_outgoing_media_cache_timeout'
+        ).catch(() => null);
+
+        if (eager?.publicUrl) {
+          effectiveMediaUrl = eager.publicUrl;
+          effectiveMediaMimetype = eager.mime || effectiveMediaMimetype;
+        }
+      }
+
+      // 2) If we still don't have a usable URL, try downloading by messageId (W-API)
+      if (!effectiveMediaUrl) {
+        const eagerById = await withTimeout(
+          cacheMediaFromWapiDownload({
+            messageId,
+            messageType,
+            mediaMimetype: effectiveMediaMimetype,
+            connection,
+          }),
+          8000,
+          'eager_outgoing_media_download_timeout'
+        ).catch(() => null);
+
+        if (eagerById?.publicUrl) {
+          effectiveMediaUrl = eagerById.publicUrl;
+          effectiveMediaMimetype = eagerById.mime || effectiveMediaMimetype;
+        }
+      }
+    }
 
     // Check for duplicate or pending message (optimistic UI pattern)
     const existingMsg = await query(
@@ -996,11 +1073,33 @@ async function handleOutgoingMessage(connection, payload) {
     await query(
       `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, from_me, status, timestamp)
        VALUES ($1, $2, $3, $4, $5, $6, true, 'sent', NOW())`,
-      [conversationId, messageId, content, messageType, mediaUrl, mediaMimetype || null]
+      [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype]
     );
 
-    if (mediaUrl && shouldCacheExternally(mediaUrl)) {
-      cacheMediaAndUpdateMessage({ messageId, mediaUrl, messageType, mediaMimetype, connection });
+    // Background cache as a fallback (so even if eager caching times out, the media will appear later)
+    if (effectiveMediaUrl && shouldCacheExternally(effectiveMediaUrl)) {
+      cacheMediaAndUpdateMessage({
+        messageId,
+        mediaUrl: effectiveMediaUrl,
+        messageType,
+        mediaMimetype: effectiveMediaMimetype,
+        connection,
+        waMediaKey,
+      });
+    } else if (messageType !== 'text' && !effectiveMediaUrl) {
+      // If there's no URL at all, we still try to fill it later using the messageId.
+      cacheMediaFromWapiDownload({ messageId, messageType, mediaMimetype: effectiveMediaMimetype, connection })
+        .then((cached) => {
+          if (!cached?.publicUrl) return;
+          return query(
+            `UPDATE chat_messages
+             SET media_url = $1,
+                 media_mimetype = COALESCE($2, media_mimetype)
+             WHERE message_id = $3`,
+            [cached.publicUrl, cached.mime || effectiveMediaMimetype, messageId]
+          );
+        })
+        .catch((err) => console.error('[W-API Cache] background download by id failed:', err?.message || err));
     }
 
     // Update conversation timestamp
