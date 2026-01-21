@@ -1031,8 +1031,8 @@ async function handleIncomingMessage(connection, payload) {
         : (payload.sender?.pushName || payload.pushName || payload.name || payload.senderName || cleanPhone);
 
       const newConv = await query(
-        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 1)
+        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 1, 'waiting')
          RETURNING id`,
         [connection.id, remoteJid, contactName, isGroup ? null : cleanPhone, isGroup, isGroup ? groupName : null]
       );
