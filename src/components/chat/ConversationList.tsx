@@ -377,7 +377,7 @@ export function ConversationList({
                   onClick={() => onSelect(conv)}
                 >
                   <AvatarFallback className="bg-primary/10 text-primary">
-                    {getInitials(conv.contact_name)}
+                    {getInitials(conv.is_group ? conv.group_name : conv.contact_name)}
                   </AvatarFallback>
                 </Avatar>
 
@@ -385,7 +385,9 @@ export function ConversationList({
                 <div className="flex-1 min-w-0" onClick={() => onSelect(conv)}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium truncate">
-                      {conv.contact_name || conv.contact_phone || 'Desconhecido'}
+                      {conv.is_group 
+                        ? (conv.group_name || 'Grupo sem nome')
+                        : (conv.contact_name || conv.contact_phone || 'Desconhecido')}
                     </span>
                     <span className="text-xs text-muted-foreground flex-shrink-0">
                       {conv.last_message_at
