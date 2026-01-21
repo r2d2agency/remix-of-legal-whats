@@ -764,14 +764,29 @@ async function handleIncomingMessage(connection, payload) {
       conversationId = conversationResult.rows[0].id;
 
       // Update conversation
-      await query(
-        `UPDATE conversations 
-         SET last_message_at = NOW(), 
-             unread_count = unread_count + 1,
-             contact_name = COALESCE($2, contact_name)
-         WHERE id = $1`,
-        [conversationId, payload.sender?.pushName || payload.pushName || payload.name]
-      );
+      if (isGroup) {
+        // For groups, update group_name if we have a new name
+        const groupName = payload.chat?.name || payload.groupName || null;
+        await query(
+          `UPDATE conversations 
+           SET last_message_at = NOW(), 
+               unread_count = unread_count + 1,
+               group_name = COALESCE($2, group_name),
+               is_group = true
+           WHERE id = $1`,
+          [conversationId, groupName]
+        );
+      } else {
+        // For individual chats, update contact_name with sender's pushName
+        await query(
+          `UPDATE conversations 
+           SET last_message_at = NOW(), 
+               unread_count = unread_count + 1,
+               contact_name = COALESCE($2, contact_name)
+           WHERE id = $1`,
+          [conversationId, payload.sender?.pushName || payload.pushName || payload.name]
+        );
+      }
     }
 
     // Extract message content

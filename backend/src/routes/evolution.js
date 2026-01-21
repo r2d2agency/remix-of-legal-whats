@@ -1308,21 +1308,49 @@ async function handleMessageUpsert(connection, data) {
       }
       
       // Update conversation
-      if (!fromMe) {
-        await query(
-          `UPDATE conversations 
-           SET last_message_at = NOW(), 
-               unread_count = unread_count + 1,
-               contact_name = COALESCE(NULLIF($2, ''), contact_name),
-               updated_at = NOW()
-           WHERE id = $1`,
-          [conversationId, pushName]
-        );
+      if (isGroup) {
+        // For groups, update group_name if available
+        const groupSubject = data.groupMetadata?.subject || data.subject || message.groupMetadata?.subject || null;
+        if (!fromMe) {
+          await query(
+            `UPDATE conversations 
+             SET last_message_at = NOW(), 
+                 unread_count = unread_count + 1,
+                 group_name = COALESCE($2, group_name),
+                 is_group = true,
+                 updated_at = NOW()
+             WHERE id = $1`,
+            [conversationId, groupSubject]
+          );
+        } else {
+          await query(
+            `UPDATE conversations 
+             SET last_message_at = NOW(), 
+                 group_name = COALESCE($2, group_name),
+                 is_group = true,
+                 updated_at = NOW() 
+             WHERE id = $1`,
+            [conversationId, groupSubject]
+          );
+        }
       } else {
-        await query(
-          `UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
-          [conversationId]
-        );
+        // For individual chats
+        if (!fromMe) {
+          await query(
+            `UPDATE conversations 
+             SET last_message_at = NOW(), 
+                 unread_count = unread_count + 1,
+                 contact_name = COALESCE(NULLIF($2, ''), contact_name),
+                 updated_at = NOW()
+             WHERE id = $1`,
+            [conversationId, pushName]
+          );
+        } else {
+          await query(
+            `UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
+            [conversationId]
+          );
+        }
       }
     }
 
