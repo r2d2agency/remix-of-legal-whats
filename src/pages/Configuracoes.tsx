@@ -5,11 +5,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Settings, Shield, Bell, Save, Sun, Moon, Monitor } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Settings, Shield, Bell, Save, Sun, Moon, Monitor, Volume2, VolumeX, BellRing, Smartphone } from "lucide-react";
 import { useTheme, Theme } from "@/hooks/use-theme";
+import { useNotificationSound, NOTIFICATION_SOUNDS, NotificationSoundId } from "@/hooks/use-notification-sound";
+import { toast } from "sonner";
 
 const Configuracoes = () => {
   const { theme, setTheme } = useTheme();
+  const {
+    settings: notifSettings,
+    updateSettings: updateNotifSettings,
+    pushPermission,
+    requestPushPermission,
+    previewSound,
+    isPushSupported,
+  } = useNotificationSound();
+
+  const handleRequestPush = async () => {
+    const granted = await requestPushPermission();
+    if (granted) {
+      toast.success("Notificações push ativadas!");
+    } else {
+      toast.error("Permissão negada. Ative nas configurações do navegador.");
+    }
+  };
 
   return (
     <MainLayout>
@@ -88,6 +108,211 @@ const Configuracoes = () => {
             </CardContent>
           </Card>
 
+          {/* Sound Notification Settings */}
+          <Card className="animate-fade-in shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Volume2 className="h-5 w-5 text-primary" />
+                Som de Notificação
+              </CardTitle>
+              <CardDescription>
+                Escolha o som para novas mensagens
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Sound enabled toggle */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-2">
+                    {notifSettings.soundEnabled ? (
+                      <Volume2 className="h-4 w-4" />
+                    ) : (
+                      <VolumeX className="h-4 w-4" />
+                    )}
+                    Sons ativados
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Tocar som ao receber mensagens
+                  </p>
+                </div>
+                <Switch
+                  checked={notifSettings.soundEnabled}
+                  onCheckedChange={(checked) => updateNotifSettings({ soundEnabled: checked })}
+                />
+              </div>
+
+              {/* Sound selection */}
+              {notifSettings.soundEnabled && (
+                <>
+                  <div className="space-y-3">
+                    <Label>Escolha o som</Label>
+                    <RadioGroup
+                      value={notifSettings.soundId}
+                      onValueChange={(value) => {
+                        updateNotifSettings({ soundId: value as NotificationSoundId });
+                        if (value !== 'none') {
+                          previewSound(value as NotificationSoundId);
+                        }
+                      }}
+                      className="grid gap-2"
+                    >
+                      {NOTIFICATION_SOUNDS.map((sound) => (
+                        <div
+                          key={sound.id}
+                          className="flex items-center space-x-3 rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors cursor-pointer"
+                        >
+                          <RadioGroupItem value={sound.id} id={`sound-${sound.id}`} />
+                          <Label htmlFor={`sound-${sound.id}`} className="cursor-pointer flex-1">
+                            {sound.name}
+                          </Label>
+                          {sound.file && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                previewSound(sound.id);
+                              }}
+                            >
+                              <Volume2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  </div>
+
+                  {/* Volume slider */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Volume</Label>
+                      <span className="text-sm text-muted-foreground">
+                        {Math.round(notifSettings.volume * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      value={[notifSettings.volume]}
+                      onValueChange={([value]) => updateNotifSettings({ volume: value })}
+                      max={1}
+                      step={0.1}
+                      className="w-full"
+                    />
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Push Notifications */}
+          <Card className="animate-fade-in shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BellRing className="h-5 w-5 text-primary" />
+                Notificações Push
+              </CardTitle>
+              <CardDescription>
+                Receba notificações mesmo com o navegador minimizado
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isPushSupported ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Status das permissões</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {pushPermission === 'granted' && "✅ Notificações ativadas"}
+                        {pushPermission === 'denied' && "❌ Notificações bloqueadas"}
+                        {pushPermission === 'default' && "⏳ Aguardando autorização"}
+                      </p>
+                    </div>
+                    {pushPermission !== 'granted' && (
+                      <Button
+                        onClick={handleRequestPush}
+                        variant={pushPermission === 'denied' ? 'outline' : 'default'}
+                        disabled={pushPermission === 'denied'}
+                      >
+                        <Bell className="h-4 w-4 mr-2" />
+                        {pushPermission === 'denied' ? 'Bloqueado' : 'Ativar'}
+                      </Button>
+                    )}
+                  </div>
+
+                  {pushPermission === 'granted' && (
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label>Mostrar notificações push</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Alertas visuais no sistema
+                        </p>
+                      </div>
+                      <Switch
+                        checked={notifSettings.pushEnabled}
+                        onCheckedChange={(checked) => updateNotifSettings({ pushEnabled: checked })}
+                      />
+                    </div>
+                  )}
+
+                  {pushPermission === 'denied' && (
+                    <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                      As notificações foram bloqueadas. Para ativá-las, acesse as configurações do seu navegador.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+                  Seu navegador não suporta notificações push.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* PWA Install */}
+          <Card className="animate-fade-in shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Smartphone className="h-5 w-5 text-primary" />
+                Instalar App
+              </CardTitle>
+              <CardDescription>
+                Adicione o Whatsale à tela inicial do seu celular
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg bg-accent/50 p-4 space-y-3">
+                <p className="text-sm">
+                  Para instalar o app no seu celular:
+                </p>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p><strong>iPhone/iPad:</strong> Toque no botão compartilhar (📤) e selecione "Adicionar à Tela de Início"</p>
+                  <p><strong>Android:</strong> Toque no menu (⋮) do navegador e selecione "Instalar app" ou "Adicionar à tela inicial"</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  // Check if PWA install prompt is available
+                  const deferredPrompt = (window as any).deferredPrompt;
+                  if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choice: any) => {
+                      if (choice.outcome === 'accepted') {
+                        toast.success('App instalado com sucesso!');
+                      }
+                      (window as any).deferredPrompt = null;
+                    });
+                  } else {
+                    toast.info('Use o menu do navegador para instalar o app');
+                  }
+                }}
+              >
+                <Smartphone className="h-4 w-4 mr-2" />
+                Instalar Whatsale
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* General Settings */}
           <Card className="animate-fade-in shadow-card">
             <CardHeader>
@@ -105,48 +330,6 @@ const Configuracoes = () => {
                   <Label>Auto-refresh</Label>
                   <p className="text-sm text-muted-foreground">
                     Atualizar dados automaticamente
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Notification Settings */}
-          <Card className="animate-fade-in shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="h-5 w-5 text-primary" />
-                Notificações
-              </CardTitle>
-              <CardDescription>
-                Configure alertas e notificações
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Campanha Concluída</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Notificar quando uma campanha terminar
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Erros de Envio</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Alertar sobre falhas de entrega
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Conexão Perdida</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Notificar se a conexão cair
                   </p>
                 </div>
                 <Switch defaultChecked />
