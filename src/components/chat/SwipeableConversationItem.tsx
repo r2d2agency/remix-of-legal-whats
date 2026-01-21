@@ -76,7 +76,8 @@ export function SwipeableConversationItem({
     setSwipeDirection(null);
   };
 
-  const showRightAction = isWaiting ? !!onAccept : isAttending ? !!onRelease : false;
+  // Show right action for both waiting (accept) and attending (release)
+  const showRightAction = (isWaiting && !!onAccept) || (isAttending && !!onRelease);
   const showLeftAction = isAdmin ? !!onDelete : !!onArchive;
 
   return (
