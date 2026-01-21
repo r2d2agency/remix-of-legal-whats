@@ -1001,6 +1001,24 @@ async function handleIncomingMessage(connection, payload) {
       return;
     }
 
+    // IMPORTANT: Extract message content BEFORE creating conversation
+    // This prevents creating empty conversations when message is invalid/empty
+    const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype, waMediaKey } = extractMessageContent(payload);
+
+    console.log('[W-API] Pre-check extracted content:', {
+      messageType,
+      contentLen: content?.length,
+      rawMediaUrl: rawMediaUrl?.slice?.(0, 100),
+      mediaMimetype,
+      hasMediaKey: Boolean(waMediaKey),
+    });
+
+    // Skip if message has no content - don't create empty conversations
+    if (!content && !rawMediaUrl) {
+      console.log('[W-API] Empty message content, skipping before conversation creation. Full msgContent:', JSON.stringify(payload.msgContent || {}).slice(0, 500));
+      return;
+    }
+
     // Get or create conversation
     let conversationResult = await query(
       `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
@@ -1074,16 +1092,8 @@ async function handleIncomingMessage(connection, payload) {
       }
     }
 
-    // Extract message content
-    const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype, waMediaKey } = extractMessageContent(payload);
-
-    console.log('[W-API] Extracted content:', {
-      messageType,
-      contentLen: content?.length,
-      rawMediaUrl: rawMediaUrl?.slice?.(0, 100),
-      mediaMimetype,
-      hasMediaKey: Boolean(waMediaKey),
-    });
+    // Use already extracted content from above (before conversation creation)
+    // messageType, content, rawMediaUrl, mediaMimetype, waMediaKey are already defined
 
     // For WhatsApp CDN URLs, the browser can't load them (encrypted .enc). Try to cache eagerly (images only)
     const normalizedMediaUrl = normalizeUploadsUrl(rawMediaUrl);
@@ -1114,8 +1124,9 @@ async function handleIncomingMessage(connection, payload) {
       }
     }
 
+    // Content was already validated before conversation creation, but check effectiveMediaUrl
     if (!content && !effectiveMediaUrl) {
-      console.log('[W-API] Empty message content, skipping. Full msgContent:', JSON.stringify(payload.msgContent || {}).slice(0, 500));
+      console.log('[W-API] Empty message after media processing, skipping. Full msgContent:', JSON.stringify(payload.msgContent || {}).slice(0, 500));
       return;
     }
 
