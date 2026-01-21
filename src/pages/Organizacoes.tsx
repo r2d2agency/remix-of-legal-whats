@@ -8,12 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-
+import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
-import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil } from 'lucide-react';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings } from 'lucide-react';
 
 interface Organization {
   id: string;
@@ -24,19 +24,32 @@ interface Organization {
   created_at: string;
 }
 
+interface AssignedConnection {
+  id: string;
+  name: string;
+}
+
 interface OrganizationMember {
   id: string;
   user_id: string;
   name: string;
   email: string;
   role: 'owner' | 'admin' | 'manager' | 'agent';
+  assigned_connections: AssignedConnection[];
   created_at: string;
+}
+
+interface OrgConnection {
+  id: string;
+  name: string;
+  phone_number: string | null;
+  status: string;
 }
 
 const roleLabels = {
   owner: { label: 'Proprietário', icon: Crown, color: 'bg-amber-500' },
   admin: { label: 'Admin', icon: Shield, color: 'bg-blue-500' },
-  manager: { label: 'Gerente', icon: Briefcase, color: 'bg-green-500' },
+  manager: { label: 'Supervisor', icon: Briefcase, color: 'bg-green-500' },
   agent: { label: 'Agente', icon: User, color: 'bg-gray-500' }
 };
 
@@ -44,6 +57,7 @@ export default function Organizacoes() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [connections, setConnections] = useState<OrgConnection[]>([]);
   const [loadingOrgs, setLoadingOrgs] = useState(true);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
@@ -60,7 +74,16 @@ export default function Organizacoes() {
   // Add member dialog
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
   const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberPassword, setNewMemberPassword] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<string>('agent');
+  const [newMemberConnectionIds, setNewMemberConnectionIds] = useState<string[]>([]);
+  const [showCreateUserFields, setShowCreateUserFields] = useState(false);
+
+  // Edit member dialog
+  const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<OrganizationMember | null>(null);
+  const [editMemberConnectionIds, setEditMemberConnectionIds] = useState<string[]>([]);
 
   const { 
     loading, 
@@ -69,7 +92,9 @@ export default function Organizacoes() {
     createOrganization, 
     updateOrganization,
     getMembers, 
+    getConnections,
     addMember, 
+    updateMember,
     removeMember 
   } = useOrganizations();
 
@@ -83,6 +108,7 @@ export default function Organizacoes() {
   useEffect(() => {
     if (selectedOrg) {
       loadMembers(selectedOrg.id);
+      loadConnections(selectedOrg.id);
     }
   }, [selectedOrg]);
 
@@ -101,6 +127,11 @@ export default function Organizacoes() {
     const membersList = await getMembers(orgId);
     setMembers(membersList);
     setLoadingMembers(false);
+  };
+
+  const loadConnections = async (orgId: string) => {
+    const conns = await getConnections(orgId);
+    setConnections(conns);
   };
 
   const handleCreateOrg = async () => {
@@ -144,12 +175,66 @@ export default function Organizacoes() {
       return;
     }
 
-    const success = await addMember(selectedOrg.id, newMemberEmail, newMemberRole);
+    // If showing create user fields, validate them
+    if (showCreateUserFields) {
+      if (!newMemberName || !newMemberPassword) {
+        toast.error('Preencha nome e senha para criar o usuário');
+        return;
+      }
+      if (newMemberPassword.length < 6) {
+        toast.error('Senha deve ter pelo menos 6 caracteres');
+        return;
+      }
+    }
+
+    const result = await addMember(selectedOrg.id, {
+      email: newMemberEmail,
+      role: newMemberRole,
+      name: showCreateUserFields ? newMemberName : undefined,
+      password: showCreateUserFields ? newMemberPassword : undefined,
+      connection_ids: newMemberConnectionIds.length > 0 ? newMemberConnectionIds : undefined
+    });
+
+    if (result.success) {
+      toast.success(result.message || 'Membro adicionado!');
+      resetAddMemberDialog();
+      loadMembers(selectedOrg.id);
+    } else if (result.requires_registration) {
+      // Show create user fields
+      setShowCreateUserFields(true);
+      toast.info('Usuário não encontrado. Preencha os dados para criar.');
+    } else if (error) {
+      toast.error(error);
+    }
+  };
+
+  const resetAddMemberDialog = () => {
+    setAddMemberDialogOpen(false);
+    setNewMemberEmail('');
+    setNewMemberName('');
+    setNewMemberPassword('');
+    setNewMemberRole('agent');
+    setNewMemberConnectionIds([]);
+    setShowCreateUserFields(false);
+  };
+
+  const handleOpenEditMember = (member: OrganizationMember) => {
+    setEditingMember(member);
+    setEditMemberConnectionIds(member.assigned_connections?.map(c => c.id) || []);
+    setEditMemberDialogOpen(true);
+  };
+
+  const handleUpdateMember = async () => {
+    if (!selectedOrg || !editingMember) return;
+
+    const success = await updateMember(selectedOrg.id, editingMember.user_id, {
+      connection_ids: editMemberConnectionIds
+    });
+
     if (success) {
-      toast.success('Membro adicionado!');
-      setAddMemberDialogOpen(false);
-      setNewMemberEmail('');
-      setNewMemberRole('agent');
+      toast.success('Conexões atualizadas!');
+      setEditMemberDialogOpen(false);
+      setEditingMember(null);
       loadMembers(selectedOrg.id);
     } else if (error) {
       toast.error(error);
@@ -174,6 +259,14 @@ export default function Organizacoes() {
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
+  };
+
+  const toggleConnection = (connId: string, connectionIds: string[], setConnectionIds: (ids: string[]) => void) => {
+    if (connectionIds.includes(connId)) {
+      setConnectionIds(connectionIds.filter(id => id !== connId));
+    } else {
+      setConnectionIds([...connectionIds, connId]);
+    }
   };
 
   const canManageOrg = selectedOrg?.role === 'owner' || selectedOrg?.role === 'admin';
@@ -362,30 +455,59 @@ export default function Organizacoes() {
                         </CardDescription>
                       </div>
                       {canManageOrg && (
-                        <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
+                        <Dialog open={addMemberDialogOpen} onOpenChange={(open) => {
+                          if (!open) resetAddMemberDialog();
+                          else setAddMemberDialogOpen(true);
+                        }}>
                           <DialogTrigger asChild>
                             <Button size="sm">
                               <UserPlus className="h-4 w-4 mr-2" />
                               Adicionar Membro
                             </Button>
                           </DialogTrigger>
-                          <DialogContent>
+                          <DialogContent className="max-w-md">
                             <DialogHeader>
                               <DialogTitle>Adicionar Membro</DialogTitle>
                               <DialogDescription>
-                                Convide um usuário existente para sua organização
+                                {showCreateUserFields 
+                                  ? 'Complete os dados para criar um novo usuário'
+                                  : 'Adicione um usuário existente ou crie um novo'}
                               </DialogDescription>
                             </DialogHeader>
-                            <div className="space-y-4 py-4">
+                            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
                               <div className="space-y-2">
-                                <Label>Email do usuário</Label>
+                                <Label>Email do usuário *</Label>
                                 <Input
                                   type="email"
                                   placeholder="usuario@email.com"
                                   value={newMemberEmail}
                                   onChange={(e) => setNewMemberEmail(e.target.value)}
+                                  disabled={showCreateUserFields}
                                 />
                               </div>
+                              
+                              {showCreateUserFields && (
+                                <>
+                                  <div className="space-y-2">
+                                    <Label>Nome *</Label>
+                                    <Input
+                                      placeholder="Nome do usuário"
+                                      value={newMemberName}
+                                      onChange={(e) => setNewMemberName(e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Senha *</Label>
+                                    <Input
+                                      type="password"
+                                      placeholder="Mínimo 6 caracteres"
+                                      value={newMemberPassword}
+                                      onChange={(e) => setNewMemberPassword(e.target.value)}
+                                    />
+                                  </div>
+                                </>
+                              )}
+                              
                               <div className="space-y-2">
                                 <Label>Função</Label>
                                 <Select value={newMemberRole} onValueChange={setNewMemberRole}>
@@ -394,19 +516,64 @@ export default function Organizacoes() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="admin">Admin - Gerencia tudo</SelectItem>
-                                    <SelectItem value="manager">Gerente - Gerencia equipe</SelectItem>
+                                    <SelectItem value="manager">Supervisor - Apenas visualização</SelectItem>
                                     <SelectItem value="agent">Agente - Acesso básico</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
+
+                              {connections.length > 0 && (
+                                <div className="space-y-2">
+                                  <Label className="flex items-center gap-2">
+                                    <Link2 className="h-4 w-4" />
+                                    Conexões permitidas
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground mb-2">
+                                    Selecione as conexões que este usuário pode acessar. Se nenhuma for selecionada, ele verá todas.
+                                  </p>
+                                  <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
+                                    {connections.map((conn) => (
+                                      <div key={conn.id} className="flex items-center space-x-2">
+                                        <Checkbox
+                                          id={`conn-${conn.id}`}
+                                          checked={newMemberConnectionIds.includes(conn.id)}
+                                          onCheckedChange={() => toggleConnection(conn.id, newMemberConnectionIds, setNewMemberConnectionIds)}
+                                        />
+                                        <label
+                                          htmlFor={`conn-${conn.id}`}
+                                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                                        >
+                                          {conn.name}
+                                          {conn.phone_number && (
+                                            <span className="text-muted-foreground ml-2 text-xs">
+                                              ({conn.phone_number})
+                                            </span>
+                                          )}
+                                        </label>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {!showCreateUserFields && (
+                                <Button 
+                                  variant="outline" 
+                                  className="w-full"
+                                  onClick={() => setShowCreateUserFields(true)}
+                                >
+                                  <UserPlus className="h-4 w-4 mr-2" />
+                                  Criar novo usuário
+                                </Button>
+                              )}
                             </div>
                             <DialogFooter>
-                              <Button variant="outline" onClick={() => setAddMemberDialogOpen(false)}>
+                              <Button variant="outline" onClick={resetAddMemberDialog}>
                                 Cancelar
                               </Button>
                               <Button onClick={handleAddMember} disabled={loading}>
                                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                Adicionar
+                                {showCreateUserFields ? 'Criar e Adicionar' : 'Adicionar'}
                               </Button>
                             </DialogFooter>
                           </DialogContent>
@@ -425,13 +592,15 @@ export default function Organizacoes() {
                           <TableRow>
                             <TableHead>Usuário</TableHead>
                             <TableHead>Função</TableHead>
+                            <TableHead>Conexões</TableHead>
                             <TableHead>Desde</TableHead>
-                            {canManageOrg && <TableHead className="w-[100px]">Ações</TableHead>}
+                            {canManageOrg && <TableHead className="w-[120px]">Ações</TableHead>}
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {members.map((member) => {
                             const RoleIcon = roleLabels[member.role].icon;
+                            const assignedConns = member.assigned_connections || [];
                             return (
                               <TableRow key={member.id}>
                                 <TableCell>
@@ -451,37 +620,67 @@ export default function Organizacoes() {
                                     {roleLabels[member.role].label}
                                   </Badge>
                                 </TableCell>
+                                <TableCell>
+                                  {assignedConns.length === 0 ? (
+                                    <span className="text-muted-foreground text-sm">Todas</span>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-1">
+                                      {assignedConns.slice(0, 2).map((c) => (
+                                        <Badge key={c.id} variant="outline" className="text-xs">
+                                          {c.name}
+                                        </Badge>
+                                      ))}
+                                      {assignedConns.length > 2 && (
+                                        <Badge variant="outline" className="text-xs">
+                                          +{assignedConns.length - 2}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </TableCell>
                                 <TableCell className="text-muted-foreground">
                                   {new Date(member.created_at).toLocaleDateString('pt-BR')}
                                 </TableCell>
                                 {canManageOrg && (
                                   <TableCell>
-                                    {member.role !== 'owner' && (
-                                      <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                            <Trash2 className="h-4 w-4" />
+                                    <div className="flex items-center gap-1">
+                                      {member.role !== 'owner' && (
+                                        <>
+                                          <Button 
+                                            variant="ghost" 
+                                            size="icon"
+                                            onClick={() => handleOpenEditMember(member)}
+                                            title="Gerenciar conexões"
+                                          >
+                                            <Settings className="h-4 w-4" />
                                           </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                          <AlertDialogHeader>
-                                            <AlertDialogTitle>Remover membro?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                              {member.name} será removido da organização e perderá acesso a todos os recursos.
-                                            </AlertDialogDescription>
-                                          </AlertDialogHeader>
-                                          <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                            <AlertDialogAction
-                                              onClick={() => handleRemoveMember(member.user_id)}
-                                              className="bg-destructive hover:bg-destructive/90"
-                                            >
-                                              Remover
-                                            </AlertDialogAction>
-                                          </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                      </AlertDialog>
-                                    )}
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Remover membro?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  {member.name} será removido da organização e perderá acesso a todos os recursos.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => handleRemoveMember(member.user_id)}
+                                                  className="bg-destructive hover:bg-destructive/90"
+                                                >
+                                                  Remover
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        </>
+                                      )}
+                                    </div>
                                   </TableCell>
                                 )}
                               </TableRow>
@@ -510,6 +709,60 @@ export default function Organizacoes() {
             )}
           </div>
         </div>
+
+        {/* Edit Member Dialog */}
+        <Dialog open={editMemberDialogOpen} onOpenChange={setEditMemberDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Gerenciar Conexões</DialogTitle>
+              <DialogDescription>
+                Selecione quais conexões {editingMember?.name} pode acessar
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              {connections.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  Nenhuma conexão disponível nesta organização
+                </p>
+              ) : (
+                <div className="space-y-2 border rounded-md p-3 max-h-60 overflow-y-auto">
+                  {connections.map((conn) => (
+                    <div key={conn.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`edit-conn-${conn.id}`}
+                        checked={editMemberConnectionIds.includes(conn.id)}
+                        onCheckedChange={() => toggleConnection(conn.id, editMemberConnectionIds, setEditMemberConnectionIds)}
+                      />
+                      <label
+                        htmlFor={`edit-conn-${conn.id}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                      >
+                        {conn.name}
+                        {conn.phone_number && (
+                          <span className="text-muted-foreground ml-2 text-xs">
+                            ({conn.phone_number})
+                          </span>
+                        )}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                Se nenhuma conexão for selecionada, o usuário terá acesso a todas as conexões da organização.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditMemberDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleUpdateMember} disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
