@@ -73,6 +73,7 @@ import {
   Trash2,
   Square,
   CalendarClock,
+  Users,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -506,24 +507,36 @@ export function ChatArea({
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
             <AvatarFallback className="bg-primary/10 text-primary">
-              {getInitials(conversation.contact_name)}
+              {getInitials(conversation.is_group ? conversation.group_name : conversation.contact_name)}
             </AvatarFallback>
           </Avatar>
           <div>
             <h3 className="font-semibold">
-              {conversation.contact_name || conversation.contact_phone || 'Desconhecido'}
+              {conversation.is_group 
+                ? (conversation.group_name || 'Grupo sem nome')
+                : (conversation.contact_name || conversation.contact_phone || 'Desconhecido')}
             </h3>
-            <button
-              onClick={handleOpenEditContact}
-              className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
-              title="Clique para editar o nome do contato"
-            >
-              <Phone className="h-3 w-3" />
-              <span className="hover:underline">{conversation.contact_phone}</span>
-              <PenLine className="h-3 w-3 opacity-50" />
-              <span className="opacity-50">•</span>
-              <span>{conversation.connection_name}</span>
-            </button>
+            {/* Only show edit button for individual chats, not groups */}
+            {conversation.is_group ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Users className="h-3 w-3" />
+                <span>Grupo</span>
+                <span className="opacity-50">•</span>
+                <span>{conversation.connection_name}</span>
+              </div>
+            ) : (
+              <button
+                onClick={handleOpenEditContact}
+                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                title="Clique para editar o nome do contato"
+              >
+                <Phone className="h-3 w-3" />
+                <span className="hover:underline">{conversation.contact_phone}</span>
+                <PenLine className="h-3 w-3 opacity-50" />
+                <span className="opacity-50">•</span>
+                <span>{conversation.connection_name}</span>
+              </button>
+            )}
           </div>
         </div>
 
