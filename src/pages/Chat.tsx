@@ -436,11 +436,16 @@ const Chat = () => {
       <div className="h-[calc(100vh-120px)] flex flex-col rounded-lg border overflow-hidden bg-background shadow-lg">
         {/* Tab Header */}
         <div className="border-b px-4 py-2 bg-muted/30 flex-shrink-0">
-          <Tabs value={activeTab} onValueChange={(v) => {
-            setActiveTab(v as 'chats' | 'groups');
-            setSelectedConversation(null);
-            setMessages([]);
-          }}>
+           <Tabs value={activeTab} onValueChange={(v) => {
+             setActiveTab(v as 'chats' | 'groups');
+             setSelectedConversation(null);
+             setMessages([]);
+
+             // Force immediate reload on tab switch (otherwise user waits for interval)
+             setTimeout(() => {
+               loadConversationsRef.current();
+             }, 0);
+           }}>
             <TabsList className="grid w-[260px] grid-cols-2">
               <TabsTrigger value="chats" className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4" />

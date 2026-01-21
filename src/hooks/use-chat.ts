@@ -195,6 +195,7 @@ export const useChat = () => {
     assigned?: string;
     archived?: boolean;
     connection?: string;
+    is_group?: boolean | string;
   }): Promise<Conversation[]> => {
     setLoading(true);
     setError(null);
@@ -205,6 +206,7 @@ export const useChat = () => {
       if (filters?.assigned) params.append('assigned', filters.assigned);
       if (filters?.archived !== undefined) params.append('archived', String(filters.archived));
       if (filters?.connection) params.append('connection', filters.connection);
+      if (filters?.is_group !== undefined) params.append('is_group', String(filters.is_group));
       
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
       const data = await api<Conversation[]>(url);
