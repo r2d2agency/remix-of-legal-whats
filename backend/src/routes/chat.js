@@ -22,15 +22,42 @@ function isViewOnlyRole(role) {
   return role === 'manager';
 }
 
-// Get user's connections
+// Get user's connections based on their access rights:
+// 1. If user has specific connection_members entries -> only those connections
+// 2. If user is in an organization but no connection_members -> all org connections
+// 3. Fallback: connections created by the user
 async function getUserConnections(userId) {
-  const result = await query(
-    `SELECT c.id FROM connections c
-     LEFT JOIN connection_members cm ON cm.connection_id = c.id
-     WHERE c.user_id = $1 OR cm.user_id = $1`,
+  // First check if user has specific connection assignments
+  const specificResult = await query(
+    `SELECT DISTINCT cm.connection_id as id
+     FROM connection_members cm
+     WHERE cm.user_id = $1`,
     [userId]
   );
-  return result.rows.map(r => r.id);
+  
+  if (specificResult.rows.length > 0) {
+    // User has specific connections assigned - return only those
+    return specificResult.rows.map(r => r.id);
+  }
+  
+  // Check if user is in an organization
+  const org = await getUserOrganization(userId);
+  
+  if (org) {
+    // No specific assignments, but in org - return all org connections
+    const orgResult = await query(
+      `SELECT c.id FROM connections c WHERE c.organization_id = $1`,
+      [org.organization_id]
+    );
+    return orgResult.rows.map(r => r.id);
+  }
+  
+  // Fallback: user's own connections (legacy behavior)
+  const ownResult = await query(
+    `SELECT c.id FROM connections c WHERE c.user_id = $1`,
+    [userId]
+  );
+  return ownResult.rows.map(r => r.id);
 }
 
 // ==========================================

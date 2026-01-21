@@ -10,13 +10,42 @@ interface Organization {
   created_at: string;
 }
 
+interface AssignedConnection {
+  id: string;
+  name: string;
+}
+
 interface OrganizationMember {
   id: string;
   user_id: string;
   name: string;
   email: string;
   role: 'owner' | 'admin' | 'manager' | 'agent';
+  assigned_connections: AssignedConnection[];
   created_at: string;
+}
+
+interface OrgConnection {
+  id: string;
+  name: string;
+  phone_number: string | null;
+  status: string;
+  provider: string | null;
+}
+
+interface AddMemberParams {
+  email: string;
+  role: string;
+  name?: string;
+  password?: string;
+  connection_ids?: string[];
+}
+
+interface AddMemberResult {
+  success: boolean;
+  user_created?: boolean;
+  requires_registration?: boolean;
+  message?: string;
 }
 
 export function useOrganizations() {
@@ -111,7 +140,18 @@ export function useOrganizations() {
     }
   }, []);
 
-  const addMember = useCallback(async (organizationId: string, email: string, role: string): Promise<boolean> => {
+  const getConnections = useCallback(async (organizationId: string): Promise<OrgConnection[]> => {
+    try {
+      const response = await fetch(`${API_URL}/api/organizations/${organizationId}/connections`, { headers: getHeaders() });
+      if (!response.ok) throw new Error('Erro ao buscar conexões');
+      return response.json();
+    } catch (err) {
+      console.error('Get org connections error:', err);
+      return [];
+    }
+  }, []);
+
+  const addMember = useCallback(async (organizationId: string, params: AddMemberParams): Promise<AddMemberResult> => {
     setLoading(true);
     setError(null);
     
@@ -119,13 +159,46 @@ export function useOrganizations() {
       const response = await fetch(`${API_URL}/api/organizations/${organizationId}/members`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ email, role })
+        body: JSON.stringify(params)
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        if (data.requires_registration) {
+          setError(data.details || data.error);
+          return { success: false, requires_registration: true };
+        }
+        throw new Error(data.details || data.error || 'Erro ao adicionar membro');
+      }
+      
+      return { 
+        success: true, 
+        user_created: data.user_created,
+        message: data.message 
+      };
+    } catch (err: any) {
+      setError(err.message);
+      return { success: false };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const updateMember = useCallback(async (organizationId: string, userId: string, data: { role?: string; connection_ids?: string[] }): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/organizations/${organizationId}/members/${userId}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data)
       });
       
       if (!response.ok) {
-        const data = await response.json();
-        // Use details if available for more descriptive error
-        throw new Error(data.details || data.error || 'Erro ao adicionar membro');
+        const resData = await response.json();
+        throw new Error(resData.error || 'Erro ao atualizar membro');
       }
       
       return true;
@@ -169,7 +242,9 @@ export function useOrganizations() {
     createOrganization,
     updateOrganization,
     getMembers,
+    getConnections,
     addMember,
+    updateMember,
     removeMember
   };
 }
