@@ -54,6 +54,8 @@ import { cn } from "@/lib/utils";
 import { Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { SwipeableConversationItem } from "./SwipeableConversationItem";
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -86,6 +88,8 @@ interface ConversationListProps {
   onPinConversation?: (id: string, pinned: boolean) => void;
   onNewConversation?: () => void;
   onAcceptConversation?: (id: string) => Promise<void>;
+  onReleaseConversation?: (id: string) => Promise<void>;
+  onArchiveConversation?: (id: string) => Promise<void>;
   attendanceCounts?: { waiting: number; attending: number };
 }
 
@@ -128,8 +132,11 @@ export function ConversationList({
   isAdmin = false,
   onNewConversation,
   onAcceptConversation,
+  onReleaseConversation,
+  onArchiveConversation,
   attendanceCounts,
 }: ConversationListProps) {
+  const isMobile = useIsMobile();
   const [localSearch, setLocalSearch] = useState(filters.search);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [conversationToDelete, setConversationToDelete] = useState<Conversation | null>(null);
@@ -409,140 +416,174 @@ export function ConversationList({
           </div>
         ) : (
           <div className="divide-y">
-            {conversations.map((conv) => (
-              <div
-                key={conv.id}
-                className={cn(
-                  "flex items-start gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/50 group",
-                  selectedId === conv.id && "bg-accent"
-                )}
-              >
-                {/* Avatar */}
-                <Avatar 
-                  className="h-12 w-12 flex-shrink-0"
-                  onClick={() => onSelect(conv)}
-                >
-                  <AvatarFallback className="bg-primary/10 text-primary">
-                    {getInitials(conv.is_group ? conv.group_name : conv.contact_name)}
-                  </AvatarFallback>
-                </Avatar>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0" onClick={() => onSelect(conv)}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium truncate">
-                      {conv.is_group 
-                        ? (conv.group_name || 'Grupo sem nome')
-                        : (conv.contact_name || conv.contact_phone || 'Desconhecido')}
-                    </span>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">
-                      {conv.last_message_at
-                        ? formatDistanceToNow(new Date(conv.last_message_at), {
-                            addSuffix: false,
-                            locale: ptBR,
-                          })
-                        : ''}
-                    </span>
-                  </div>
-
-                  {/* Last message preview */}
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
-                    {getMessageTypeIcon(conv.last_message_type)}
-                    <span className="truncate">
-                      {getMessagePreview(conv.last_message, conv.last_message_type)}
-                    </span>
-                  </div>
-
-                  {/* Tags row */}
-                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                    {conv.tags.slice(0, 2).map(tag => (
-                      <Badge
-                        key={tag.id}
-                        variant="outline"
-                        className="text-[10px] px-1.5 py-0"
-                        style={{ borderColor: tag.color, color: tag.color }}
-                      >
-                        {tag.name}
-                      </Badge>
-                    ))}
-                    {conv.tags.length > 2 && (
-                      <span className="text-[10px] text-muted-foreground">
-                        +{conv.tags.length - 2}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Connection name, Assigned user, and Unread count */}
-                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                    {/* Connection name */}
-                    {conv.connection_name && (
-                      <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded truncate max-w-[70px]">
-                        {conv.connection_name}
-                      </span>
-                    )}
-                    
-                    {/* Assigned user */}
-                    {conv.assigned_name && (
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        {conv.assigned_name.split(' ')[0]}
-                      </Badge>
-                    )}
-
-                    {/* Unread count */}
-                    {conv.unread_count > 0 && (
-                      <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 min-w-[20px] justify-center">
-                        {conv.unread_count}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Accept button for waiting conversations - separate row */}
-                  {filters.attendance_status === 'waiting' && onAcceptConversation && (
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="h-6 px-3 text-[10px] mt-2 w-full"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAcceptConversation(conv.id);
-                      }}
-                    >
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Aceitar Atendimento
-                    </Button>
+            {conversations.map((conv) => {
+              const isWaiting = conv.attendance_status === 'waiting' || filters.attendance_status === 'waiting';
+              const isAttending = conv.attendance_status === 'attending' || filters.attendance_status === 'attending';
+              
+              const conversationContent = (
+                <div
+                  className={cn(
+                    "flex items-start gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/50 group",
+                    selectedId === conv.id && "bg-accent"
                   )}
-                </div>
+                >
+                  {/* Avatar */}
+                  <Avatar 
+                    className="h-12 w-12 flex-shrink-0"
+                    onClick={() => onSelect(conv)}
+                  >
+                    <AvatarFallback className="bg-primary/10 text-primary">
+                      {getInitials(conv.is_group ? conv.group_name : conv.contact_name)}
+                    </AvatarFallback>
+                  </Avatar>
 
-                {/* Admin actions */}
-                {isAdmin && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0" onClick={() => onSelect(conv)}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium truncate">
+                        {conv.is_group 
+                          ? (conv.group_name || 'Grupo sem nome')
+                          : (conv.contact_name || conv.contact_phone || 'Desconhecido')}
+                      </span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {conv.last_message_at
+                          ? formatDistanceToNow(new Date(conv.last_message_at), {
+                              addSuffix: false,
+                              locale: ptBR,
+                            })
+                          : ''}
+                      </span>
+                    </div>
+
+                    {/* Last message preview */}
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
+                      {getMessageTypeIcon(conv.last_message_type)}
+                      <span className="truncate">
+                        {getMessagePreview(conv.last_message, conv.last_message_type)}
+                      </span>
+                    </div>
+
+                    {/* Tags row */}
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      {conv.tags.slice(0, 2).map(tag => (
+                        <Badge
+                          key={tag.id}
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0"
+                          style={{ borderColor: tag.color, color: tag.color }}
+                        >
+                          {tag.name}
+                        </Badge>
+                      ))}
+                      {conv.tags.length > 2 && (
+                        <span className="text-[10px] text-muted-foreground">
+                          +{conv.tags.length - 2}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Connection name, Assigned user, and Unread count */}
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      {/* Connection name */}
+                      {conv.connection_name && (
+                        <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded truncate max-w-[70px]">
+                          {conv.connection_name}
+                        </span>
+                      )}
+                      
+                      {/* Assigned user */}
+                      {conv.assigned_name && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          {conv.assigned_name.split(' ')[0]}
+                        </Badge>
+                      )}
+
+                      {/* Unread count */}
+                      {conv.unread_count > 0 && (
+                        <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 min-w-[20px] justify-center">
+                          {conv.unread_count}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Accept button for waiting conversations - only show on desktop or when swipe not available */}
+                    {!isMobile && filters.attendance_status === 'waiting' && onAcceptConversation && (
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 flex-shrink-0"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
+                        size="sm"
+                        variant="default"
+                        className="h-6 px-3 text-[10px] mt-2 w-full"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setConversationToDelete(conv);
-                          setDeleteDialogOpen(true);
+                          onAcceptConversation(conv.id);
                         }}
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Excluir conversa
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-            ))}
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Aceitar Atendimento
+                      </Button>
+                    )}
+
+                    {/* Swipe hint for mobile */}
+                    {isMobile && (isWaiting || isAttending) && (
+                      <p className="text-[9px] text-muted-foreground mt-1.5 italic">
+                        {isWaiting ? '← Deslize para aceitar' : '← Deslize para liberar'}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Admin actions - only on desktop */}
+                  {!isMobile && isAdmin && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 flex-shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConversationToDelete(conv);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir conversa
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              );
+
+              // Wrap with swipeable on mobile
+              if (isMobile) {
+                return (
+                  <SwipeableConversationItem
+                    key={conv.id}
+                    isWaiting={isWaiting}
+                    isAttending={isAttending}
+                    isAdmin={isAdmin}
+                    onAccept={onAcceptConversation ? () => onAcceptConversation(conv.id) : undefined}
+                    onRelease={onReleaseConversation ? () => onReleaseConversation(conv.id) : undefined}
+                    onArchive={onArchiveConversation ? () => onArchiveConversation(conv.id) : undefined}
+                    onDelete={isAdmin ? () => {
+                      setConversationToDelete(conv);
+                      setDeleteDialogOpen(true);
+                    } : undefined}
+                  >
+                    {conversationContent}
+                  </SwipeableConversationItem>
+                );
+              }
+
+              return <div key={conv.id}>{conversationContent}</div>;
+            })}
           </div>
         )}
       </ScrollArea>

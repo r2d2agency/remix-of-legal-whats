@@ -645,6 +645,24 @@ const Chat = () => {
                 connections={connections}
                 onNewConversation={activeTab === 'chats' ? () => setNewConversationOpen(true) : undefined}
                 onAcceptConversation={handleAcceptConversation}
+                onReleaseConversation={async (id) => {
+                  try {
+                    await releaseConversation(id);
+                    loadConversations();
+                    toast.success('Conversa liberada');
+                  } catch (error: any) {
+                    toast.error(error.message || 'Erro ao liberar conversa');
+                  }
+                }}
+                onArchiveConversation={async (id) => {
+                  try {
+                    await updateConversation(id, { is_archived: true });
+                    loadConversations();
+                    toast.success('Conversa arquivada');
+                  } catch (error: any) {
+                    toast.error(error.message || 'Erro ao arquivar conversa');
+                  }
+                }}
                 attendanceCounts={attendanceCounts}
               />
             </div>
