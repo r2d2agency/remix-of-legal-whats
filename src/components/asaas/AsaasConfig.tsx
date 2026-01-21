@@ -103,6 +103,15 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
     loadData();
   }, [organizationId]);
 
+  // Reload customers when showBlacklisted changes
+  useEffect(() => {
+    const loadCustomersOnly = async () => {
+      const custs = await getCustomers(showBlacklisted);
+      setCustomers(custs);
+    };
+    loadCustomersOnly();
+  }, [showBlacklisted, getCustomers]);
+
   const loadData = async () => {
     const [integ, pays, custs, rls, stats, history, dash, sett, alts] = await Promise.all([
       getIntegration(),
@@ -159,6 +168,12 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
     if (result) {
       toast({ title: customer.is_blacklisted ? "Cliente removido da blacklist" : "Cliente adicionado à blacklist" });
       await loadData();
+    } else {
+      toast({ 
+        title: "Erro ao atualizar cliente", 
+        description: error || "Verifique o console para mais detalhes",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -184,6 +199,12 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
       setShowCustomerDialog(false);
       setEditingCustomer(null);
       await loadData();
+    } else {
+      toast({ 
+        title: "Erro ao pausar/retomar cobranças", 
+        description: error || "Verifique o console para mais detalhes",
+        variant: "destructive" 
+      });
     }
   };
 

@@ -235,7 +235,8 @@ export function useAsaas(organizationId: string | null) {
       });
       return result;
     } catch (err: any) {
-      setError(err.message);
+      console.error('Update customer error:', err);
+      setError(err.message || 'Erro desconhecido');
       return null;
     } finally {
       setLoading(false);
