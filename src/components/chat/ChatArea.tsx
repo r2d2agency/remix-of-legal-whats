@@ -513,10 +513,17 @@ export function ChatArea({
   return (
     <div className="flex-1 flex h-full">
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col h-full">
+      <div className="flex-1 flex flex-col h-full overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-card">
-        <div className="flex items-center gap-3">
+      <div
+        className={cn(
+          "border-b bg-card",
+          isMobile
+            ? "flex flex-col items-stretch gap-2 p-3"
+            : "flex items-center justify-between p-4"
+        )}
+      >
+        <div className={cn("flex items-center gap-3 min-w-0", isMobile && "w-full")}>
           {/* Mobile back button */}
           {isMobile && onMobileBack && (
             <Button
@@ -533,37 +540,42 @@ export function ChatArea({
               {getInitials(conversation.is_group ? conversation.group_name : conversation.contact_name)}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <h3 className="font-semibold">
+          <div className="min-w-0">
+            <h3 className="font-semibold truncate">
               {conversation.is_group 
                 ? (conversation.group_name || 'Grupo sem nome')
                 : (conversation.contact_name || conversation.contact_phone || 'Desconhecido')}
             </h3>
             {/* Only show edit button for individual chats, not groups */}
             {conversation.is_group ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0 flex-wrap">
                 <Users className="h-3 w-3" />
                 <span>Grupo</span>
                 <span className="opacity-50">•</span>
-                <span>{conversation.connection_name}</span>
+                <span className="truncate max-w-[160px]">{conversation.connection_name}</span>
               </div>
             ) : (
               <button
                 onClick={handleOpenEditContact}
-                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer min-w-0 flex-wrap"
                 title="Clique para editar o nome do contato"
               >
                 <Phone className="h-3 w-3" />
-                <span className="hover:underline">{conversation.contact_phone}</span>
+                <span className="hover:underline whitespace-nowrap">{conversation.contact_phone}</span>
                 <PenLine className="h-3 w-3 opacity-50" />
                 <span className="opacity-50">•</span>
-                <span>{conversation.connection_name}</span>
+                <span className="truncate max-w-[160px]">{conversation.connection_name}</span>
               </button>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div
+          className={cn(
+            "flex items-center",
+            isMobile ? "w-full flex-wrap gap-1.5 justify-end" : "gap-2"
+          )}
+        >
           {/* Search */}
           <Button
             variant="ghost"
@@ -596,12 +608,15 @@ export function ChatArea({
           )}
 
           {/* Tags */}
-          <div className="flex items-center gap-1">
+          <div className={cn("flex items-center gap-1", isMobile && "basis-full flex-wrap")}> 
             {conversation.tags.slice(0, 3).map(tag => (
               <Badge
                 key={tag.id}
                 variant="outline"
-                className="text-xs cursor-pointer"
+                className={cn(
+                  "cursor-pointer",
+                  isMobile ? "text-[10px] h-5 px-1.5 py-0" : "text-xs"
+                )}
                 style={{ borderColor: tag.color, color: tag.color }}
                 onClick={() => onRemoveTag(tag.id)}
                 title="Clique para remover"
@@ -775,7 +790,10 @@ export function ChatArea({
       )}
 
       {/* Messages */}
-      <ScrollArea ref={scrollAreaRef} className="flex-1 p-4 chat-wallpaper">
+      <ScrollArea
+        ref={scrollAreaRef}
+        className={cn("flex-1 chat-wallpaper", isMobile ? "p-3" : "p-4")}
+      >
         {hasMore && (
           <div className="flex justify-center mb-4">
             <Button
@@ -821,7 +839,8 @@ export function ChatArea({
 
               <div
                 className={cn(
-                  "max-w-[70%] rounded-lg p-3 transition-all",
+                  "rounded-lg transition-all",
+                  isMobile ? "max-w-[85%] p-2.5" : "max-w-[70%] p-3",
                   msg.from_me
                     ? "message-sent"
                     : "message-received",
@@ -915,15 +934,14 @@ export function ChatArea({
 
                 {(msg.message_type === 'audio' || (msg.media_mimetype?.startsWith('audio/') ?? false)) && (
                   mediaUrl ? (
-                    <div className="mb-2 flex items-center gap-3 min-w-[250px] p-2 rounded-lg bg-background/30">
+                    <div className="mb-2 flex items-center gap-3 w-full min-w-0 p-2 rounded-lg bg-background/30">
                       <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
                         <Mic className="h-5 w-5 text-primary" />
                       </div>
                       <audio
                         controls
                         preload="auto"
-                        className="flex-1 h-10"
-                        style={{ minWidth: '180px' }}
+                        className="flex-1 h-10 w-full"
                         crossOrigin="anonymous"
                       >
                         {msg.media_mimetype && <source src={mediaUrl} type={msg.media_mimetype} />}
@@ -1024,7 +1042,7 @@ export function ChatArea({
           </div>
         </div>
       ) : (
-      <div className="p-4 border-t bg-card">
+      <div className={cn("border-t bg-card", isMobile ? "p-3" : "p-4")}>
         {/* Reply preview */}
         {replyingTo && (
           <div className="flex items-center gap-2 mb-2 p-2 rounded-lg bg-muted border-l-4 border-primary">
@@ -1056,7 +1074,7 @@ export function ChatArea({
         )}
 
         {/* Signature toggle */}
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
           <Checkbox
             id="sign-messages"
             checked={signMessages}
@@ -1064,7 +1082,7 @@ export function ChatArea({
           />
           <Label
             htmlFor="sign-messages"
-            className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
+            className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1 min-w-0"
           >
             <PenLine className="h-3 w-3" />
             Assinar mensagens {user?.name && signMessages && (
@@ -1073,7 +1091,7 @@ export function ChatArea({
           </Label>
         </div>
         
-        <div className="flex items-end gap-2">
+        <div className={cn("flex items-end gap-2", isMobile && "gap-1.5")}>
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
