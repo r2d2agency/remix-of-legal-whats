@@ -820,7 +820,8 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
 // Get all tags
 router.get('/tags', authenticate, async (req, res) => {
   try {
-    const organizationId = await getUserOrganization(req.userId);
+    const userOrg = await getUserOrganization(req.userId);
+    const organizationId = userOrg?.organization_id;
     
     if (!organizationId) {
       return res.json([]);
@@ -841,7 +842,8 @@ router.get('/tags', authenticate, async (req, res) => {
 // Get all tags with conversation count
 router.get('/tags/with-count', authenticate, async (req, res) => {
   try {
-    const organizationId = await getUserOrganization(req.userId);
+    const userOrg = await getUserOrganization(req.userId);
+    const organizationId = userOrg?.organization_id;
     
     if (!organizationId) {
       return res.json([]);
@@ -871,7 +873,12 @@ router.patch('/tags/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, color } = req.body;
-    const organizationId = await getUserOrganization(req.userId);
+    const userOrg = await getUserOrganization(req.userId);
+    const organizationId = userOrg?.organization_id;
+
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Usuário não pertence a uma organização' });
+    }
 
     const updates = [];
     const values = [];
@@ -921,7 +928,8 @@ router.post('/tags', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Nome da tag é obrigatório' });
     }
     
-    const organizationId = await getUserOrganization(req.userId);
+    const userOrg = await getUserOrganization(req.userId);
+    const organizationId = userOrg?.organization_id;
     console.log('Create tag - userId:', req.userId, 'orgId:', organizationId, 'name:', name);
 
     if (!organizationId) {
@@ -947,7 +955,12 @@ router.post('/tags', authenticate, async (req, res) => {
 router.delete('/tags/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const organizationId = await getUserOrganization(req.userId);
+    const userOrg = await getUserOrganization(req.userId);
+    const organizationId = userOrg?.organization_id;
+
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Usuário não pertence a uma organização' });
+    }
 
     await query(
       `DELETE FROM conversation_tags WHERE id = $1 AND organization_id = $2`,
@@ -1005,7 +1018,8 @@ router.delete('/conversations/:id/tags/:tagId', authenticate, async (req, res) =
 // Get team members
 router.get('/team', authenticate, async (req, res) => {
   try {
-    const organizationId = await getUserOrganization(req.userId);
+    const userOrg = await getUserOrganization(req.userId);
+    const organizationId = userOrg?.organization_id;
     
     if (!organizationId) {
       return res.json([]);
