@@ -576,6 +576,23 @@ export function ChatArea({
             isMobile ? "w-full flex-wrap gap-1.5 justify-end" : "gap-2"
           )}
         >
+          {/* Release button - visible when attending */}
+          {!isViewOnly && onReleaseConversation && conversation.attendance_status === 'attending' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950",
+                isMobile ? "h-7 text-[11px] px-2" : "h-8"
+              )}
+              onClick={onReleaseConversation}
+              title="Liberar conversa (voltar para aguardando)"
+            >
+              <Undo2 className="h-3.5 w-3.5 mr-1" />
+              Liberar
+            </Button>
+          )}
+          
           {/* Search */}
           <Button
             variant="ghost"
@@ -704,12 +721,6 @@ export function ChatArea({
               {!isViewOnly && (
                 <>
                   <DropdownMenuSeparator />
-                  {onReleaseConversation && conversation.attendance_status === 'attending' && (
-                    <DropdownMenuItem onClick={onReleaseConversation}>
-                      <Undo2 className="h-4 w-4 mr-2" />
-                      Liberar (voltar para aguardando)
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
                     <ArrowLeftRight className="h-4 w-4 mr-2" />
                     Transferir atendimento

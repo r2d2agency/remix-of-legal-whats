@@ -586,7 +586,7 @@ router.post('/conversations/:id/release', authenticate, async (req, res) => {
            accepted_by = NULL,
            assigned_to = NULL,
            updated_at = NOW() 
-       WHERE id = $2 
+       WHERE id = $1 
        RETURNING *`,
       [id]
     );
