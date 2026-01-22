@@ -512,14 +512,14 @@ export function ConversationList({
                       <Button
                         size="sm"
                         variant="default"
-                        className="h-6 px-3 text-[10px] mt-2 w-full"
+                        className="h-6 px-2 text-[10px] mt-2 max-w-full truncate"
                         onClick={(e) => {
                           e.stopPropagation();
                           onAcceptConversation(conv.id);
                         }}
                       >
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Aceitar Atendimento
+                        <CheckCircle className="h-3 w-3 mr-1 flex-shrink-0" />
+                        <span className="truncate">Aceitar</span>
                       </Button>
                     )}
 
