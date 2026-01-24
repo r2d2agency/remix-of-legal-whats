@@ -89,9 +89,14 @@ export function AttendanceChart({ className, connections = [] }: AttendanceChart
             attending: number;
             finished: number;
           }>;
-        }>(`/api/chat/conversations/attendance-stats?${params.toString()}`).catch(() => ({ daily_stats: [] })),
+        }>(`/api/chat/conversations/attendance-stats?${params.toString()}`).catch((err) => {
+          console.error('Error loading attendance stats:', err);
+          return { daily_stats: [] };
+        }),
         api<{ user_stats: UserAvgTime[] }>(`/api/chat/conversations/user-avg-time?${params.toString()}`).catch(() => ({ user_stats: [] })),
       ]);
+
+      console.log('[AttendanceChart] Stats response:', statsResponse);
 
       // Create a map for quick lookup
       const statsMap = new Map<string, { waiting: number; attending: number; finished: number }>();
