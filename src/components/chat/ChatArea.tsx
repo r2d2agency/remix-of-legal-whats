@@ -572,6 +572,22 @@ export function ChatArea({
     <div className="flex-1 flex h-full">
       {/* Main chat area */}
       <div className="flex-1 flex flex-col h-full overflow-x-hidden">
+      {/* Archived Banner */}
+      {conversation.is_archived && (
+        <div className="flex items-center justify-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-600 dark:text-amber-400">
+          <Archive className="h-4 w-4" />
+          <span className="text-sm font-medium">Esta conversa está arquivada</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-2 h-6 px-2 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+            onClick={onArchive}
+          >
+            Desarquivar
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div
         className={cn(

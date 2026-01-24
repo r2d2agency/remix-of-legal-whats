@@ -392,15 +392,34 @@ export function ConversationList({
 
           {/* Archive toggle */}
           <Button
-            variant={filters.archived ? "secondary" : "ghost"}
+            variant={filters.archived ? "default" : "ghost"}
             size="icon"
-            className="h-8 w-8"
+            className={cn(
+              "h-8 w-8 transition-colors",
+              filters.archived && "bg-amber-500 hover:bg-amber-600 text-white"
+            )}
             onClick={() => onFiltersChange({ ...filters, archived: !filters.archived })}
             title={filters.archived ? "Ver ativas" : "Ver arquivadas"}
           >
             <Archive className="h-3 w-3" />
           </Button>
         </div>
+
+        {/* Archived mode banner */}
+        {filters.archived && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-600 dark:text-amber-400">
+            <Archive className="h-4 w-4 flex-shrink-0" />
+            <span className="text-xs font-medium">Exibindo conversas arquivadas</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-6 px-2 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+              onClick={() => onFiltersChange({ ...filters, archived: false })}
+            >
+              Voltar às ativas
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Conversation List */}
