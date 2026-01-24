@@ -63,6 +63,40 @@ export function AttendanceChart({ className, connections = [], currentCounts }: 
     }
   }, [dateRange, selectedConnection]);
 
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (dateRange?.from) {
+        loadData();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [dateRange, selectedConnection]);
+
+  // Also refresh when currentCounts change (from parent)
+  useEffect(() => {
+    if (currentCounts) {
+      const days = dateRange?.from && dateRange?.to 
+        ? differenceInDays(dateRange.to, dateRange.from) + 1 
+        : 1;
+      
+      if (days === 1) {
+        setTotals({
+          aguardando: currentCounts.waiting,
+          atendendo: currentCounts.attending,
+          finalizados: currentCounts.finished,
+        });
+        setData(prev => prev.map(d => ({
+          ...d,
+          aguardando: currentCounts.waiting,
+          atendendo: currentCounts.attending,
+          finalizados: currentCounts.finished,
+        })));
+      }
+    }
+  }, [currentCounts]);
+
   const loadData = async () => {
     if (!dateRange?.from) return;
     
