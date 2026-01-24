@@ -489,13 +489,13 @@ export function ConversationList({
 
                   {/* Content */}
                   <div className="flex-1 min-w-0" onClick={() => onSelect(conv)}>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium truncate">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium truncate flex-1 min-w-0">
                         {conv.is_group 
                           ? (conv.group_name || 'Grupo sem nome')
                           : (conv.contact_name || conv.contact_phone || 'Desconhecido')}
                       </span>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-1">
                         {conv.last_message_at
                           ? formatDistanceToNow(new Date(conv.last_message_at), {
                               addSuffix: false,
