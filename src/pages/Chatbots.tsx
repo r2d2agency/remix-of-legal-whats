@@ -7,12 +7,13 @@ import { Switch } from "@/components/ui/switch";
 import { 
   Bot, Plus, Settings, BarChart3, Trash2, Edit, 
   Clock, MessageSquare, Zap, Users, ArrowRight,
-  Sparkles
+  Sparkles, GitBranch
 } from "lucide-react";
 import { toast } from "sonner";
 import { useChatbots, Chatbot } from "@/hooks/use-chatbots";
 import { ChatbotEditorDialog } from "@/components/chatbots/ChatbotEditorDialog";
 import { ChatbotStatsDialog } from "@/components/chatbots/ChatbotStatsDialog";
+import { FlowEditorDialog } from "@/components/chatbots/FlowEditorDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +32,8 @@ const Chatbots = () => {
   const [selectedChatbot, setSelectedChatbot] = useState<Chatbot | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
   const [statsChatbot, setStatsChatbot] = useState<Chatbot | null>(null);
+  const [flowEditorOpen, setFlowEditorOpen] = useState(false);
+  const [flowChatbot, setFlowChatbot] = useState<Chatbot | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [chatbotToDelete, setChatbotToDelete] = useState<Chatbot | null>(null);
 
@@ -66,6 +69,11 @@ const Chatbots = () => {
   const handleStats = (chatbot: Chatbot) => {
     setStatsChatbot(chatbot);
     setStatsOpen(true);
+  };
+
+  const handleFlowEditor = (chatbot: Chatbot) => {
+    setFlowChatbot(chatbot);
+    setFlowEditorOpen(true);
   };
 
   const handleDeleteClick = (chatbot: Chatbot) => {
@@ -275,7 +283,16 @@ const Chatbots = () => {
                     <Button 
                       variant="outline" 
                       size="sm"
+                      onClick={() => handleFlowEditor(chatbot)}
+                      title="Editor de Fluxo"
+                    >
+                      <GitBranch className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
                       onClick={() => handleStats(chatbot)}
+                      title="Estatísticas"
                     >
                       <BarChart3 className="h-4 w-4" />
                     </Button>
@@ -284,6 +301,7 @@ const Chatbots = () => {
                       size="sm"
                       className="text-destructive hover:text-destructive"
                       onClick={() => handleDeleteClick(chatbot)}
+                      title="Excluir"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -356,6 +374,16 @@ const Chatbots = () => {
         onClose={() => {
           setStatsOpen(false);
           setStatsChatbot(null);
+        }}
+      />
+
+      {/* Flow Editor Dialog */}
+      <FlowEditorDialog
+        open={flowEditorOpen}
+        chatbot={flowChatbot}
+        onClose={() => {
+          setFlowEditorOpen(false);
+          setFlowChatbot(null);
         }}
       />
 
