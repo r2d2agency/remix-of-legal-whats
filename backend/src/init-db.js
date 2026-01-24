@@ -830,6 +830,161 @@ CREATE INDEX IF NOT EXISTS idx_conversations_attendance_status ON conversations(
 CREATE INDEX IF NOT EXISTS idx_conversations_accepted_by ON conversations(accepted_by);
 `;
 
+// Step 13: Chatbots System
+const step13Chatbots = `
+-- Enum para provedor de IA
+DO $$ BEGIN
+  CREATE TYPE ai_provider AS ENUM ('gemini', 'openai', 'none');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+-- Enum para modo de operação do chatbot
+DO $$ BEGIN
+  CREATE TYPE chatbot_mode AS ENUM ('always', 'business_hours', 'outside_hours', 'pre_service');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+-- Enum para tipo de nó do fluxo
+DO $$ BEGIN
+  CREATE TYPE flow_node_type AS ENUM ('start', 'message', 'menu', 'input', 'condition', 'action', 'transfer', 'ai_response', 'end');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+-- Tabela principal de chatbots
+CREATE TABLE IF NOT EXISTS chatbots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  connection_id UUID REFERENCES connections(id) ON DELETE SET NULL,
+  
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  is_active BOOLEAN DEFAULT false,
+  
+  mode chatbot_mode DEFAULT 'always',
+  business_hours_start TIME DEFAULT '08:00',
+  business_hours_end TIME DEFAULT '18:00',
+  business_days INTEGER[] DEFAULT ARRAY[1,2,3,4,5],
+  timezone VARCHAR(50) DEFAULT 'America/Sao_Paulo',
+  
+  ai_provider ai_provider DEFAULT 'none',
+  ai_model VARCHAR(100),
+  ai_api_key TEXT,
+  ai_system_prompt TEXT,
+  ai_temperature DECIMAL(2,1) DEFAULT 0.7,
+  ai_max_tokens INTEGER DEFAULT 500,
+  
+  welcome_message TEXT,
+  fallback_message TEXT DEFAULT 'Desculpe, não entendi. Vou transferir você para um atendente.',
+  transfer_after_failures INTEGER DEFAULT 3,
+  typing_delay_ms INTEGER DEFAULT 1500,
+  
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chatbots_organization ON chatbots(organization_id);
+CREATE INDEX IF NOT EXISTS idx_chatbots_connection ON chatbots(connection_id);
+CREATE INDEX IF NOT EXISTS idx_chatbots_active ON chatbots(is_active);
+
+-- Tabela de fluxos do chatbot
+CREATE TABLE IF NOT EXISTS chatbot_flows (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chatbot_id UUID NOT NULL REFERENCES chatbots(id) ON DELETE CASCADE,
+  
+  node_id VARCHAR(50) NOT NULL,
+  node_type flow_node_type NOT NULL,
+  name VARCHAR(255),
+  
+  position_x INTEGER DEFAULT 0,
+  position_y INTEGER DEFAULT 0,
+  
+  content JSONB DEFAULT '{}',
+  next_node_id VARCHAR(50),
+  order_index INTEGER DEFAULT 0,
+  
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  UNIQUE(chatbot_id, node_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chatbot_flows_chatbot ON chatbot_flows(chatbot_id);
+
+-- Tabela de sessões do chatbot
+CREATE TABLE IF NOT EXISTS chatbot_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chatbot_id UUID NOT NULL REFERENCES chatbots(id) ON DELETE CASCADE,
+  conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+  contact_phone VARCHAR(50) NOT NULL,
+  
+  current_node_id VARCHAR(50),
+  variables JSONB DEFAULT '{}',
+  
+  is_active BOOLEAN DEFAULT true,
+  failure_count INTEGER DEFAULT 0,
+  transferred_at TIMESTAMP WITH TIME ZONE,
+  transferred_to UUID REFERENCES users(id),
+  
+  started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_interaction_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  ended_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_chatbot_sessions_chatbot ON chatbot_sessions(chatbot_id);
+CREATE INDEX IF NOT EXISTS idx_chatbot_sessions_conversation ON chatbot_sessions(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_chatbot_sessions_active ON chatbot_sessions(is_active);
+
+-- Tabela de mensagens do chatbot
+CREATE TABLE IF NOT EXISTS chatbot_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL REFERENCES chatbot_sessions(id) ON DELETE CASCADE,
+  
+  direction VARCHAR(10) NOT NULL CHECK (direction IN ('incoming', 'outgoing')),
+  content TEXT,
+  message_type VARCHAR(20) DEFAULT 'text',
+  media_url TEXT,
+  
+  node_id VARCHAR(50),
+  ai_generated BOOLEAN DEFAULT false,
+  ai_tokens_used INTEGER,
+  
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chatbot_messages_session ON chatbot_messages(session_id);
+
+-- Tabela de estatísticas
+CREATE TABLE IF NOT EXISTS chatbot_stats (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chatbot_id UUID NOT NULL REFERENCES chatbots(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  
+  total_sessions INTEGER DEFAULT 0,
+  completed_sessions INTEGER DEFAULT 0,
+  transferred_sessions INTEGER DEFAULT 0,
+  
+  total_messages_in INTEGER DEFAULT 0,
+  total_messages_out INTEGER DEFAULT 0,
+  
+  ai_requests INTEGER DEFAULT 0,
+  ai_tokens_used INTEGER DEFAULT 0,
+  
+  avg_session_duration_seconds INTEGER,
+  avg_messages_per_session DECIMAL(5,2),
+  
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  UNIQUE(chatbot_id, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chatbot_stats_chatbot_date ON chatbot_stats(chatbot_id, date);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -844,6 +999,7 @@ const migrationSteps = [
   { name: 'System Settings', sql: step10Settings, critical: false },
   { name: 'Indexes', sql: step11Indexes, critical: false },
   { name: 'Attendance Status', sql: step12Attendance, critical: false },
+  { name: 'Chatbots System', sql: step13Chatbots, critical: false },
 ];
 
 export async function initDatabase() {
