@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -203,6 +203,7 @@ export function ChatArea({
   const [showEditContactDialog, setShowEditContactDialog] = useState(false);
   const [editingContactName, setEditingContactName] = useState("");
   const [savingContact, setSavingContact] = useState(false);
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -249,6 +250,39 @@ export function ChatArea({
       setNotesCount(0);
     }
   }, [conversation?.id, showNotes]);
+
+  // Fetch profile picture for current conversation
+  useEffect(() => {
+    setProfilePictureUrl(null); // Reset when conversation changes
+    
+    if (!conversation?.id || conversation.is_group || !conversation.contact_phone) {
+      return;
+    }
+
+    const fetchProfilePicture = async () => {
+      try {
+        const result = await api<{ pictures: Record<string, string> }>('/api/wapi/profile-pictures', {
+          method: 'POST',
+          body: {
+            conversations: [{
+              id: conversation.id,
+              connection_id: conversation.connection_id,
+              contact_phone: conversation.contact_phone,
+              is_group: false,
+            }],
+          },
+        });
+
+        if (result.pictures?.[conversation.id]) {
+          setProfilePictureUrl(result.pictures[conversation.id]);
+        }
+      } catch (error) {
+        console.debug('Profile picture fetch failed:', error);
+      }
+    };
+
+    fetchProfilePicture();
+  }, [conversation?.id, conversation?.contact_phone, conversation?.is_group]);
 
   // Load scheduled messages when dialog opens
   useEffect(() => {
@@ -618,8 +652,22 @@ export function ChatArea({
             </Button>
           )}
           <Avatar className="h-10 w-10">
-            <AvatarFallback className="bg-primary/10 text-primary">
-              {getInitials(conversation.is_group ? conversation.group_name : conversation.contact_name)}
+            {profilePictureUrl && !conversation.is_group && (
+              <AvatarImage 
+                src={profilePictureUrl} 
+                alt={conversation.contact_name || 'Avatar'}
+                className="object-cover"
+              />
+            )}
+            <AvatarFallback className={cn(
+              "text-primary",
+              conversation.is_group ? "bg-blue-100 dark:bg-blue-900/30" : "bg-primary/10"
+            )}>
+              {conversation.is_group ? (
+                <Users className="h-5 w-5" />
+              ) : (
+                getInitials(conversation.contact_name)
+              )}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
