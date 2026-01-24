@@ -38,45 +38,58 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
     setWaveformData(bars);
   }, [src]);
 
-  // Draw waveform
+  // Draw waveform with requestAnimationFrame for smooth updates
   const drawWaveform = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || waveformData.length === 0) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    
+    // Only resize if dimensions changed
+    if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+    }
+    
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
 
     const width = rect.width;
     const height = rect.height;
+    
+    if (width === 0 || height === 0) return;
+    
     const barCount = waveformData.length;
-    const barWidth = Math.max(2, (width - (barCount - 1) * 2) / barCount);
+    const totalGaps = (barCount - 1) * 2;
+    const barWidth = Math.max(2, (width - totalGaps) / barCount);
     const gap = 2;
 
     ctx.clearRect(0, 0, width, height);
 
     const progress = duration > 0 ? currentTime / duration : 0;
-    const progressX = progress * width;
 
     waveformData.forEach((level, i) => {
       const x = i * (barWidth + gap);
-      const barHeight = level * (height * 0.8);
+      const barHeight = Math.max(4, level * (height * 0.8));
       const y = (height - barHeight) / 2;
 
+      // Calculate if this bar is before or after the progress point
+      const barProgress = (i + 0.5) / barCount; // center of bar
+      const isPlayed = barProgress <= progress;
+
       // Color based on progress
-      if (x < progressX) {
+      if (isPlayed) {
         ctx.fillStyle = isFromMe 
-          ? 'rgba(255, 255, 255, 0.9)' 
-          : 'hsl(var(--primary))';
+          ? 'rgba(255, 255, 255, 0.95)' 
+          : '#2563eb'; // primary blue
       } else {
         ctx.fillStyle = isFromMe 
-          ? 'rgba(255, 255, 255, 0.4)' 
-          : 'hsl(var(--primary) / 0.4)';
+          ? 'rgba(255, 255, 255, 0.35)' 
+          : 'rgba(37, 99, 235, 0.35)'; // primary blue with opacity
       }
 
       ctx.beginPath();
@@ -85,9 +98,11 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
     });
   }, [waveformData, currentTime, duration, isFromMe]);
 
+  // Redraw on every relevant change
   useEffect(() => {
-    drawWaveform();
-  }, [drawWaveform]);
+    const animationId = requestAnimationFrame(drawWaveform);
+    return () => cancelAnimationFrame(animationId);
+  }, [drawWaveform, currentTime]);
 
   // Audio event handlers
   useEffect(() => {
