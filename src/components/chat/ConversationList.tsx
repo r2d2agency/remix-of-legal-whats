@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -50,6 +50,7 @@ import {
   CheckCheck,
   RotateCcw,
   SearchCode,
+  Users,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -153,6 +154,7 @@ export function ConversationList({
   const [deleting, setDeleting] = useState(false);
   const [keepContact, setKeepContact] = useState(true);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [profilePictures, setProfilePictures] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   // Debounce search
@@ -164,6 +166,43 @@ export function ConversationList({
     }, 300);
     return () => clearTimeout(timer);
   }, [localSearch, filters, onFiltersChange]);
+
+  // Fetch profile pictures for visible conversations
+  useEffect(() => {
+    const fetchProfilePictures = async () => {
+      // Only fetch for individual chats (not groups) that don't have photos yet
+      const toFetch = conversations.filter(
+        conv => !conv.is_group && conv.contact_phone && !profilePictures[conv.id]
+      ).slice(0, 15); // Limit to 15 at a time
+
+      if (toFetch.length === 0) return;
+
+      try {
+        const result = await api<{ pictures: Record<string, string> }>('/api/wapi/profile-pictures', {
+          method: 'POST',
+          body: {
+            conversations: toFetch.map(c => ({
+              id: c.id,
+              connection_id: c.connection_id,
+              contact_phone: c.contact_phone,
+              is_group: c.is_group,
+            })),
+          },
+        });
+
+        if (result.pictures && Object.keys(result.pictures).length > 0) {
+          setProfilePictures(prev => ({ ...prev, ...result.pictures }));
+        }
+      } catch (error) {
+        // Silently fail - profile pictures are optional
+        console.debug('Profile pictures fetch failed:', error);
+      }
+    };
+
+    // Delay to avoid too many requests
+    const timer = setTimeout(fetchProfilePictures, 1000);
+    return () => clearTimeout(timer);
+  }, [conversations]);
 
   const handleDeleteConversation = async () => {
     if (!conversationToDelete) return;
@@ -495,13 +534,27 @@ export function ConversationList({
                     selectedId === conv.id && "bg-accent"
                   )}
                 >
-                  {/* Avatar */}
+                  {/* Avatar with profile picture */}
                   <Avatar 
                     className="h-12 w-12 flex-shrink-0"
                     onClick={() => onSelect(conv)}
                   >
-                    <AvatarFallback className="bg-primary/10 text-primary">
-                      {getInitials(conv.is_group ? conv.group_name : conv.contact_name)}
+                    {profilePictures[conv.id] && (
+                      <AvatarImage 
+                        src={profilePictures[conv.id]} 
+                        alt={conv.contact_name || 'Avatar'}
+                        className="object-cover"
+                      />
+                    )}
+                    <AvatarFallback className={cn(
+                      "text-primary",
+                      conv.is_group ? "bg-blue-100 dark:bg-blue-900/30" : "bg-primary/10"
+                    )}>
+                      {conv.is_group ? (
+                        <Users className="h-5 w-5" />
+                      ) : (
+                        getInitials(conv.contact_name)
+                      )}
                     </AvatarFallback>
                   </Avatar>
 

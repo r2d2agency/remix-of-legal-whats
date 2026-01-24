@@ -1663,4 +1663,206 @@ function extractMessageContent(payload) {
   return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
 }
 
+// ==========================================
+// PROFILE PICTURE
+// ==========================================
+
+// Fetch and cache profile picture from W-API
+router.get('/profile-picture/:connectionId/:phone', authenticate, async (req, res) => {
+  try {
+    const { connectionId, phone } = req.params;
+    
+    // Get connection
+    const conn = await getAccessibleConnection(connectionId, req.userId);
+    if (!conn) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    // Only works for W-API connections
+    if (!conn.instance_id || !conn.wapi_token) {
+      return res.status(400).json({ error: 'Apenas conexões W-API suportam fotos de perfil' });
+    }
+
+    // Clean phone number
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      return res.status(400).json({ error: 'Número de telefone inválido' });
+    }
+
+    // Check if we already have a cached version
+    const cacheDir = path.join(UPLOADS_DIR, 'profile-pictures');
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+
+    const cacheFile = path.join(cacheDir, `${conn.instance_id}_${cleanPhone}.jpg`);
+    const cacheMetaFile = path.join(cacheDir, `${conn.instance_id}_${cleanPhone}.meta`);
+    
+    // Check cache (valid for 24 hours)
+    const cacheMaxAge = 24 * 60 * 60 * 1000; // 24 hours
+    if (fs.existsSync(cacheFile) && fs.existsSync(cacheMetaFile)) {
+      try {
+        const meta = JSON.parse(fs.readFileSync(cacheMetaFile, 'utf8'));
+        const age = Date.now() - meta.fetchedAt;
+        if (age < cacheMaxAge) {
+          // Return cached URL
+          return res.json({ 
+            url: `${API_BASE_URL}/uploads/profile-pictures/${conn.instance_id}_${cleanPhone}.jpg`,
+            cached: true 
+          });
+        }
+      } catch (e) {
+        // Ignore meta read errors
+      }
+    }
+
+    // Fetch from W-API
+    const apiUrl = `https://api.w-api.app/v1/contacts/profile-picture?instanceId=${conn.instance_id}&phoneNumber=${cleanPhone}`;
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${conn.wapi_token}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`W-API profile picture failed: ${response.status}`);
+      return res.json({ url: null, error: 'Foto não disponível' });
+    }
+
+    const data = await response.json();
+    const pictureUrl = data.profilePicture || data.url || data.picture || null;
+
+    if (!pictureUrl) {
+      return res.json({ url: null, error: 'Sem foto de perfil' });
+    }
+
+    // Download and cache the image
+    try {
+      const imgResponse = await fetch(pictureUrl);
+      if (imgResponse.ok) {
+        const buffer = await imgResponse.arrayBuffer();
+        fs.writeFileSync(cacheFile, Buffer.from(buffer));
+        fs.writeFileSync(cacheMetaFile, JSON.stringify({ fetchedAt: Date.now(), originalUrl: pictureUrl }));
+        
+        return res.json({ 
+          url: `${API_BASE_URL}/uploads/profile-pictures/${conn.instance_id}_${cleanPhone}.jpg`,
+          cached: false 
+        });
+      }
+    } catch (downloadError) {
+      console.warn('Failed to cache profile picture:', downloadError.message);
+      // Return the original URL if caching fails
+      return res.json({ url: pictureUrl, cached: false });
+    }
+
+    return res.json({ url: pictureUrl, cached: false });
+  } catch (error) {
+    console.error('Profile picture error:', error);
+    res.status(500).json({ error: 'Erro ao buscar foto de perfil' });
+  }
+});
+
+// Bulk fetch profile pictures for multiple conversations
+router.post('/profile-pictures', authenticate, async (req, res) => {
+  try {
+    const { conversations } = req.body;
+    
+    if (!Array.isArray(conversations) || conversations.length === 0) {
+      return res.json({ pictures: {} });
+    }
+
+    // Limit to 20 at a time
+    const limited = conversations.slice(0, 20);
+    const pictures = {};
+
+    for (const conv of limited) {
+      if (!conv.connection_id || !conv.contact_phone || conv.is_group) continue;
+
+      try {
+        // Get connection
+        const conn = await getAccessibleConnection(conv.connection_id, req.userId);
+        if (!conn || !conn.instance_id || !conn.wapi_token) continue;
+
+        const cleanPhone = conv.contact_phone.replace(/\D/g, '');
+        if (!cleanPhone || cleanPhone.length < 10) continue;
+
+        // Check cache
+        const cacheDir = path.join(UPLOADS_DIR, 'profile-pictures');
+        const cacheFile = path.join(cacheDir, `${conn.instance_id}_${cleanPhone}.jpg`);
+        const cacheMetaFile = path.join(cacheDir, `${conn.instance_id}_${cleanPhone}.meta`);
+        
+        const cacheMaxAge = 24 * 60 * 60 * 1000;
+        if (fs.existsSync(cacheFile) && fs.existsSync(cacheMetaFile)) {
+          try {
+            const meta = JSON.parse(fs.readFileSync(cacheMetaFile, 'utf8'));
+            const age = Date.now() - meta.fetchedAt;
+            if (age < cacheMaxAge) {
+              pictures[conv.id] = `${API_BASE_URL}/uploads/profile-pictures/${conn.instance_id}_${cleanPhone}.jpg`;
+              continue;
+            }
+          } catch (e) { /* ignore */ }
+        }
+
+        // Fetch from W-API (with short timeout)
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
+        
+        try {
+          const apiUrl = `https://api.w-api.app/v1/contacts/profile-picture?instanceId=${conn.instance_id}&phoneNumber=${cleanPhone}`;
+          const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${conn.wapi_token}`,
+              'Accept': 'application/json',
+            },
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeout);
+
+          if (response.ok) {
+            const data = await response.json();
+            const pictureUrl = data.profilePicture || data.url || data.picture || null;
+            
+            if (pictureUrl) {
+              // Try to cache
+              try {
+                if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+                const imgController = new AbortController();
+                const imgTimeout = setTimeout(() => imgController.abort(), 3000);
+                const imgResponse = await fetch(pictureUrl, { signal: imgController.signal });
+                clearTimeout(imgTimeout);
+                
+                if (imgResponse.ok) {
+                  const buffer = await imgResponse.arrayBuffer();
+                  fs.writeFileSync(cacheFile, Buffer.from(buffer));
+                  fs.writeFileSync(cacheMetaFile, JSON.stringify({ fetchedAt: Date.now() }));
+                  pictures[conv.id] = `${API_BASE_URL}/uploads/profile-pictures/${conn.instance_id}_${cleanPhone}.jpg`;
+                } else {
+                  pictures[conv.id] = pictureUrl;
+                }
+              } catch (e) {
+                pictures[conv.id] = pictureUrl;
+              }
+            }
+          }
+        } catch (fetchError) {
+          clearTimeout(timeout);
+          // Ignore individual fetch errors
+        }
+      } catch (e) {
+        // Skip this conversation
+      }
+    }
+
+    res.json({ pictures });
+  } catch (error) {
+    console.error('Bulk profile pictures error:', error);
+    res.status(500).json({ error: 'Erro ao buscar fotos de perfil' });
+  }
+});
+
 export default router;
