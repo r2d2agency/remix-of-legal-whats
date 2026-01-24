@@ -78,6 +78,7 @@ import {
   Undo2,
   AlertCircle,
   RotateCcw,
+  Bot,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -99,6 +100,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { MentionSuggestions, useMentions } from "./MentionSuggestions";
 import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
 import { ScheduledMessage } from "@/hooks/use-chat";
+import { StartFlowDialog } from "./StartFlowDialog";
 interface ChatAreaProps {
   conversation: Conversation | null;
   messages: ChatMessage[];
@@ -205,6 +207,7 @@ export function ChatArea({
   const [editingContactName, setEditingContactName] = useState("");
   const [savingContact, setSavingContact] = useState(false);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+  const [showStartFlowDialog, setShowStartFlowDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -885,6 +888,10 @@ export function ChatArea({
               {!isViewOnly && (
                 <>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowStartFlowDialog(true)}>
+                    <Bot className="h-4 w-4 mr-2" />
+                    Iniciar fluxo de chatbot
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
                     <ArrowLeftRight className="h-4 w-4 mr-2" />
                     Transferir atendimento
@@ -1522,6 +1529,19 @@ export function ChatArea({
           }
         }}
       />
+
+      {/* Start Flow Dialog */}
+      {conversation && (
+        <StartFlowDialog
+          open={showStartFlowDialog}
+          onClose={() => setShowStartFlowDialog(false)}
+          conversationId={conversation.id}
+          connectionId={conversation.connection_id}
+          onFlowStarted={() => {
+            // Refresh pode ser adicionado aqui se necessário
+          }}
+        />
+      )}
 
       {/* Transfer Dialog */}
       <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>

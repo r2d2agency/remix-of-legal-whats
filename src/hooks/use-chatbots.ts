@@ -34,6 +34,10 @@ export interface Chatbot {
   connection_phone?: string;
   created_by_name?: string;
   active_sessions?: number;
+  // Novos campos
+  default_agent_id?: string | null;
+  trigger_keywords?: string[];
+  trigger_enabled?: boolean;
 }
 
 export interface ChatbotFlow {
@@ -261,6 +265,73 @@ export const useChatbots = () => {
     }
   }, []);
 
+  // Buscar chatbots disponíveis para uma conexão
+  const getAvailableForConnection = useCallback(async (connectionId: string): Promise<Chatbot[]> => {
+    try {
+      const result = await api<Chatbot[]>(`/api/chatbots/available-for-conversation/${connectionId}`, { auth: true });
+      return result;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Iniciar fluxo em uma conversa
+  const startFlowInConversation = useCallback(async (conversationId: string, chatbotId: string): Promise<boolean> => {
+    try {
+      await api(`/api/chatbots/conversation/${conversationId}/start-flow`, {
+        method: 'POST',
+        body: { chatbot_id: chatbotId },
+        auth: true,
+      });
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao iniciar fluxo';
+      setError(message);
+      return false;
+    }
+  }, []);
+
+  // Cancelar fluxo em uma conversa
+  const cancelFlowInConversation = useCallback(async (conversationId: string): Promise<boolean> => {
+    try {
+      await api(`/api/chatbots/conversation/${conversationId}/cancel-flow`, {
+        method: 'POST',
+        auth: true,
+      });
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao cancelar fluxo';
+      setError(message);
+      return false;
+    }
+  }, []);
+
+  // Buscar fluxo ativo de uma conversa
+  const getActiveFlow = useCallback(async (conversationId: string): Promise<{ active: boolean; flow?: any } | null> => {
+    try {
+      const result = await api<{ active: boolean; flow?: any }>(`/api/chatbots/conversation/${conversationId}/active-flow`, { auth: true });
+      return result;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Atualizar keywords de um chatbot
+  const updateKeywords = useCallback(async (chatbotId: string, keywords: string[], enabled: boolean): Promise<boolean> => {
+    try {
+      await api(`/api/chatbots/${chatbotId}/keywords`, {
+        method: 'PATCH',
+        body: { trigger_keywords: keywords, trigger_enabled: enabled },
+        auth: true,
+      });
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao atualizar keywords';
+      setError(message);
+      return false;
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -274,5 +345,10 @@ export const useChatbots = () => {
     saveFlows,
     getStats,
     getAIModels,
+    getAvailableForConnection,
+    startFlowInConversation,
+    cancelFlowInConversation,
+    getActiveFlow,
+    updateKeywords,
   };
 };

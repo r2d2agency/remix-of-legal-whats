@@ -870,4 +870,369 @@ router.get('/org/connections', async (req, res) => {
   }
 });
 
+// ============================================
+// EQUIPE DE ATENDENTES
+// ============================================
+
+// Listar atendentes de um chatbot
+router.get('/:id/agents', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const chatbot = await query(
+      'SELECT id FROM chatbots WHERE id = $1 AND organization_id = $2',
+      [req.params.id, org.organization_id]
+    );
+
+    if (chatbot.rows.length === 0) {
+      return res.status(404).json({ error: 'Chatbot não encontrado' });
+    }
+
+    const result = await query(
+      `SELECT ca.*, u.name as user_name, u.email as user_email
+       FROM chatbot_agents ca
+       JOIN users u ON ca.user_id = u.id
+       WHERE ca.chatbot_id = $1
+       ORDER BY ca.is_default DESC, u.name`,
+      [req.params.id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao listar atendentes:', error);
+    res.status(500).json({ error: 'Erro ao listar atendentes' });
+  }
+});
+
+// Atualizar equipe de atendentes
+router.put('/:id/agents', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !isAdmin(org.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const { agents, default_agent_id } = req.body;
+    // agents: [{ user_id: string, is_default?: boolean }]
+
+    const chatbot = await query(
+      'SELECT id FROM chatbots WHERE id = $1 AND organization_id = $2',
+      [req.params.id, org.organization_id]
+    );
+
+    if (chatbot.rows.length === 0) {
+      return res.status(404).json({ error: 'Chatbot não encontrado' });
+    }
+
+    // Atualizar default_agent_id no chatbot
+    if (default_agent_id !== undefined) {
+      await query(
+        'UPDATE chatbots SET default_agent_id = $1 WHERE id = $2',
+        [default_agent_id || null, req.params.id]
+      );
+    }
+
+    // Atualizar equipe
+    if (Array.isArray(agents)) {
+      await query('DELETE FROM chatbot_agents WHERE chatbot_id = $1', [req.params.id]);
+
+      for (const agent of agents) {
+        await query(
+          `INSERT INTO chatbot_agents (chatbot_id, user_id, is_default)
+           VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+          [req.params.id, agent.user_id, agent.is_default || false]
+        );
+      }
+    }
+
+    // Retornar atendentes atualizados
+    const result = await query(
+      `SELECT ca.*, u.name as user_name, u.email as user_email
+       FROM chatbot_agents ca
+       JOIN users u ON ca.user_id = u.id
+       WHERE ca.chatbot_id = $1`,
+      [req.params.id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao atualizar atendentes:', error);
+    res.status(500).json({ error: 'Erro ao atualizar atendentes' });
+  }
+});
+
+// ============================================
+// PALAVRAS-CHAVE DE ATIVAÇÃO
+// ============================================
+
+// Atualizar keywords do chatbot
+router.patch('/:id/keywords', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org || !isAdmin(org.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const { trigger_keywords, trigger_enabled } = req.body;
+
+    const chatbot = await query(
+      'SELECT id FROM chatbots WHERE id = $1 AND organization_id = $2',
+      [req.params.id, org.organization_id]
+    );
+
+    if (chatbot.rows.length === 0) {
+      return res.status(404).json({ error: 'Chatbot não encontrado' });
+    }
+
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (trigger_keywords !== undefined) {
+      updates.push(`trigger_keywords = $${paramCount}`);
+      values.push(trigger_keywords);
+      paramCount++;
+    }
+
+    if (trigger_enabled !== undefined) {
+      updates.push(`trigger_enabled = $${paramCount}`);
+      values.push(trigger_enabled);
+      paramCount++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+    }
+
+    values.push(req.params.id);
+    const result = await query(
+      `UPDATE chatbots SET ${updates.join(', ')}, updated_at = NOW()
+       WHERE id = $${paramCount} RETURNING id, trigger_keywords, trigger_enabled`,
+      values
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar keywords:', error);
+    res.status(500).json({ error: 'Erro ao atualizar keywords' });
+  }
+});
+
+// Verificar se mensagem dispara algum chatbot (para o backend de mensagens)
+router.post('/check-trigger', async (req, res) => {
+  try {
+    const { message, connection_id } = req.body;
+
+    if (!message || !connection_id) {
+      return res.status(400).json({ error: 'message e connection_id são obrigatórios' });
+    }
+
+    const messageLower = message.trim().toLowerCase();
+
+    // Buscar chatbots ativos com trigger_enabled para esta conexão
+    const result = await query(
+      `SELECT c.id, c.name, c.trigger_keywords
+       FROM chatbots c
+       JOIN chatbot_connections cc ON cc.chatbot_id = c.id
+       WHERE cc.connection_id = $1
+         AND c.is_active = true
+         AND c.trigger_enabled = true
+         AND c.trigger_keywords IS NOT NULL
+         AND array_length(c.trigger_keywords, 1) > 0`,
+      [connection_id]
+    );
+
+    // Verificar correspondência exata
+    for (const chatbot of result.rows) {
+      const keywords = chatbot.trigger_keywords.map(k => k.toLowerCase());
+      if (keywords.includes(messageLower)) {
+        return res.json({ 
+          triggered: true, 
+          chatbot_id: chatbot.id,
+          chatbot_name: chatbot.name
+        });
+      }
+    }
+
+    res.json({ triggered: false });
+  } catch (error) {
+    console.error('Erro ao verificar trigger:', error);
+    res.status(500).json({ error: 'Erro ao verificar trigger' });
+  }
+});
+
+// ============================================
+// FLUXOS EM CONVERSAS (ENCAMINHAMENTO MANUAL)
+// ============================================
+
+// Iniciar fluxo em uma conversa
+router.post('/conversation/:conversationId/start-flow', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const { chatbot_id } = req.body;
+    const { conversationId } = req.params;
+
+    if (!chatbot_id) {
+      return res.status(400).json({ error: 'chatbot_id é obrigatório' });
+    }
+
+    // Verificar se chatbot está disponível para o usuário
+    const chatbot = await query(
+      `SELECT c.* FROM chatbots c
+       WHERE c.id = $1 AND c.organization_id = $2 AND c.is_active = true`,
+      [chatbot_id, org.organization_id]
+    );
+
+    if (chatbot.rows.length === 0) {
+      return res.status(404).json({ error: 'Chatbot não encontrado ou inativo' });
+    }
+
+    // Verificar se conversa existe e pertence à org
+    const conversation = await query(
+      `SELECT cv.id FROM conversations cv
+       JOIN connections cn ON cv.connection_id = cn.id
+       WHERE cv.id = $1 AND cn.organization_id = $2`,
+      [conversationId, org.organization_id]
+    );
+
+    if (conversation.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    // Buscar nó inicial do fluxo
+    const startNode = await query(
+      `SELECT node_id FROM chatbot_flows 
+       WHERE chatbot_id = $1 AND node_type = 'start' 
+       ORDER BY order_index LIMIT 1`,
+      [chatbot_id]
+    );
+
+    const startNodeId = startNode.rows[0]?.node_id || 'start';
+
+    // Criar ou atualizar sessão de fluxo
+    const result = await query(
+      `INSERT INTO conversation_flows (conversation_id, chatbot_id, current_node_id, started_by, status)
+       VALUES ($1, $2, $3, $4, 'active')
+       ON CONFLICT (conversation_id) 
+       DO UPDATE SET 
+         chatbot_id = $2,
+         current_node_id = $3,
+         started_by = $4,
+         started_at = NOW(),
+         completed_at = NULL,
+         status = 'active',
+         variables = '{}'
+       RETURNING *`,
+      [conversationId, chatbot_id, startNodeId, req.userId]
+    );
+
+    res.json({
+      success: true,
+      flow: result.rows[0],
+      chatbot: chatbot.rows[0]
+    });
+  } catch (error) {
+    console.error('Erro ao iniciar fluxo:', error);
+    res.status(500).json({ error: 'Erro ao iniciar fluxo na conversa' });
+  }
+});
+
+// Cancelar fluxo ativo em conversa
+router.post('/conversation/:conversationId/cancel-flow', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const result = await query(
+      `UPDATE conversation_flows cf SET 
+         status = 'cancelled',
+         completed_at = NOW()
+       FROM conversations cv
+       JOIN connections cn ON cv.connection_id = cn.id
+       WHERE cf.conversation_id = $1 
+         AND cf.conversation_id = cv.id
+         AND cn.organization_id = $2
+         AND cf.status = 'active'
+       RETURNING cf.*`,
+      [req.params.conversationId, org.organization_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nenhum fluxo ativo nesta conversa' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao cancelar fluxo:', error);
+    res.status(500).json({ error: 'Erro ao cancelar fluxo' });
+  }
+});
+
+// Buscar fluxo ativo de uma conversa
+router.get('/conversation/:conversationId/active-flow', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const result = await query(
+      `SELECT cf.*, c.name as chatbot_name
+       FROM conversation_flows cf
+       JOIN chatbots c ON cf.chatbot_id = c.id
+       JOIN conversations cv ON cf.conversation_id = cv.id
+       JOIN connections cn ON cv.connection_id = cn.id
+       WHERE cf.conversation_id = $1 
+         AND cn.organization_id = $2
+         AND cf.status = 'active'`,
+      [req.params.conversationId, org.organization_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ active: false });
+    }
+
+    res.json({ active: true, flow: result.rows[0] });
+  } catch (error) {
+    console.error('Erro ao buscar fluxo ativo:', error);
+    res.status(500).json({ error: 'Erro ao buscar fluxo' });
+  }
+});
+
+// Listar chatbots disponíveis para iniciar em conversa
+router.get('/available-for-conversation/:connectionId', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    // Chatbots ativos vinculados a esta conexão
+    const result = await query(
+      `SELECT c.id, c.name, c.description, c.trigger_keywords, c.trigger_enabled
+       FROM chatbots c
+       JOIN chatbot_connections cc ON cc.chatbot_id = c.id
+       WHERE cc.connection_id = $1
+         AND c.organization_id = $2
+         AND c.is_active = true
+       ORDER BY c.name`,
+      [req.params.connectionId, org.organization_id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao listar chatbots disponíveis:', error);
+    res.status(500).json({ error: 'Erro ao listar chatbots' });
+  }
+});
+
 export default router;

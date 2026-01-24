@@ -22,8 +22,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Shield, Users, Plug, Trash2, Plus, Loader2, UserPlus,
-  Eye, Edit, Settings, Crown
+  Eye, Edit, Settings, Crown, Tag, X, Zap
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Chatbot } from "@/hooks/use-chatbots";
 import { api } from "@/lib/api";
@@ -95,11 +96,18 @@ export function ChatbotPermissionsDialog({ open, chatbot, onClose }: ChatbotPerm
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
   const [permissions, setPermissions] = useState<ChatbotPermission[]>([]);
   const [roleSettings, setRoleSettings] = useState<RoleSettings | null>(null);
+  const [chatbotAgents, setChatbotAgents] = useState<Array<{ user_id: string; is_default: boolean; user_name: string; user_email: string }>>([]);
+  
+  // Keywords state
+  const [triggerKeywords, setTriggerKeywords] = useState<string[]>([]);
+  const [triggerEnabled, setTriggerEnabled] = useState(false);
+  const [newKeyword, setNewKeyword] = useState('');
   
   // Selection state
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [selectedPermission, setSelectedPermission] = useState<string>('view');
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
 
   useEffect(() => {
     if (open && chatbot) {
@@ -112,12 +120,13 @@ export function ChatbotPermissionsDialog({ open, chatbot, onClose }: ChatbotPerm
     
     setLoading(true);
     try {
-      const [connsRes, chatbotConnsRes, usersRes, permsRes, roleRes] = await Promise.all([
+      const [connsRes, chatbotConnsRes, usersRes, permsRes, roleRes, agentsRes] = await Promise.all([
         api<Connection[]>('/api/chatbots/org/connections', { auth: true }),
         api<ChatbotConnection[]>(`/api/chatbots/${chatbot.id}/connections`, { auth: true }),
         api<OrgUser[]>('/api/chatbots/org/users', { auth: true }),
         api<ChatbotPermission[]>(`/api/chatbots/${chatbot.id}/permissions`, { auth: true }),
         api<RoleSettings>(`/api/chatbots/${chatbot.id}/role-settings`, { auth: true }),
+        api<Array<{ user_id: string; is_default: boolean; user_name: string; user_email: string }>>(`/api/chatbots/${chatbot.id}/agents`, { auth: true }),
       ]);
       
       setConnections(connsRes);
@@ -126,6 +135,11 @@ export function ChatbotPermissionsDialog({ open, chatbot, onClose }: ChatbotPerm
       setOrgUsers(usersRes);
       setPermissions(permsRes);
       setRoleSettings(roleRes);
+      setChatbotAgents(agentsRes);
+      
+      // Load keywords from chatbot
+      setTriggerKeywords(chatbot.trigger_keywords || []);
+      setTriggerEnabled(chatbot.trigger_enabled || false);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       toast.error('Erro ao carregar permissões');
@@ -226,6 +240,92 @@ export function ChatbotPermissionsDialog({ open, chatbot, onClose }: ChatbotPerm
     );
   };
 
+  const handleAddKeyword = () => {
+    const kw = newKeyword.trim().toLowerCase();
+    if (!kw) return;
+    if (triggerKeywords.includes(kw)) {
+      toast.error('Palavra-chave já existe');
+      return;
+    }
+    setTriggerKeywords(prev => [...prev, kw]);
+    setNewKeyword('');
+  };
+
+  const handleRemoveKeyword = (kw: string) => {
+    setTriggerKeywords(prev => prev.filter(k => k !== kw));
+  };
+
+  const handleSaveKeywords = async () => {
+    if (!chatbot) return;
+    setSaving(true);
+    try {
+      await api(`/api/chatbots/${chatbot.id}/keywords`, {
+        method: 'PATCH',
+        body: { trigger_keywords: triggerKeywords, trigger_enabled: triggerEnabled },
+        auth: true,
+      });
+      toast.success('Palavras-chave salvas!');
+    } catch (error) {
+      console.error('Erro ao salvar keywords:', error);
+      toast.error('Erro ao salvar palavras-chave');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddAgent = async () => {
+    if (!chatbot || !selectedAgentId) return;
+    
+    try {
+      const user = orgUsers.find(u => u.id === selectedAgentId);
+      setChatbotAgents(prev => {
+        if (prev.some(a => a.user_id === selectedAgentId)) return prev;
+        return [...prev, { 
+          user_id: selectedAgentId, 
+          is_default: prev.length === 0,
+          user_name: user?.name || '',
+          user_email: user?.email || ''
+        }];
+      });
+      setSelectedAgentId('');
+    } catch (error) {
+      toast.error('Erro ao adicionar atendente');
+    }
+  };
+
+  const handleRemoveAgent = (userId: string) => {
+    setChatbotAgents(prev => prev.filter(a => a.user_id !== userId));
+  };
+
+  const handleSaveAgents = async () => {
+    if (!chatbot) return;
+    setSaving(true);
+    try {
+      const defaultAgent = chatbotAgents.find(a => a.is_default);
+      await api(`/api/chatbots/${chatbot.id}/agents`, {
+        method: 'PUT',
+        body: { 
+          agents: chatbotAgents.map(a => ({ user_id: a.user_id, is_default: a.is_default })),
+          default_agent_id: defaultAgent?.user_id || null
+        },
+        auth: true,
+      });
+      toast.success('Equipe de atendentes atualizada!');
+    } catch (error) {
+      console.error('Erro ao salvar atendentes:', error);
+      toast.error('Erro ao salvar atendentes');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setDefaultAgent = (userId: string) => {
+    setChatbotAgents(prev => prev.map(a => ({
+      ...a,
+      is_default: a.user_id === userId
+    })));
+  };
+
   if (!chatbot) return null;
 
   return (
@@ -244,14 +344,22 @@ export function ChatbotPermissionsDialog({ open, chatbot, onClose }: ChatbotPerm
           </div>
         ) : (
           <Tabs defaultValue="connections" className="flex-1 overflow-hidden flex flex-col">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="connections" className="flex items-center gap-1">
                 <Plug className="h-4 w-4" />
                 Conexões
               </TabsTrigger>
-              <TabsTrigger value="users" className="flex items-center gap-1">
+              <TabsTrigger value="agents" className="flex items-center gap-1">
                 <Users className="h-4 w-4" />
-                Usuários
+                Equipe
+              </TabsTrigger>
+              <TabsTrigger value="keywords" className="flex items-center gap-1">
+                <Tag className="h-4 w-4" />
+                Gatilhos
+              </TabsTrigger>
+              <TabsTrigger value="users" className="flex items-center gap-1">
+                <UserPlus className="h-4 w-4" />
+                Permissões
               </TabsTrigger>
               <TabsTrigger value="roles" className="flex items-center gap-1">
                 <Shield className="h-4 w-4" />
@@ -307,6 +415,175 @@ export function ChatbotPermissionsDialog({ open, chatbot, onClose }: ChatbotPerm
                     <Button onClick={handleSaveConnections} disabled={saving}>
                       {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                       Salvar Conexões
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Equipe de Atendentes */}
+            <TabsContent value="agents" className="flex-1 overflow-hidden">
+              <Card className="h-full flex flex-col">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Equipe de Atendentes</CardTitle>
+                  <CardDescription>
+                    Atendentes que recebem transferências e podem atuar neste chatbot
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-hidden flex flex-col">
+                  {/* Add agent */}
+                  <div className="flex gap-2 mb-4">
+                    <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Selecione um atendente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {orgUsers
+                          .filter(u => !chatbotAgents.some(a => a.user_id === u.id))
+                          .map((user) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.name} ({user.email})
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={handleAddAgent} size="icon">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <ScrollArea className="flex-1">
+                    <div className="space-y-2">
+                      {chatbotAgents.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          Nenhum atendente configurado.
+                          <br />
+                          Adicione atendentes para receber transferências.
+                        </p>
+                      ) : (
+                        chatbotAgents.map((agent) => (
+                          <div
+                            key={agent.user_id}
+                            className="flex items-center justify-between p-3 rounded-lg border"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div>
+                                <p className="font-medium">{agent.user_name}</p>
+                                <p className="text-sm text-muted-foreground">{agent.user_email}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant={agent.is_default ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setDefaultAgent(agent.user_id)}
+                              >
+                                {agent.is_default ? (
+                                  <>
+                                    <Crown className="h-3 w-3 mr-1" />
+                                    Padrão
+                                  </>
+                                ) : "Definir padrão"}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                onClick={() => handleRemoveAgent(agent.user_id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                  
+                  <div className="flex justify-end mt-4 pt-4 border-t">
+                    <Button onClick={handleSaveAgents} disabled={saving}>
+                      {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                      Salvar Equipe
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Palavras-chave */}
+            <TabsContent value="keywords" className="flex-1 overflow-hidden">
+              <Card className="h-full flex flex-col">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Gatilhos por Palavra-chave</CardTitle>
+                  <CardDescription>
+                    Configure palavras que iniciam este chatbot automaticamente (correspondência exata)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-hidden flex flex-col">
+                  {/* Toggle */}
+                  <div className="flex items-center justify-between mb-4 p-3 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-primary" />
+                      <span className="font-medium">Ativação automática</span>
+                    </div>
+                    <Switch
+                      checked={triggerEnabled}
+                      onCheckedChange={setTriggerEnabled}
+                    />
+                  </div>
+
+                  {/* Add keyword */}
+                  <div className="flex gap-2 mb-4">
+                    <Input
+                      value={newKeyword}
+                      onChange={(e) => setNewKeyword(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddKeyword()}
+                      placeholder="Digite uma palavra-chave..."
+                      className="flex-1"
+                    />
+                    <Button onClick={handleAddKeyword} size="icon">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <ScrollArea className="flex-1">
+                    <div className="flex flex-wrap gap-2">
+                      {triggerKeywords.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-4 w-full text-center">
+                          Nenhuma palavra-chave configurada.
+                          <br />
+                          Ex: "menu", "ajuda", "oi"
+                        </p>
+                      ) : (
+                        triggerKeywords.map((kw) => (
+                          <Badge
+                            key={kw}
+                            variant="secondary"
+                            className="px-3 py-1.5 text-sm"
+                          >
+                            <Tag className="h-3 w-3 mr-1" />
+                            {kw}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-4 w-4 ml-2 -mr-1 hover:bg-destructive/20"
+                              onClick={() => handleRemoveKeyword(kw)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </Badge>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                  
+                  <div className="flex justify-between items-center mt-4 pt-4 border-t">
+                    <p className="text-sm text-muted-foreground">
+                      {triggerKeywords.length} palavra(s)-chave | {triggerEnabled ? 'Ativo' : 'Inativo'}
+                    </p>
+                    <Button onClick={handleSaveKeywords} disabled={saving}>
+                      {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                      Salvar Gatilhos
                     </Button>
                   </div>
                 </CardContent>

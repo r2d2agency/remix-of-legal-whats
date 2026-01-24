@@ -1050,6 +1050,52 @@ SELECT id, connection_id FROM chatbots WHERE connection_id IS NOT NULL
 ON CONFLICT DO NOTHING;
 `;
 
+// Step 15: Chatbot Team Assignment & Keywords
+const step15ChatbotTeamKeywords = `
+-- Atendente padrão do chatbot (recebe transferências)
+ALTER TABLE chatbots ADD COLUMN IF NOT EXISTS default_agent_id UUID REFERENCES users(id);
+
+-- Palavras-chave para ativação automática do fluxo
+ALTER TABLE chatbots ADD COLUMN IF NOT EXISTS trigger_keywords TEXT[] DEFAULT '{}';
+ALTER TABLE chatbots ADD COLUMN IF NOT EXISTS trigger_enabled BOOLEAN DEFAULT false;
+
+CREATE INDEX IF NOT EXISTS idx_chatbots_trigger_keywords ON chatbots USING GIN(trigger_keywords);
+CREATE INDEX IF NOT EXISTS idx_chatbots_default_agent ON chatbots(default_agent_id);
+
+-- Tabela de equipe de atendentes do chatbot
+CREATE TABLE IF NOT EXISTS chatbot_agents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chatbot_id UUID NOT NULL REFERENCES chatbots(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  is_default BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  UNIQUE(chatbot_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chatbot_agents_chatbot ON chatbot_agents(chatbot_id);
+CREATE INDEX IF NOT EXISTS idx_chatbot_agents_user ON chatbot_agents(user_id);
+
+-- Sessões de fluxo ativas em conversas (para encaminhamento manual)
+CREATE TABLE IF NOT EXISTS conversation_flows (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  chatbot_id UUID NOT NULL REFERENCES chatbots(id) ON DELETE CASCADE,
+  current_node_id TEXT,
+  variables JSONB DEFAULT '{}',
+  started_by UUID REFERENCES users(id),
+  started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  completed_at TIMESTAMP WITH TIME ZONE,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled', 'transferred')),
+  
+  UNIQUE(conversation_id) -- apenas um fluxo ativo por conversa
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_flows_conversation ON conversation_flows(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_flows_chatbot ON conversation_flows(chatbot_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_flows_status ON conversation_flows(status);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -1066,6 +1112,7 @@ const migrationSteps = [
   { name: 'Attendance Status', sql: step12Attendance, critical: false },
   { name: 'Chatbots System', sql: step13Chatbots, critical: false },
   { name: 'Chatbot Permissions', sql: step14ChatbotPermissions, critical: false },
+  { name: 'Chatbot Team & Keywords', sql: step15ChatbotTeamKeywords, critical: false },
 ];
 
 export async function initDatabase() {
