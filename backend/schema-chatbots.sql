@@ -8,6 +8,13 @@ EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
 
+-- Enum para tipo de chatbot
+DO $$ BEGIN
+  CREATE TYPE chatbot_type AS ENUM ('flow', 'traditional', 'ai', 'hybrid');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
 -- Enum para modo de operação do chatbot
 DO $$ BEGIN
   CREATE TYPE chatbot_mode AS ENUM ('always', 'business_hours', 'outside_hours', 'pre_service');
@@ -32,6 +39,7 @@ CREATE TABLE IF NOT EXISTS chatbots (
   name VARCHAR(255) NOT NULL,
   description TEXT,
   is_active BOOLEAN DEFAULT false,
+  chatbot_type chatbot_type DEFAULT 'flow',
   
   -- Configuração de modo
   mode chatbot_mode DEFAULT 'always',
@@ -53,6 +61,11 @@ CREATE TABLE IF NOT EXISTS chatbots (
   fallback_message TEXT DEFAULT 'Desculpe, não entendi. Vou transferir você para um atendente.',
   transfer_after_failures INTEGER DEFAULT 3,
   typing_delay_ms INTEGER DEFAULT 1500,
+  
+  -- Menu tradicional
+  menu_message TEXT,
+  menu_options JSONB DEFAULT '[]',
+  invalid_option_message TEXT DEFAULT 'Opção inválida. Por favor, digite um número válido.',
   
   -- Metadata
   created_by UUID REFERENCES users(id),

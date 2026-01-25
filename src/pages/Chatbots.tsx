@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { 
   Bot, Plus, Settings, BarChart3, Trash2, Edit, 
   Clock, MessageSquare, Zap, Users, ArrowRight,
-  Sparkles, GitBranch, Shield
+  Sparkles, GitBranch, Shield, List
 } from "lucide-react";
 import { toast } from "sonner";
 import { useChatbots, Chatbot } from "@/hooks/use-chatbots";
@@ -127,6 +127,31 @@ const Chatbots = () => {
         return <Zap className="h-4 w-4 text-green-500" />;
       default:
         return <MessageSquare className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'traditional': return 'Menu';
+      case 'flow': return 'Fluxo';
+      case 'ai': return 'IA';
+      case 'hybrid': return 'Híbrido';
+      default: return 'Fluxo';
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'traditional':
+        return <List className="h-3 w-3" />;
+      case 'flow':
+        return <GitBranch className="h-3 w-3" />;
+      case 'ai':
+        return <Sparkles className="h-3 w-3" />;
+      case 'hybrid':
+        return <Bot className="h-3 w-3" />;
+      default:
+        return <GitBranch className="h-3 w-3" />;
     }
   };
 
@@ -256,14 +281,20 @@ const Chatbots = () => {
                   )}
                   
                   <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      {getTypeIcon(chatbot.chatbot_type || 'flow')}
+                      {getTypeLabel(chatbot.chatbot_type || 'flow')}
+                    </Badge>
                     <Badge variant="outline" className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       {getModeLabel(chatbot.mode)}
                     </Badge>
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      {getProviderIcon(chatbot.ai_provider)}
-                      {chatbot.ai_provider === 'none' ? 'Sem IA' : chatbot.ai_provider.toUpperCase()}
-                    </Badge>
+                    {chatbot.ai_provider !== 'none' && (
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        {getProviderIcon(chatbot.ai_provider)}
+                        {chatbot.ai_provider.toUpperCase()}
+                      </Badge>
+                    )}
                     {chatbot.ai_model && (
                       <Badge variant="secondary" className="text-xs">
                         {chatbot.ai_model}

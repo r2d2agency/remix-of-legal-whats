@@ -3,7 +3,17 @@ import { api } from '@/lib/api';
 
 export type AIProvider = 'gemini' | 'openai' | 'none';
 export type ChatbotMode = 'always' | 'business_hours' | 'outside_hours' | 'pre_service';
+export type ChatbotType = 'flow' | 'traditional' | 'ai' | 'hybrid';
 export type FlowNodeType = 'start' | 'message' | 'menu' | 'input' | 'condition' | 'action' | 'transfer' | 'ai_response' | 'end';
+
+export interface MenuOption {
+  id: string;
+  number: string;
+  label: string;
+  action: 'submenu' | 'transfer' | 'message' | 'tag';
+  action_value: string;
+  submenu_options?: MenuOption[];
+}
 
 export interface Chatbot {
   id: string;
@@ -38,6 +48,11 @@ export interface Chatbot {
   default_agent_id?: string | null;
   trigger_keywords?: string[];
   trigger_enabled?: boolean;
+  // Tipo do chatbot
+  chatbot_type?: ChatbotType;
+  menu_options?: MenuOption[];
+  menu_message?: string;
+  invalid_option_message?: string;
 }
 
 export interface ChatbotFlow {

@@ -24,10 +24,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Bot, Save, Settings, MessageSquare, Clock, Sparkles, 
-  Eye, EyeOff, Zap, AlertCircle, Loader2
+  Eye, EyeOff, Zap, AlertCircle, Loader2, List, Plus, Trash2, GripVertical
 } from "lucide-react";
 import { toast } from "sonner";
-import { useChatbots, Chatbot, AIProvider, ChatbotMode, AIModels } from "@/hooks/use-chatbots";
+import { useChatbots, Chatbot, AIProvider, ChatbotMode, ChatbotType, MenuOption, AIModels } from "@/hooks/use-chatbots";
 import { api } from "@/lib/api";
 
 interface Connection {
@@ -66,6 +66,7 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
     description: '',
     connection_id: '',
     is_active: false,
+    chatbot_type: 'flow' as ChatbotType,
     mode: 'always' as ChatbotMode,
     business_hours_start: '08:00',
     business_hours_end: '18:00',
@@ -81,6 +82,10 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
     fallback_message: 'Desculpe, não entendi. Vou transferir você para um atendente.',
     transfer_after_failures: 3,
     typing_delay_ms: 1500,
+    // Menu tradicional
+    menu_message: 'Olá! Escolha uma opção:\n\n1️⃣ Comercial\n2️⃣ Financeiro\n3️⃣ Suporte\n0️⃣ Falar com atendente',
+    menu_options: [] as MenuOption[],
+    invalid_option_message: 'Opção inválida. Por favor, digite um número válido.',
   });
 
   useEffect(() => {
@@ -94,6 +99,7 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
           description: chatbot.description || '',
           connection_id: chatbot.connection_id || '',
           is_active: chatbot.is_active,
+          chatbot_type: chatbot.chatbot_type || 'flow',
           mode: chatbot.mode,
           business_hours_start: chatbot.business_hours_start,
           business_hours_end: chatbot.business_hours_end,
@@ -109,6 +115,9 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
           fallback_message: chatbot.fallback_message,
           transfer_after_failures: chatbot.transfer_after_failures,
           typing_delay_ms: chatbot.typing_delay_ms,
+          menu_message: chatbot.menu_message || 'Olá! Escolha uma opção:\n\n1️⃣ Comercial\n2️⃣ Financeiro\n3️⃣ Suporte\n0️⃣ Falar com atendente',
+          menu_options: chatbot.menu_options || [],
+          invalid_option_message: chatbot.invalid_option_message || 'Opção inválida. Por favor, digite um número válido.',
         });
       } else {
         // Reset form for new chatbot
@@ -117,6 +126,7 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
           description: '',
           connection_id: '',
           is_active: false,
+          chatbot_type: 'flow',
           mode: 'always',
           business_hours_start: '08:00',
           business_hours_end: '18:00',
@@ -132,6 +142,9 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
           fallback_message: 'Desculpe, não entendi. Vou transferir você para um atendente.',
           transfer_after_failures: 3,
           typing_delay_ms: 1500,
+          menu_message: 'Olá! Escolha uma opção:\n\n1️⃣ Comercial\n2️⃣ Financeiro\n3️⃣ Suporte\n0️⃣ Falar com atendente',
+          menu_options: [],
+          invalid_option_message: 'Opção inválida. Por favor, digite um número válido.',
         });
       }
     }
@@ -217,10 +230,14 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="general" className="flex items-center gap-1">
               <Settings className="h-4 w-4" />
               Geral
+            </TabsTrigger>
+            <TabsTrigger value="menu" className="flex items-center gap-1">
+              <List className="h-4 w-4" />
+              Menu
             </TabsTrigger>
             <TabsTrigger value="schedule" className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
@@ -281,6 +298,50 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
             </div>
 
             <div className="space-y-2">
+              <Label>Tipo de Chatbot</Label>
+              <Select
+                value={formData.chatbot_type}
+                onValueChange={(value: ChatbotType) => setFormData(prev => ({ ...prev, chatbot_type: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="traditional">
+                    <div className="flex items-center gap-2">
+                      <List className="h-4 w-4" />
+                      Tradicional (Menu numérico)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="flow">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4" />
+                      Fluxo visual
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="ai">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      IA (respostas automáticas)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="hybrid">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-4 w-4" />
+                      Híbrido (Menu + IA)
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {formData.chatbot_type === 'traditional' && 'Menu com opções numeradas (1, 2, 3...)'}
+                {formData.chatbot_type === 'flow' && 'Editor visual de fluxos de conversa'}
+                {formData.chatbot_type === 'ai' && 'Respostas geradas por IA'}
+                {formData.chatbot_type === 'hybrid' && 'Combina menu tradicional com respostas de IA'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label>Modo de Operação</Label>
               <Select
                 value={formData.mode}
@@ -310,6 +371,199 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
               />
             </div>
+          </TabsContent>
+
+          {/* Menu Tab - Traditional Chatbot */}
+          <TabsContent value="menu" className="space-y-4 mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <List className="h-5 w-5 text-primary" />
+                  Menu Tradicional
+                </CardTitle>
+                <CardDescription>
+                  Configure opções numeradas que o usuário pode digitar (1, 2, 3...)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {formData.chatbot_type !== 'traditional' && formData.chatbot_type !== 'hybrid' && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-500/10 text-amber-600 rounded-lg border border-amber-500/20">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm">
+                      Para usar o menu tradicional, selecione o tipo "Tradicional" ou "Híbrido" na aba Geral
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Mensagem do Menu</Label>
+                  <Textarea
+                    value={formData.menu_message}
+                    onChange={(e) => setFormData(prev => ({ ...prev, menu_message: e.target.value }))}
+                    placeholder="Olá! Escolha uma opção:&#10;&#10;1️⃣ Comercial&#10;2️⃣ Financeiro&#10;3️⃣ Suporte&#10;0️⃣ Falar com atendente"
+                    rows={6}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Esta mensagem será enviada quando o chatbot iniciar. Use emojis numéricos para melhor visualização.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Opções do Menu</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newOption: MenuOption = {
+                          id: crypto.randomUUID(),
+                          number: String(formData.menu_options.length + 1),
+                          label: '',
+                          action: 'message',
+                          action_value: '',
+                        };
+                        setFormData(prev => ({
+                          ...prev,
+                          menu_options: [...prev.menu_options, newOption]
+                        }));
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Adicionar Opção
+                    </Button>
+                  </div>
+
+                  {formData.menu_options.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                      <List className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>Nenhuma opção configurada</p>
+                      <p className="text-xs mt-1">
+                        Clique em "Adicionar Opção" para criar opções de menu
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {formData.menu_options.map((option, index) => (
+                        <Card key={option.id} className="p-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex items-center gap-2 pt-2">
+                              <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
+                              <Badge variant="outline" className="font-mono">
+                                {option.number}
+                              </Badge>
+                            </div>
+                            <div className="flex-1 space-y-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Número</Label>
+                                  <Input
+                                    value={option.number}
+                                    onChange={(e) => {
+                                      const updated = [...formData.menu_options];
+                                      updated[index] = { ...option, number: e.target.value };
+                                      setFormData(prev => ({ ...prev, menu_options: updated }));
+                                    }}
+                                    placeholder="1"
+                                    className="h-8"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Label</Label>
+                                  <Input
+                                    value={option.label}
+                                    onChange={(e) => {
+                                      const updated = [...formData.menu_options];
+                                      updated[index] = { ...option, label: e.target.value };
+                                      setFormData(prev => ({ ...prev, menu_options: updated }));
+                                    }}
+                                    placeholder="Comercial"
+                                    className="h-8"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Ação</Label>
+                                  <Select
+                                    value={option.action}
+                                    onValueChange={(value: MenuOption['action']) => {
+                                      const updated = [...formData.menu_options];
+                                      updated[index] = { ...option, action: value, action_value: '' };
+                                      setFormData(prev => ({ ...prev, menu_options: updated }));
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-8">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="message">Enviar mensagem</SelectItem>
+                                      <SelectItem value="transfer">Transferir para atendente</SelectItem>
+                                      <SelectItem value="submenu">Submenu</SelectItem>
+                                      <SelectItem value="tag">Adicionar tag</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">
+                                    {option.action === 'message' && 'Mensagem'}
+                                    {option.action === 'transfer' && 'Departamento/Agente'}
+                                    {option.action === 'submenu' && 'ID do Submenu'}
+                                    {option.action === 'tag' && 'Nome da Tag'}
+                                  </Label>
+                                  <Input
+                                    value={option.action_value}
+                                    onChange={(e) => {
+                                      const updated = [...formData.menu_options];
+                                      updated[index] = { ...option, action_value: e.target.value };
+                                      setFormData(prev => ({ ...prev, menu_options: updated }));
+                                    }}
+                                    placeholder={
+                                      option.action === 'message' ? 'Aguarde, vou te ajudar...' :
+                                      option.action === 'transfer' ? 'comercial' :
+                                      option.action === 'submenu' ? 'submenu_1' :
+                                      'lead_quente'
+                                    }
+                                    className="h-8"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  menu_options: prev.menu_options.filter((_, i) => i !== index)
+                                }));
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Mensagem de Opção Inválida</Label>
+                  <Input
+                    value={formData.invalid_option_message}
+                    onChange={(e) => setFormData(prev => ({ ...prev, invalid_option_message: e.target.value }))}
+                    placeholder="Opção inválida. Por favor, digite um número válido."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enviada quando o usuário digita uma opção que não existe
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Schedule Tab */}

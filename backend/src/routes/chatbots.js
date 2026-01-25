@@ -107,6 +107,7 @@ router.post('/', async (req, res) => {
       name,
       description,
       connection_id,
+      chatbot_type,
       mode,
       business_hours_start,
       business_hours_end,
@@ -121,7 +122,10 @@ router.post('/', async (req, res) => {
       welcome_message,
       fallback_message,
       transfer_after_failures,
-      typing_delay_ms
+      typing_delay_ms,
+      menu_message,
+      menu_options,
+      invalid_option_message
     } = req.body;
 
     if (!name) {
@@ -130,18 +134,20 @@ router.post('/', async (req, res) => {
 
     const result = await query(
       `INSERT INTO chatbots (
-        organization_id, connection_id, name, description, mode,
+        organization_id, connection_id, name, description, chatbot_type, mode,
         business_hours_start, business_hours_end, business_days, timezone,
         ai_provider, ai_model, ai_api_key, ai_system_prompt, ai_temperature, ai_max_tokens,
         welcome_message, fallback_message, transfer_after_failures, typing_delay_ms,
+        menu_message, menu_options, invalid_option_message,
         created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       RETURNING *`,
       [
         org.organization_id,
         connection_id || null,
         name,
         description || null,
+        chatbot_type || 'flow',
         mode || 'always',
         business_hours_start || '08:00',
         business_hours_end || '18:00',
@@ -157,6 +163,9 @@ router.post('/', async (req, res) => {
         fallback_message || 'Desculpe, não entendi. Vou transferir você para um atendente.',
         transfer_after_failures || 3,
         typing_delay_ms || 1500,
+        menu_message || null,
+        menu_options ? JSON.stringify(menu_options) : '[]',
+        invalid_option_message || 'Opção inválida. Por favor, digite um número válido.',
         req.userId
       ]
     );
@@ -201,10 +210,11 @@ router.patch('/:id', async (req, res) => {
     let paramCount = 1;
 
     const allowedFields = [
-      'name', 'description', 'connection_id', 'is_active', 'mode',
+      'name', 'description', 'connection_id', 'is_active', 'chatbot_type', 'mode',
       'business_hours_start', 'business_hours_end', 'business_days', 'timezone',
       'ai_provider', 'ai_model', 'ai_api_key', 'ai_system_prompt', 'ai_temperature', 'ai_max_tokens',
-      'welcome_message', 'fallback_message', 'transfer_after_failures', 'typing_delay_ms'
+      'welcome_message', 'fallback_message', 'transfer_after_failures', 'typing_delay_ms',
+      'menu_message', 'menu_options', 'invalid_option_message'
     ];
 
     for (const field of allowedFields) {
