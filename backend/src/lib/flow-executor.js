@@ -418,3 +418,252 @@ async function completeFlowSession(conversationId) {
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+/**
+ * Continue a paused flow with user input
+ */
+export async function continueFlowWithInput(conversationId, userInput) {
+  try {
+    console.log(`Flow executor: Continuing flow for conversation ${conversationId} with input:`, userInput?.substring(0, 50));
+    
+    // Get active flow session
+    const sessionResult = await query(
+      `SELECT fs.*, f.id as flow_id
+       FROM flow_sessions fs
+       JOIN flows f ON f.id = fs.flow_id
+       WHERE fs.conversation_id = $1 AND fs.is_active = true
+       LIMIT 1`,
+      [conversationId]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      console.log('Flow executor: No active session found');
+      return { success: false, error: 'Nenhuma sessão ativa' };
+    }
+
+    const session = sessionResult.rows[0];
+    const flowId = session.flow_id;
+    const currentNodeId = session.current_node_id;
+    const variables = typeof session.variables === 'string' 
+      ? JSON.parse(session.variables || '{}') 
+      : (session.variables || {});
+
+    console.log(`Flow executor: Resuming from node ${currentNodeId}`, variables);
+
+    // Get the current node to understand what we're waiting for
+    const nodeResult = await query(
+      'SELECT * FROM flow_nodes WHERE flow_id = $1 AND node_id = $2',
+      [flowId, currentNodeId]
+    );
+
+    if (nodeResult.rows.length === 0) {
+      console.error('Flow executor: Current node not found:', currentNodeId);
+      return { success: false, error: 'Nó atual não encontrado' };
+    }
+
+    const currentNode = nodeResult.rows[0];
+    const content = typeof currentNode.content === 'string' 
+      ? JSON.parse(currentNode.content) 
+      : (currentNode.content || {});
+
+    console.log(`Flow executor: Current node type: ${currentNode.node_type}`);
+
+    // Process user input based on node type
+    let nextHandle = null;
+    
+    if (currentNode.node_type === 'input') {
+      // Store the input in the variable
+      const varName = content.variable_name || 'resposta';
+      variables[varName] = userInput;
+      console.log(`Flow executor: Stored input in variable '${varName}':`, userInput?.substring(0, 50));
+    } else if (currentNode.node_type === 'menu') {
+      // Match user input to menu options
+      const options = content.options || [];
+      const inputLower = String(userInput || '').trim().toLowerCase();
+      
+      // Try to match by number (1, 2, 3...) or by label text
+      let matchedOption = null;
+      
+      // Try numeric match first
+      const inputNum = parseInt(inputLower);
+      if (!isNaN(inputNum) && inputNum >= 1 && inputNum <= options.length) {
+        matchedOption = options[inputNum - 1];
+      }
+      
+      // Try text match if no numeric match
+      if (!matchedOption) {
+        matchedOption = options.find(opt => {
+          const label = String(opt.label || opt.text || '').toLowerCase().trim();
+          return label === inputLower || inputLower.includes(label);
+        });
+      }
+      
+      if (matchedOption) {
+        const optionIndex = options.indexOf(matchedOption);
+        nextHandle = `option_${optionIndex}`;
+        
+        // Store selected option in variable if configured
+        const varName = content.variable_name || 'opcao';
+        variables[varName] = matchedOption.label || matchedOption.text;
+        
+        console.log(`Flow executor: Menu option matched: ${matchedOption.label || matchedOption.text} (handle: ${nextHandle})`);
+      } else {
+        // No match - use default handle
+        nextHandle = 'default';
+        console.log('Flow executor: No menu option matched, using default handle');
+      }
+    }
+
+    // Get all edges to find the next node
+    const edgesResult = await query(
+      'SELECT * FROM flow_edges WHERE flow_id = $1 AND source_node_id = $2',
+      [flowId, currentNodeId]
+    );
+
+    const edges = edgesResult.rows;
+    
+    if (edges.length === 0) {
+      console.log('Flow executor: No outgoing edges from current node, flow complete');
+      await completeFlowSession(conversationId);
+      return { success: true, flowComplete: true };
+    }
+
+    // Find the next edge based on handle (for menu) or just take the first one (for input)
+    const nextEdge = nextHandle 
+      ? edges.find(e => e.source_handle === nextHandle) || edges.find(e => e.source_handle === 'default') || edges[0]
+      : edges[0];
+
+    const nextNodeId = nextEdge?.target_node_id;
+
+    if (!nextNodeId) {
+      console.log('Flow executor: No next node found, flow complete');
+      await completeFlowSession(conversationId);
+      return { success: true, flowComplete: true };
+    }
+
+    console.log(`Flow executor: Moving to next node: ${nextNodeId}`);
+
+    // Update session with new variables
+    await query(
+      `UPDATE flow_sessions 
+       SET variables = $1, current_node_id = $2, updated_at = NOW()
+       WHERE conversation_id = $3 AND is_active = true`,
+      [JSON.stringify(variables), nextNodeId, conversationId]
+    );
+
+    // Continue execution from the next node
+    return await resumeFlowFromNode(flowId, conversationId, nextNodeId, variables);
+  } catch (error) {
+    console.error('Flow executor: Continue with input error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Resume flow execution from a specific node with given variables
+ */
+async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables) {
+  try {
+    console.log(`Flow executor: Resuming from node ${startNodeId}`);
+    
+    // Get conversation and connection info
+    const convResult = await query(
+      `SELECT c.*, conn.api_url, conn.api_key, conn.instance_name, conn.instance_id, conn.wapi_token, conn.provider
+       FROM conversations c
+       JOIN connections conn ON conn.id = c.connection_id
+       WHERE c.id = $1`,
+      [conversationId]
+    );
+
+    if (convResult.rows.length === 0) {
+      return { success: false, error: 'Conversa não encontrada' };
+    }
+
+    const conversation = convResult.rows[0];
+    const connection = {
+      id: conversation.connection_id,
+      api_url: conversation.api_url,
+      api_key: conversation.api_key,
+      instance_name: conversation.instance_name,
+      instance_id: conversation.instance_id,
+      wapi_token: conversation.wapi_token,
+      provider: conversation.provider,
+    };
+
+    // Get all nodes and edges
+    const [nodesResult, edgesResult] = await Promise.all([
+      query('SELECT * FROM flow_nodes WHERE flow_id = $1', [flowId]),
+      query('SELECT * FROM flow_edges WHERE flow_id = $1', [flowId]),
+    ]);
+
+    const nodes = nodesResult.rows;
+    const edges = edgesResult.rows;
+
+    // Create maps
+    const nodeMap = new Map();
+    nodes.forEach(node => nodeMap.set(node.node_id, node));
+
+    const edgeMap = new Map();
+    edges.forEach(edge => {
+      const key = edge.source_node_id;
+      if (!edgeMap.has(key)) {
+        edgeMap.set(key, []);
+      }
+      edgeMap.get(key).push(edge);
+    });
+
+    // Start processing from the given node
+    let currentNodeId = startNodeId;
+    let processedNodes = 0;
+    const maxNodes = 50;
+
+    while (currentNodeId && processedNodes < maxNodes) {
+      const node = nodeMap.get(currentNodeId);
+      
+      if (!node) {
+        console.log('Flow executor: Node not found:', currentNodeId);
+        break;
+      }
+
+      processedNodes++;
+      console.log(`Flow executor: Processing node ${node.node_id} (${node.node_type})`);
+
+      // Process the node
+      const result = await processNode(node, connection, conversation.contact_phone, variables);
+
+      if (!result.success && result.error) {
+        console.error('Flow executor: Node processing failed:', result.error);
+      }
+
+      // If node requires user input, stop here
+      if (result.waitForInput) {
+        await updateFlowSession(flowId, conversationId, currentNodeId, variables);
+        return { success: true, waitingForInput: true, currentNode: currentNodeId };
+      }
+
+      // Get next node
+      const outgoingEdges = edgeMap.get(currentNodeId) || [];
+      
+      if (outgoingEdges.length === 0) {
+        console.log('Flow executor: No more edges, flow complete');
+        break;
+      }
+
+      const nextEdge = result.nextHandle 
+        ? outgoingEdges.find(e => e.source_handle === result.nextHandle) || outgoingEdges[0]
+        : outgoingEdges[0];
+
+      currentNodeId = nextEdge?.target_node_id;
+      console.log(`Flow executor: Moving to next node: ${currentNodeId}`);
+    }
+
+    // Mark session as complete
+    await completeFlowSession(conversationId);
+
+    console.log(`Flow executor: Flow resumed and completed. Processed ${processedNodes} nodes`);
+    return { success: true, nodesProcessed: processedNodes };
+  } catch (error) {
+    console.error('Flow executor: Resume flow error:', error);
+    return { success: false, error: error.message };
+  }
+}

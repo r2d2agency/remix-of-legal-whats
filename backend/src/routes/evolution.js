@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import * as whatsappProvider from '../lib/whatsapp-provider.js';
-import { executeFlow } from '../lib/flow-executor.js';
+import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { logError, logInfo } from '../logger.js';
 
 
@@ -1275,6 +1275,44 @@ async function checkAndTriggerFlow(connection, conversationId, messageContent) {
   }
 }
 
+/**
+ * Check if there's an active flow session and continue it with user input
+ */
+async function continueActiveFlow(connection, conversationId, userInput) {
+  try {
+    // Check if there's an active flow session for this conversation
+    const sessionResult = await query(
+      `SELECT fs.id, fs.flow_id, fs.current_node_id
+       FROM flow_sessions fs
+       WHERE fs.conversation_id = $1 AND fs.is_active = true
+       LIMIT 1`,
+      [conversationId]
+    );
+
+    if (sessionResult.rows.length === 0) {
+      console.log('[Flow Continue] No active session for conversation:', conversationId);
+      return { continued: false };
+    }
+
+    const session = sessionResult.rows[0];
+    console.log('[Flow Continue] Found active session, node:', session.current_node_id);
+
+    // Continue the flow with user input
+    const result = await continueFlowWithInput(conversationId, userInput);
+
+    if (result.success) {
+      console.log('[Flow Continue] Flow continued successfully');
+      return { continued: true, result };
+    } else {
+      console.error('[Flow Continue] Error continuing flow:', result.error);
+      return { continued: false, error: result.error };
+    }
+  } catch (error) {
+    console.error('[Flow Continue] Error:', error);
+    return { continued: false, error: error.message };
+  }
+}
+
 // Handle incoming/outgoing messages
 async function handleMessageUpsert(connection, data) {
   try {
@@ -1728,8 +1766,18 @@ async function handleMessageUpsert(connection, data) {
       if (insertResult.rows.length > 0) {
         console.log('Webhook: Message saved/updated:', messageId, 'Type:', messageType, 'FromMe:', fromMe, 'Content:', content?.substring(0, 50));
         
-        // Check for keyword-triggered flows (only for incoming text messages)
+        // Check for active flow sessions first (priority over keywords)
         if (!fromMe && messageType === 'text' && content) {
+          console.log('[Evolution] Checking for active flow sessions...');
+          const continueResult = await continueActiveFlow(connection, conversationId, content);
+          
+          if (continueResult?.continued) {
+            console.log('[Evolution] Flow continued successfully');
+            return; // Don't check keywords if we continued a flow
+          }
+          
+          // If no active flow, check for keyword-triggered flows
+          console.log('[Evolution] No active flow, checking keywords...');
           checkAndTriggerFlow(connection, conversationId, content);
         }
       }
