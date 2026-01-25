@@ -60,7 +60,7 @@ function BaseFlowNode({ id, data, nodeType, selected }: BaseNodeProps) {
   return (
     <div
       className={cn(
-        'px-4 py-3 rounded-xl border-2 shadow-lg min-w-[180px] max-w-[280px] transition-all',
+        'group px-4 py-3 rounded-xl border-2 shadow-lg min-w-[180px] max-w-[280px] transition-all',
         colors.bg,
         colors.border,
         selected && 'ring-2 ring-primary ring-offset-2 ring-offset-background'
@@ -82,7 +82,7 @@ function BaseFlowNode({ id, data, nodeType, selected }: BaseNodeProps) {
         </div>
         <span className="font-medium text-sm truncate flex-1">{data.label}</span>
         {!isStart && !isEnd && (
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
             <Button
               variant="ghost"
               size="icon"
@@ -97,7 +97,7 @@ function BaseFlowNode({ id, data, nodeType, selected }: BaseNodeProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 text-destructive"
+              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={(e) => {
                 e.stopPropagation();
                 data.onDelete?.(id);
@@ -210,65 +210,47 @@ export const StartNode = memo((props: NodeProps<FlowNodeData>) => (
 StartNode.displayName = 'StartNode';
 
 export const MessageNode = memo((props: NodeProps<FlowNodeData>) => (
-  <div className="group">
-    <BaseFlowNode {...props} nodeType="message" />
-  </div>
+  <BaseFlowNode {...props} nodeType="message" />
 ));
 MessageNode.displayName = 'MessageNode';
 
 export const MenuNode = memo((props: NodeProps<FlowNodeData>) => (
-  <div className="group">
-    <BaseFlowNode {...props} nodeType="menu" />
-  </div>
+  <BaseFlowNode {...props} nodeType="menu" />
 ));
 MenuNode.displayName = 'MenuNode';
 
 export const InputNode = memo((props: NodeProps<FlowNodeData>) => (
-  <div className="group">
-    <BaseFlowNode {...props} nodeType="input" />
-  </div>
+  <BaseFlowNode {...props} nodeType="input" />
 ));
 InputNode.displayName = 'InputNode';
 
 export const ConditionNode = memo((props: NodeProps<FlowNodeData>) => (
-  <div className="group">
-    <BaseFlowNode {...props} nodeType="condition" />
-  </div>
+  <BaseFlowNode {...props} nodeType="condition" />
 ));
 ConditionNode.displayName = 'ConditionNode';
 
 export const ActionNode = memo((props: NodeProps<FlowNodeData>) => (
-  <div className="group">
-    <BaseFlowNode {...props} nodeType="action" />
-  </div>
+  <BaseFlowNode {...props} nodeType="action" />
 ));
 ActionNode.displayName = 'ActionNode';
 
 export const TransferNode = memo((props: NodeProps<FlowNodeData>) => (
-  <div className="group">
-    <BaseFlowNode {...props} nodeType="transfer" />
-  </div>
+  <BaseFlowNode {...props} nodeType="transfer" />
 ));
 TransferNode.displayName = 'TransferNode';
 
 export const AIResponseNode = memo((props: NodeProps<FlowNodeData>) => (
-  <div className="group">
-    <BaseFlowNode {...props} nodeType="ai_response" />
-  </div>
+  <BaseFlowNode {...props} nodeType="ai_response" />
 ));
 AIResponseNode.displayName = 'AIResponseNode';
 
 export const DelayNode = memo((props: NodeProps<FlowNodeData>) => (
-  <div className="group">
-    <BaseFlowNode {...props} nodeType="delay" />
-  </div>
+  <BaseFlowNode {...props} nodeType="delay" />
 ));
 DelayNode.displayName = 'DelayNode';
 
 export const WebhookNode = memo((props: NodeProps<FlowNodeData>) => (
-  <div className="group">
-    <BaseFlowNode {...props} nodeType="webhook" />
-  </div>
+  <BaseFlowNode {...props} nodeType="webhook" />
 ));
 WebhookNode.displayName = 'WebhookNode';
 

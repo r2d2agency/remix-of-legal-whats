@@ -65,6 +65,26 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
   const [hasChanges, setHasChanges] = useState(false);
   const [showSimulator, setShowSimulator] = useState(false);
 
+  const handleEditNode = useCallback((nodeId: string) => {
+    setNodes((currentNodes) => {
+      const node = currentNodes.find((n) => n.id === nodeId);
+      if (node && node.type !== 'start') {
+        setEditingNode(node);
+      }
+      return currentNodes;
+    });
+  }, [setNodes]);
+
+  const handleDeleteNode = useCallback((nodeId: string) => {
+    if (nodeId === 'start') {
+      toast.error('Não é possível deletar o nó inicial');
+      return;
+    }
+    setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+    setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+    setEditingNode((current) => current?.id === nodeId ? null : current);
+  }, [setNodes, setEdges]);
+
   useEffect(() => {
     loadCanvas();
   }, [flow.id]);
@@ -95,8 +115,6 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
         data: {
           label: n.name || n.node_type,
           content: n.content as Record<string, unknown>,
-          onEdit: (id: string) => handleEditNode(id),
-          onDelete: (id: string) => handleDeleteNode(id),
         },
       }));
 
@@ -118,24 +136,20 @@ function FlowEditorContent({ flow, onClose }: { flow: Flow; onClose: () => void 
     setHasChanges(false);
   };
 
-  const handleEditNode = useCallback((nodeId: string) => {
-    const node = nodes.find((n) => n.id === nodeId);
-    if (node && node.type !== 'start') {
-      setEditingNode(node);
-    }
-  }, [nodes]);
+  // Inject callbacks into all nodes for edit/delete functionality
+  useEffect(() => {
+    setNodes((currentNodes) => 
+      currentNodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          onEdit: handleEditNode,
+          onDelete: handleDeleteNode,
+        },
+      }))
+    );
+  }, [handleEditNode, handleDeleteNode, setNodes]);
 
-  const handleDeleteNode = useCallback((nodeId: string) => {
-    if (nodeId === 'start') {
-      toast.error('Não é possível deletar o nó inicial');
-      return;
-    }
-    setNodes((nds) => nds.filter((n) => n.id !== nodeId));
-    setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
-    if (editingNode?.id === nodeId) {
-      setEditingNode(null);
-    }
-  }, [setNodes, setEdges, editingNode]);
 
   const onConnect = useCallback((params: Connection) => {
     setEdges((eds) => addEdge({
