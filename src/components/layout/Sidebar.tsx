@@ -49,6 +49,7 @@ const navSections: NavSection[] = [
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare },
       { name: "Chatbots", href: "/chatbots", icon: Bot },
+      { name: "Departamentos", href: "/departamentos", icon: Users },
       { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages' },
       { name: "Tags", href: "/tags", icon: Receipt },
       { name: "Contatos", href: "/contatos-chat", icon: Users },

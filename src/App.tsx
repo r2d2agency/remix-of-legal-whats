@@ -23,6 +23,7 @@ import Agendamentos from "./pages/Agendamentos";
 import Tags from "./pages/Tags";
 import ContatosChat from "./pages/ContatosChat";
 import Chatbots from "./pages/Chatbots";
+import Departamentos from "./pages/Departamentos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,6 +74,7 @@ const App = () => (
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="/chatbots" element={<ProtectedRoute><Chatbots /></ProtectedRoute>} />
+            <Route path="/departamentos" element={<ProtectedRoute><Departamentos /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
