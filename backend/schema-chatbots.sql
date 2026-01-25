@@ -67,6 +67,9 @@ CREATE TABLE IF NOT EXISTS chatbots (
   menu_options JSONB DEFAULT '[]',
   invalid_option_message TEXT DEFAULT 'Opção inválida. Por favor, digite um número válido.',
   
+  -- Vinculação a um fluxo visual (da tabela flows)
+  linked_flow_id UUID,
+  
   -- Metadata
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

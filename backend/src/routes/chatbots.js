@@ -152,51 +152,112 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Nome é obrigatório' });
     }
 
-    const result = await query(
-      `INSERT INTO chatbots (
-        organization_id, connection_id, name, description, chatbot_type, mode,
-        business_hours_start, business_hours_end, business_days, timezone,
-        ai_provider, ai_model, ai_api_key, ai_system_prompt, ai_temperature, ai_max_tokens,
-        welcome_message, fallback_message, transfer_after_failures, typing_delay_ms,
-        menu_message, menu_options, invalid_option_message, linked_flow_id,
-        created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
-      RETURNING *`,
-      [
-        org.organization_id,
-        connection_id || null,
-        name,
-        description || null,
-        chatbot_type || 'flow',
-        mode || 'always',
-        business_hours_start || '08:00',
-        business_hours_end || '18:00',
-        business_days || [1, 2, 3, 4, 5],
-        timezone || 'America/Sao_Paulo',
-        ai_provider || 'none',
-        ai_model || null,
-        ai_api_key || null,
-        ai_system_prompt || null,
-        ai_temperature || 0.7,
-        ai_max_tokens || 500,
-        welcome_message || null,
-        fallback_message || 'Desculpe, não entendi. Vou transferir você para um atendente.',
-        transfer_after_failures || 3,
-        typing_delay_ms || 1500,
-        menu_message || null,
-        menu_options ? JSON.stringify(menu_options) : '[]',
-        invalid_option_message || 'Opção inválida. Por favor, digite um número válido.',
-        linked_flow_id || null,
-        req.userId
-      ]
-    );
+    // Verificar se a coluna linked_flow_id existe
+    let hasLinkedFlowId = true;
+    try {
+      await query(`SELECT linked_flow_id FROM chatbots LIMIT 0`);
+    } catch (e) {
+      hasLinkedFlowId = false;
+      console.log('Coluna linked_flow_id não existe ainda - criando...');
+      try {
+        await query(`ALTER TABLE chatbots ADD COLUMN IF NOT EXISTS linked_flow_id UUID REFERENCES flows(id) ON DELETE SET NULL`);
+        hasLinkedFlowId = true;
+      } catch (alterErr) {
+        console.log('Não foi possível criar linked_flow_id:', alterErr.message);
+      }
+    }
 
-    // Criar nó inicial do fluxo
-    await query(
-      `INSERT INTO chatbot_flows (chatbot_id, node_id, node_type, name, content, position_x, position_y, order_index)
-       VALUES ($1, 'start', 'start', 'Início', '{}', 100, 100, 0)`,
-      [result.rows[0].id]
-    );
+    let result;
+    if (hasLinkedFlowId) {
+      result = await query(
+        `INSERT INTO chatbots (
+          organization_id, connection_id, name, description, chatbot_type, mode,
+          business_hours_start, business_hours_end, business_days, timezone,
+          ai_provider, ai_model, ai_api_key, ai_system_prompt, ai_temperature, ai_max_tokens,
+          welcome_message, fallback_message, transfer_after_failures, typing_delay_ms,
+          menu_message, menu_options, invalid_option_message, linked_flow_id,
+          created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+        RETURNING *`,
+        [
+          org.organization_id,
+          connection_id || null,
+          name,
+          description || null,
+          chatbot_type || 'flow',
+          mode || 'always',
+          business_hours_start || '08:00',
+          business_hours_end || '18:00',
+          business_days || [1, 2, 3, 4, 5],
+          timezone || 'America/Sao_Paulo',
+          ai_provider || 'none',
+          ai_model || null,
+          ai_api_key || null,
+          ai_system_prompt || null,
+          ai_temperature || 0.7,
+          ai_max_tokens || 500,
+          welcome_message || null,
+          fallback_message || 'Desculpe, não entendi. Vou transferir você para um atendente.',
+          transfer_after_failures || 3,
+          typing_delay_ms || 1500,
+          menu_message || null,
+          menu_options ? JSON.stringify(menu_options) : '[]',
+          invalid_option_message || 'Opção inválida. Por favor, digite um número válido.',
+          linked_flow_id || null,
+          req.userId
+        ]
+      );
+    } else {
+      // Fallback sem linked_flow_id
+      result = await query(
+        `INSERT INTO chatbots (
+          organization_id, connection_id, name, description, chatbot_type, mode,
+          business_hours_start, business_hours_end, business_days, timezone,
+          ai_provider, ai_model, ai_api_key, ai_system_prompt, ai_temperature, ai_max_tokens,
+          welcome_message, fallback_message, transfer_after_failures, typing_delay_ms,
+          menu_message, menu_options, invalid_option_message,
+          created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        RETURNING *`,
+        [
+          org.organization_id,
+          connection_id || null,
+          name,
+          description || null,
+          chatbot_type || 'flow',
+          mode || 'always',
+          business_hours_start || '08:00',
+          business_hours_end || '18:00',
+          business_days || [1, 2, 3, 4, 5],
+          timezone || 'America/Sao_Paulo',
+          ai_provider || 'none',
+          ai_model || null,
+          ai_api_key || null,
+          ai_system_prompt || null,
+          ai_temperature || 0.7,
+          ai_max_tokens || 500,
+          welcome_message || null,
+          fallback_message || 'Desculpe, não entendi. Vou transferir você para um atendente.',
+          transfer_after_failures || 3,
+          typing_delay_ms || 1500,
+          menu_message || null,
+          menu_options ? JSON.stringify(menu_options) : '[]',
+          invalid_option_message || 'Opção inválida. Por favor, digite um número válido.',
+          req.userId
+        ]
+      );
+    }
+
+    // Criar nó inicial do fluxo (com resiliência)
+    try {
+      await query(
+        `INSERT INTO chatbot_flows (chatbot_id, node_id, node_type, name, content, position_x, position_y, order_index)
+         VALUES ($1, 'start', 'start', 'Início', '{}', 100, 100, 0)`,
+        [result.rows[0].id]
+      );
+    } catch (flowErr) {
+      console.log('Não foi possível criar nó inicial do fluxo:', flowErr.message);
+    }
 
     const chatbot = result.rows[0];
     chatbot.ai_api_key = chatbot.ai_api_key ? '••••••••' : null;
@@ -204,7 +265,7 @@ router.post('/', async (req, res) => {
     res.status(201).json(chatbot);
   } catch (error) {
     console.error('Erro ao criar chatbot:', error);
-    res.status(500).json({ error: 'Erro ao criar chatbot' });
+    res.status(500).json({ error: 'Erro ao criar chatbot', details: error.message });
   }
 });
 
