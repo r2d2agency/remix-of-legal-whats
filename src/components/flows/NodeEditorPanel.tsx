@@ -711,6 +711,7 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
             <SelectItem value="add_tag">Adicionar tag</SelectItem>
             <SelectItem value="remove_tag">Remover tag</SelectItem>
             <SelectItem value="notify">Notificar equipe</SelectItem>
+            <SelectItem value="notify_external">Notificar externa (WhatsApp)</SelectItem>
             <SelectItem value="close_conversation">Encerrar conversa</SelectItem>
           </SelectContent>
         </Select>
@@ -793,12 +794,108 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
           />
         </div>
       )}
+
+      {content.action_type === 'notify_external' && (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Número do WhatsApp</Label>
+            <Input
+              value={content.phone_number || ''}
+              onChange={(e) => onChange({ ...content, phone_number: e.target.value })}
+              placeholder="5511999999999"
+            />
+            <p className="text-xs text-muted-foreground">
+              Formato: código do país + DDD + número (ex: 5511999999999)
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Mensagem</Label>
+            <Textarea
+              value={content.external_message || ''}
+              onChange={(e) => onChange({ ...content, external_message: e.target.value })}
+              placeholder="Novo lead: {nome_cliente}&#10;Telefone: {telefone}&#10;Interesse: {interesse}"
+              rows={5}
+            />
+            <p className="text-xs text-muted-foreground">
+              Use {'{variavel}'} para inserir dados coletados no fluxo
+            </p>
+          </div>
+          <div className="p-3 bg-muted rounded-lg space-y-1">
+            <p className="text-xs font-medium">Variáveis disponíveis:</p>
+            <div className="flex flex-wrap gap-1">
+              {['{nome}', '{telefone}', '{email}', '{mensagem}'].map(v => (
+                <Badge key={v} variant="secondary" className="text-xs cursor-pointer hover:bg-primary/20"
+                  onClick={() => onChange({ ...content, external_message: (content.external_message || '') + ' ' + v })}
+                >
+                  {v}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ============ Transfer Node Editor ============
 function TransferNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  const [members, setMembers] = useState<Array<{ id: string; user_id: string; name: string; email: string }>>([]);
+  const [loadingDepts, setLoadingDepts] = useState(false);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  useEffect(() => {
+    loadDepartments();
+    loadMembers();
+  }, []);
+
+  const loadDepartments = async () => {
+    setLoadingDepts(true);
+    try {
+      const { api } = await import('@/lib/api');
+      const data = await api<Array<{ id: string; name: string; color: string }>>('/api/departments');
+      setDepartments(data);
+    } catch (error) {
+      console.error('Error loading departments:', error);
+    } finally {
+      setLoadingDepts(false);
+    }
+  };
+
+  const loadMembers = async () => {
+    setLoadingMembers(true);
+    try {
+      const { api, API_URL, getAuthToken } = await import('@/lib/api');
+      // Primeiro pegar a organização do usuário
+      const orgsResponse = await fetch(`${API_URL}/api/organizations`, {
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}` 
+        }
+      });
+      if (orgsResponse.ok) {
+        const orgs = await orgsResponse.json();
+        if (orgs.length > 0) {
+          const membersResponse = await fetch(`${API_URL}/api/organizations/${orgs[0].id}/members`, {
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${getAuthToken()}` 
+            }
+          });
+          if (membersResponse.ok) {
+            const membersData = await membersResponse.json();
+            setMembers(membersData);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading members:', error);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -820,23 +917,88 @@ function TransferNodeEditor({ content, onChange }: { content: Record<string, any
 
       {content.transfer_type === 'department' && (
         <div className="space-y-2">
-          <Label>ID ou nome do Departamento</Label>
-          <Input
-            value={content.department_id || ''}
-            onChange={(e) => onChange({ ...content, department_id: e.target.value })}
-            placeholder="comercial"
-          />
+          <Label>Departamento</Label>
+          {loadingDepts ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando departamentos...
+            </div>
+          ) : departments.length === 0 ? (
+            <div className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
+              Nenhum departamento encontrado. Crie departamentos primeiro.
+            </div>
+          ) : (
+            <Select
+              value={content.department_id || ''}
+              onValueChange={(v) => {
+                const selectedDept = departments.find(d => d.id === v);
+                onChange({ 
+                  ...content, 
+                  department_id: v, 
+                  department_name: selectedDept?.name || '' 
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um departamento" />
+              </SelectTrigger>
+              <SelectContent>
+                {departments.map((dept) => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: dept.color }}
+                      />
+                      {dept.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
 
       {content.transfer_type === 'agent' && (
         <div className="space-y-2">
-          <Label>ID do Agente</Label>
-          <Input
-            value={content.agent_id || ''}
-            onChange={(e) => onChange({ ...content, agent_id: e.target.value })}
-            placeholder="ID do agente"
-          />
+          <Label>Agente</Label>
+          {loadingMembers ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando usuários...
+            </div>
+          ) : members.length === 0 ? (
+            <div className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
+              Nenhum usuário encontrado na organização.
+            </div>
+          ) : (
+            <Select
+              value={content.agent_id || ''}
+              onValueChange={(v) => {
+                const selectedMember = members.find(m => m.user_id === v);
+                onChange({ 
+                  ...content, 
+                  agent_id: v, 
+                  agent_name: selectedMember?.name || '' 
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um usuário" />
+              </SelectTrigger>
+              <SelectContent>
+                {members.map((member) => (
+                  <SelectItem key={member.user_id} value={member.user_id}>
+                    <div className="flex flex-col">
+                      <span>{member.name}</span>
+                      <span className="text-xs text-muted-foreground">{member.email}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
 
