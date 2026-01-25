@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useChatbots, Chatbot, AIProvider, ChatbotMode, ChatbotType, MenuOption, AIModels } from "@/hooks/use-chatbots";
+import { useDepartments, Department } from "@/hooks/use-departments";
 import { api } from "@/lib/api";
 
 interface Connection {
@@ -55,7 +56,9 @@ const DAYS_OF_WEEK = [
 
 export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDialogProps) {
   const { createChatbot, updateChatbot, getAIModels, loading } = useChatbots();
+  const { getDepartments } = useDepartments();
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [aiModels, setAIModels] = useState<AIModels>({ gemini: [], openai: [] });
   const [showApiKey, setShowApiKey] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -92,6 +95,7 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
     if (open) {
       loadConnections();
       loadAIModels();
+      loadDepartments();
       
       if (chatbot) {
         setFormData({
@@ -162,6 +166,11 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
   const loadAIModels = async () => {
     const models = await getAIModels();
     setAIModels(models);
+  };
+
+  const loadDepartments = async () => {
+    const data = await getDepartments();
+    setDepartments(data);
   };
 
   const handleSave = async () => {
@@ -499,7 +508,7 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="message">Enviar mensagem</SelectItem>
-                                      <SelectItem value="transfer">Transferir para atendente</SelectItem>
+                                      <SelectItem value="transfer">Transferir para departamento</SelectItem>
                                       <SelectItem value="submenu">Submenu</SelectItem>
                                       <SelectItem value="tag">Adicionar tag</SelectItem>
                                     </SelectContent>
@@ -508,25 +517,50 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
                                 <div className="space-y-1">
                                   <Label className="text-xs">
                                     {option.action === 'message' && 'Mensagem'}
-                                    {option.action === 'transfer' && 'Departamento/Agente'}
+                                    {option.action === 'transfer' && 'Departamento'}
                                     {option.action === 'submenu' && 'ID do Submenu'}
                                     {option.action === 'tag' && 'Nome da Tag'}
                                   </Label>
-                                  <Input
-                                    value={option.action_value}
-                                    onChange={(e) => {
-                                      const updated = [...formData.menu_options];
-                                      updated[index] = { ...option, action_value: e.target.value };
-                                      setFormData(prev => ({ ...prev, menu_options: updated }));
-                                    }}
-                                    placeholder={
-                                      option.action === 'message' ? 'Aguarde, vou te ajudar...' :
-                                      option.action === 'transfer' ? 'comercial' :
-                                      option.action === 'submenu' ? 'submenu_1' :
-                                      'lead_quente'
-                                    }
-                                    className="h-8"
-                                  />
+                                  {option.action === 'transfer' ? (
+                                    <Select
+                                      value={option.action_value || "select"}
+                                      onValueChange={(value) => {
+                                        const updated = [...formData.menu_options];
+                                        updated[index] = { ...option, action_value: value === "select" ? "" : value };
+                                        setFormData(prev => ({ ...prev, menu_options: updated }));
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-8">
+                                        <SelectValue placeholder="Selecione..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="select">Selecione um departamento</SelectItem>
+                                        {departments.filter(d => d.id && d.is_active).map(dept => (
+                                          <SelectItem key={dept.id} value={dept.id}>
+                                            <div className="flex items-center gap-2">
+                                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: dept.color }} />
+                                              {dept.name}
+                                            </div>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <Input
+                                      value={option.action_value}
+                                      onChange={(e) => {
+                                        const updated = [...formData.menu_options];
+                                        updated[index] = { ...option, action_value: e.target.value };
+                                        setFormData(prev => ({ ...prev, menu_options: updated }));
+                                      }}
+                                      placeholder={
+                                        option.action === 'message' ? 'Aguarde, vou te ajudar...' :
+                                        option.action === 'submenu' ? 'submenu_1' :
+                                        'lead_quente'
+                                      }
+                                      className="h-8"
+                                    />
+                                  )}
                                 </div>
                               </div>
                             </div>
