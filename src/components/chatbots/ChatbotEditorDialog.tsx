@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -210,6 +211,9 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
             <Bot className="h-5 w-5 text-primary" />
             {chatbot ? 'Editar Chatbot' : 'Novo Chatbot'}
           </DialogTitle>
+          <DialogDescription>
+            Configure o chatbot, horários, IA e mensagens automáticas
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full">
@@ -247,15 +251,15 @@ export function ChatbotEditorDialog({ open, chatbot, onClose }: ChatbotEditorDia
               <div className="space-y-2">
                 <Label htmlFor="connection">Conexão WhatsApp</Label>
                 <Select
-                  value={formData.connection_id}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, connection_id: value }))}
+                  value={formData.connection_id || "all"}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, connection_id: value === "all" ? "" : value }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma conexão" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todas as conexões</SelectItem>
-                    {connections.map((conn) => (
+                    <SelectItem value="all">Todas as conexões</SelectItem>
+                    {connections.filter(conn => conn.id).map((conn) => (
                       <SelectItem key={conn.id} value={conn.id}>
                         {conn.name} ({conn.phone})
                       </SelectItem>
