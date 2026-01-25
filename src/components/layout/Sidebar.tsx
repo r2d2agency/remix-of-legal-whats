@@ -34,6 +34,7 @@ interface NavItem {
   href: string;
   icon: any;
   moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots';
+  adminOnly?: boolean; // Requires owner, admin, or manager role
 }
 
 interface NavSection {
@@ -41,6 +42,7 @@ interface NavSection {
   icon: any;
   items: NavItem[];
   moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots';
+  adminOnly?: boolean; // Entire section requires admin role
 }
 
 const navSections: NavSection[] = [
@@ -49,9 +51,9 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare },
-      { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots' },
-      { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots' },
-      { name: "Departamentos", href: "/departamentos", icon: Users },
+      { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true },
+      { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots', adminOnly: true },
+      { name: "Departamentos", href: "/departamentos", icon: Building2, adminOnly: true },
       { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages' },
       { name: "Tags", href: "/tags", icon: Receipt },
       { name: "Contatos", href: "/contatos-chat", icon: Users },
@@ -70,6 +72,7 @@ const navSections: NavSection[] = [
   {
     title: "Configurações",
     icon: Settings,
+    adminOnly: true, // Entire section is admin-only
     items: [
       { name: "Ajustes", href: "/configuracoes", icon: Settings },
       { name: "Cobrança", href: "/cobranca", icon: Receipt, moduleKey: 'billing' },
@@ -92,12 +95,28 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
   const { branding } = useBranding();
   const [openSections, setOpenSections] = useState<string[]>(["Atendimento"]);
 
-  // Filter sections and items based on modules enabled
+  // Helper to check if user has admin-level role
+  const isAdminRole = (role?: string) => ['owner', 'admin', 'manager'].includes(role || '');
+  const userIsAdmin = isSuperadmin || isAdminRole(user?.role);
+
+  // Filter sections and items based on modules enabled AND role
   const filteredSections = navSections
-    .filter(section => !section.moduleKey || modulesEnabled[section.moduleKey])
+    .filter(section => {
+      // Check module access
+      if (section.moduleKey && !modulesEnabled[section.moduleKey]) return false;
+      // Check admin-only section
+      if (section.adminOnly && !userIsAdmin) return false;
+      return true;
+    })
     .map(section => ({
       ...section,
-      items: section.items.filter(item => !item.moduleKey || modulesEnabled[item.moduleKey])
+      items: section.items.filter(item => {
+        // Check module access
+        if (item.moduleKey && !modulesEnabled[item.moduleKey]) return false;
+        // Check admin-only item
+        if (item.adminOnly && !userIsAdmin) return false;
+        return true;
+      })
     }))
     .filter(section => section.items.length > 0);
 
