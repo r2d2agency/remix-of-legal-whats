@@ -16,7 +16,7 @@ import { useOrganizations } from '@/hooks/use-organizations';
 import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock } from 'lucide-react';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot } from 'lucide-react';
 
 interface Organization {
   id: string;
@@ -99,6 +99,7 @@ export default function Organizacoes() {
     billing: true,
     groups: true,
     scheduled_messages: true,
+    chatbots: true,
   });
   const [savingModules, setSavingModules] = useState(false);
 
@@ -161,6 +162,7 @@ export default function Organizacoes() {
         billing: modules.billing ?? true,
         groups: modules.groups ?? true,
         scheduled_messages: modules.scheduled_messages ?? true,
+        chatbots: modules.chatbots ?? true,
       });
     } catch (error) {
       console.error('Error loading modules:', error);
@@ -851,6 +853,26 @@ export default function Organizacoes() {
                           <Switch
                             checked={modulesEnabled.scheduled_messages}
                             onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, scheduled_messages: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        {/* Chatbots */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                              <Bot className="h-5 w-5 text-cyan-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Chatbots</p>
+                              <p className="text-sm text-muted-foreground">
+                                Automações, fluxos e menus interativos de atendimento
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.chatbots}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, chatbots: checked }))}
                             disabled={!canManageOrg}
                           />
                         </div>

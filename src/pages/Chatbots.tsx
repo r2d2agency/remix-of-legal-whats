@@ -7,10 +7,11 @@ import { Switch } from "@/components/ui/switch";
 import { 
   Bot, Plus, Settings, BarChart3, Trash2, Edit, 
   Clock, MessageSquare, Zap, Users, ArrowRight,
-  Sparkles, GitBranch, Shield, List
+  Sparkles, GitBranch, Shield, List, Lock
 } from "lucide-react";
 import { toast } from "sonner";
 import { useChatbots, Chatbot } from "@/hooks/use-chatbots";
+import { useAuth } from "@/contexts/AuthContext";
 import { ChatbotEditorDialog } from "@/components/chatbots/ChatbotEditorDialog";
 import { ChatbotStatsDialog } from "@/components/chatbots/ChatbotStatsDialog";
 import { FlowEditorDialog } from "@/components/chatbots/FlowEditorDialog";
@@ -28,6 +29,7 @@ import {
 
 const Chatbots = () => {
   const { getChatbots, toggleChatbot, deleteChatbot, loading } = useChatbots();
+  const { user } = useAuth();
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedChatbot, setSelectedChatbot] = useState<Chatbot | null>(null);
@@ -39,6 +41,9 @@ const Chatbots = () => {
   const [chatbotToDelete, setChatbotToDelete] = useState<Chatbot | null>(null);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [permissionsChatbot, setPermissionsChatbot] = useState<Chatbot | null>(null);
+
+  // Check if user has admin permission (owner, admin, or manager)
+  const isAdmin = user?.role === 'owner' || user?.role === 'admin' || user?.role === 'manager';
 
   const loadChatbots = async () => {
     const data = await getChatbots();
@@ -169,10 +174,17 @@ const Chatbots = () => {
               Gerencie seus chatbots inteligentes com IA e fluxos de decisão
             </p>
           </div>
-          <Button onClick={handleCreate} variant="gradient">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Chatbot
-          </Button>
+          {isAdmin ? (
+            <Button onClick={handleCreate} variant="gradient">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Chatbot
+            </Button>
+          ) : (
+            <Badge variant="secondary" className="flex items-center gap-2 px-3 py-2">
+              <Lock className="h-4 w-4" />
+              Somente visualização
+            </Badge>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -242,12 +254,17 @@ const Chatbots = () => {
               <Bot className="h-16 w-16 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nenhum chatbot criado</h3>
               <p className="text-muted-foreground text-center mb-4">
-                Crie seu primeiro chatbot para automatizar o atendimento
+                {isAdmin 
+                  ? "Crie seu primeiro chatbot para automatizar o atendimento"
+                  : "Nenhum chatbot foi configurado para esta organização"
+                }
               </p>
-              <Button onClick={handleCreate} variant="gradient">
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Chatbot
-              </Button>
+              {isAdmin && (
+                <Button onClick={handleCreate} variant="gradient">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar Chatbot
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -270,6 +287,7 @@ const Chatbots = () => {
                     <Switch
                       checked={chatbot.is_active}
                       onCheckedChange={() => handleToggle(chatbot)}
+                      disabled={!isAdmin}
                     />
                   </div>
                 </CardHeader>
@@ -310,23 +328,27 @@ const Chatbots = () => {
                   ) : null}
 
                   <div className="flex items-center gap-2 pt-2 border-t">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="flex-1"
-                      onClick={() => handleEdit(chatbot)}
-                    >
-                      <Edit className="h-4 w-4 mr-1" />
-                      Editar
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleFlowEditor(chatbot)}
-                      title="Editor de Fluxo"
-                    >
-                      <GitBranch className="h-4 w-4" />
-                    </Button>
+                    {isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => handleEdit(chatbot)}
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Editar
+                      </Button>
+                    )}
+                    {isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleFlowEditor(chatbot)}
+                        title="Editor de Fluxo"
+                      >
+                        <GitBranch className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -335,23 +357,27 @@ const Chatbots = () => {
                     >
                       <BarChart3 className="h-4 w-4" />
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handlePermissions(chatbot)}
-                      title="Permissões"
-                    >
-                      <Shield className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteClick(chatbot)}
-                      title="Excluir"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handlePermissions(chatbot)}
+                        title="Permissões"
+                      >
+                        <Shield className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {isAdmin && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteClick(chatbot)}
+                        title="Excluir"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

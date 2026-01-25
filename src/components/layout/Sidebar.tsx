@@ -32,14 +32,14 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots';
 }
 
 interface NavSection {
   title: string;
   icon: any;
   items: NavItem[];
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots';
 }
 
 const navSections: NavSection[] = [
@@ -48,7 +48,7 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare },
-      { name: "Chatbots", href: "/chatbots", icon: Bot },
+      { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots' },
       { name: "Departamentos", href: "/departamentos", icon: Users },
       { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages' },
       { name: "Tags", href: "/tags", icon: Receipt },
