@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel, useCRMCompanies } from "@/hooks/use-crm";
 import { api } from "@/lib/api";
-import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus } from "lucide-react";
+import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ import { useUpload } from "@/hooks/use-upload";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { CompanyDialog } from "./CompanyDialog";
 
 interface ChatContact {
   id: string;
@@ -67,6 +68,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [companySearchOpen, setCompanySearchOpen] = useState(false);
   const [companySearch, setCompanySearch] = useState("");
+  const [newCompanyDialogOpen, setNewCompanyDialogOpen] = useState(false);
 
   // Contact states
   const [agendaContacts, setAgendaContacts] = useState<ChatContact[]>([]);
@@ -241,6 +243,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col" aria-describedby={undefined}>
         <DialogHeader>
@@ -259,6 +262,20 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                     </PopoverTrigger>
                     <PopoverContent className="w-[300px] p-0" align="start">
                       <Command>
+                        <div className="p-2 border-b">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full justify-start"
+                            onClick={() => {
+                              setNewCompanyDialogOpen(true);
+                              setCompanySearchOpen(false);
+                            }}
+                          >
+                            <Building className="h-4 w-4 mr-2" />
+                            Criar nova empresa
+                          </Button>
+                        </div>
                         <CommandInput
                           placeholder="Buscar empresa..."
                           value={companySearch}
@@ -836,5 +853,17 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    <CompanyDialog
+      company={null}
+      open={newCompanyDialogOpen}
+      onOpenChange={(open) => {
+        setNewCompanyDialogOpen(open);
+        if (!open) {
+          setCompanySearch("");
+        }
+      }}
+    />
+    </>
   );
 }
