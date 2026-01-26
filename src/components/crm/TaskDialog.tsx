@@ -100,7 +100,7 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange }: Task
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{task ? "Editar Tarefa" : "Nova Tarefa"}</DialogTitle>
         </DialogHeader>
