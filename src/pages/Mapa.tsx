@@ -1,8 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, Building2, Users, Briefcase } from "lucide-react";
@@ -121,74 +119,57 @@ export default function Mapa() {
 
   return (
     <MainLayout>
-      <div className="space-y-4 h-[calc(100vh-8rem)]">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <MapPin className="h-6 w-6 text-primary" />
-              Mapa de Localização
-            </h1>
-            <p className="text-muted-foreground">
-              Visualize seus leads, prospects e empresas no mapa
-            </p>
+      <div className="flex flex-col h-[calc(100vh-6rem)] gap-3">
+        {/* Header with Filters */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center shrink-0">
+          <div className="flex items-center gap-3">
+            <MapPin className="h-5 w-5 text-primary" />
+            <h1 className="text-lg font-bold">Mapa de Localização</h1>
+          </div>
+
+          {/* Inline Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            {(Object.keys(TYPE_CONFIG) as Array<keyof typeof TYPE_CONFIG>).map((type) => {
+              const config = TYPE_CONFIG[type];
+              const Icon = config.icon;
+              const isActive = filters[type];
+              return (
+                <button
+                  key={type}
+                  onClick={() => toggleFilter(type)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-all ${
+                    isActive
+                      ? "bg-primary/10 border-primary text-primary"
+                      : "bg-muted/50 border-transparent text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  <div className={`w-2.5 h-2.5 rounded-full ${config.color}`} />
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{config.label}</span>
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                    {stats[type]}
+                  </Badge>
+                </button>
+              );
+            })}
+            <span className="text-xs text-muted-foreground ml-2">
+              {filteredLocations.length} de {locations.length}
+            </span>
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-4 h-full">
-          {/* Sidebar Filters */}
-          <Card className="lg:w-72 shrink-0">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Filtros</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {(Object.keys(TYPE_CONFIG) as Array<keyof typeof TYPE_CONFIG>).map((type) => {
-                const config = TYPE_CONFIG[type];
-                const Icon = config.icon;
-                return (
-                  <div
-                    key={type}
-                    className="flex items-center justify-between p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => toggleFilter(type)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        checked={filters[type]}
-                        onCheckedChange={() => toggleFilter(type)}
-                      />
-                      <div className={`w-3 h-3 rounded-full ${config.color}`} />
-                      <Label className="cursor-pointer flex items-center gap-2">
-                        <Icon className="h-4 w-4 text-muted-foreground" />
-                        {config.label}
-                      </Label>
-                    </div>
-                    <Badge variant="secondary">{stats[type]}</Badge>
-                  </div>
-                );
-              })}
-
-              <div className="pt-4 border-t">
-                <p className="text-sm text-muted-foreground">
-                  Total visível: <strong>{filteredLocations.length}</strong> de{" "}
-                  <strong>{locations.length}</strong>
-                </p>
+        {/* Map - Full Height */}
+        <Card className="flex-1 overflow-hidden">
+          <CardContent className="p-0 h-full">
+            {isLoading ? (
+              <div className="h-full flex items-center justify-center min-h-[400px]">
+                <Skeleton className="w-full h-full" />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Map */}
-          <Card className="flex-1 overflow-hidden">
-            <CardContent className="p-0 h-full min-h-[500px]">
-              {isLoading ? (
-                <div className="h-full flex items-center justify-center">
-                  <Skeleton className="w-full h-full" />
-                </div>
-              ) : (
-                <LeafletMap locations={filteredLocations} />
-              )}
-            </CardContent>
-          </Card>
-        </div>
+            ) : (
+              <LeafletMap locations={filteredLocations} />
+            )}
+          </CardContent>
+        </Card>
       </div>
     </MainLayout>
   );
