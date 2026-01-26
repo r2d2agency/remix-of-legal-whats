@@ -8,9 +8,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CRMCompany, useCRMCompanyMutations } from "@/hooks/use-crm";
 import { useCRMSegments } from "@/hooks/use-crm-config";
-import { Tag, User, Plus, Trash2, Phone } from "lucide-react";
+import { useContacts, Contact, ContactList } from "@/hooks/use-contacts";
+import { Tag, User, Plus, Trash2, Phone, Search, Check, UserPlus } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface CompanyContact {
   id?: string;
@@ -44,9 +49,28 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
 
   const [contacts, setContacts] = useState<CompanyContact[]>([]);
   const [newContact, setNewContact] = useState({ name: "", phone: "", email: "", role: "" });
+  const [contactMode, setContactMode] = useState<"new" | "existing">("new");
+  const [contactLists, setContactLists] = useState<ContactList[]>([]);
+  const [selectedListId, setSelectedListId] = useState<string | null>(null);
+  const [listContacts, setListContacts] = useState<Contact[]>([]);
+  const [searchContact, setSearchContact] = useState("");
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
   const { createCompany, updateCompany } = useCRMCompanyMutations();
   const { data: segments } = useCRMSegments();
+  const contactsApi = useContacts();
+
+  // Load contact lists on mount
+  useEffect(() => {
+    contactsApi.getLists().then(setContactLists).catch(console.error);
+  }, []);
+
+  // Load contacts when list is selected
+  useEffect(() => {
+    if (selectedListId) {
+      contactsApi.getContacts(selectedListId).then(setListContacts).catch(console.error);
+    }
+  }, [selectedListId]);
 
   useEffect(() => {
     if (company) {
@@ -263,37 +287,156 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
                 Contatos da Empresa
               </Label>
 
-              {/* Add Contact Form */}
-              <Card className="p-3">
-                <div className="grid grid-cols-4 gap-2">
-                  <Input
-                    value={newContact.name}
-                    onChange={(e) => setNewContact((p) => ({ ...p, name: e.target.value }))}
-                    placeholder="Nome"
-                  />
-                  <Input
-                    value={newContact.phone}
-                    onChange={(e) => setNewContact((p) => ({ ...p, phone: e.target.value }))}
-                    placeholder="Telefone"
-                  />
-                  <Input
-                    value={newContact.role}
-                    onChange={(e) => setNewContact((p) => ({ ...p, role: e.target.value }))}
-                    placeholder="Cargo"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={handleAddContact}
-                    disabled={!newContact.name.trim() || !newContact.phone.trim()}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </Card>
+              {/* Tabs for adding contacts */}
+              <Tabs value={contactMode} onValueChange={(v) => setContactMode(v as "new" | "existing")}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="new">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Novo Contato
+                  </TabsTrigger>
+                  <TabsTrigger value="existing">
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Vincular Existente
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="new" className="mt-3">
+                  <Card className="p-3">
+                    <div className="grid grid-cols-4 gap-2">
+                      <Input
+                        value={newContact.name}
+                        onChange={(e) => setNewContact((p) => ({ ...p, name: e.target.value }))}
+                        placeholder="Nome"
+                      />
+                      <Input
+                        value={newContact.phone}
+                        onChange={(e) => setNewContact((p) => ({ ...p, phone: e.target.value }))}
+                        placeholder="Telefone"
+                      />
+                      <Input
+                        value={newContact.role}
+                        onChange={(e) => setNewContact((p) => ({ ...p, role: e.target.value }))}
+                        placeholder="Cargo"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={handleAddContact}
+                        disabled={!newContact.name.trim() || !newContact.phone.trim()}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="existing" className="mt-3">
+                  <Card className="p-3 space-y-3">
+                    {/* Select contact list first */}
+                    <div className="space-y-2">
+                      <Label className="text-sm">Lista de Contatos</Label>
+                      <Select
+                        value={selectedListId || "none"}
+                        onValueChange={(v) => setSelectedListId(v === "none" ? null : v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma lista" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Selecione...</SelectItem>
+                          {contactLists.map((list) => (
+                            <SelectItem key={list.id} value={list.id}>
+                              {list.name} ({list.contact_count} contatos)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Search and select contacts from list */}
+                    {selectedListId && (
+                      <div className="space-y-2">
+                        <Label className="text-sm">Buscar Contato</Label>
+                        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between"
+                            >
+                              <span className="flex items-center gap-2">
+                                <Search className="h-4 w-4" />
+                                Buscar na lista...
+                              </span>
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[400px] p-0" align="start">
+                            <Command>
+                              <CommandInput
+                                placeholder="Buscar por nome ou telefone..."
+                                value={searchContact}
+                                onValueChange={setSearchContact}
+                              />
+                              <CommandList>
+                                <CommandEmpty>Nenhum contato encontrado.</CommandEmpty>
+                                <CommandGroup>
+                                  {listContacts
+                                    .filter((c) => {
+                                      const search = searchContact.toLowerCase();
+                                      return (
+                                        c.name.toLowerCase().includes(search) ||
+                                        c.phone.includes(search)
+                                      );
+                                    })
+                                    .filter((c) => !contacts.some((cc) => cc.phone === c.phone))
+                                    .slice(0, 10)
+                                    .map((contact) => (
+                                      <CommandItem
+                                        key={contact.id}
+                                        value={`${contact.name} ${contact.phone}`}
+                                        onSelect={() => {
+                                          setContacts((prev) => [
+                                            ...prev,
+                                            {
+                                              id: contact.id,
+                                              name: contact.name,
+                                              phone: contact.phone,
+                                              is_primary: prev.length === 0,
+                                            },
+                                          ]);
+                                          setPopoverOpen(false);
+                                          setSearchContact("");
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                                            <User className="h-4 w-4" />
+                                          </div>
+                                          <div>
+                                            <p className="font-medium">{contact.name}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                              {contact.phone}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    )}
+                  </Card>
+                </TabsContent>
+              </Tabs>
 
               {/* Contacts List */}
               {contacts.length > 0 && (
                 <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">
+                    {contacts.length} contato{contacts.length > 1 ? "s" : ""} vinculado{contacts.length > 1 ? "s" : ""}
+                  </Label>
                   {contacts.map((contact) => (
                     <Card key={contact.id} className="p-3">
                       <div className="flex items-center justify-between">
