@@ -1,6 +1,7 @@
 import express from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import { logInfo, logError } from '../logger.js';
 
 const router = express.Router();
 router.use(authenticate);
@@ -930,6 +931,8 @@ router.post('/deals/:id/contacts', async (req, res) => {
       if (contactCheck.rows.length === 0) {
         return res.status(404).json({ error: 'Contact not found' });
       }
+      
+      finalContactId = contact_id;
     }
     
     const result = await query(
@@ -941,8 +944,21 @@ router.post('/deals/:id/contacts', async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error adding contact to deal:', error);
-    res.status(500).json({ error: error.message, details: error.detail });
+    logError(req, 'Error adding contact to deal', {
+      error: error.message,
+      detail: error.detail,
+      stack: error.stack,
+      dealId: req.params.id,
+      contactId: contact_id,
+      finalContactId,
+      role,
+      is_primary
+    });
+    res.status(500).json({ 
+      error: error.message, 
+      details: error.detail,
+      context: 'adding_contact_to_deal'
+    });
   }
 });
 
@@ -1106,6 +1122,23 @@ router.put('/tasks/:id', async (req, res) => {
     } else if (status === 'pending') {
       extraFields = `, completed_at = NULL, completed_by = NULL`;
     }
+    
+    // Validate finalContactId is set
+    if (!finalContactId) {
+      logError(req, 'finalContactId is null or undefined', {
+        contact_id,
+        chatContactFound: chatContact.rows.length > 0
+      });
+      return res.status(400).json({ error: 'Could not resolve contact ID' });
+    }
+    
+    logInfo(req, 'Adding contact to deal', {
+      dealId: req.params.id,
+      contactId: contact_id,
+      finalContactId,
+      role,
+      is_primary
+    });
     
     const result = await query(
       `UPDATE crm_tasks SET 
