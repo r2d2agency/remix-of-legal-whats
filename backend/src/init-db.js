@@ -1432,6 +1432,39 @@ INSERT INTO crm_task_types (name, icon, color, is_global, position) VALUES
     ('WhatsApp', 'message-circle', '#25d366', true, 4),
     ('Follow-up', 'repeat', '#ec4899', true, 5)
 ON CONFLICT DO NOTHING;
+
+-- Loss Reasons (motivos de perda)
+CREATE TABLE IF NOT EXISTS crm_loss_reasons (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT true,
+    position INTEGER DEFAULT 0,
+    usage_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_crm_loss_reasons_org ON crm_loss_reasons(organization_id);
+
+-- Add loss_reason_id to crm_deals if not exists
+DO $$ BEGIN
+    ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS loss_reason_id UUID REFERENCES crm_loss_reasons(id) ON DELETE SET NULL;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
+-- Insert default loss reasons
+INSERT INTO crm_loss_reasons (name, description, is_active, position) VALUES
+    ('Preço muito alto', 'Cliente achou o valor elevado para o orçamento disponível', true, 0),
+    ('Optou pela concorrência', 'Cliente escolheu um concorrente', true, 1),
+    ('Sem orçamento', 'Cliente não possui verba disponível no momento', true, 2),
+    ('Timing inadequado', 'O momento não é propício para a compra', true, 3),
+    ('Não respondeu', 'Cliente parou de responder às tentativas de contato', true, 4),
+    ('Mudança de prioridades', 'O projeto/necessidade deixou de ser prioridade', true, 5),
+    ('Proposta não atende', 'Produto/serviço não atende às necessidades do cliente', true, 6)
+ON CONFLICT DO NOTHING;
 `;
 
 // Step 17: Departments / Queues System (depends on organizations, users, conversations)

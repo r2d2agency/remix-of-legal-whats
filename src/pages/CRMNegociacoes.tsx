@@ -8,6 +8,7 @@ import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { DealFormDialog } from "@/components/crm/DealFormDialog";
 import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
 import { WinCelebration } from "@/components/crm/WinCelebration";
+import { LossReasonDialog } from "@/components/crm/LossReasonDialog";
 import { useCRMFunnels, useCRMFunnel, useCRMDeals, useCRMGroups, useCRMGroupMembers, useCRMDealMutations, CRMDeal, CRMFunnel } from "@/hooks/use-crm";
 import { Plus, Settings, Loader2, Filter, User, Users, ArrowUpDown, CalendarIcon, X, LayoutGrid, List, Trophy, XCircle, Pause } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +35,10 @@ export default function CRMNegociacoes() {
   // Celebration state
   const [showCelebration, setShowCelebration] = useState(false);
   const [newWinDealId, setNewWinDealId] = useState<string | null>(null);
+  
+  // Loss reason dialog state
+  const [lossDialogOpen, setLossDialogOpen] = useState(false);
+  const [pendingLossDeal, setPendingLossDeal] = useState<{ id: string; title: string } | null>(null);
   
   // Filters
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
@@ -65,15 +70,21 @@ export default function CRMNegociacoes() {
   const canManage = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
   
   // Handle status change with celebration
-  const handleStatusChange = useCallback((dealId: string, status: 'won' | 'lost' | 'paused' | 'open') => {
+  const handleStatusChange = useCallback((dealId: string, status: 'won' | 'lost' | 'paused' | 'open', dealTitle?: string) => {
+    // If marking as lost, open the loss reason dialog
+    if (status === 'lost') {
+      const deal = Object.values(dealsByStage || {}).flat().find(d => d.id === dealId);
+      setPendingLossDeal({ id: dealId, title: dealTitle || deal?.title || 'Negociação' });
+      setLossDialogOpen(true);
+      return;
+    }
+
     updateDeal.mutate({ id: dealId, status } as any, {
       onSuccess: () => {
         if (status === 'won') {
           setNewWinDealId(dealId);
           setShowCelebration(true);
           toast.success("🎉 Negócio fechado com sucesso!");
-        } else if (status === 'lost') {
-          toast.error("Negociação marcada como perdida");
         } else if (status === 'paused') {
           toast.info("Negociação pausada");
         } else {
@@ -81,7 +92,24 @@ export default function CRMNegociacoes() {
         }
       }
     });
-  }, [updateDeal]);
+  }, [updateDeal, dealsByStage]);
+
+  // Handle confirmed loss with reason
+  const handleConfirmLoss = useCallback((reasonId: string, description: string) => {
+    if (!pendingLossDeal) return;
+    
+    updateDeal.mutate({ 
+      id: pendingLossDeal.id, 
+      status: 'lost',
+      loss_reason_id: reasonId,
+      lost_reason: description 
+    } as any, {
+      onSuccess: () => {
+        toast.error("Negociação marcada como perdida");
+        setPendingLossDeal(null);
+      }
+    });
+  }, [updateDeal, pendingLossDeal]);
 
   // Sort function
   const sortDeals = (deals: CRMDeal[]): CRMDeal[] => {
@@ -489,6 +517,14 @@ export default function CRMNegociacoes() {
           setShowCelebration(false);
           setNewWinDealId(null);
         }} 
+      />
+
+      {/* Loss Reason Dialog */}
+      <LossReasonDialog
+        open={lossDialogOpen}
+        onOpenChange={setLossDialogOpen}
+        onConfirm={handleConfirmLoss}
+        dealTitle={pendingLossDeal?.title}
       />
     </MainLayout>
   );

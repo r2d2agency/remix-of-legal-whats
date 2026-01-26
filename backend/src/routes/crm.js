@@ -788,7 +788,7 @@ router.put('/deals/:id', async (req, res) => {
     if (!org) return res.status(403).json({ error: 'No organization' });
 
     const { stage_id, title, value, probability, expected_close_date, description, 
-            tags, owner_id, group_id, status, lost_reason } = req.body;
+            tags, owner_id, group_id, status, lost_reason, loss_reason_id } = req.body;
 
     // Get current deal for history
     const current = await query(`SELECT * FROM crm_deals WHERE id = $1`, [req.params.id]);
@@ -800,7 +800,7 @@ router.put('/deals/:id', async (req, res) => {
 
     // Build dynamic update
     const fieldsToUpdate = { stage_id, title, value, probability, expected_close_date, 
-                             description, tags, owner_id, group_id, status, lost_reason };
+                             description, tags, owner_id, group_id, status, lost_reason, loss_reason_id };
     
     for (const [key, val] of Object.entries(fieldsToUpdate)) {
       if (val !== undefined) {
@@ -835,6 +835,33 @@ router.put('/deals/:id', async (req, res) => {
       await query(
         `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'stage_changed', $3, $4)`,
         [req.params.id, req.userId, oldStage.rows[0]?.name, newStage.rows[0]?.name]
+      );
+    }
+
+    // Log history for status change to lost
+    if (status === 'lost' && current.rows[0].status !== 'lost') {
+      let reasonName = 'Motivo não informado';
+      if (loss_reason_id) {
+        const reasonResult = await query(`SELECT name FROM crm_loss_reasons WHERE id = $1`, [loss_reason_id]);
+        if (reasonResult.rows[0]) {
+          reasonName = reasonResult.rows[0].name;
+          // Increment usage count
+          await query(`UPDATE crm_loss_reasons SET usage_count = usage_count + 1 WHERE id = $1`, [loss_reason_id]);
+        }
+      }
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value, notes) 
+         VALUES ($1, $2, 'status_changed', $3, 'lost', $4)`,
+        [req.params.id, req.userId, current.rows[0].status, `Motivo: ${reasonName}${lost_reason ? `. ${lost_reason}` : ''}`]
+      );
+    }
+
+    // Log history for status change to won
+    if (status === 'won' && current.rows[0].status !== 'won') {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) 
+         VALUES ($1, $2, 'status_changed', $3, 'won')`,
+        [req.params.id, req.userId, current.rows[0].status]
       );
     }
 
@@ -2269,6 +2296,127 @@ router.get('/map-data', async (req, res) => {
     res.json(locations);
   } catch (error) {
     console.error('Error fetching map data:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// LOSS REASONS (Motivos de Perda)
+// ============================================
+
+// List loss reasons
+router.get('/config/loss-reasons', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const result = await query(
+      `SELECT * FROM crm_loss_reasons 
+       WHERE organization_id = $1 OR organization_id IS NULL
+       ORDER BY position ASC, name ASC`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    if (error.code === '42P01') {
+      return res.json([]);
+    }
+    console.error('Error fetching loss reasons:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create loss reason
+router.post('/config/loss-reasons', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    if (!canManage(org.role)) return res.status(403).json({ error: 'Not authorized' });
+
+    const { name, description } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
+
+    // Get next position
+    const posResult = await query(
+      `SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM crm_loss_reasons WHERE organization_id = $1`,
+      [org.organization_id]
+    );
+    const position = posResult.rows[0].next_pos;
+
+    const result = await query(
+      `INSERT INTO crm_loss_reasons (organization_id, name, description, position)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [org.organization_id, name.trim(), description || null, position]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating loss reason:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update loss reason
+router.put('/config/loss-reasons/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    if (!canManage(org.role)) return res.status(403).json({ error: 'Not authorized' });
+
+    const { name, description, is_active, position } = req.body;
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (name !== undefined) {
+      updates.push(`name = $${paramIndex}`);
+      values.push(name.trim());
+      paramIndex++;
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramIndex}`);
+      values.push(description);
+      paramIndex++;
+    }
+    if (is_active !== undefined) {
+      updates.push(`is_active = $${paramIndex}`);
+      values.push(is_active);
+      paramIndex++;
+    }
+    if (position !== undefined) {
+      updates.push(`position = $${paramIndex}`);
+      values.push(position);
+      paramIndex++;
+    }
+
+    updates.push('updated_at = NOW()');
+    values.push(req.params.id, org.organization_id);
+
+    const result = await query(
+      `UPDATE crm_loss_reasons SET ${updates.join(', ')} 
+       WHERE id = $${paramIndex} AND organization_id = $${paramIndex + 1} RETURNING *`,
+      values
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating loss reason:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete loss reason
+router.delete('/config/loss-reasons/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    if (!canManage(org.role)) return res.status(403).json({ error: 'Not authorized' });
+
+    await query(
+      `DELETE FROM crm_loss_reasons WHERE id = $1 AND organization_id = $2`,
+      [req.params.id, org.organization_id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting loss reason:', error);
     res.status(500).json({ error: error.message });
   }
 });

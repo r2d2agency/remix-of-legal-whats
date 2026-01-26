@@ -211,3 +211,70 @@ export function useCRMCustomFieldMutations() {
 
   return { createCustomField, updateCustomField, deleteCustomField };
 }
+
+// Loss Reasons
+export interface CRMLossReason {
+  id: string;
+  organization_id?: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  position: number;
+  usage_count: number;
+  created_at: string;
+}
+
+export function useCRMLossReasons() {
+  return useQuery({
+    queryKey: ["crm-loss-reasons"],
+    queryFn: async () => {
+      return api<CRMLossReason[]>("/api/crm/config/loss-reasons");
+    },
+  });
+}
+
+export function useCRMLossReasonMutations() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const createLossReason = useMutation({
+    mutationFn: async (data: Partial<CRMLossReason>) => {
+      return api<CRMLossReason>("/api/crm/config/loss-reasons", { method: "POST", body: data });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-loss-reasons"] });
+      toast({ title: "Motivo de perda criado" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao criar motivo", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateLossReason = useMutation({
+    mutationFn: async ({ id, ...data }: Partial<CRMLossReason> & { id: string }) => {
+      return api<CRMLossReason>(`/api/crm/config/loss-reasons/${id}`, { method: "PUT", body: data });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-loss-reasons"] });
+      toast({ title: "Motivo atualizado" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao atualizar motivo", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteLossReason = useMutation({
+    mutationFn: async (id: string) => {
+      return api<void>(`/api/crm/config/loss-reasons/${id}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-loss-reasons"] });
+      toast({ title: "Motivo excluído" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao excluir motivo", description: error.message, variant: "destructive" });
+    },
+  });
+
+  return { createLossReason, updateLossReason, deleteLossReason };
+}

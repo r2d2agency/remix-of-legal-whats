@@ -19,9 +19,12 @@ import {
   useCRMSegmentMutations,
   useCRMCustomFields,
   useCRMCustomFieldMutations,
+  useCRMLossReasons,
+  useCRMLossReasonMutations,
   CRMTaskType,
   CRMSegment,
   CRMCustomField,
+  CRMLossReason,
 } from "@/hooks/use-crm-config";
 import { useCRMGroups, useCRMGroupMembers, useCRMGroupMutations } from "@/hooks/use-crm";
 
@@ -42,6 +45,7 @@ import {
   Repeat,
   Globe,
   Building2,
+  XCircle,
 } from "lucide-react";
 
 const ICON_OPTIONS = [
@@ -129,6 +133,35 @@ export default function CRMConfiguracoes() {
     options: [],
   });
   const [optionInput, setOptionInput] = useState("");
+
+  // Loss Reasons
+  const { data: lossReasons, isLoading: loadingLossReasons } = useCRMLossReasons();
+  const { createLossReason, updateLossReason, deleteLossReason } = useCRMLossReasonMutations();
+  const [lossReasonDialog, setLossReasonDialog] = useState(false);
+  const [editingLossReason, setEditingLossReason] = useState<CRMLossReason | null>(null);
+  const [lossReasonForm, setLossReasonForm] = useState({ name: "", description: "" });
+
+  // Loss Reason handlers
+  const openLossReasonDialog = (reason?: CRMLossReason) => {
+    if (reason) {
+      setEditingLossReason(reason);
+      setLossReasonForm({ name: reason.name, description: reason.description || "" });
+    } else {
+      setEditingLossReason(null);
+      setLossReasonForm({ name: "", description: "" });
+    }
+    setLossReasonDialog(true);
+  };
+
+  const saveLossReason = () => {
+    if (!lossReasonForm.name.trim()) return;
+    if (editingLossReason) {
+      updateLossReason.mutate({ id: editingLossReason.id, ...lossReasonForm });
+    } else {
+      createLossReason.mutate(lossReasonForm);
+    }
+    setLossReasonDialog(false);
+  };
 
   // Members list is not needed here, removing unused code
 
@@ -297,7 +330,7 @@ export default function CRMConfiguracoes() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 w-full max-w-2xl">
+          <TabsList className="grid grid-cols-5 w-full max-w-3xl">
             <TabsTrigger value="task-types" className="flex items-center gap-2">
               <CheckSquare className="h-4 w-4" />
               <span className="hidden sm:inline">Tipos de Tarefa</span>
@@ -309,6 +342,10 @@ export default function CRMConfiguracoes() {
             <TabsTrigger value="groups" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               <span className="hidden sm:inline">Grupos</span>
+            </TabsTrigger>
+            <TabsTrigger value="loss-reasons" className="flex items-center gap-2">
+              <XCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Motivos de Perda</span>
             </TabsTrigger>
             <TabsTrigger value="custom-fields" className="flex items-center gap-2">
               <FormInput className="h-4 w-4" />
@@ -554,6 +591,94 @@ export default function CRMConfiguracoes() {
                                 onClick={() => deleteGroup.mutate(group.id)}
                                 className="text-destructive hover:text-destructive"
                                 title="Excluir grupo"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Loss Reasons Tab */}
+          <TabsContent value="loss-reasons" className="mt-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Motivos de Perda</CardTitle>
+                  <CardDescription>
+                    Configure os motivos que serão selecionados ao marcar uma negociação como perdida
+                  </CardDescription>
+                </div>
+                <Button onClick={() => openLossReasonDialog()}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Motivo
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {loadingLossReasons ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : !lossReasons?.length ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <XCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhum motivo de perda cadastrado</p>
+                    <p className="text-sm mt-2">
+                      Adicione motivos para que os usuários possam categorizar as negociações perdidas
+                    </p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Motivo</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-[100px]">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lossReasons.map((reason) => (
+                        <TableRow key={reason.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <XCircle className="h-4 w-4 text-red-500" />
+                              <span className="font-medium">{reason.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-muted-foreground text-sm">
+                              {reason.description || "-"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={reason.is_active}
+                              onCheckedChange={(checked) => 
+                                updateLossReason.mutate({ id: reason.id, is_active: checked })
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openLossReasonDialog(reason)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => deleteLossReason.mutate(reason.id)}
+                                className="text-destructive hover:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1016,6 +1141,44 @@ export default function CRMConfiguracoes() {
               Cancelar
             </Button>
             <Button onClick={saveField} disabled={!fieldForm.field_label.trim()}>
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Loss Reason Dialog */}
+      <Dialog open={lossReasonDialog} onOpenChange={setLossReasonDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingLossReason ? "Editar" : "Novo"} Motivo de Perda</DialogTitle>
+            <DialogDescription>
+              Configure um motivo que será exibido ao marcar negociações como perdidas
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome do Motivo</Label>
+              <Input
+                value={lossReasonForm.name}
+                onChange={(e) => setLossReasonForm({ ...lossReasonForm, name: e.target.value })}
+                placeholder="Ex: Preço muito alto"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição (opcional)</Label>
+              <Input
+                value={lossReasonForm.description}
+                onChange={(e) => setLossReasonForm({ ...lossReasonForm, description: e.target.value })}
+                placeholder="Ex: Cliente achou o valor elevado para o orçamento disponível"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLossReasonDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={saveLossReason} disabled={!lossReasonForm.name.trim()}>
               Salvar
             </Button>
           </DialogFooter>
