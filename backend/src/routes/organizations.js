@@ -218,6 +218,9 @@ router.get('/:id/modules', async (req, res) => {
       billing: true,
       groups: true,
       scheduled_messages: true,
+       chatbots: true,
+       chat: true,
+       crm: true
     };
     
     res.json(result.rows[0].modules_enabled || defaultModules);
