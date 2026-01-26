@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -6,22 +6,19 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, Building2, Users, Briefcase } from "lucide-react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useMapData, MapLocation } from "@/hooks/use-map-data";
 
-// Fix Leaflet default marker icon issue
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
-});
+const TYPE_CONFIG = {
+  deal: { label: "Negociações", color: "bg-blue-500", markerColor: "#3b82f6", icon: Briefcase },
+  prospect: { label: "Prospects", color: "bg-orange-500", markerColor: "#f97316", icon: Users },
+  company: { label: "Empresas", color: "bg-green-500", markerColor: "#22c55e", icon: Building2 },
+};
 
-// Custom icons for different types
+// Create custom marker icon
 const createIcon = (color: string) =>
-  new L.DivIcon({
+  L.divIcon({
     className: "custom-marker",
     html: `<div style="
       background-color: ${color};
@@ -36,17 +33,69 @@ const createIcon = (color: string) =>
     popupAnchor: [0, -12],
   });
 
-const ICONS = {
-  deal: createIcon("#3b82f6"),     // Blue
-  prospect: createIcon("#f97316"), // Orange
-  company: createIcon("#22c55e"),  // Green
-};
+interface LeafletMapProps {
+  locations: MapLocation[];
+}
 
-const TYPE_CONFIG = {
-  deal: { label: "Negociações", color: "bg-blue-500", icon: Briefcase },
-  prospect: { label: "Prospects", color: "bg-orange-500", icon: Users },
-  company: { label: "Empresas", color: "bg-green-500", icon: Building2 },
-};
+function LeafletMap({ locations }: LeafletMapProps) {
+  const mapRef = useRef<L.Map | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<L.Marker[]>([]);
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    // Initialize map
+    mapRef.current = L.map(containerRef.current).setView([-14.235, -51.9253], 4);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(mapRef.current);
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Clear existing markers
+    markersRef.current.forEach((marker) => marker.remove());
+    markersRef.current = [];
+
+    // Add new markers
+    locations.forEach((location) => {
+      const config = TYPE_CONFIG[location.type];
+      const icon = createIcon(config.markerColor);
+
+      const marker = L.marker([location.lat, location.lng], { icon }).addTo(mapRef.current!);
+
+      const popupContent = `
+        <div style="min-width: 150px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background-color: ${config.markerColor};"></div>
+            <span style="font-size: 12px; font-weight: 500; text-transform: uppercase; color: #666;">
+              ${config.label}
+            </span>
+          </div>
+          <p style="font-weight: 600; margin: 0;">${location.name}</p>
+          ${location.phone ? `<p style="font-size: 14px; color: #666; margin: 4px 0;">${location.phone}</p>` : ""}
+          ${location.city || location.state ? `<p style="font-size: 14px; color: #666; margin: 4px 0;">${[location.city, location.state].filter(Boolean).join(", ")}</p>` : ""}
+          ${location.value !== undefined && location.value > 0 ? `<p style="font-size: 14px; font-weight: 500; color: #3b82f6; margin-top: 8px;">R$ ${location.value.toLocaleString("pt-BR")}</p>` : ""}
+        </div>
+      `;
+
+      marker.bindPopup(popupContent);
+      markersRef.current.push(marker);
+    });
+  }, [locations]);
+
+  return <div ref={containerRef} className="h-full w-full" style={{ minHeight: "500px" }} />;
+}
 
 export default function Mapa() {
   const { data: locations = [], isLoading } = useMapData();
@@ -69,10 +118,6 @@ export default function Mapa() {
   const toggleFilter = (type: keyof typeof filters) => {
     setFilters((prev) => ({ ...prev, [type]: !prev[type] }));
   };
-
-  // Center on Brazil
-  const defaultCenter: [number, number] = [-14.235, -51.9253];
-  const defaultZoom = 4;
 
   return (
     <MainLayout>
@@ -139,51 +184,7 @@ export default function Mapa() {
                   <Skeleton className="w-full h-full" />
                 </div>
               ) : (
-                <MapContainer
-                  center={defaultCenter}
-                  zoom={defaultZoom}
-                  className="h-full w-full z-0"
-                  style={{ minHeight: "500px" }}
-                >
-                  <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  />
-                  {filteredLocations.map((location) => (
-                    <Marker
-                      key={`${location.type}-${location.id}`}
-                      position={[location.lat, location.lng]}
-                      icon={ICONS[location.type]}
-                    >
-                      <Popup>
-                        <div className="min-w-[150px]">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div
-                              className={`w-2 h-2 rounded-full ${TYPE_CONFIG[location.type].color}`}
-                            />
-                            <span className="text-xs font-medium uppercase text-muted-foreground">
-                              {TYPE_CONFIG[location.type].label}
-                            </span>
-                          </div>
-                          <p className="font-semibold">{location.name}</p>
-                          {location.phone && (
-                            <p className="text-sm text-muted-foreground">{location.phone}</p>
-                          )}
-                          {(location.city || location.state) && (
-                            <p className="text-sm text-muted-foreground">
-                              {[location.city, location.state].filter(Boolean).join(", ")}
-                            </p>
-                          )}
-                          {location.value !== undefined && location.value > 0 && (
-                            <p className="text-sm font-medium text-primary mt-1">
-                              R$ {location.value.toLocaleString("pt-BR")}
-                            </p>
-                          )}
-                        </div>
-                      </Popup>
-                    </Marker>
-                  ))}
-                </MapContainer>
+                <LeafletMap locations={filteredLocations} />
               )}
             </CardContent>
           </Card>
