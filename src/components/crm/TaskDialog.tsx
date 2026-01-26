@@ -25,7 +25,8 @@ function useOrgMembers(orgId: string | null) {
     queryKey: ["org-members", orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      return api<Array<{ user_id: string; user_name: string; role: string }>>(`/api/organizations/${orgId}/members`);
+      const data = await api<Array<{ user_id: string; name: string; email: string; role: string }>>(`/api/organizations/${orgId}/members`);
+      return data;
     },
     enabled: !!orgId,
   });
@@ -157,14 +158,15 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
 
           <div className="space-y-2">
             <Label>Responsável</Label>
-            <Select value={assignedTo} onValueChange={setAssignedTo}>
+            <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
+                <SelectValue placeholder="Selecione um responsável" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">Sem responsável</SelectItem>
                 {members?.map((member) => (
                   <SelectItem key={member.user_id} value={member.user_id}>
-                    {member.user_name}
+                    {member.name}
                   </SelectItem>
                 ))}
               </SelectContent>
