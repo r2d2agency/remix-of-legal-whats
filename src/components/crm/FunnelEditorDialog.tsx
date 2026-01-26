@@ -201,8 +201,9 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
           <DialogTitle>{funnel ? "Editar Funil" : "Novo Funil"}</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0 max-h-[calc(90vh-140px)]">
-          <div className="space-y-4 p-1 pr-4">
+        <div className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="space-y-4 pr-4">
             {/* Basic info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -271,7 +272,8 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
               </DndContext>
             </div>
           </div>
-        </ScrollArea>
+          </ScrollArea>
+        </div>
 
         <DialogFooter className="flex-shrink-0 border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
