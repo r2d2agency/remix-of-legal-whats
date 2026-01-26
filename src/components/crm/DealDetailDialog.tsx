@@ -11,14 +11,15 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel } from "@/hooks/use-crm";
-import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload } from "lucide-react";
+import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel, useCRMCompanies } from "@/hooks/use-crm";
+import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useUpload } from "@/hooks/use-upload";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 interface DealDetailDialogProps {
   deal: CRMDeal | null;
@@ -52,8 +53,14 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [scheduleTime, setScheduleTime] = useState("09:00");
   const [scheduleNote, setScheduleNote] = useState("");
 
+  // Company edit states
+  const [isEditingCompany, setIsEditingCompany] = useState(false);
+  const [companySearchOpen, setCompanySearchOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+
   const { data: fullDeal, isLoading } = useCRMDeal(deal?.id || null);
   const { data: funnelData } = useCRMFunnel(deal?.funnel_id || null);
+  const { data: companies } = useCRMCompanies(companySearch);
   const { updateDeal, moveDeal } = useCRMDealMutations();
   const { createTask, completeTask, deleteTask } = useCRMTaskMutations();
   const { uploadFile, isUploading } = useUpload();
@@ -95,6 +102,14 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
     updateDeal.mutate({ id: deal.id, description });
     setIsEditingDescription(false);
     toast.success("Descrição salva!");
+  };
+
+  const handleChangeCompany = (companyId: string, companyName: string) => {
+    updateDeal.mutate({ id: deal.id, company_id: companyId } as any);
+    setCompanySearchOpen(false);
+    setIsEditingCompany(false);
+    setCompanySearch("");
+    toast.success(`Empresa alterada para ${companyName}`);
   };
 
   const handleAddTask = () => {
@@ -207,11 +222,67 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
               <DialogTitle className="text-xl">{currentDeal?.title}</DialogTitle>
               <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                 <Building2 className="h-4 w-4" />
-                <span>{currentDeal?.company_name}</span>
+                {isEditingCompany ? (
+                  <Popover open={companySearchOpen} onOpenChange={setCompanySearchOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-7 gap-2">
+                        <Search className="h-3 w-3" />
+                        {currentDeal?.company_name || "Selecionar empresa"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0" align="start">
+                      <Command>
+                        <CommandInput
+                          placeholder="Buscar empresa..."
+                          value={companySearch}
+                          onValueChange={setCompanySearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>Nenhuma empresa encontrada.</CommandEmpty>
+                          <CommandGroup>
+                            {companies?.slice(0, 10).map((company) => (
+                              <CommandItem
+                                key={company.id}
+                                value={company.name}
+                                onSelect={() => handleChangeCompany(company.id, company.name)}
+                              >
+                                <Building2 className="h-4 w-4 mr-2" />
+                                <div>
+                                  <p className="font-medium">{company.name}</p>
+                                  {company.cnpj && (
+                                    <p className="text-xs text-muted-foreground">{company.cnpj}</p>
+                                  )}
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <button 
+                    onClick={() => setIsEditingCompany(true)}
+                    className="hover:underline flex items-center gap-1"
+                  >
+                    {currentDeal?.company_name}
+                    <Edit2 className="h-3 w-3 opacity-50" />
+                  </button>
+                )}
                 <span>•</span>
                 <span className="font-semibold text-foreground">
                   {formatCurrency(currentDeal?.value || 0)}
                 </span>
+                {isEditingCompany && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 w-6 p-0"
+                    onClick={() => setIsEditingCompany(false)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
