@@ -16,6 +16,7 @@ interface TaskDialogProps {
   companyId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultDate?: Date | null;
 }
 
 // Fetch organization members for assignment
@@ -30,7 +31,7 @@ function useOrgMembers(orgId: string | null) {
   });
 }
 
-export function TaskDialog({ task, dealId, companyId, open, onOpenChange }: TaskDialogProps) {
+export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaultDate }: TaskDialogProps) {
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -55,10 +56,16 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange }: Task
       setDescription("");
       setType("task");
       setPriority("medium");
-      setDueDate("");
+      // Set default date if provided
+      if (defaultDate) {
+        const dateStr = defaultDate.toISOString().slice(0, 16);
+        setDueDate(dateStr);
+      } else {
+        setDueDate("");
+      }
       setAssignedTo(user?.id || "");
     }
-  }, [task, open, user]);
+  }, [task, open, user, defaultDate]);
 
   const handleSave = () => {
     if (!title.trim()) return;

@@ -6,6 +6,7 @@ import {
   Bot,
   Briefcase,
   Building2,
+  CalendarDays,
   ChevronDown,
   ClipboardList,
   GitBranch,
@@ -70,6 +71,7 @@ const navSections: NavSection[] = [
     items: [
       { name: "Negociações", href: "/crm/negociacoes", icon: Kanban },
       { name: "Empresas", href: "/crm/empresas", icon: Building2 },
+      { name: "Agenda", href: "/crm/agenda", icon: CalendarDays },
       { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList },
       { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3 },
       { name: "Configurações", href: "/crm/configuracoes", icon: Settings, adminOnly: true },
