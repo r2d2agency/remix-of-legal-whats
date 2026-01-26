@@ -945,10 +945,7 @@ router.post('/deals/:id/contacts', async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (error) {
-    logError(req, 'Error adding contact to deal', {
-      error: error.message,
-      detail: error.detail,
-      stack: error.stack,
+     logError('crm.add_contact_to_deal', error, {
       dealId: req.params.id,
       contactId: contact_id,
       finalContactId,
@@ -1126,14 +1123,14 @@ router.put('/tasks/:id', async (req, res) => {
     
     // Validate finalContactId is set
     if (!finalContactId) {
-      logError(req, 'finalContactId is null or undefined', {
+       logError('crm.null_contact_id', new Error('finalContactId is null or undefined'), {
         contact_id,
         chatContactFound: chatContact.rows.length > 0
       });
       return res.status(400).json({ error: 'Could not resolve contact ID' });
     }
     
-    logInfo(req, 'Adding contact to deal', {
+     logInfo('crm.adding_contact_to_deal', {
       dealId: req.params.id,
       contactId: contact_id,
       finalContactId,
