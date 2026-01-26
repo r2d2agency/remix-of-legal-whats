@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,8 +7,9 @@ import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { DealFormDialog } from "@/components/crm/DealFormDialog";
 import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
 import { useCRMFunnels, useCRMFunnel, useCRMDeals, useCRMGroups, useCRMGroupMembers, CRMDeal, CRMFunnel } from "@/hooks/use-crm";
-import { Plus, Settings, Loader2, Filter, User, Users } from "lucide-react";
+import { Plus, Settings, Loader2, Filter, User, Users, ArrowUpDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { parseISO } from "date-fns";
 
 export default function CRMNegociacoes() {
   const { user } = useAuth();
@@ -22,6 +23,7 @@ export default function CRMNegociacoes() {
   // Filters
   const [ownerFilter, setOwnerFilter] = useState<string>("all"); // "all" | "mine" | user_id
   const [groupFilter, setGroupFilter] = useState<string>("all"); // "all" | group_id
+  const [sortOrder, setSortOrder] = useState<string>("recent"); // "recent" | "oldest" | "last_activity"
 
   const { data: funnels, isLoading: loadingFunnels } = useCRMFunnels();
   const { data: groups } = useCRMGroups();
@@ -42,25 +44,47 @@ export default function CRMNegociacoes() {
   const currentFunnel = funnels?.find((f) => f.id === currentFunnelId) || null;
   const canManage = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
 
-  // Apply filters to deals
-  const filteredDealsByStage = dealsByStage ? Object.entries(dealsByStage).reduce((acc, [stageId, deals]) => {
-    let filtered = deals as CRMDeal[];
+  // Sort function
+  const sortDeals = (deals: CRMDeal[]): CRMDeal[] => {
+    return [...deals].sort((a, b) => {
+      switch (sortOrder) {
+        case "oldest":
+          return parseISO(a.created_at).getTime() - parseISO(b.created_at).getTime();
+        case "last_activity":
+          return parseISO(b.last_activity_at).getTime() - parseISO(a.last_activity_at).getTime();
+        case "recent":
+        default:
+          return parseISO(b.created_at).getTime() - parseISO(a.created_at).getTime();
+      }
+    });
+  };
+
+  // Apply filters and sorting to deals
+  const filteredDealsByStage = useMemo(() => {
+    if (!dealsByStage) return {};
     
-    // Filter by owner
-    if (ownerFilter === "mine") {
-      filtered = filtered.filter(d => d.owner_id === user?.id);
-    } else if (ownerFilter !== "all") {
-      filtered = filtered.filter(d => d.owner_id === ownerFilter);
-    }
-    
-    // Filter by group
-    if (groupFilter !== "all") {
-      filtered = filtered.filter(d => d.group_id === groupFilter);
-    }
-    
-    acc[stageId] = filtered;
-    return acc;
-  }, {} as Record<string, CRMDeal[]>) : {};
+    return Object.entries(dealsByStage).reduce((acc, [stageId, deals]) => {
+      let filtered = deals as CRMDeal[];
+      
+      // Filter by owner
+      if (ownerFilter === "mine") {
+        filtered = filtered.filter(d => d.owner_id === user?.id);
+      } else if (ownerFilter !== "all") {
+        filtered = filtered.filter(d => d.owner_id === ownerFilter);
+      }
+      
+      // Filter by group
+      if (groupFilter !== "all") {
+        filtered = filtered.filter(d => d.group_id === groupFilter);
+      }
+      
+      // Apply sorting
+      filtered = sortDeals(filtered);
+      
+      acc[stageId] = filtered;
+      return acc;
+    }, {} as Record<string, CRMDeal[]>);
+  }, [dealsByStage, ownerFilter, groupFilter, sortOrder, user?.id]);
 
   const handleDealClick = (deal: CRMDeal) => {
     setSelectedDeal(deal);
@@ -170,13 +194,27 @@ export default function CRMNegociacoes() {
               </SelectContent>
             </Select>
 
-            {(ownerFilter !== "all" || groupFilter !== "all") && (
+            {/* Sort Order */}
+            <Select value={sortOrder} onValueChange={setSortOrder}>
+              <SelectTrigger className="w-[180px]">
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">Mais recentes</SelectItem>
+                <SelectItem value="oldest">Mais antigas</SelectItem>
+                <SelectItem value="last_activity">Último contato</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {(ownerFilter !== "all" || groupFilter !== "all" || sortOrder !== "recent") && (
               <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={() => {
                   setOwnerFilter("all");
                   setGroupFilter("all");
+                  setSortOrder("recent");
                 }}
               >
                 Limpar filtros
