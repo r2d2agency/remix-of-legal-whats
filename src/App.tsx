@@ -28,6 +28,7 @@ import Departamentos from "./pages/Departamentos";
 import CRMNegociacoes from "./pages/CRMNegociacoes";
 import CRMEmpresas from "./pages/CRMEmpresas";
 import CRMTarefas from "./pages/CRMTarefas";
+import CRMConfiguracoes from "./pages/CRMConfiguracoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -83,6 +84,7 @@ const App = () => (
             <Route path="/crm/negociacoes" element={<ProtectedRoute><CRMNegociacoes /></ProtectedRoute>} />
             <Route path="/crm/empresas" element={<ProtectedRoute><CRMEmpresas /></ProtectedRoute>} />
             <Route path="/crm/tarefas" element={<ProtectedRoute><CRMTarefas /></ProtectedRoute>} />
+            <Route path="/crm/configuracoes" element={<ProtectedRoute><CRMConfiguracoes /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

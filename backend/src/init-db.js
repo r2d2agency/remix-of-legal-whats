@@ -1359,6 +1359,81 @@ CREATE INDEX IF NOT EXISTS idx_crm_tasks_due ON crm_tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_crm_tasks_status ON crm_tasks(status);
 `;
 
+// Step 19: CRM Configuration (Task Types, Segments, Custom Fields)
+const step19CRMConfig = `
+-- Task Types (Global + Organization-specific)
+CREATE TABLE IF NOT EXISTS crm_task_types (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    icon VARCHAR(50) DEFAULT 'check-square',
+    color VARCHAR(20) DEFAULT '#6366f1',
+    is_global BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    position INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Segments/Tags for Deals
+CREATE TABLE IF NOT EXISTS crm_segments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    color VARCHAR(20) DEFAULT '#6366f1',
+    description TEXT,
+    is_global BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    position INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Deal Segments (Many-to-Many)
+CREATE TABLE IF NOT EXISTS crm_deal_segments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deal_id UUID REFERENCES crm_deals(id) ON DELETE CASCADE NOT NULL,
+    segment_id UUID REFERENCES crm_segments(id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(deal_id, segment_id)
+);
+
+-- Custom Fields Definition
+CREATE TABLE IF NOT EXISTS crm_custom_fields (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    entity_type VARCHAR(50) NOT NULL, -- 'deal', 'company', 'task'
+    field_name VARCHAR(100) NOT NULL,
+    field_label VARCHAR(200) NOT NULL,
+    field_type VARCHAR(50) DEFAULT 'text', -- text, number, date, select, multiselect, boolean
+    options JSONB, -- for select/multiselect
+    is_required BOOLEAN DEFAULT false,
+    is_global BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    position INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_crm_task_types_org ON crm_task_types(organization_id);
+CREATE INDEX IF NOT EXISTS idx_crm_segments_org ON crm_segments(organization_id);
+CREATE INDEX IF NOT EXISTS idx_crm_deal_segments_deal ON crm_deal_segments(deal_id);
+CREATE INDEX IF NOT EXISTS idx_crm_deal_segments_segment ON crm_deal_segments(segment_id);
+CREATE INDEX IF NOT EXISTS idx_crm_custom_fields_org ON crm_custom_fields(organization_id);
+CREATE INDEX IF NOT EXISTS idx_crm_custom_fields_entity ON crm_custom_fields(entity_type);
+
+-- Insert default global task types
+INSERT INTO crm_task_types (name, icon, color, is_global, position) VALUES
+    ('Tarefa', 'check-square', '#6366f1', true, 0),
+    ('Ligação', 'phone', '#22c55e', true, 1),
+    ('E-mail', 'mail', '#f59e0b', true, 2),
+    ('Reunião', 'calendar', '#8b5cf6', true, 3),
+    ('WhatsApp', 'message-circle', '#25d366', true, 4),
+    ('Follow-up', 'repeat', '#ec4899', true, 5)
+ON CONFLICT DO NOTHING;
+`;
+
 // Step 17: Departments / Queues System (depends on organizations, users, conversations)
 // NOTE: This was previously defined only in a standalone SQL file, but not executed
 // during initDatabase(). If the tables don't exist, /api/departments will 500.
@@ -1473,6 +1548,7 @@ const migrationSteps = [
   { name: 'Chatbot Team & Keywords', sql: step15ChatbotTeamKeywords, critical: false },
   { name: 'Independent Flows', sql: step16IndependentFlows, critical: false },
   { name: 'CRM System', sql: step18CRM, critical: false },
+  { name: 'CRM Config', sql: step19CRMConfig, critical: false },
 ];
 
 export async function initDatabase() {

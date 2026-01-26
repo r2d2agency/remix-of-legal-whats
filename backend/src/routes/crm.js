@@ -1013,4 +1013,316 @@ router.delete('/tasks/:id', async (req, res) => {
   }
 });
 
+// ============================================
+// CRM CONFIGURATION (Task Types, Segments, Custom Fields)
+// ============================================
+
+// Get all task types (global + org-specific)
+router.get('/config/task-types', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const result = await query(
+      `SELECT * FROM crm_task_types 
+       WHERE is_global = true OR organization_id = $1
+       ORDER BY is_global DESC, position, name`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    if (error.code === '42P01') return res.json([]);
+    console.error('Error fetching task types:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create task type
+router.post('/config/task-types', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { name, icon, color, position } = req.body;
+    const result = await query(
+      `INSERT INTO crm_task_types (organization_id, name, icon, color, position)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [org.organization_id, name, icon || 'check-square', color || '#6366f1', position || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating task type:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update task type
+router.put('/config/task-types/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { name, icon, color, is_active, position } = req.body;
+    const result = await query(
+      `UPDATE crm_task_types 
+       SET name = COALESCE($1, name), 
+           icon = COALESCE($2, icon), 
+           color = COALESCE($3, color),
+           is_active = COALESCE($4, is_active),
+           position = COALESCE($5, position),
+           updated_at = NOW()
+       WHERE id = $6 AND (organization_id = $7 OR is_global = false)
+       RETURNING *`,
+      [name, icon, color, is_active, position, req.params.id, org.organization_id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating task type:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete task type (only org-specific, not global)
+router.delete('/config/task-types/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    await query(
+      `DELETE FROM crm_task_types WHERE id = $1 AND organization_id = $2 AND is_global = false`,
+      [req.params.id, org.organization_id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting task type:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all segments (global + org-specific)
+router.get('/config/segments', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const result = await query(
+      `SELECT s.*, 
+        (SELECT COUNT(*) FROM crm_deal_segments ds WHERE ds.segment_id = s.id) as deals_count
+       FROM crm_segments s
+       WHERE s.is_global = true OR s.organization_id = $1
+       ORDER BY s.is_global DESC, s.position, s.name`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    if (error.code === '42P01') return res.json([]);
+    console.error('Error fetching segments:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create segment
+router.post('/config/segments', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { name, color, description, position } = req.body;
+    const result = await query(
+      `INSERT INTO crm_segments (organization_id, name, color, description, position)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [org.organization_id, name, color || '#6366f1', description, position || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating segment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update segment
+router.put('/config/segments/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { name, color, description, is_active, position } = req.body;
+    const result = await query(
+      `UPDATE crm_segments 
+       SET name = COALESCE($1, name), 
+           color = COALESCE($2, color), 
+           description = COALESCE($3, description),
+           is_active = COALESCE($4, is_active),
+           position = COALESCE($5, position),
+           updated_at = NOW()
+       WHERE id = $6 AND (organization_id = $7 OR is_global = false)
+       RETURNING *`,
+      [name, color, description, is_active, position, req.params.id, org.organization_id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating segment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete segment
+router.delete('/config/segments/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    await query(
+      `DELETE FROM crm_segments WHERE id = $1 AND organization_id = $2 AND is_global = false`,
+      [req.params.id, org.organization_id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting segment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add segment to deal
+router.post('/deals/:dealId/segments', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const { segment_id } = req.body;
+    const result = await query(
+      `INSERT INTO crm_deal_segments (deal_id, segment_id)
+       VALUES ($1, $2) 
+       ON CONFLICT (deal_id, segment_id) DO NOTHING
+       RETURNING *`,
+      [req.params.dealId, segment_id]
+    );
+    res.json(result.rows[0] || { success: true });
+  } catch (error) {
+    console.error('Error adding segment to deal:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Remove segment from deal
+router.delete('/deals/:dealId/segments/:segmentId', async (req, res) => {
+  try {
+    await query(
+      `DELETE FROM crm_deal_segments WHERE deal_id = $1 AND segment_id = $2`,
+      [req.params.dealId, req.params.segmentId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing segment from deal:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get custom fields
+router.get('/config/custom-fields', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const { entity_type } = req.query;
+    let sql = `SELECT * FROM crm_custom_fields 
+               WHERE is_global = true OR organization_id = $1`;
+    const params = [org.organization_id];
+    
+    if (entity_type) {
+      sql += ` AND entity_type = $2`;
+      params.push(entity_type);
+    }
+    sql += ` ORDER BY position, field_label`;
+
+    const result = await query(sql, params);
+    res.json(result.rows);
+  } catch (error) {
+    if (error.code === '42P01') return res.json([]);
+    console.error('Error fetching custom fields:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create custom field
+router.post('/config/custom-fields', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { entity_type, field_name, field_label, field_type, options, is_required, position } = req.body;
+    const result = await query(
+      `INSERT INTO crm_custom_fields (organization_id, entity_type, field_name, field_label, field_type, options, is_required, position)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [org.organization_id, entity_type, field_name, field_label, field_type || 'text', options ? JSON.stringify(options) : null, is_required || false, position || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating custom field:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update custom field
+router.put('/config/custom-fields/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { field_label, field_type, options, is_required, is_active, position } = req.body;
+    const result = await query(
+      `UPDATE crm_custom_fields 
+       SET field_label = COALESCE($1, field_label), 
+           field_type = COALESCE($2, field_type), 
+           options = COALESCE($3, options),
+           is_required = COALESCE($4, is_required),
+           is_active = COALESCE($5, is_active),
+           position = COALESCE($6, position),
+           updated_at = NOW()
+       WHERE id = $7 AND (organization_id = $8 OR is_global = false)
+       RETURNING *`,
+      [field_label, field_type, options ? JSON.stringify(options) : null, is_required, is_active, position, req.params.id, org.organization_id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating custom field:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete custom field
+router.delete('/config/custom-fields/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    await query(
+      `DELETE FROM crm_custom_fields WHERE id = $1 AND organization_id = $2 AND is_global = false`,
+      [req.params.id, org.organization_id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting custom field:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

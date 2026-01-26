@@ -65,10 +65,12 @@ const navSections: NavSection[] = [
   {
     title: "CRM",
     icon: Briefcase,
+    moduleKey: 'crm',
     items: [
       { name: "Negociações", href: "/crm/negociacoes", icon: Kanban },
       { name: "Empresas", href: "/crm/empresas", icon: Building2 },
       { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList },
+      { name: "Configurações", href: "/crm/configuracoes", icon: Settings, adminOnly: true },
     ],
   },
   {
