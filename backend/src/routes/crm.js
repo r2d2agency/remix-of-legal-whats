@@ -556,6 +556,7 @@ router.get('/deals', async (req, res) => {
 });
 
 // Get deals for kanban (by funnel)
+router.get('/funnels/:funnelId/deals', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
