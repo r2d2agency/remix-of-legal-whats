@@ -192,19 +192,20 @@ router.post('/login', async (req, res) => {
     const role = orgResult.rows[0]?.role || null;
     const organizationId = orgResult.rows[0]?.organization_id || null;
     
-    // Superadmin/owner/admin always has all modules enabled
+    // Superadmin always has all modules enabled
     const allModulesEnabled = {
       campaigns: true,
       billing: true,
       groups: true,
       scheduled_messages: true,
       chatbots: true,
-       chat: true,
-       crm: true
+      chat: true,
+      crm: true
     };
     
+    // Only superadmin bypasses module restrictions - owners/admins follow plan settings
     let modulesEnabled = allModulesEnabled;
-    if (!isSuperadmin && !['owner', 'admin'].includes(role)) {
+    if (!isSuperadmin) {
       modulesEnabled = orgResult.rows[0]?.modules_enabled || allModulesEnabled;
     }
 
@@ -284,13 +285,13 @@ router.get('/me', async (req, res) => {
       groups: true,
       scheduled_messages: true,
       chatbots: true,
-       chat: true,
-       crm: true
+      chat: true,
+      crm: true
     };
     
-    // Use all modules for superadmin/owner/admin, otherwise use org settings
+    // Only superadmin bypasses module restrictions - owners/admins follow plan settings
     let modulesEnabled = allModulesEnabled;
-    if (!isSuperadmin && !['owner', 'admin'].includes(role)) {
+    if (!isSuperadmin) {
       modulesEnabled = orgResult.rows[0]?.modules_enabled || allModulesEnabled;
     }
 
