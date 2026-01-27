@@ -511,13 +511,37 @@ export function ChatArea({
     }
   };
 
+  const inferMessageTypeFromFile = useCallback((file: File): 'image' | 'video' | 'audio' | 'document' => {
+    const mime = String(file.type || '').toLowerCase();
+    const ext = (() => {
+      const parts = String(file.name || '').toLowerCase().split('.');
+      return parts.length > 1 ? `.${parts.pop()}` : '';
+    })();
+
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('video/')) return 'video';
+    if (mime.startsWith('audio/')) return 'audio';
+
+    // Fallback for empty/generic mimetypes (common on mobile/drag&drop)
+    const imageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+    const videoExts = new Set(['.mp4', '.webm', '.ogg', '.mov', '.qt']);
+    const audioExts = new Set(['.mp3', '.ogg', '.wav', '.webm', '.aac', '.m4a']);
+    if (imageExts.has(ext)) return 'image';
+    if (videoExts.has(ext)) return 'video';
+    if (audioExts.has(ext)) return 'audio';
+
+    return 'document';
+  }, []);
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const inferredType = inferMessageTypeFromFile(file);
+
     // Create preview for images
     let preview: string | undefined;
-    if (file.type.startsWith('image/')) {
+    if (inferredType === 'image') {
       preview = URL.createObjectURL(file);
     }
 
@@ -561,14 +585,16 @@ export function ChatArea({
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
 
+    const inferredType = inferMessageTypeFromFile(file);
+
     // Create preview for images
     let preview: string | undefined;
-    if (file.type.startsWith('image/')) {
+    if (inferredType === 'image') {
       preview = URL.createObjectURL(file);
     }
 
     setPendingFile({ file, preview });
-  }, []);
+  }, [inferMessageTypeFromFile]);
 
   const looksLikeFilename = (value: string) => {
     const s = value.trim();
@@ -607,10 +633,7 @@ export function ChatArea({
       console.log('[Upload] Result URL:', url);
       
       if (url) {
-        let type = 'document';
-        if (file.type.startsWith('image/')) type = 'image';
-        else if (file.type.startsWith('video/')) type = 'video';
-        else if (file.type.startsWith('audio/')) type = 'audio';
+        const type = inferMessageTypeFromFile(file);
 
         // For documents, send filename in content so W-API can set the correct filename
         // (it uses "content" as filename) and UI can display it.

@@ -163,16 +163,43 @@ export async function disconnect(connection) {
  */
 export async function sendMessage(connection, phone, content, messageType, mediaUrl) {
   const provider = detectProvider(connection);
+  const startedAt = Date.now();
+
+  logInfo('whatsapp.send_message_started', {
+    connection_id: connection.id,
+    provider,
+    message_type: messageType,
+    has_media_url: Boolean(mediaUrl),
+    has_content: Boolean(content),
+    phone_preview: phone ? String(phone).substring(0, 15) : null,
+  });
 
   if (provider === 'wapi') {
-    return wapiProvider.sendMessage(
-      connection.instance_id,
-      connection.wapi_token,
-      phone,
-      content,
-      messageType,
-      mediaUrl
-    );
+    try {
+      const result = await wapiProvider.sendMessage(
+        connection.instance_id,
+        connection.wapi_token,
+        phone,
+        content,
+        messageType,
+        mediaUrl
+      );
+
+      logInfo('whatsapp.send_message_wapi_result', {
+        connection_id: connection.id,
+        success: result.success,
+        error: result.error || null,
+        duration_ms: Date.now() - startedAt,
+      });
+
+      return result;
+    } catch (error) {
+      logError('whatsapp.send_message_wapi_exception', error, {
+        connection_id: connection.id,
+        duration_ms: Date.now() - startedAt,
+      });
+      return { success: false, error: error.message };
+    }
   }
 
   // Evolution API

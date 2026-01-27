@@ -491,6 +491,14 @@ export async function sendVideo(instanceId, token, phone, videoUrl, caption = ''
 export async function sendDocument(instanceId, token, phone, documentUrl, filename = 'document') {
   const isGroup = phone.includes('@g.us');
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+  const at = new Date().toISOString();
+
+  logInfo('wapi.send_document_started', {
+    instance_id: instanceId,
+    phone_preview: cleanPhone.substring(0, 15),
+    document_url_preview: documentUrl ? documentUrl.substring(0, 100) : null,
+    filename,
+  });
   
   try {
     const response = await fetch(
@@ -506,21 +514,71 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
       }
     );
 
-    const data = await response.json();
+    const { data, text } = await readJsonResponse(response);
+
+    logInfo('wapi.send_document_response', {
+      instance_id: instanceId,
+      status_code: response.status,
+      ok: response.ok,
+      response_preview: text.substring(0, 800),
+    });
 
     if (!response.ok) {
-      return {
+      const errorMsg = data?.message || data?.error || 'Failed to send document';
+      recordSendAttempt({
+        at,
+        instanceId,
+        phone: cleanPhone,
+        messageType: 'document',
         success: false,
-        error: data.message || data.error || 'Failed to send document',
-      };
+        status: response.status,
+        error: errorMsg,
+        preview: text.slice(0, 800),
+      });
+
+      logError('wapi.send_document_failed', new Error(errorMsg), {
+        instance_id: instanceId,
+        status_code: response.status,
+      });
+
+      return { success: false, error: errorMsg };
     }
+
+    recordSendAttempt({
+      at,
+      instanceId,
+      phone: cleanPhone,
+      messageType: 'document',
+      success: true,
+      status: response.status,
+      preview: text.slice(0, 800),
+    });
+
+    logInfo('wapi.send_document_success', {
+      instance_id: instanceId,
+      message_id: data.messageId || data.id || data.key?.id || null,
+    });
 
     return {
       success: true,
       messageId: data.messageId || data.id || data.key?.id,
     };
   } catch (error) {
-    console.error('W-API sendDocument error:', error);
+    recordSendAttempt({
+      at,
+      instanceId,
+      phone: cleanPhone,
+      messageType: 'document',
+      success: false,
+      status: 0,
+      error: error.message,
+      preview: '',
+    });
+
+    logError('wapi.send_document_exception', error, {
+      instance_id: instanceId,
+    });
+
     return { success: false, error: error.message };
   }
 }
