@@ -554,11 +554,42 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
   const at = new Date().toISOString();
 
+  // Ensure filename has an extension (W-API requires it)
+  const ensureExtension = (fname, url) => {
+    // If filename already has extension, use it
+    if (fname && /\.[a-z0-9]{2,5}$/i.test(fname)) {
+      return fname;
+    }
+
+    // Try to extract extension from URL
+    try {
+      const urlPath = new URL(url).pathname;
+      const match = urlPath.match(/\.([a-z0-9]{2,5})$/i);
+      if (match) {
+        const ext = match[1];
+        // If fname is generic 'document', use URL filename
+        if (fname === 'document' || !fname) {
+          const urlFilename = urlPath.split('/').pop();
+          return urlFilename || `document.${ext}`;
+        }
+        // Add extension to existing filename
+        return `${fname}.${ext}`;
+      }
+    } catch (e) {
+      // URL parsing failed, fallback below
+    }
+
+    // Last resort: use mimetype from URL check or default to .pdf
+    return fname ? `${fname}.pdf` : 'document.pdf';
+  };
+
+  const filenameWithExt = ensureExtension(filename, documentUrl);
+
   logInfo('wapi.send_document_started', {
     instance_id: instanceId,
     phone_preview: cleanPhone.substring(0, 15),
     document_url_preview: documentUrl ? documentUrl.substring(0, 100) : null,
-    filename,
+    filename: filenameWithExt,
   });
 
   // Pre-check: verify URL is accessible before sending to W-API
@@ -600,7 +631,7 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
         body: JSON.stringify({
           phone: cleanPhone,
           document: documentUrl,
-          filename: filename,
+          filename: filenameWithExt,
         }),
       }
     );
