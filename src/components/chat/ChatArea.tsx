@@ -602,7 +602,10 @@ export function ChatArea({
     const { file, preview } = pendingFile;
     
     try {
+      console.log('[Upload] Starting upload for:', file.name, 'type:', file.type, 'size:', file.size);
       const url = await uploadFile(file);
+      console.log('[Upload] Result URL:', url);
+      
       if (url) {
         let type = 'document';
         if (file.type.startsWith('image/')) type = 'image';
@@ -612,11 +615,17 @@ export function ChatArea({
         // For documents, send filename in content so W-API can set the correct filename
         // (it uses "content" as filename) and UI can display it.
         const content = type === 'document' ? file.name : '';
+        console.log('[Upload] Sending message with type:', type, 'content:', content);
         await onSendMessage(content, type, url, undefined, file.type);
         toast.success("Arquivo enviado!");
+      } else {
+        console.error('[Upload] Upload returned null/empty URL');
+        toast.error("Falha no upload - tente novamente");
       }
     } catch (error) {
-      toast.error("Erro ao enviar arquivo");
+      console.error('[Upload] Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error(`Erro ao enviar: ${errorMessage}`);
     } finally {
       if (preview) URL.revokeObjectURL(preview);
       setPendingFile(null);
