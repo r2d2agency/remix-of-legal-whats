@@ -376,15 +376,27 @@ const Chat = () => {
     }
   }, [getMessages, markAsRead, syncGroupName]);
 
-  // If we arrive from the Agenda (or any deep link): /chat?conversation=<id>
+  // If we arrive from the Agenda (or any deep link): /chat?conversation=<id> or /chat?phone=<phone>
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const conversationId = params.get('conversation');
-    if (!conversationId) return;
+    const phone = params.get('phone');
+    
+    if (!conversationId && !phone) return;
 
     (async () => {
       try {
-        const conv = await getConversation(conversationId);
+        let conv: Conversation;
+        
+        if (conversationId) {
+          conv = await getConversation(conversationId);
+        } else if (phone) {
+          // Fetch conversation by phone number
+          conv = await api<Conversation>(`/api/chat/conversations/by-phone/${encodeURIComponent(phone)}`);
+        } else {
+          return;
+        }
+        
         await handleSelectConversation(conv);
       } catch (error) {
         console.error('Error opening conversation from URL:', error);

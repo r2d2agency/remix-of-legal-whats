@@ -675,6 +675,57 @@ router.get('/stats', authenticate, async (req, res) => {
   }
 });
 
+// Find conversation by phone number
+router.get('/conversations/by-phone/:phone', authenticate, async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+    
+    if (connectionIds.length === 0) {
+      return res.status(404).json({ error: 'Nenhuma conexão encontrada' });
+    }
+    
+    // Normalize phone - remove non-digits
+    const normalizedPhone = phone.replace(/\D/g, '');
+    
+    // Search by phone in contact_phone or remote_jid
+    const result = await query(
+      `SELECT 
+        conv.*,
+        conn.name as connection_name,
+        conn.phone_number as connection_phone,
+        u.name as assigned_name,
+        COALESCE(
+          (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+           FROM conversation_tag_links ctl
+           JOIN conversation_tags t ON t.id = ctl.tag_id
+           WHERE ctl.conversation_id = conv.id
+          ), '[]'::json
+        ) as tags
+      FROM conversations conv
+      JOIN connections conn ON conn.id = conv.connection_id
+      LEFT JOIN users u ON u.id = conv.assigned_to
+      WHERE conv.connection_id = ANY($1)
+        AND (
+          conv.contact_phone LIKE '%' || $2 || '%'
+          OR conv.remote_jid LIKE '%' || $2 || '%'
+        )
+      ORDER BY conv.last_message_at DESC NULLS LAST
+      LIMIT 1`,
+      [connectionIds, normalizedPhone.slice(-9)]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada para este telefone' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get conversation by phone error:', error);
+    res.status(500).json({ error: 'Erro ao buscar conversa' });
+  }
+});
+
 // Get single conversation
 router.get('/conversations/:id', authenticate, async (req, res) => {
   try {

@@ -72,7 +72,7 @@ export function DealLinkDialog({
     }
 
     try {
-      await createDeal.mutateAsync({
+      const dealData = {
         title: title.trim(),
         value: parseFloat(value) || 0,
         funnel_id: selectedFunnelId,
@@ -82,13 +82,18 @@ export function DealLinkDialog({
         contact_phone: contactPhone,
         probability: 50,
         status: "open",
-      } as any);
+      };
+      
+      console.log('[DealLinkDialog] Creating deal with data:', dealData);
+      
+      await createDeal.mutateAsync(dealData as any);
 
       toast.success("Negociação criada!");
       onOpenChange(false);
       resetForm();
-    } catch (error) {
-      toast.error("Erro ao criar negociação");
+    } catch (error: any) {
+      console.error('[DealLinkDialog] Error creating deal:', error);
+      toast.error(error?.message || "Erro ao criar negociação");
     }
   };
 
