@@ -189,7 +189,8 @@ export default function Admin() {
     getOrganizationMembers,
     createOrganizationUser,
     updateMemberRole,
-    removeMember
+    removeMember,
+    syncAllPlansToOrganizations
   } = useSuperadmin();
 
   useEffect(() => {
@@ -366,6 +367,16 @@ export default function Admin() {
     const success = await deletePlan(id);
     if (success) {
       toast.success('Plano removido!');
+      loadData();
+    } else if (error) {
+      toast.error(error);
+    }
+  };
+
+  const handleSyncAllPlans = async () => {
+    const result = await syncAllPlansToOrganizations();
+    if (result) {
+      toast.success(`Módulos sincronizados para ${result.synced_organizations} organizações!`);
       loadData();
     } else if (error) {
       toast.error(error);
@@ -603,15 +614,24 @@ export default function Admin() {
 
           {/* Plans Tab */}
           <TabsContent value="plans" className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center gap-2">
               <h2 className="text-xl font-semibold">Planos</h2>
-              <Dialog open={createPlanDialogOpen} onOpenChange={setCreatePlanDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="neon-glow">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Novo Plano
-                  </Button>
-                </DialogTrigger>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={handleSyncAllPlans}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Package className="h-4 w-4 mr-2" />}
+                  Sincronizar Módulos
+                </Button>
+                <Dialog open={createPlanDialogOpen} onOpenChange={setCreatePlanDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="neon-glow">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Plano
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
                   <DialogHeader className="shrink-0">
                     <DialogTitle>Criar Plano</DialogTitle>
@@ -830,6 +850,7 @@ export default function Admin() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
