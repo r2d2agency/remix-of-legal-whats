@@ -224,6 +224,44 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
   }
 });
 
+// Sync all organizations' modules with their plans
+router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
+  try {
+    // Get all plans with their modules
+    const plansResult = await query(
+      `SELECT id, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm FROM plans`
+    );
+
+    let syncedCount = 0;
+
+    for (const plan of plansResult.rows) {
+      const modulesEnabled = {
+        campaigns: plan.has_campaigns ?? true,
+        billing: plan.has_asaas_integration ?? true,
+        groups: plan.has_whatsapp_groups ?? true,
+        scheduled_messages: plan.has_scheduled_messages ?? true,
+        chatbots: plan.has_chatbots ?? true,
+        chat: plan.has_chat ?? true,
+        crm: plan.has_crm ?? true,
+      };
+
+      // Update all organizations using this plan
+      const updateResult = await query(
+        `UPDATE organizations SET modules_enabled = $1, updated_at = NOW() WHERE plan_id = $2`,
+        [JSON.stringify(modulesEnabled), plan.id]
+      );
+
+      syncedCount += updateResult.rowCount || 0;
+    }
+
+    console.log(`Synced modules for ${syncedCount} organizations`);
+    res.json({ success: true, synced_organizations: syncedCount });
+  } catch (error) {
+    console.error('Sync all plans error:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar planos' });
+  }
+});
+
 // Delete plan
 router.delete('/plans/:id', requireSuperadmin, async (req, res) => {
   try {

@@ -190,6 +190,30 @@ export function useSuperadmin() {
     }
   }, []);
 
+  const syncAllPlansToOrganizations = useCallback(async (): Promise<{ synced_organizations: number } | null> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/admin/plans/sync-all`, {
+        method: 'POST',
+        headers: getHeaders()
+      });
+      
+      if (!response.ok) {
+        const res = await response.json();
+        throw new Error(res.error || 'Erro ao sincronizar planos');
+      }
+      
+      return response.json();
+    } catch (err: any) {
+      setError(err.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // ============================================
   // USERS
   // ============================================
@@ -514,6 +538,7 @@ export function useSuperadmin() {
     createPlan,
     updatePlan,
     deletePlan,
+    syncAllPlansToOrganizations,
     // Users
     getAllUsers,
     setSuperadmin,
