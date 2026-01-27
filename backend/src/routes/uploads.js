@@ -58,8 +58,11 @@ const fileFilter = (req, file, cb) => {
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'text/plain',
+    'text/csv',
+    'application/csv',
     'application/zip',
     'application/x-rar-compressed',
+    'application/x-zip-compressed',
   ];
 
   if (allowedMimes.includes(file.mimetype)) {

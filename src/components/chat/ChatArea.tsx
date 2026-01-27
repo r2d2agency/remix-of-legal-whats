@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
@@ -231,7 +232,8 @@ export function ChatArea({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const { uploadFile, isUploading } = useUpload();
+  const { uploadFile, isUploading, progress: uploadProgress, resetProgress } = useUpload();
+  const [pendingFile, setPendingFile] = useState<{ file: File; preview?: string } | null>(null);
   const { user } = useAuth();
   const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage } = useChat();
   const {
@@ -511,6 +513,24 @@ export function ChatArea({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Create preview for images
+    let preview: string | undefined;
+    if (file.type.startsWith('image/')) {
+      preview = URL.createObjectURL(file);
+    }
+
+    setPendingFile({ file, preview });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleConfirmFileUpload = async () => {
+    if (!pendingFile) return;
+
+    const { file, preview } = pendingFile;
+    
     try {
       const url = await uploadFile(file);
       if (url) {
@@ -524,11 +544,41 @@ export function ChatArea({
       }
     } catch (error) {
       toast.error("Erro ao enviar arquivo");
+    } finally {
+      if (preview) URL.revokeObjectURL(preview);
+      setPendingFile(null);
+      resetProgress();
     }
+  };
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+  const handleCancelFileUpload = () => {
+    if (pendingFile?.preview) {
+      URL.revokeObjectURL(pendingFile.preview);
     }
+    setPendingFile(null);
+    resetProgress();
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType.startsWith('image/')) return <Image className="h-8 w-8 text-green-500" />;
+    if (mimeType.startsWith('video/')) return <Video className="h-8 w-8 text-purple-500" />;
+    if (mimeType.startsWith('audio/')) return <Mic className="h-8 w-8 text-orange-500" />;
+    if (mimeType.includes('pdf')) return <FileText className="h-8 w-8 text-red-500" />;
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType.includes('csv')) 
+      return <FileText className="h-8 w-8 text-green-600" />;
+    if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) 
+      return <FileText className="h-8 w-8 text-orange-600" />;
+    if (mimeType.includes('word') || mimeType.includes('document')) 
+      return <FileText className="h-8 w-8 text-blue-600" />;
+    return <FileText className="h-8 w-8 text-muted-foreground" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const handleSendAudio = async () => {
@@ -1375,6 +1425,73 @@ export function ChatArea({
           accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar"
           onChange={handleFileSelect}
         />
+
+        {/* File Preview UI */}
+        {pendingFile && (
+          <div className="mb-3 p-3 rounded-lg border bg-muted/50 animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-start gap-3">
+              {/* File preview/icon */}
+              <div className="flex-shrink-0">
+                {pendingFile.preview ? (
+                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted">
+                    <img 
+                      src={pendingFile.preview} 
+                      alt="Preview" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
+                    {getFileIcon(pendingFile.file.type)}
+                  </div>
+                )}
+              </div>
+
+              {/* File info */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{pendingFile.file.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatFileSize(pendingFile.file.size)}
+                </p>
+                
+                {/* Progress bar during upload */}
+                {isUploading && (
+                  <div className="mt-2 space-y-1">
+                    <Progress value={uploadProgress} className="h-2" />
+                    <p className="text-xs text-muted-foreground text-right">{uploadProgress}%</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={handleCancelFileUpload}
+                  disabled={isUploading}
+                  title="Cancelar"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={handleConfirmFileUpload}
+                  disabled={isUploading || sending}
+                  title="Enviar"
+                >
+                  {isUploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Recording UI */}
         {isRecording ? (
