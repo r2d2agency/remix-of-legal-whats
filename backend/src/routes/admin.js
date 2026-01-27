@@ -361,19 +361,38 @@ router.delete('/users/:id', requireSuperadmin, async (req, res) => {
     const userEmail = userCheck.rows[0].email;
 
     // Delete all related data in order (respecting foreign keys)
-    // 1. Organization memberships (will cascade to department_members if needed)
-    await query(`DELETE FROM organization_members WHERE user_id = $1`, [id]);
+    // Use try-catch for each to handle missing tables gracefully
+    const cleanupQueries = [
+      // Memberships
+      `DELETE FROM organization_members WHERE user_id = $1`,
+      `DELETE FROM department_members WHERE user_id = $1`,
+      `DELETE FROM user_roles WHERE user_id = $1`,
+      // CRM relations
+      `DELETE FROM crm_user_group_members WHERE user_id = $1`,
+      `UPDATE crm_deals SET responsible_user_id = NULL WHERE responsible_user_id = $1`,
+      `UPDATE crm_tasks SET assigned_user_id = NULL WHERE assigned_user_id = $1`,
+      `UPDATE crm_prospects SET responsible_user_id = NULL WHERE responsible_user_id = $1`,
+      // Chat relations
+      `UPDATE conversations SET assigned_user_id = NULL WHERE assigned_user_id = $1`,
+      `UPDATE conversation_notes SET user_id = NULL WHERE user_id = $1`,
+      // Chatbot relations
+      `UPDATE chatbots SET created_by = NULL WHERE created_by = $1`,
+      // Session tokens
+      `DELETE FROM sessions WHERE user_id = $1`,
+    ];
+
+    for (const sql of cleanupQueries) {
+      try {
+        await query(sql, [id]);
+      } catch (err) {
+        // Ignore errors for missing tables/columns (42P01, 42703)
+        if (err.code !== '42P01' && err.code !== '42703') {
+          console.warn(`Cleanup query warning: ${err.message}`);
+        }
+      }
+    }
     
-    // 2. Department memberships
-    await query(`DELETE FROM department_members WHERE user_id = $1`, [id]);
-    
-    // 3. User roles
-    await query(`DELETE FROM user_roles WHERE user_id = $1`, [id]);
-    
-    // 4. Chat assignments (set to null)
-    await query(`UPDATE conversations SET assigned_user_id = NULL WHERE assigned_user_id = $1`, [id]);
-    
-    // 5. Finally delete the user
+    // Finally delete the user
     const result = await query(`DELETE FROM users WHERE id = $1 RETURNING id, email`, [id]);
 
     if (result.rows.length === 0) {
