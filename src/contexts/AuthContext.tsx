@@ -29,6 +29,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, planId?: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,6 +47,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     chatbots: true,
     chat: true,
     crm: true,
+  };
+
+  const refreshUser = async () => {
+    const token = getAuthToken();
+    if (token) {
+      try {
+        const { user } = await authApi.getMe();
+        setUser(user);
+      } catch {
+        // Ignore errors on refresh
+      }
+    }
   };
 
   useEffect(() => {
@@ -96,6 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         register,
         logout,
+        refreshUser,
       }}
     >
       {children}
