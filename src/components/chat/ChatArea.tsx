@@ -234,6 +234,8 @@ export function ChatArea({
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const { uploadFile, isUploading, progress: uploadProgress, resetProgress } = useUpload();
   const [pendingFile, setPendingFile] = useState<{ file: File; preview?: string } | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
   const { user } = useAuth();
   const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage } = useChat();
   const {
@@ -526,6 +528,48 @@ export function ChatArea({
     }
   };
 
+  // Drag & Drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    // Create preview for images
+    let preview: string | undefined;
+    if (file.type.startsWith('image/')) {
+      preview = URL.createObjectURL(file);
+    }
+
+    setPendingFile({ file, preview });
+  }, []);
+
   const looksLikeFilename = (value: string) => {
     const s = value.trim();
     if (!s) return false;
@@ -751,7 +795,24 @@ export function ChatArea({
   }
 
   return (
-    <div className="flex-1 flex h-full min-w-0 overflow-x-hidden">
+    <div 
+      className="flex-1 flex h-full min-w-0 overflow-x-hidden relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drag overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm border-2 border-dashed border-primary rounded-lg pointer-events-none animate-in fade-in duration-200">
+          <div className="flex flex-col items-center gap-3 text-primary">
+            <Upload className="h-12 w-12" />
+            <span className="text-lg font-medium">Solte o arquivo aqui</span>
+            <span className="text-sm text-muted-foreground">Imagens, vídeos, documentos, áudios...</span>
+          </div>
+        </div>
+      )}
+
       {/* Main chat area */}
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-x-hidden">
       {/* Archived Banner */}
