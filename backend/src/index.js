@@ -22,6 +22,7 @@ import chatbotsRoutes from './routes/chatbots.js';
 import departmentsRoutes from './routes/departments.js';
 import flowsRoutes from './routes/flows.js';
 import crmRoutes from './routes/crm.js';
+import billingQueueRoutes from './routes/billing-queue.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -152,6 +153,7 @@ app.use('/api/chatbots', chatbotsRoutes);
 app.use('/api/departments', departmentsRoutes);
 app.use('/api/flows', flowsRoutes);
 app.use('/api/crm', crmRoutes);
+app.use('/api/billing-queue', billingQueueRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

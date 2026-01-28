@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAsaas } from "@/hooks/use-asaas";
 import { useNotifications } from "@/hooks/use-notifications";
 import BillingQueue from "./BillingQueue";
+import QueueManager from "./QueueManager";
 import { 
   RefreshCw, Settings, Receipt, Users, Bell, Plus, Trash2, 
   CheckCircle, AlertCircle, Clock, Calendar, Link2,
@@ -551,7 +552,11 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
               </TabsTrigger>
               <TabsTrigger value="queue">
                 <ListChecks className="mr-2 h-4 w-4" />
-                Fila
+                Fila Preview
+              </TabsTrigger>
+              <TabsTrigger value="queue-manager">
+                <Play className="mr-2 h-4 w-4" />
+                Gerenciar Envios
               </TabsTrigger>
               <TabsTrigger value="history">
                 <History className="mr-2 h-4 w-4" />
@@ -1360,9 +1365,14 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
               </Card>
             </TabsContent>
 
-            {/* Billing Queue Tab */}
+            {/* Billing Queue Preview Tab */}
             <TabsContent value="queue">
               <BillingQueue organizationId={organizationId} />
+            </TabsContent>
+
+            {/* Queue Manager Tab */}
+            <TabsContent value="queue-manager">
+              <QueueManager organizationId={organizationId} />
             </TabsContent>
 
             {/* Notification History Tab */}
