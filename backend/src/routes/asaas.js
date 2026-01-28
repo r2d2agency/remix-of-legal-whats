@@ -285,6 +285,7 @@ router.post('/sync/:organizationId', async (req, res) => {
     // Sync payments (pending and overdue)
     const statuses = ['PENDING', 'OVERDUE'];
     let paymentsCount = 0;
+    const statusCounts = { PENDING: 0, OVERDUE: 0 };
 
     for (const status of statuses) {
       let paymentOffset = 0;
@@ -319,6 +320,7 @@ router.post('/sync/:organizationId', async (req, res) => {
              ON CONFLICT (organization_id, asaas_id) DO UPDATE SET
                status = EXCLUDED.status,
                net_value = EXCLUDED.net_value,
+               due_date = EXCLUDED.due_date,
                updated_at = NOW()`,
             [
               organizationId,
@@ -340,6 +342,7 @@ router.post('/sync/:organizationId', async (req, res) => {
             ]
           );
           paymentsCount++;
+          statusCounts[status]++;
         }
 
         paymentOffset += 100;
@@ -356,11 +359,111 @@ router.post('/sync/:organizationId', async (req, res) => {
     res.json({ 
       success: true, 
       customers_synced: customersCount,
-      payments_synced: paymentsCount
+      payments_synced: paymentsCount,
+      pending_synced: statusCounts.PENDING,
+      overdue_synced: statusCounts.OVERDUE
     });
   } catch (error) {
     console.error('Sync error:', error);
     res.status(500).json({ error: 'Erro ao sincronizar com Asaas' });
+  }
+});
+
+// Check Asaas API directly - compare what's in Asaas vs what's synced
+router.get('/check/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+
+    const access = await checkOrgAccess(req.userId, organizationId);
+    if (!access) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const integrationResult = await query(
+      `SELECT * FROM asaas_integrations WHERE organization_id = $1 AND is_active = true`,
+      [organizationId]
+    );
+
+    if (integrationResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Integração não configurada ou inativa' });
+    }
+
+    const integration = integrationResult.rows[0];
+    const baseUrl = integration.environment === 'production'
+      ? 'https://api.asaas.com/v3'
+      : 'https://sandbox.asaas.com/api/v3';
+
+    // Get counts from Asaas API
+    const asaasCounts = { PENDING: 0, OVERDUE: 0, total_customers: 0 };
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Count pending
+    const pendingResp = await fetch(
+      `${baseUrl}/payments?status=PENDING&limit=1`,
+      { headers: { 'access_token': integration.api_key } }
+    );
+    const pendingData = await pendingResp.json();
+    asaasCounts.PENDING = pendingData.totalCount || 0;
+
+    // Count overdue
+    const overdueResp = await fetch(
+      `${baseUrl}/payments?status=OVERDUE&limit=1`,
+      { headers: { 'access_token': integration.api_key } }
+    );
+    const overdueData = await overdueResp.json();
+    asaasCounts.OVERDUE = overdueData.totalCount || 0;
+
+    // Count customers
+    const customersResp = await fetch(
+      `${baseUrl}/customers?limit=1`,
+      { headers: { 'access_token': integration.api_key } }
+    );
+    const customersData = await customersResp.json();
+    asaasCounts.total_customers = customersData.totalCount || 0;
+
+    // Get today's due payments
+    const todayResp = await fetch(
+      `${baseUrl}/payments?dueDate=${today}&limit=1`,
+      { headers: { 'access_token': integration.api_key } }
+    );
+    const todayData = await todayResp.json();
+    const todayDueCount = todayData.totalCount || 0;
+
+    // Get counts from our database
+    const dbCounts = await query(
+      `SELECT 
+        (SELECT COUNT(*) FROM asaas_payments WHERE organization_id = $1 AND status = 'PENDING') as pending,
+        (SELECT COUNT(*) FROM asaas_payments WHERE organization_id = $1 AND status = 'OVERDUE') as overdue,
+        (SELECT COUNT(*) FROM asaas_customers WHERE organization_id = $1) as customers,
+        (SELECT COUNT(*) FROM asaas_payments WHERE organization_id = $1 AND due_date = CURRENT_DATE AND status IN ('PENDING', 'OVERDUE')) as today_due`,
+      [organizationId]
+    );
+
+    const db = dbCounts.rows[0];
+
+    res.json({
+      asaas: {
+        pending: asaasCounts.PENDING,
+        overdue: asaasCounts.OVERDUE,
+        customers: asaasCounts.total_customers,
+        today_due: todayDueCount
+      },
+      database: {
+        pending: parseInt(db.pending),
+        overdue: parseInt(db.overdue),
+        customers: parseInt(db.customers),
+        today_due: parseInt(db.today_due)
+      },
+      synced: {
+        pending: asaasCounts.PENDING === parseInt(db.pending),
+        overdue: asaasCounts.OVERDUE === parseInt(db.overdue),
+        customers: asaasCounts.total_customers === parseInt(db.customers)
+      },
+      last_sync: integration.last_sync_at
+    });
+  } catch (error) {
+    console.error('Check Asaas error:', error);
+    res.status(500).json({ error: 'Erro ao verificar Asaas' });
   }
 });
 

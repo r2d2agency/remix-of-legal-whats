@@ -394,6 +394,22 @@ export function useAsaas(organizationId: string | null) {
     }
   }, [organizationId]);
 
+  const checkSync = useCallback(async (): Promise<{
+    asaas: { pending: number; overdue: number; customers: number; today_due: number };
+    database: { pending: number; overdue: number; customers: number; today_due: number };
+    synced: { pending: boolean; overdue: boolean; customers: boolean };
+    last_sync: string | null;
+  } | null> => {
+    if (!organizationId) return null;
+    
+    try {
+      return await api(`/api/asaas/check/${organizationId}`);
+    } catch (err) {
+      console.error('Check sync error:', err);
+      return null;
+    }
+  }, [organizationId]);
+
   const getReport = useCallback(async (filters?: {
     status?: string;
     min_days_overdue?: number;
@@ -429,6 +445,7 @@ export function useAsaas(organizationId: string | null) {
     updateRule,
     deleteRule,
     getDashboard,
+    checkSync,
     getReport,
     getSettings,
     updateSettings,

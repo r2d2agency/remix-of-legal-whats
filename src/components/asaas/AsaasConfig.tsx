@@ -37,7 +37,7 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
     loading, error, 
     getIntegration, configureIntegration, syncPayments,
     getPayments, getCustomers, getRules, createRule, updateRule, deleteRule,
-    getDashboard, getReport, updateCustomer, getSettings, updateSettings,
+    getDashboard, checkSync, getReport, updateCustomer, getSettings, updateSettings,
     getAlerts, updateAlert, generateAlerts
   } = useAsaas(organizationId);
   
@@ -60,6 +60,8 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
   const [dashboard, setDashboard] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [checkingSync, setCheckingSync] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [historyStatusFilter, setHistoryStatusFilter] = useState<string>("all");
   const [reportStatusFilter, setReportStatusFilter] = useState<string>("OVERDUE");
@@ -448,8 +450,8 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
       {/* Stats and Actions */}
       {integration?.is_active && (
         <>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="border-green-500 text-green-500">
                 <CheckCircle className="mr-1 h-3 w-3" />
                 Asaas Conectado ({integration.environment})
@@ -460,11 +462,111 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                 </span>
               )}
             </div>
-            <Button onClick={handleSync} disabled={syncing} variant="outline">
-              <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Sincronizando..." : "Sincronizar"}
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={async () => {
+                  setCheckingSync(true);
+                  const result = await checkSync();
+                  setSyncStatus(result);
+                  setCheckingSync(false);
+                }} 
+                disabled={checkingSync} 
+                variant="outline"
+                size="sm"
+              >
+                <Eye className={`mr-2 h-4 w-4 ${checkingSync ? "animate-pulse" : ""}`} />
+                {checkingSync ? "Verificando..." : "Verificar Asaas"}
+              </Button>
+              <Button onClick={handleSync} disabled={syncing} variant="outline">
+                <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+                {syncing ? "Sincronizando..." : "Sincronizar"}
+              </Button>
+            </div>
           </div>
+
+          {/* Sync Status Panel */}
+          {syncStatus && (
+            <Card className="border-blue-500/50 bg-blue-500/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Eye className="h-4 w-4" />
+                  Comparação Asaas vs. Banco de Dados
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Pendentes</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-bold text-yellow-500">{syncStatus.asaas.pending}</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className={syncStatus.synced.pending ? "text-green-500" : "text-red-500"}>
+                        {syncStatus.database.pending}
+                      </span>
+                      {syncStatus.synced.pending ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Vencidos</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-bold text-red-500">{syncStatus.asaas.overdue}</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className={syncStatus.synced.overdue ? "text-green-500" : "text-red-500"}>
+                        {syncStatus.database.overdue}
+                      </span>
+                      {syncStatus.synced.overdue ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Clientes</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-bold">{syncStatus.asaas.customers}</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className={syncStatus.synced.customers ? "text-green-500" : "text-red-500"}>
+                        {syncStatus.database.customers}
+                      </span>
+                      {syncStatus.synced.customers ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-muted-foreground">Vence Hoje</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-bold text-blue-500">{syncStatus.asaas.today_due}</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className={syncStatus.asaas.today_due === syncStatus.database.today_due ? "text-green-500" : "text-orange-500"}>
+                        {syncStatus.database.today_due}
+                      </span>
+                      <Calendar className="h-4 w-4 text-blue-500" />
+                    </div>
+                  </div>
+                </div>
+                {(!syncStatus.synced.pending || !syncStatus.synced.overdue || !syncStatus.synced.customers) && (
+                  <div className="mt-4 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-orange-500">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span className="text-sm font-medium">Dados desatualizados! Clique em Sincronizar para atualizar.</span>
+                    </div>
+                    <Button onClick={handleSync} disabled={syncing} size="sm" variant="outline" className="border-orange-500 text-orange-500 hover:bg-orange-500/10">
+                      <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+                      Sincronizar Agora
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
