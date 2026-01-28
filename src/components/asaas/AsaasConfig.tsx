@@ -19,7 +19,7 @@ import {
   CheckCircle, AlertCircle, Clock, Calendar, Link2,
   History, RotateCcw, Play, BarChart3, Download, TrendingUp,
   TrendingDown, Percent, Ban, Pause, AlertTriangle, Shield,
-  Eye, EyeOff, Check, ListChecks
+  Eye, EyeOff, Check, ListChecks, Pencil
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
@@ -1303,9 +1303,33 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                           <Button 
                             variant="outline" 
                             size="sm"
+                            onClick={() => {
+                              setEditingRule(rule);
+                              setRuleForm({
+                                name: rule.name || "",
+                                trigger_type: rule.trigger_type || "before_due",
+                                days_offset: Math.abs(rule.days_offset) || 3,
+                                max_days_overdue: rule.max_days_overdue || 30,
+                                message_template: rule.message_template || "",
+                                send_time: rule.send_time || "09:00",
+                                connection_id: rule.connection_id || "",
+                                min_delay: rule.min_delay || 120,
+                                max_delay: rule.max_delay || 300,
+                                pause_after_messages: rule.pause_after_messages || 20,
+                                pause_duration: rule.pause_duration || 600
+                              });
+                              setShowRuleDialog(true);
+                            }}
+                            title="Editar regra"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
                             onClick={() => handleTriggerRule(rule.id)}
                             disabled={triggeringRule === rule.id || !rule.connection_id}
-                            title="Disparar agora"
+                            title={!rule.connection_id ? "Configure uma conexão primeiro" : "Disparar agora"}
                           >
                             {triggeringRule === rule.id ? (
                               <RefreshCw className="h-4 w-4 animate-spin" />
@@ -1317,6 +1341,7 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                             variant="ghost" 
                             size="sm"
                             onClick={() => handleDeleteRule(rule.id)}
+                            title="Excluir regra"
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
