@@ -665,6 +665,10 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
     content_length: urlCheck.contentLength,
   });
   
+  // Extract extension for W-API (required field)
+  const extensionMatch = filenameWithExt.match(/\.([a-z0-9]{2,10})$/i);
+  const extension = extensionMatch ? extensionMatch[1].toLowerCase() : 'pdf';
+
   try {
     const response = await fetch(
       `${W_API_BASE_URL}/message/send-document?instanceId=${instanceId}`,
@@ -677,6 +681,8 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
           filename: filenameWithExt,
           // Some W-API installations/docs use camelCase
           fileName: filenameWithExt,
+          // W-API requires the 'extension' field explicitly
+          extension: extension,
         }),
       }
     );
