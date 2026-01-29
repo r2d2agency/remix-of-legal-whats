@@ -71,9 +71,15 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
   const [showRuleDialog, setShowRuleDialog] = useState(false);
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [editingRule, setEditingRule] = useState<any>(null);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [triggeringRule, setTriggeringRule] = useState<string | null>(null);
+  
+  // Sync period filters
+  const [syncDateFrom, setSyncDateFrom] = useState<string>("");
+  const [syncDateTo, setSyncDateTo] = useState<string>("");
+  const [syncPriority, setSyncPriority] = useState<string>("today_overdue");
 
   // Form state for new rule
   const [ruleForm, setRuleForm] = useState({
@@ -331,12 +337,19 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
     return result;
   };
 
-  const handleSync = async () => {
+  const handleSync = async (usePeriod = false) => {
     setSyncing(true);
-    const result = await syncPayments();
+    const filters = usePeriod ? {
+      date_from: syncDateFrom || undefined,
+      date_to: syncDateTo || undefined,
+      priority: syncPriority
+    } : undefined;
+    
+    const result = await syncPayments(filters);
     setSyncing(false);
     
     if (result) {
+      setShowSyncDialog(false);
       // Check if it was a partial sync
       if (result.partial) {
         toast({ 
@@ -495,7 +508,7 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                 <Eye className={`mr-2 h-4 w-4 ${checkingSync ? "animate-pulse" : ""}`} />
                 {checkingSync ? "Verificando..." : "Verificar Asaas"}
               </Button>
-              <Button onClick={handleSync} disabled={syncing} variant="outline">
+              <Button onClick={() => setShowSyncDialog(true)} disabled={syncing} variant="outline">
                 <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
                 {syncing ? "Sincronizando..." : "Sincronizar"}
               </Button>
@@ -576,7 +589,7 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                       <AlertTriangle className="h-4 w-4 text-destructive" />
                       <span className="text-sm font-medium">Dados desatualizados! Clique em Sincronizar para atualizar.</span>
                     </div>
-                    <Button onClick={handleSync} disabled={syncing} size="sm" variant="outline">
+                    <Button onClick={() => handleSync(false)} disabled={syncing} size="sm" variant="outline">
                       <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
                       Sincronizar Agora
                     </Button>
@@ -1662,6 +1675,79 @@ export default function AsaasConfig({ organizationId, connections }: AsaasConfig
                   {loading ? "Salvando..." : (
                     editingCustomer?.billing_paused ? "Retomar Cobranças" : "Pausar Cobranças"
                   )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Sync Period Dialog */}
+          <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
+            <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Sincronizar Cobranças
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Prioridade de Sincronização</Label>
+                  <Select value={syncPriority} onValueChange={setSyncPriority}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today_overdue">Vence Hoje + Vencidos (Padrão)</SelectItem>
+                      <SelectItem value="overdue_only">Apenas Vencidos</SelectItem>
+                      <SelectItem value="pending_only">Apenas Pendentes</SelectItem>
+                      <SelectItem value="custom_period">Período Personalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {syncPriority === "custom_period" && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Vencimento De</Label>
+                      <Input
+                        type="date"
+                        value={syncDateFrom}
+                        onChange={(e) => setSyncDateFrom(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Vencimento Até</Label>
+                      <Input
+                        type="date"
+                        value={syncDateTo}
+                        onChange={(e) => setSyncDateTo(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                <div className="p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+                  {syncPriority === "today_overdue" && (
+                    <p>Sincroniza primeiro as cobranças que vencem hoje, depois as vencidas, depois as pendentes.</p>
+                  )}
+                  {syncPriority === "overdue_only" && (
+                    <p>Sincroniza apenas as cobranças vencidas (OVERDUE) do Asaas.</p>
+                  )}
+                  {syncPriority === "pending_only" && (
+                    <p>Sincroniza apenas as cobranças pendentes (PENDING) do Asaas.</p>
+                  )}
+                  {syncPriority === "custom_period" && (
+                    <p>Sincroniza todas as cobranças com vencimento no período selecionado, independente do status.</p>
+                  )}
+                </div>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => setShowSyncDialog(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={() => handleSync(true)} disabled={syncing}>
+                  <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+                  {syncing ? "Sincronizando..." : "Iniciar Sincronização"}
                 </Button>
               </DialogFooter>
             </DialogContent>

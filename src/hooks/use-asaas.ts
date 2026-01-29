@@ -174,13 +174,20 @@ export function useAsaas(organizationId: string | null) {
     }
   }, [organizationId]);
 
-  const syncPayments = useCallback(async () => {
+  const syncPayments = useCallback(async (filters?: { date_from?: string; date_to?: string; priority?: string }) => {
     if (!organizationId) return null;
     
     setLoading(true);
     setError(null);
     
     try {
+      const params = new URLSearchParams();
+      if (filters?.date_from) params.set('date_from', filters.date_from);
+      if (filters?.date_to) params.set('date_to', filters.date_to);
+      if (filters?.priority) params.set('priority', filters.priority);
+      
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      
       const result = await api<{ 
         customers_synced: number; 
         payments_synced: number;
@@ -189,7 +196,7 @@ export function useAsaas(organizationId: string | null) {
         today_synced?: number;
         partial?: boolean;
         message?: string;
-      }>(`/api/asaas/sync/${organizationId}`, {
+      }>(`/api/asaas/sync/${organizationId}${queryString}`, {
         method: 'POST'
       });
       return result;
