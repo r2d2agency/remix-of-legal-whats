@@ -279,10 +279,38 @@ router.post('/', async (req, res) => {
 
     const scheduledStartSp = toSaoPauloDate(currentScheduleTime);
 
+    // Determine initial campaign status
+    // If no start_date is provided, start immediately as 'running'
+    // If start_date is today and within time window, also start immediately
+    // Otherwise, schedule for future as 'pending'
+    let initialStatus = 'pending';
+    
+    const nowSp = toSaoPauloDate(new Date());
+    const nowSpHour = nowSp.getUTCHours();
+    const nowSpMinute = nowSp.getUTCMinutes();
+    const nowSpTotalMinutes = nowSpHour * 60 + nowSpMinute;
+    const startTotalMinutes = startTimeHours * 60 + startTimeMinutes;
+    const endTotalMinutes = endTimeHours * 60 + endTimeMinutes;
+    
+    if (!start_date) {
+      // No start date = start immediately
+      initialStatus = 'running';
+    } else {
+      const today = getTodayInSaoPaulo();
+      const [startYear, startMonth, startDay] = start_date.split('-').map(Number);
+      const isToday = startYear === today.year && startMonth === today.month && startDay === today.day;
+      
+      if (isToday && nowSpTotalMinutes >= startTotalMinutes && nowSpTotalMinutes <= endTotalMinutes) {
+        // Start date is today and we're within the time window
+        initialStatus = 'running';
+      }
+    }
+
     console.log('Campaign scheduling:', {
       start_date,
       start_time,
       end_time,
+      initialStatus,
       scheduledStartUtc: currentScheduleTime.toISOString(),
       scheduledStartSp: `${scheduledStartSp.getUTCFullYear()}-${String(scheduledStartSp.getUTCMonth() + 1).padStart(2, '0')}-${String(scheduledStartSp.getUTCDate()).padStart(2, '0')} ${String(scheduledStartSp.getUTCHours()).padStart(2, '0')}:${String(scheduledStartSp.getUTCMinutes()).padStart(2, '0')}`,
       nowUtc: now.toISOString(),
@@ -291,10 +319,10 @@ router.post('/', async (req, res) => {
     // Create campaign
     const campaignResult = await query(
       `INSERT INTO campaigns 
-       (user_id, name, connection_id, list_id, message_id, flow_id, scheduled_at, 
+       (user_id, name, connection_id, list_id, message_id, flow_id, status, scheduled_at, 
         start_date, end_date, start_time, end_time,
         min_delay, max_delay, pause_after_messages, pause_duration, random_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) 
        RETURNING *`,
       [
         req.userId, 
@@ -303,6 +331,7 @@ router.post('/', async (req, res) => {
         list_id, 
         isFlowCampaign ? null : finalMessageId,
         isFlowCampaign ? flow_id : null,
+        initialStatus,
         scheduled_at || null,
         start_date || null,
         end_date || null,
