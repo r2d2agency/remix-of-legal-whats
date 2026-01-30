@@ -925,25 +925,25 @@ export function ChatArea({
       {/* Header */}
       <div
         className={cn(
-          "border-b bg-card",
+          "border-b bg-card flex-shrink-0",
           isMobile
-            ? "flex flex-col items-stretch gap-2 p-3"
+            ? "flex items-center gap-2 px-2 py-2"
             : "flex items-center justify-between p-4"
         )}
       >
-        <div className={cn("flex items-center gap-3 min-w-0", isMobile && "w-full")}>
+        <div className={cn("flex items-center gap-2 min-w-0 flex-1", isMobile && "overflow-hidden")}>
           {/* Mobile back button */}
           {isMobile && onMobileBack && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 mr-1"
+              className="h-8 w-8 flex-shrink-0"
               onClick={onMobileBack}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
           )}
-          <Avatar className="h-10 w-10">
+          <Avatar className={cn(isMobile ? "h-8 w-8" : "h-10 w-10", "flex-shrink-0")}>
             {profilePictureUrl && !conversation.is_group && (
               <AvatarImage 
                 src={profilePictureUrl} 
@@ -956,20 +956,24 @@ export function ChatArea({
               conversation.is_group ? "bg-blue-100 dark:bg-blue-900/30" : "bg-primary/10"
             )}>
               {conversation.is_group ? (
-                <Users className="h-5 w-5" />
+                <Users className={cn(isMobile ? "h-4 w-4" : "h-5 w-5")} />
               ) : (
                 getInitials(conversation.contact_name)
               )}
             </AvatarFallback>
           </Avatar>
-          <div className="min-w-0">
-            <h3 className="font-semibold truncate">
+          <div className="min-w-0 flex-1">
+            <h3 className={cn("font-semibold truncate", isMobile && "text-sm")}>
               {conversation.is_group 
                 ? (conversation.group_name || 'Grupo sem nome')
                 : (conversation.contact_name || conversation.contact_phone || 'Desconhecido')}
             </h3>
-            {/* Only show edit button for individual chats, not groups */}
-            {conversation.is_group ? (
+            {/* Connection info - simplified on mobile */}
+            {isMobile ? (
+              <p className="text-[11px] text-muted-foreground truncate">
+                {conversation.is_group ? 'Grupo' : conversation.contact_phone}
+              </p>
+            ) : conversation.is_group ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0 flex-wrap">
                 <Users className="h-3 w-3" />
                 <span>Grupo</span>
@@ -992,77 +996,78 @@ export function ChatArea({
           </div>
         </div>
 
+        {/* Header actions - compact on mobile */}
         <div
           className={cn(
-            "flex items-center",
-            isMobile ? "w-full flex-wrap gap-1.5 justify-end" : "gap-2"
+            "flex items-center flex-shrink-0",
+            isMobile ? "gap-0.5" : "gap-2"
           )}
         >
-          {/* Release button - visible when attending */}
-          {!isViewOnly && onReleaseConversation && conversation.attendance_status === 'attending' && (
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(
-                "text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950",
-                isMobile ? "h-7 text-[11px] px-2" : "h-8"
+          {/* Mobile: show only essential buttons, others go in menu */}
+          {!isMobile && (
+            <>
+              {/* Release button - visible when attending */}
+              {!isViewOnly && onReleaseConversation && conversation.attendance_status === 'attending' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950 h-8"
+                  onClick={onReleaseConversation}
+                  title="Liberar conversa (voltar para aguardando)"
+                >
+                  <Undo2 className="h-3.5 w-3.5 mr-1" />
+                  Liberar
+                </Button>
               )}
-              onClick={onReleaseConversation}
-              title="Liberar conversa (voltar para aguardando)"
-            >
-              <Undo2 className="h-3.5 w-3.5 mr-1" />
-              Liberar
-            </Button>
-          )}
 
-          {/* Finish button - visible when attending or waiting */}
-          {!isViewOnly && onFinishConversation && (conversation.attendance_status === 'attending' || conversation.attendance_status === 'waiting') && (
-            <Button
-              variant="outline"
-              size="icon"
-              className={cn(
-                "text-green-600 border-green-300 hover:bg-green-50 dark:hover:bg-green-950",
-                isMobile ? "h-7 w-7" : "h-8 w-8"
+              {/* Finish button - visible when attending or waiting */}
+              {!isViewOnly && onFinishConversation && (conversation.attendance_status === 'attending' || conversation.attendance_status === 'waiting') && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="text-green-600 border-green-300 hover:bg-green-50 dark:hover:bg-green-950 h-8 w-8"
+                  onClick={onFinishConversation}
+                  title="Finalizar atendimento"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                </Button>
               )}
-              onClick={onFinishConversation}
-              title="Finalizar atendimento"
-            >
-              <CheckCheck className="h-3.5 w-3.5" />
-            </Button>
-          )}
 
-          {/* Reopen button - visible when finished */}
-          {!isViewOnly && onReopenConversation && conversation.attendance_status === 'finished' && (
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(
-                "text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950",
-                isMobile ? "h-7 text-[11px] px-2" : "h-8"
+              {/* Reopen button - visible when finished */}
+              {!isViewOnly && onReopenConversation && conversation.attendance_status === 'finished' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950 h-8"
+                  onClick={onReopenConversation}
+                  title="Reabrir conversa (voltar para aguardando)"
+                >
+                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                  Reabrir
+                </Button>
               )}
-              onClick={onReopenConversation}
-              title="Reabrir conversa (voltar para aguardando)"
-            >
-              <RotateCcw className="h-3.5 w-3.5 mr-1" />
-              Reabrir
-            </Button>
+            </>
           )}
           
-          {/* Search */}
+          {/* Search - always visible */}
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-8 w-8", showSearch && "bg-muted")}
+            className={cn(
+              showSearch && "bg-muted",
+              isMobile ? "h-7 w-7" : "h-8 w-8"
+            )}
             onClick={() => {
               setShowSearch(!showSearch);
               if (showSearch) setSearchQuery("");
             }}
             title="Buscar mensagens"
           >
-            <Search className="h-4 w-4" />
+            <Search className={cn(isMobile ? "h-3.5 w-3.5" : "h-4 w-4")} />
           </Button>
-          {/* Sync */}
-          {!!onSyncHistory && (
+
+          {/* Sync - hide on mobile, move to menu */}
+          {!isMobile && !!onSyncHistory && (
             <Button
               variant="ghost"
               size="icon"
@@ -1079,41 +1084,37 @@ export function ChatArea({
             </Button>
           )}
 
-          {/* Tags */}
-          <div className={cn("flex items-center gap-1", isMobile && "basis-full flex-wrap")}> 
-            {conversation.tags.slice(0, 3).map(tag => (
-              <Badge
-                key={tag.id}
-                variant="outline"
-                className={cn(
-                  "cursor-pointer",
-                  isMobile ? "text-[10px] h-5 px-1.5 py-0" : "text-xs"
-                )}
-                style={{ borderColor: tag.color, color: tag.color }}
-                onClick={() => onRemoveTag(tag.id)}
-                title="Clique para remover"
-              >
-                {tag.name}
-                <X className="h-3 w-3 ml-1" />
-              </Badge>
-            ))}
-          </div>
+          {/* Tags - hide on mobile, show only in menu */}
+          {!isMobile && (
+            <div className="flex items-center gap-1"> 
+              {conversation.tags.slice(0, 3).map(tag => (
+                <Badge
+                  key={tag.id}
+                  variant="outline"
+                  className="cursor-pointer text-xs"
+                  style={{ borderColor: tag.color, color: tag.color }}
+                  onClick={() => onRemoveTag(tag.id)}
+                  title="Clique para remover"
+                >
+                  {tag.name}
+                  <X className="h-3 w-3 ml-1" />
+                </Badge>
+              ))}
+            </div>
+          )}
 
-          {/* CRM Deal Shortcut - Shows if contact has open deals */}
-          {!conversation.is_group && openDeals.length > 0 && (
+          {/* CRM Deal Shortcut - Shows if contact has open deals (hidden on mobile, available in menu) */}
+          {!isMobile && !conversation.is_group && openDeals.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
                   size="sm"
-                  className={cn(
-                    "text-primary border-primary/30 hover:bg-primary/10 relative",
-                    isMobile ? "h-7 px-2" : "h-8"
-                  )}
+                  className="text-primary border-primary/30 hover:bg-primary/10 relative h-8"
                   title={`${openDeals.length} negociação(ões) aberta(s)`}
                 >
                   <Briefcase className="h-3.5 w-3.5" />
-                  {!isMobile && <span className="ml-1.5 text-xs">CRM</span>}
+                  <span className="ml-1.5 text-xs">CRM</span>
                   <Badge 
                     variant="secondary" 
                     className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 text-[10px] bg-primary text-primary-foreground"
@@ -1122,7 +1123,7 @@ export function ChatArea({
                   </Badge>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuContent align="end" className="w-72 z-[80]">
                 <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                   Negociações abertas
                 </div>
@@ -1169,43 +1170,45 @@ export function ChatArea({
             </DropdownMenu>
           )}
 
-          {/* Add Tag */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <Tag className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {tags.filter(t => !conversation.tags.some(ct => ct.id === t.id)).map(tag => (
-                <DropdownMenuItem
-                  key={tag.id}
-                  onClick={() => onAddTag(tag.id)}
-                >
-                  <div
-                    className="w-3 h-3 rounded-full mr-2"
-                    style={{ backgroundColor: tag.color }}
-                  />
-                  {tag.name}
+          {/* Add Tag - hide on mobile, move to menu */}
+          {!isMobile && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Tag className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-[80]">
+                {tags.filter(t => !conversation.tags.some(ct => ct.id === t.id)).map(tag => (
+                  <DropdownMenuItem
+                    key={tag.id}
+                    onClick={() => onAddTag(tag.id)}
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full mr-2"
+                      style={{ backgroundColor: tag.color }}
+                    />
+                    {tag.name}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowTagDialog(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nova tag
                 </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setShowTagDialog(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova tag
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
-          {/* Assign - Hidden for view-only users (managers/supervisors) */}
-          {!isViewOnly && (
+          {/* Assign - Hidden for view-only users and on mobile (in menu) */}
+          {!isMobile && !isViewOnly && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8">
                   <UserPlus className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="z-[80]">
                 <DropdownMenuItem onClick={() => onAssign(null)}>
                   <X className="h-4 w-4 mr-2" />
                   Remover atendente
@@ -1226,14 +1229,45 @@ export function ChatArea({
             </DropdownMenu>
           )}
 
-          {/* More options */}
+          {/* More options - main menu button */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className={cn(isMobile ? "h-7 w-7" : "h-8 w-8")}>
+                <MoreVertical className={cn(isMobile ? "h-3.5 w-3.5" : "h-4 w-4")} />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="z-[80] max-h-[70vh] overflow-y-auto">
+              {/* Mobile-only: Attendance actions */}
+              {isMobile && (
+                <>
+                  {!isViewOnly && onReleaseConversation && conversation.attendance_status === 'attending' && (
+                    <DropdownMenuItem onClick={onReleaseConversation} className="text-amber-600">
+                      <Undo2 className="h-4 w-4 mr-2" />
+                      Liberar conversa
+                    </DropdownMenuItem>
+                  )}
+                  {!isViewOnly && onFinishConversation && (conversation.attendance_status === 'attending' || conversation.attendance_status === 'waiting') && (
+                    <DropdownMenuItem onClick={onFinishConversation} className="text-green-600">
+                      <CheckCheck className="h-4 w-4 mr-2" />
+                      Finalizar atendimento
+                    </DropdownMenuItem>
+                  )}
+                  {!isViewOnly && onReopenConversation && conversation.attendance_status === 'finished' && (
+                    <DropdownMenuItem onClick={onReopenConversation} className="text-blue-600">
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Reabrir conversa
+                    </DropdownMenuItem>
+                  )}
+                  {!!onSyncHistory && (
+                    <DropdownMenuItem onClick={() => setShowSyncDialog(true)}>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Sincronizar histórico
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                </>
+              )}
+
               <DropdownMenuItem onClick={() => setShowNotes(!showNotes)}>
                 <StickyNote className="h-4 w-4 mr-2" />
                 Anotações internas
@@ -1269,6 +1303,56 @@ export function ChatArea({
                       +{openDeals.length - 5} negociação(ões)
                     </div>
                   )}
+                </>
+              )}
+
+              {/* Mobile-only: Tags section */}
+              {isMobile && conversation.tags.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    Tags ({conversation.tags.length})
+                  </div>
+                  {conversation.tags.slice(0, 5).map(tag => (
+                    <DropdownMenuItem
+                      key={tag.id}
+                      onClick={() => onRemoveTag(tag.id)}
+                      className="flex items-center gap-2"
+                    >
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      <span>{tag.name}</span>
+                      <X className="h-3 w-3 ml-auto text-muted-foreground" />
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+
+              {/* Mobile-only: Add tag */}
+              {isMobile && (
+                <>
+                  <DropdownMenuItem onClick={() => setShowTagDialog(true)}>
+                    <Tag className="h-4 w-4 mr-2" />
+                    Gerenciar tags
+                  </DropdownMenuItem>
+                </>
+              )}
+
+              {/* Mobile-only: Assign */}
+              {isMobile && !isViewOnly && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Atribuir atendente
+                    {conversation.assigned_name && (
+                      <Badge variant="secondary" className="ml-auto text-[10px] h-5 px-1.5">
+                        {conversation.assigned_name}
+                      </Badge>
+                    )}
+                  </DropdownMenuItem>
                 </>
               )}
 

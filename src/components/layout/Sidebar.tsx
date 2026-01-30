@@ -412,15 +412,19 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile Menu Button */}
-      <div className="fixed top-4 left-4 z-50 lg:hidden">
+      {/* Mobile Menu Button - positioned safely */}
+      <div className="fixed top-3 left-3 z-[60] lg:hidden">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="bg-card border-border shadow-lg">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="h-10 w-10 bg-card/95 backdrop-blur-sm border-border shadow-lg rounded-full"
+            >
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0 bg-card border-border">
+          <SheetContent side="left" className="w-72 p-0 bg-card border-border z-[70]">
             <SidebarContentComponent
               isExpanded={true}
               isSuperadmin={isSuperadmin}

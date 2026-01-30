@@ -693,22 +693,35 @@ const Chat = () => {
 
   return (
     <MainLayout>
-      <div className="h-[calc(100vh-120px)] flex flex-col rounded-lg border overflow-hidden bg-background shadow-lg">
+      {/* Mobile: full viewport height minus safe areas; Desktop: calc with padding */}
+      <div className={cn(
+        "flex flex-col rounded-lg border overflow-hidden bg-background shadow-lg",
+        isMobile 
+          ? "h-[100dvh] fixed inset-0 z-30 rounded-none border-0" 
+          : "h-[calc(100vh-120px)]"
+      )}>
         {/* Tab Header - Hide on mobile when chat is open */}
         {(!isMobile || !selectedConversation) && (
-          <div className="border-b px-4 py-2 bg-muted/30 flex-shrink-0 flex items-center justify-between">
+          <div className={cn(
+            "border-b bg-muted/30 flex-shrink-0 flex items-center justify-between",
+            isMobile ? "px-3 py-2 pt-14" : "px-4 py-2"
+          )}>
              <Tabs value={activeTab} onValueChange={(v) => {
                 setActiveTab(v as 'chats' | 'groups');
                 selectedIdRef.current = null;
                 setSelectedConversation(null);
                 setMessages([]);
               }}>
-              <TabsList className="grid w-[260px] grid-cols-2">
-                <TabsTrigger value="chats" className="flex items-center gap-2">
+              <TabsList className={cn(
+                "grid grid-cols-2",
+                isMobile ? "w-[200px]" : "w-[260px]"
+              )}>
+                <TabsTrigger value="chats" className="flex items-center gap-1.5 text-xs sm:text-sm">
                   <MessageSquare className="h-4 w-4" />
-                  Conversas
+                  <span className="hidden xs:inline">Conversas</span>
+                  <span className="xs:hidden">Chats</span>
                 </TabsTrigger>
-                <TabsTrigger value="groups" className="flex items-center gap-2">
+                <TabsTrigger value="groups" className="flex items-center gap-1.5 text-xs sm:text-sm">
                   <Users className="h-4 w-4" />
                   Grupos
                 </TabsTrigger>
@@ -723,7 +736,7 @@ const Chat = () => {
                 onClick={handleSyncAllGroups}
                 disabled={syncingGroups}
                 title="Sincronizar nomes dos grupos"
-                className="text-xs gap-1"
+                className="text-xs gap-1 h-8"
               >
                 <RefreshCw className={cn("h-3.5 w-3.5", syncingGroups && "animate-spin")} />
                 {!isMobile && 'Sincronizar'}
@@ -736,8 +749,8 @@ const Chat = () => {
           {/* Conversation List - Hide on mobile when chat is open */}
           {(!isMobile || !selectedConversation) && (
             <div className={cn(
-              "flex-shrink-0",
-              isMobile ? "w-full" : "w-[350px]"
+              "flex-shrink-0 overflow-hidden",
+              isMobile ? "w-full h-full" : "w-[350px]"
             )}>
               <ConversationList
                 conversations={conversations}
