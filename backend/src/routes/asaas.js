@@ -2027,6 +2027,11 @@ router.post('/auto-sync/:organizationId/full-sync', async (req, res) => {
 
 // Get webhook status/configuration
 router.get('/webhook-status/:organizationId', async (req, res) => {
+  // Set CORS headers immediately
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   try {
     const { organizationId } = req.params;
 
@@ -2104,6 +2109,11 @@ router.get('/webhook-status/:organizationId', async (req, res) => {
 
 // Configure webhook in Asaas
 router.post('/configure-webhook/:organizationId', async (req, res) => {
+  // Set CORS headers immediately
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   try {
     const { organizationId } = req.params;
 
