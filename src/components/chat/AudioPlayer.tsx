@@ -188,87 +188,52 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
     audio.currentTime = percentage * duration;
   };
 
-  // Transcribe audio using Web Speech API
+  // Transcribe audio using Lovable AI (Gemini)
   const transcribeAudio = async () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      toast.error("Seu navegador não suporta transcrição de áudio");
-      return;
-    }
-
     setIsTranscribing(true);
     
     try {
       // Fetch the audio file
       const response = await fetch(src);
+      if (!response.ok) {
+        throw new Error("Não foi possível carregar o áudio");
+      }
+      
       const blob = await response.blob();
       
-      // Create an audio context to play and transcribe
-      const audioContext = new AudioContext();
-      const arrayBuffer = await blob.arrayBuffer();
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      // Create form data with audio file
+      const formData = new FormData();
+      formData.append("audio", blob, "audio.ogg");
       
-      // Create a media stream from the audio
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      
-      const destination = audioContext.createMediaStreamDestination();
-      source.connect(destination);
-      
-      // Initialize speech recognition
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      
-      recognition.lang = 'pt-BR';
-      recognition.continuous = true;
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-      
-      let finalTranscript = '';
-      
-      recognition.onresult = (event: any) => {
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + ' ';
-          }
+      // Call the transcription edge function
+      const transcribeResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: formData,
         }
-      };
+      );
       
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        if (event.error === 'no-speech') {
-          toast.error("Nenhuma fala detectada no áudio");
-        } else {
-          toast.error("Erro na transcrição: " + event.error);
-        }
-        setIsTranscribing(false);
-      };
+      const data = await transcribeResponse.json();
       
-      recognition.onend = () => {
-        if (finalTranscript.trim()) {
-          setTranscript(finalTranscript.trim());
-          setShowTranscript(true);
-          toast.success("Transcrição concluída!");
-        } else {
-          toast.error("Não foi possível transcrever o áudio");
-        }
-        setIsTranscribing(false);
-        audioContext.close();
-      };
+      if (!transcribeResponse.ok) {
+        throw new Error(data.error || "Erro ao transcrever áudio");
+      }
       
-      // Start recognition and play audio
-      recognition.start();
-      source.start(0);
-      
-      // Stop after audio ends
-      source.onended = () => {
-        setTimeout(() => {
-          recognition.stop();
-        }, 1000); // Wait a bit for final results
-      };
-      
+      if (data.transcript && data.transcript !== "[Áudio inaudível]") {
+        setTranscript(data.transcript);
+        setShowTranscript(true);
+        toast.success("Transcrição concluída!");
+      } else {
+        toast.error("Não foi possível transcrever o áudio");
+      }
     } catch (error) {
       console.error('Transcription error:', error);
-      toast.error("Erro ao transcrever áudio");
+      toast.error(error instanceof Error ? error.message : "Erro ao transcrever áudio");
+    } finally {
       setIsTranscribing(false);
     }
   };
