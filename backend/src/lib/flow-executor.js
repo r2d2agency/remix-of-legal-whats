@@ -520,8 +520,8 @@ export async function continueFlowWithInput(conversationId, userInput) {
     let nextHandle = null;
     
     if (currentNode.node_type === 'input') {
-      // Store the input in the variable
-      const varName = content.variable_name || 'resposta';
+      // Store the input in the variable (frontend saves as 'variable', not 'variable_name')
+      const varName = content.variable || content.variable_name || 'resposta';
       variables[varName] = userInput;
       console.log(`Flow executor: Stored input in variable '${varName}':`, userInput?.substring(0, 50));
     } else if (currentNode.node_type === 'menu') {
