@@ -74,6 +74,26 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start')
       telefone: conversation.contact_phone || '',
     };
 
+    // Create or update flow session to track state
+    try {
+      // First, deactivate any existing sessions for this conversation
+      await query(
+        `UPDATE flow_sessions SET is_active = false, ended_at = NOW() 
+         WHERE conversation_id = $1 AND is_active = true`,
+        [conversationId]
+      );
+      
+      // Create new session
+      await query(
+        `INSERT INTO flow_sessions (flow_id, conversation_id, contact_phone, current_node_id, variables, is_active, started_at)
+         VALUES ($1, $2, $3, 'start', $4, true, NOW())`,
+        [flowId, conversationId, conversation.contact_phone, JSON.stringify(variables)]
+      );
+      console.log(`Flow executor: Created new flow session for conversation ${conversationId}`);
+    } catch (sessionError) {
+      console.log('Flow executor: Session creation skipped (may already exist):', sessionError.message);
+    }
+
     // Find the start node and its first connected node
     let currentNodeId = startNodeId;
     
