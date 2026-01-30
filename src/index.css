@@ -323,3 +323,18 @@
 .scrollbar-track-transparent::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Leaflet map z-index fix - keep below sidebar/menu */
+.leaflet-container {
+  z-index: 0 !important;
+}
+
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 1 !important;
+}
+
+.leaflet-popup-pane {
+  z-index: 10 !important;
+}

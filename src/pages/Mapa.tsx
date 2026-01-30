@@ -92,7 +92,7 @@ function LeafletMap({ locations }: LeafletMapProps) {
     });
   }, [locations]);
 
-  return <div ref={containerRef} className="h-full w-full" style={{ minHeight: "500px" }} />;
+  return <div ref={containerRef} className="h-full w-full relative z-0" style={{ minHeight: "500px" }} />;
 }
 
 export default function Mapa() {
