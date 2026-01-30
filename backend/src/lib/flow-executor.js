@@ -59,8 +59,12 @@ export function clearExecutionLogs(conversationId = null) {
 
 /**
  * Execute a flow starting from a given node
+ * @param {string} flowId - The flow ID to execute
+ * @param {string} conversationId - The conversation ID
+ * @param {string} startNodeId - The node ID to start from (default: 'start')
+ * @param {object} initialVariables - Optional initial variables to inject (for campaigns)
  */
-export async function executeFlow(flowId, conversationId, startNodeId = 'start') {
+export async function executeFlow(flowId, conversationId, startNodeId = 'start', initialVariables = {}) {
   try {
     console.log(`Flow executor: Starting flow ${flowId} for conversation ${conversationId}`);
     
@@ -140,10 +144,11 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start')
       });
     });
 
-    // Initialize session variables
+    // Initialize session variables - merge conversation data with initial variables from campaigns
     const variables = {
       nome: conversation.contact_name || '',
       telefone: conversation.contact_phone || '',
+      ...initialVariables, // Allow campaigns to override/inject variables
     };
 
     // Create or update flow session to track state.
