@@ -46,24 +46,37 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
     if (!over) return;
 
     const dealId = active.id as string;
-    const targetStageId = over.id as string;
+    const overId = over.id as string;
 
-    // Check if dropped on a stage column
-    const isStageColumn = stages.some((s) => s.id === targetStageId);
+    // Find the current stage of the dragged deal
+    let currentStageId: string | null = null;
+    for (const [stageId, deals] of Object.entries(dealsByStage)) {
+      if (deals.some((d) => d.id === dealId)) {
+        currentStageId = stageId;
+        break;
+      }
+    }
+
+    // Check if dropped on a stage column directly
+    const isStageColumn = stages.some((s) => s.id === overId);
+    
+    let targetStageId: string | null = null;
     
     if (isStageColumn) {
-      // Find current stage of the deal
-      let currentStageId: string | null = null;
+      // Dropped directly on a stage column
+      targetStageId = overId;
+    } else {
+      // Dropped on another deal - find which stage that deal belongs to
       for (const [stageId, deals] of Object.entries(dealsByStage)) {
-        if (deals.some((d) => d.id === dealId)) {
-          currentStageId = stageId;
+        if (deals.some((d) => d.id === overId)) {
+          targetStageId = stageId;
           break;
         }
       }
+    }
 
-      if (currentStageId !== targetStageId) {
-        moveDeal.mutate({ id: dealId, stage_id: targetStageId });
-      }
+    if (targetStageId && currentStageId !== targetStageId) {
+      moveDeal.mutate({ id: dealId, stage_id: targetStageId });
     }
   }
 
