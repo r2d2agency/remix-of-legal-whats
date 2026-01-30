@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Play, Pause, Loader2, Volume2, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { API_URL, getAuthToken } from "@/lib/api";
 
 interface AudioPlayerProps {
   src: string;
@@ -205,13 +206,14 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
       const formData = new FormData();
       formData.append("audio", blob, "audio.ogg");
       
-      // Call the transcription edge function
+      // Call the backend transcription endpoint
+      const token = getAuthToken();
       const transcribeResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`,
+        `${API_URL}/api/transcribe-audio`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: formData,
         }
