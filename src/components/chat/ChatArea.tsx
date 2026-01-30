@@ -57,6 +57,7 @@ import {
   CheckCheck,
   Clock,
   X,
+  MessageSquare,
   Upload,
   ArrowLeftRight,
   ArrowLeft,
@@ -92,6 +93,7 @@ import { useChat } from "@/hooks/use-chat";
 import { useDepartments, Department } from "@/hooks/use-departments";
 import { useUpload } from "@/hooks/use-upload";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
+import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -249,6 +251,26 @@ export function ChatArea({
     clearAudio,
     formatDuration,
   } = useAudioRecorder();
+
+  // Speech recognition for transcription
+  const {
+    isListening,
+    fullTranscript,
+    isSupported: isSpeechSupported,
+    error: speechError,
+    startListening,
+    stopListening,
+    cancelListening,
+    clearError: clearSpeechError,
+  } = useSpeechRecognition();
+
+  // Handle speech error toast
+  useEffect(() => {
+    if (speechError) {
+      toast.error(speechError);
+      clearSpeechError();
+    }
+  }, [speechError, clearSpeechError]);
 
   // Mentions hook
   const {
@@ -714,6 +736,28 @@ export function ChatArea({
     } catch (error) {
       toast.error("Não foi possível acessar o microfone");
     }
+  };
+
+  const handleStartTranscription = () => {
+    if (!isSpeechSupported) {
+      toast.error("Navegador não suporta reconhecimento de voz. Use Chrome, Edge ou Safari.");
+      return;
+    }
+    startListening();
+  };
+
+  const handleStopTranscription = () => {
+    const text = stopListening();
+    if (text.trim()) {
+      setMessageText(prev => {
+        const separator = prev.trim() ? ' ' : '';
+        return prev + separator + text.trim();
+      });
+    }
+  };
+
+  const handleCancelTranscription = () => {
+    cancelListening();
   };
 
   const handleEmojiSelect = useCallback((emoji: string) => {
@@ -1629,8 +1673,42 @@ export function ChatArea({
           </div>
         )}
 
-        {/* Recording UI */}
-        {isRecording ? (
+        {/* Speech Transcription UI */}
+        {isListening ? (
+          <div className="flex items-end gap-2">
+            {/* Cancel button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={handleCancelTranscription}
+              title="Cancelar transcrição"
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
+
+            {/* Transcription indicator */}
+            <div className="flex-1 flex flex-col gap-1 px-4 py-2 bg-primary/10 rounded-lg border border-primary/30 overflow-hidden">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-primary animate-pulse flex-shrink-0" />
+                <span className="text-xs font-medium text-primary">Ouvindo...</span>
+              </div>
+              <p className="text-sm text-foreground min-h-[1.5rem] line-clamp-2">
+                {fullTranscript || <span className="text-muted-foreground italic">Fale algo...</span>}
+              </p>
+            </div>
+
+            {/* Stop/Confirm button */}
+            <Button
+              size="icon"
+              className="h-10 w-10 flex-shrink-0"
+              onClick={handleStopTranscription}
+              title="Concluir transcrição"
+            >
+              <Check className="h-5 w-5" />
+            </Button>
+          </div>
+        ) : isRecording ? (
           <div className="flex items-end gap-2">
             {/* Cancel button */}
             <Button
@@ -1818,15 +1896,31 @@ export function ChatArea({
                   )}
                 </Button>
               ) : (
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  className="h-10 w-10 flex-shrink-0"
-                  onClick={handleStartRecording}
-                  title="Gravar áudio"
-                >
-                  <Mic className="h-5 w-5" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  {/* Transcription button */}
+                  {isSpeechSupported && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-10 w-10 flex-shrink-0"
+                      onClick={handleStartTranscription}
+                      title="Transcrever voz para texto (grátis)"
+                    >
+                      <MessageSquare className="h-5 w-5" />
+                    </Button>
+                  )}
+                  
+                  {/* Audio recording button */}
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="h-10 w-10 flex-shrink-0"
+                    onClick={handleStartRecording}
+                    title="Gravar áudio"
+                  >
+                    <Mic className="h-5 w-5" />
+                  </Button>
+                </div>
               )}
             </div>
           </div>
