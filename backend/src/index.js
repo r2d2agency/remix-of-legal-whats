@@ -28,6 +28,7 @@ import googleCalendarRoutes from './routes/google-calendar.js';
 import billingQueueRoutes from './routes/billing-queue.js';
 import transcribeRoutes from './routes/transcribe.js';
 import aiAgentsRoutes from './routes/ai-agents.js';
+import externalFormsRoutes from './routes/external-forms.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -167,6 +168,7 @@ app.use('/api/google-calendar', googleCalendarRoutes);
 app.use('/api/billing-queue', billingQueueRoutes);
 app.use('/api/transcribe-audio', transcribeRoutes);
 app.use('/api/ai-agents', aiAgentsRoutes);
+app.use('/api/external-forms', externalFormsRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
