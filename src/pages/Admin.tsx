@@ -19,7 +19,7 @@ import { useAdminSettings } from '@/hooks/use-branding';
 import { useUpload } from '@/hooks/use-upload';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { toast } from 'sonner';
-import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase, Search, AlertTriangle, Mail } from 'lucide-react';
+import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase, Search, AlertTriangle, Mail, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -56,6 +56,7 @@ interface Plan {
   has_chatbots: boolean;
   has_scheduled_messages: boolean;
   has_crm: boolean;
+  has_ai_agents: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -141,6 +142,7 @@ export default function Admin() {
   const [newPlanChatbots, setNewPlanChatbots] = useState(true);
   const [newPlanScheduled, setNewPlanScheduled] = useState(true);
   const [newPlanCRM, setNewPlanCRM] = useState(true);
+  const [newPlanAIAgents, setNewPlanAIAgents] = useState(true);
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
   const [newPlanVisibleOnSignup, setNewPlanVisibleOnSignup] = useState(false);
   const [newPlanTrialDays, setNewPlanTrialDays] = useState('3');
@@ -293,6 +295,7 @@ export default function Admin() {
       has_chatbots: newPlanChatbots,
       has_scheduled_messages: newPlanScheduled,
       has_crm: newPlanCRM,
+      has_ai_agents: newPlanAIAgents,
       price: parseFloat(newPlanPrice) || 0,
       billing_period: newPlanPeriod,
       visible_on_signup: newPlanVisibleOnSignup,
@@ -324,6 +327,7 @@ export default function Admin() {
     setNewPlanChatbots(true);
     setNewPlanScheduled(true);
     setNewPlanCRM(true);
+    setNewPlanAIAgents(true);
     setNewPlanPeriod('monthly');
     setNewPlanVisibleOnSignup(false);
     setNewPlanTrialDays('3');
@@ -346,6 +350,7 @@ export default function Admin() {
       has_chatbots: editingPlan.has_chatbots,
       has_scheduled_messages: editingPlan.has_scheduled_messages,
       has_crm: editingPlan.has_crm,
+      has_ai_agents: editingPlan.has_ai_agents,
       price: editingPlan.price,
       billing_period: editingPlan.billing_period,
       is_active: editingPlan.is_active,
@@ -817,6 +822,17 @@ export default function Admin() {
                           onCheckedChange={setNewPlanCRM}
                         />
                       </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-muted-foreground" />
+                          <Label htmlFor="ai-agents-switch">Agentes IA</Label>
+                        </div>
+                        <Switch
+                          id="ai-agents-switch"
+                          checked={newPlanAIAgents}
+                          onCheckedChange={setNewPlanAIAgents}
+                        />
+                      </div>
                     </div>
                     <div className="border-t pt-4 space-y-4">
                       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -936,6 +952,9 @@ export default function Admin() {
                         )}
                         {plan.has_crm && (
                           <Badge variant="secondary" className="text-xs">CRM</Badge>
+                        )}
+                        {plan.has_ai_agents && (
+                          <Badge variant="secondary" className="text-xs">Agentes IA</Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t">
@@ -1725,6 +1744,14 @@ export default function Admin() {
                     id="edit-crm"
                     checked={editingPlan.has_crm}
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_crm: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-ai-agents">Agentes IA</Label>
+                  <Switch
+                    id="edit-ai-agents"
+                    checked={editingPlan.has_ai_agents}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_ai_agents: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">

@@ -32,6 +32,7 @@ interface Plan {
   has_chatbots: boolean;
   has_scheduled_messages: boolean;
   has_crm: boolean;
+  has_ai_agents: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -112,6 +113,7 @@ export function useSuperadmin() {
     has_chatbots: boolean;
     has_scheduled_messages: boolean;
     has_crm: boolean;
+    has_ai_agents: boolean;
     price: number;
     billing_period: string;
     visible_on_signup?: boolean;

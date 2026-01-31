@@ -43,7 +43,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents';
   adminOnly?: boolean; // Requires owner, admin, or manager role
 }
 
@@ -51,7 +51,7 @@ interface NavSection {
   title: string;
   icon: any;
   items: NavItem[];
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents';
   adminOnly?: boolean; // Entire section requires admin role
 }
 
@@ -61,7 +61,7 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat' },
-      { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, adminOnly: true },
+      { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, moduleKey: 'ai_agents', adminOnly: true },
       { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true },
       { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots', adminOnly: true },
       { name: "Departamentos", href: "/departamentos", icon: Building2, adminOnly: true },

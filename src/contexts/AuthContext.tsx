@@ -10,6 +10,7 @@ interface ModulesEnabled {
   chatbots: boolean;
   chat: boolean;
   crm: boolean;
+  ai_agents: boolean;
 }
 
 interface User {
@@ -47,6 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     chatbots: true,
     chat: true,
     crm: true,
+    ai_agents: true,
   };
 
   const refreshUser = async () => {
