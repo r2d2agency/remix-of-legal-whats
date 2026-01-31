@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
-import db from '../db.js';
-import logger from '../logger.js';
+import { query } from '../db.js';
+import { logInfo, logError } from '../logger.js';
 
 const router = Router();
 
@@ -10,7 +10,7 @@ const router = Router();
 // Listar agentes da organização
 router.get('/', authenticate, async (req, res) => {
   try {
-    const result = await db.query(`
+    const result = await query(`
       SELECT 
         a.*,
         u.name as created_by_name,
@@ -25,7 +25,7 @@ router.get('/', authenticate, async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    logger.error('Error fetching AI agents:', error);
+    logError('ai_agents.list_error', error);
     res.status(500).json({ error: 'Erro ao buscar agentes' });
   }
 });
@@ -33,7 +33,7 @@ router.get('/', authenticate, async (req, res) => {
 // Buscar agente por ID
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const result = await db.query(`
+    const result = await query(`
       SELECT 
         a.*,
         u.name as created_by_name
@@ -48,7 +48,7 @@ router.get('/:id', authenticate, async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    logger.error('Error fetching AI agent:', error);
+    logError('ai_agents.get_error', error);
     res.status(500).json({ error: 'Erro ao buscar agente' });
   }
 });
@@ -86,7 +86,7 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Nome é obrigatório' });
     }
 
-    const result = await db.query(`
+    const result = await query(`
       INSERT INTO ai_agents (
         organization_id, name, description, avatar_url,
         ai_provider, ai_model, ai_api_key,
@@ -115,10 +115,10 @@ router.post('/', authenticate, async (req, res) => {
       req.user.id
     ]);
 
-    logger.info(`AI Agent created: ${result.rows[0].id} by user ${req.user.id}`);
+    logInfo('ai_agents.created', { agentId: result.rows[0].id, userId: req.user.id });
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    logger.error('Error creating AI agent:', error);
+    logError('ai_agents.create_error', error);
     res.status(500).json({ error: 'Erro ao criar agente' });
   }
 });
@@ -127,7 +127,7 @@ router.post('/', authenticate, async (req, res) => {
 router.patch('/:id', authenticate, async (req, res) => {
   try {
     // Verificar propriedade
-    const check = await db.query(
+    const check = await query(
       'SELECT id FROM ai_agents WHERE id = $1 AND organization_id = $2',
       [req.params.id, req.user.organization_id]
     );
@@ -168,7 +168,7 @@ router.patch('/:id', authenticate, async (req, res) => {
     }
 
     values.push(req.params.id);
-    const result = await db.query(`
+    const result = await query(`
       UPDATE ai_agents 
       SET ${updates.join(', ')}, updated_at = NOW()
       WHERE id = $${paramIndex}
@@ -177,7 +177,7 @@ router.patch('/:id', authenticate, async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    logger.error('Error updating AI agent:', error);
+    logError('ai_agents.update_error', error);
     res.status(500).json({ error: 'Erro ao atualizar agente' });
   }
 });
@@ -185,7 +185,7 @@ router.patch('/:id', authenticate, async (req, res) => {
 // Deletar agente
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const result = await db.query(
+    const result = await query(
       'DELETE FROM ai_agents WHERE id = $1 AND organization_id = $2 RETURNING id',
       [req.params.id, req.user.organization_id]
     );
@@ -196,7 +196,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    logger.error('Error deleting AI agent:', error);
+    logError('ai_agents.delete_error', error);
     res.status(500).json({ error: 'Erro ao deletar agente' });
   }
 });
@@ -204,7 +204,7 @@ router.delete('/:id', authenticate, async (req, res) => {
 // Toggle ativo/inativo
 router.post('/:id/toggle', authenticate, async (req, res) => {
   try {
-    const result = await db.query(`
+    const result = await query(`
       UPDATE ai_agents 
       SET is_active = NOT is_active, updated_at = NOW()
       WHERE id = $1 AND organization_id = $2
@@ -217,7 +217,7 @@ router.post('/:id/toggle', authenticate, async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    logger.error('Error toggling AI agent:', error);
+    logError('ai_agents.toggle_error', error);
     res.status(500).json({ error: 'Erro ao alternar agente' });
   }
 });
@@ -227,7 +227,7 @@ router.post('/:id/toggle', authenticate, async (req, res) => {
 // Listar fontes de conhecimento de um agente
 router.get('/:id/knowledge', authenticate, async (req, res) => {
   try {
-    const result = await db.query(`
+    const result = await query(`
       SELECT 
         ks.*,
         u.name as created_by_name
@@ -239,7 +239,7 @@ router.get('/:id/knowledge', authenticate, async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    logger.error('Error fetching knowledge sources:', error);
+    logError('ai_agents.knowledge_list_error', error);
     res.status(500).json({ error: 'Erro ao buscar fontes de conhecimento' });
   }
 });
@@ -263,7 +263,7 @@ router.post('/:id/knowledge', authenticate, async (req, res) => {
     }
 
     // Verificar propriedade do agente
-    const agentCheck = await db.query(
+    const agentCheck = await query(
       'SELECT id FROM ai_agents WHERE id = $1 AND organization_id = $2',
       [req.params.id, req.user.organization_id]
     );
@@ -272,7 +272,7 @@ router.post('/:id/knowledge', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Agente não encontrado' });
     }
 
-    const result = await db.query(`
+    const result = await query(`
       INSERT INTO ai_knowledge_sources (
         agent_id, source_type, name, description, source_content,
         file_type, file_size, original_filename, priority,
@@ -290,7 +290,7 @@ router.post('/:id/knowledge', authenticate, async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    logger.error('Error adding knowledge source:', error);
+    logError('ai_agents.knowledge_add_error', error);
     res.status(500).json({ error: 'Erro ao adicionar fonte de conhecimento' });
   }
 });
@@ -315,7 +315,7 @@ router.patch('/:id/knowledge/:sourceId', authenticate, async (req, res) => {
 
     values.push(req.params.sourceId, req.params.id);
 
-    const result = await db.query(`
+    const result = await query(`
       UPDATE ai_knowledge_sources 
       SET ${updates.join(', ')}, updated_at = NOW()
       WHERE id = $${idx++} AND agent_id = $${idx}
@@ -328,7 +328,7 @@ router.patch('/:id/knowledge/:sourceId', authenticate, async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    logger.error('Error updating knowledge source:', error);
+    logError('ai_agents.knowledge_update_error', error);
     res.status(500).json({ error: 'Erro ao atualizar fonte' });
   }
 });
@@ -336,7 +336,7 @@ router.patch('/:id/knowledge/:sourceId', authenticate, async (req, res) => {
 // Deletar fonte de conhecimento
 router.delete('/:id/knowledge/:sourceId', authenticate, async (req, res) => {
   try {
-    const result = await db.query(
+    const result = await query(
       'DELETE FROM ai_knowledge_sources WHERE id = $1 AND agent_id = $2 RETURNING id',
       [req.params.sourceId, req.params.id]
     );
@@ -347,7 +347,7 @@ router.delete('/:id/knowledge/:sourceId', authenticate, async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
-    logger.error('Error deleting knowledge source:', error);
+    logError('ai_agents.knowledge_delete_error', error);
     res.status(500).json({ error: 'Erro ao deletar fonte' });
   }
 });
@@ -355,7 +355,7 @@ router.delete('/:id/knowledge/:sourceId', authenticate, async (req, res) => {
 // Reprocessar fonte de conhecimento
 router.post('/:id/knowledge/:sourceId/reprocess', authenticate, async (req, res) => {
   try {
-    const result = await db.query(`
+    const result = await query(`
       UPDATE ai_knowledge_sources 
       SET status = 'pending', error_message = NULL, updated_at = NOW()
       WHERE id = $1 AND agent_id = $2
@@ -371,7 +371,7 @@ router.post('/:id/knowledge/:sourceId/reprocess', authenticate, async (req, res)
 
     res.json(result.rows[0]);
   } catch (error) {
-    logger.error('Error reprocessing knowledge source:', error);
+    logError('ai_agents.knowledge_reprocess_error', error);
     res.status(500).json({ error: 'Erro ao reprocessar fonte' });
   }
 });
@@ -381,7 +381,7 @@ router.post('/:id/knowledge/:sourceId/reprocess', authenticate, async (req, res)
 // Listar conexões vinculadas ao agente
 router.get('/:id/connections', authenticate, async (req, res) => {
   try {
-    const result = await db.query(`
+    const result = await query(`
       SELECT 
         ac.*,
         c.name as connection_name,
@@ -395,7 +395,7 @@ router.get('/:id/connections', authenticate, async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    logger.error('Error fetching agent connections:', error);
+    logError('ai_agents.connections_list_error', error);
     res.status(500).json({ error: 'Erro ao buscar conexões' });
   }
 });
@@ -418,7 +418,7 @@ router.post('/:id/connections', authenticate, async (req, res) => {
     }
 
     // Verificar se a conexão pertence à organização
-    const connCheck = await db.query(
+    const connCheck = await query(
       'SELECT id FROM connections WHERE id = $1 AND organization_id = $2',
       [connection_id, req.user.organization_id]
     );
@@ -427,7 +427,7 @@ router.post('/:id/connections', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
-    const result = await db.query(`
+    const result = await query(`
       INSERT INTO ai_agent_connections (
         agent_id, connection_id, mode, trigger_keywords,
         business_hours_start, business_hours_end, business_days, priority
@@ -448,7 +448,7 @@ router.post('/:id/connections', authenticate, async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    logger.error('Error linking agent to connection:', error);
+    logError('ai_agents.connection_link_error', error);
     res.status(500).json({ error: 'Erro ao vincular agente' });
   }
 });
@@ -456,7 +456,7 @@ router.post('/:id/connections', authenticate, async (req, res) => {
 // Desvincular agente de uma conexão
 router.delete('/:id/connections/:connectionId', authenticate, async (req, res) => {
   try {
-    const result = await db.query(
+    const result = await query(
       'DELETE FROM ai_agent_connections WHERE agent_id = $1 AND connection_id = $2 RETURNING id',
       [req.params.id, req.params.connectionId]
     );
@@ -467,7 +467,7 @@ router.delete('/:id/connections/:connectionId', authenticate, async (req, res) =
 
     res.json({ success: true });
   } catch (error) {
-    logger.error('Error unlinking agent from connection:', error);
+    logError('ai_agents.connection_unlink_error', error);
     res.status(500).json({ error: 'Erro ao desvincular agente' });
   }
 });
@@ -488,7 +488,7 @@ router.get('/:id/stats', authenticate, async (req, res) => {
     }
 
     // Estatísticas agregadas
-    const statsResult = await db.query(`
+    const statsResult = await query(`
       SELECT
         COALESCE(SUM(total_sessions), 0) as total_sessions,
         COALESCE(SUM(total_messages), 0) as total_messages,
@@ -505,7 +505,7 @@ router.get('/:id/stats', authenticate, async (req, res) => {
     `, params);
 
     // Dados diários
-    const dailyResult = await db.query(`
+    const dailyResult = await query(`
       SELECT 
         date,
         total_sessions,
@@ -519,7 +519,7 @@ router.get('/:id/stats', authenticate, async (req, res) => {
     `, params);
 
     // Sessões ativas
-    const activeResult = await db.query(
+    const activeResult = await query(
       'SELECT COUNT(*) as count FROM ai_agent_sessions WHERE agent_id = $1 AND is_active = true',
       [req.params.id]
     );
@@ -530,7 +530,7 @@ router.get('/:id/stats', authenticate, async (req, res) => {
       active_sessions: parseInt(activeResult.rows[0].count)
     });
   } catch (error) {
-    logger.error('Error fetching agent stats:', error);
+    logError('ai_agents.stats_error', error);
     res.status(500).json({ error: 'Erro ao buscar estatísticas' });
   }
 });
@@ -560,23 +560,23 @@ router.get('/templates', authenticate, async (req, res) => {
   try {
     const { category } = req.query;
 
-    let query = `
+    let sql = `
       SELECT * FROM ai_prompt_templates
       WHERE organization_id = $1 OR is_system = true
     `;
     const params = [req.user.organization_id];
 
     if (category) {
-      query += ' AND category = $2';
+      sql += ' AND category = $2';
       params.push(category);
     }
 
-    query += ' ORDER BY is_system DESC, usage_count DESC';
+    sql += ' ORDER BY is_system DESC, usage_count DESC';
 
-    const result = await db.query(query, params);
+    const result = await query(sql, params);
     res.json(result.rows);
   } catch (error) {
-    logger.error('Error fetching prompt templates:', error);
+    logError('ai_agents.templates_list_error', error);
     res.status(500).json({ error: 'Erro ao buscar templates' });
   }
 });
@@ -590,7 +590,7 @@ router.post('/templates', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Nome e template são obrigatórios' });
     }
 
-    const result = await db.query(`
+    const result = await query(`
       INSERT INTO ai_prompt_templates (
         organization_id, name, description, category, template, variables, created_by
       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -602,7 +602,7 @@ router.post('/templates', authenticate, async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    logger.error('Error creating prompt template:', error);
+    logError('ai_agents.template_create_error', error);
     res.status(500).json({ error: 'Erro ao criar template' });
   }
 });
