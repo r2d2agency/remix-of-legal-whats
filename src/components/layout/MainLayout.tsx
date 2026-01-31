@@ -8,12 +8,12 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden w-full max-w-full">
       <Sidebar />
       <TopBar />
       {/* Desktop: margin-left for collapsed sidebar + top bar, Mobile: no margin */}
-      <main className="lg:ml-16 pt-14 lg:pt-12">
-        <div className="p-2 lg:p-3 xl:p-4">{children}</div>
+      <main className="lg:ml-16 pt-14 lg:pt-12 overflow-x-hidden w-full max-w-full">
+        <div className="p-2 lg:p-3 xl:p-4 w-full max-w-full overflow-x-hidden">{children}</div>
       </main>
     </div>
   );
