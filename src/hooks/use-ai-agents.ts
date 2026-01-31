@@ -1,6 +1,47 @@
 import { useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 
+// PostgreSQL arrays may come back as strings like "{a,b,c}" depending on driver/query.
+function normalizePgArray<T extends string>(value: unknown, defaultValue: T[] = []): T[] {
+  if (Array.isArray(value)) return value as T[];
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+
+    // JSON arrays sometimes get serialized to string
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? (parsed as T[]) : defaultValue;
+      } catch {
+        // fall through
+      }
+    }
+
+    // PostgreSQL array format: {item1,item2}
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      const inner = trimmed.slice(1, -1).trim();
+      if (!inner) return defaultValue;
+      return inner.split(',').map((s) => s.trim().replace(/^"|"$/g, '')) as T[];
+    }
+
+    // Single value
+    if (!trimmed) return defaultValue;
+    return [trimmed.replace(/^"|"$/g, '') as T];
+  }
+
+  return defaultValue;
+}
+
+function normalizeAgent(agent: AIAgent): AIAgent {
+  return {
+    ...agent,
+    capabilities: normalizePgArray<AgentCapability>(agent.capabilities, ['respond_messages']),
+    handoff_keywords: normalizePgArray<string>(agent.handoff_keywords, ['humano', 'atendente', 'pessoa']),
+    personality_traits: normalizePgArray<string>(agent.personality_traits, []),
+  };
+}
+
 export type AIProvider = 'openai' | 'gemini';
 export type KnowledgeSourceType = 'file' | 'url' | 'text';
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed';
@@ -157,7 +198,8 @@ export const useAIAgents = () => {
     setLoading(true);
     setError(null);
     try {
-      return await api<AIAgent[]>('/api/ai-agents', { auth: true });
+      const data = await api<AIAgent[]>('/api/ai-agents', { auth: true });
+      return Array.isArray(data) ? data.map(normalizeAgent) : [];
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar agentes';
       setError(message);
@@ -171,7 +213,8 @@ export const useAIAgents = () => {
     setLoading(true);
     setError(null);
     try {
-      return await api<AIAgent>(`/api/ai-agents/${id}`, { auth: true });
+      const data = await api<AIAgent>(`/api/ai-agents/${id}`, { auth: true });
+      return data ? normalizeAgent(data) : null;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar agente';
       setError(message);
@@ -185,11 +228,12 @@ export const useAIAgents = () => {
     setLoading(true);
     setError(null);
     try {
-      return await api<AIAgent>('/api/ai-agents', {
+      const created = await api<AIAgent>('/api/ai-agents', {
         method: 'POST',
         body: data,
         auth: true,
       });
+      return created ? normalizeAgent(created) : null;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao criar agente';
       setError(message);
@@ -203,11 +247,12 @@ export const useAIAgents = () => {
     setLoading(true);
     setError(null);
     try {
-      return await api<AIAgent>(`/api/ai-agents/${id}`, {
+      const updated = await api<AIAgent>(`/api/ai-agents/${id}`, {
         method: 'PATCH',
         body: data,
         auth: true,
       });
+      return updated ? normalizeAgent(updated) : null;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao atualizar agente';
       setError(message);
