@@ -3,7 +3,7 @@ import { Handle, Position, NodeProps } from 'reactflow';
 import { 
   Play, MessageSquare, List, FormInput, GitBranch, 
   Zap, ArrowRightLeft, Sparkles, Square, Trash2, Settings,
-  Clock, Webhook
+  Clock, Webhook, Bot
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ const nodeColors: Record<string, { bg: string; border: string; icon: string }> =
   ai_response: { bg: 'bg-violet-500/10', border: 'border-violet-500', icon: 'text-violet-500' },
   delay: { bg: 'bg-sky-500/10', border: 'border-sky-500', icon: 'text-sky-500' },
   webhook: { bg: 'bg-rose-500/10', border: 'border-rose-500', icon: 'text-rose-500' },
+  ai_agent: { bg: 'bg-emerald-500/10', border: 'border-emerald-500', icon: 'text-emerald-500' },
   end: { bg: 'bg-red-500/10', border: 'border-red-500', icon: 'text-red-500' },
 };
 
@@ -40,6 +41,7 @@ const nodeIcons: Record<string, React.ElementType> = {
   ai_response: Sparkles,
   delay: Clock,
   webhook: Webhook,
+  ai_agent: Bot,
   end: Square,
 };
 
@@ -119,6 +121,7 @@ function BaseFlowNode({ id, data, nodeType, selected }: BaseNodeProps) {
           {nodeType === 'action' && `Ação: ${data.content.action_type || data.content.type}`}
           {nodeType === 'transfer' && 'Transferir para atendente'}
           {nodeType === 'ai_response' && 'Resposta da IA'}
+          {nodeType === 'ai_agent' && ((data.content?.agent_name as string) || 'Selecionar agente...')}
           {nodeType === 'delay' && `${data.content.duration || 5}${data.content.unit === 'minutes' ? 'min' : 's'}`}
           {nodeType === 'webhook' && (data.content.url ? 'API configurada' : 'Configurar...')}
         </div>
@@ -254,6 +257,11 @@ export const WebhookNode = memo((props: NodeProps<FlowNodeData>) => (
 ));
 WebhookNode.displayName = 'WebhookNode';
 
+export const AIAgentNode = memo((props: NodeProps<FlowNodeData>) => (
+  <BaseFlowNode {...props} nodeType="ai_agent" />
+));
+AIAgentNode.displayName = 'AIAgentNode';
+
 export const EndNode = memo((props: NodeProps<FlowNodeData>) => (
   <BaseFlowNode {...props} nodeType="end" />
 ));
@@ -270,5 +278,6 @@ export const nodeTypes = {
   ai_response: AIResponseNode,
   delay: DelayNode,
   webhook: WebhookNode,
+  ai_agent: AIAgentNode,
   end: EndNode,
 };

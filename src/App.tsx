@@ -25,6 +25,7 @@ import ContatosChat from "./pages/ContatosChat";
 import Chatbots from "./pages/Chatbots";
 import Fluxos from "./pages/Fluxos";
 import Departamentos from "./pages/Departamentos";
+import AgentesIA from "./pages/AgentesIA";
 import CRMNegociacoes from "./pages/CRMNegociacoes";
 import CRMProspects from "./pages/CRMProspects";
 import CRMEmpresas from "./pages/CRMEmpresas";
@@ -86,6 +87,7 @@ const App = () => (
             <Route path="/chatbots" element={<ProtectedRoute><Chatbots /></ProtectedRoute>} />
             <Route path="/fluxos" element={<ProtectedRoute><Fluxos /></ProtectedRoute>} />
             <Route path="/departamentos" element={<ProtectedRoute><Departamentos /></ProtectedRoute>} />
+            <Route path="/agentes-ia" element={<ProtectedRoute><AgentesIA /></ProtectedRoute>} />
             <Route path="/crm/negociacoes" element={<ProtectedRoute><CRMNegociacoes /></ProtectedRoute>} />
             <Route path="/crm/prospects" element={<ProtectedRoute><CRMProspects /></ProtectedRoute>} />
             <Route path="/crm/empresas" element={<ProtectedRoute><CRMEmpresas /></ProtectedRoute>} />

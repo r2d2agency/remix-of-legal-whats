@@ -20,7 +20,7 @@ import { Slider } from '@/components/ui/slider';
 import { 
   X, Plus, Trash2, GripVertical, MessageSquare, List, 
   FormInput, GitBranch, Zap, ArrowRightLeft, Sparkles, 
-  Clock, Webhook, Image, Images, FileText, Video, Mic, Upload, Loader2
+  Clock, Webhook, Image, Images, FileText, Video, Mic, Upload, Loader2, Bot
 } from 'lucide-react';
 import { FlowNodeData } from '@/components/chatbots/FlowNodes';
 import { useUpload } from '@/hooks/use-upload';
@@ -73,6 +73,7 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
       action: <Zap className="h-5 w-5" />,
       transfer: <ArrowRightLeft className="h-5 w-5" />,
       ai_response: <Sparkles className="h-5 w-5" />,
+      ai_agent: <Bot className="h-5 w-5" />,
       delay: <Clock className="h-5 w-5" />,
       webhook: <Webhook className="h-5 w-5" />,
     };
@@ -88,6 +89,7 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
       action: 'Ação',
       transfer: 'Transferência',
       ai_response: 'Resposta IA',
+      ai_agent: 'Agente IA',
       delay: 'Delay',
       webhook: 'Webhook',
     };
@@ -150,6 +152,9 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
           )}
           {node.type === 'webhook' && (
             <WebhookNodeEditor content={content} onChange={setContent} />
+          )}
+          {node.type === 'ai_agent' && (
+            <AIAgentNodeEditor content={content} onChange={setContent} />
           )}
         </div>
       </ScrollArea>
@@ -1464,6 +1469,75 @@ function WebhookNodeEditor({ content, onChange }: { content: Record<string, any>
         <Switch
           checked={content.continue_on_error || false}
           onCheckedChange={(v) => onChange({ ...content, continue_on_error: v })}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ============ AI Agent Node Editor ============
+function AIAgentNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
+  const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadAgents();
+  }, []);
+
+  const loadAgents = async () => {
+    try {
+      const { api } = await import('@/lib/api');
+      const data = await api<Array<{ id: string; name: string }>>('/api/ai-agents', { auth: true });
+      setAgents(data);
+    } catch {
+      setAgents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Agente de IA</Label>
+        <Select
+          value={content.agent_id || ''}
+          onValueChange={(value) => {
+            const agent = agents.find(a => a.id === value);
+            onChange({ ...content, agent_id: value, agent_name: agent?.name || '' });
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={loading ? "Carregando..." : "Selecione um agente"} />
+          </SelectTrigger>
+          <SelectContent>
+            {agents.map((agent) => (
+              <SelectItem key={agent.id} value={agent.id}>
+                {agent.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          O agente irá assumir a conversa até transferir ou encerrar
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Contexto adicional (opcional)</Label>
+        <Textarea
+          value={content.context || ''}
+          onChange={(e) => onChange({ ...content, context: e.target.value })}
+          placeholder="Contexto extra para o agente sobre esta etapa do fluxo..."
+          rows={3}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <Label className="text-sm">Continuar fluxo após handoff</Label>
+        <Switch
+          checked={content.continue_after_handoff || false}
+          onCheckedChange={(v) => onChange({ ...content, continue_after_handoff: v })}
         />
       </div>
     </div>

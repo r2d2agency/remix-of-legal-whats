@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   BarChart3,
   Bot,
+  Brain,
   Briefcase,
   Building2,
   CalendarDays,
@@ -22,6 +23,7 @@ import {
   Send,
   Settings,
   Shield,
+  Sparkles,
   User,
   Users,
   UserPlus,
@@ -59,6 +61,7 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat' },
+      { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, adminOnly: true },
       { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true },
       { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots', adminOnly: true },
       { name: "Departamentos", href: "/departamentos", icon: Building2, adminOnly: true },
