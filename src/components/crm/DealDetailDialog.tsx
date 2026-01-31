@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel, useCRMCompanies } from "@/hooks/use-crm";
 import { api } from "@/lib/api";
-import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building } from "lucide-react";
+import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building, Mail } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { CompanyDialog } from "./CompanyDialog";
+import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 
 interface ChatContact {
   id: string;
@@ -75,6 +76,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [contactSearchOpen, setContactSearchOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
 
   const { data: fullDeal, isLoading } = useCRMDeal(deal?.id || null);
   const { data: funnelData } = useCRMFunnel(deal?.funnel_id || null);
@@ -330,6 +332,10 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowEmailDialog(true)}>
+                <Mail className="h-4 w-4 mr-2" />
+                Email
+              </Button>
               <Button variant="outline" size="sm" onClick={handleOpenChat}>
                 <MessageSquare className="h-4 w-4 mr-2" />
                 Chat
@@ -862,6 +868,22 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
         if (!open) {
           setCompanySearch("");
         }
+      }}
+    />
+
+    <SendEmailDialog
+      open={showEmailDialog}
+      onOpenChange={setShowEmailDialog}
+      toName={currentDeal?.contacts?.[0]?.name || ""}
+      contextType="deal"
+      contextId={deal?.id}
+      variables={{
+        nome: currentDeal?.contacts?.[0]?.name || "",
+        telefone: currentDeal?.contacts?.[0]?.phone || "",
+        empresa: currentDeal?.company_name || "",
+        deal_title: currentDeal?.title || "",
+        valor: currentDeal?.value ? formatCurrency(currentDeal.value) : "",
+        etapa: currentDeal?.stage_name || "",
       }}
     />
     </>

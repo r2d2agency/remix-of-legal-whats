@@ -60,6 +60,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { TaskDialog } from "@/components/crm/TaskDialog";
 import { MeetingScheduleDialog } from "./MeetingScheduleDialog";
+import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 
 interface CRMSidePanelProps {
   conversationId: string;
@@ -132,6 +133,7 @@ export function CRMSidePanel({
   // Task and Meeting dialogs
   const [showTaskDialog, setShowTaskDialog] = useState(false);
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
 
   // Initialize deal form when deal changes
   useEffect(() => {
@@ -373,6 +375,15 @@ export function CRMSidePanel({
         >
           <Video className="h-3.5 w-3.5 text-green-600" />
           Reunião
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 h-8 text-xs gap-1.5"
+          onClick={() => setShowEmailDialog(true)}
+        >
+          <Mail className="h-3.5 w-3.5 text-blue-600" />
+          Email
         </Button>
       </div>
 
@@ -920,6 +931,20 @@ export function CRMSidePanel({
         dealId={selectedDeal?.id}
         contactName={contactName}
         contactPhone={contactPhone}
+      />
+
+      {/* Email Dialog */}
+      <SendEmailDialog
+        open={showEmailDialog}
+        onOpenChange={setShowEmailDialog}
+        toName={contactName || undefined}
+        contextType={selectedDeal ? "deal" : "chat"}
+        contextId={selectedDeal?.id || conversationId}
+        variables={{
+          nome: contactName || "",
+          telefone: contactPhone || "",
+          empresa: company?.name || "",
+        }}
       />
     </div>
   );
