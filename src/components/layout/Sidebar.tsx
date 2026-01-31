@@ -45,6 +45,7 @@ interface NavItem {
   icon: any;
   moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents';
   adminOnly?: boolean; // Requires owner, admin, or manager role
+  superadminOnly?: boolean; // Requires superadmin
 }
 
 interface NavSection {
@@ -61,7 +62,7 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat' },
-      { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, moduleKey: 'ai_agents', adminOnly: true },
+      { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, superadminOnly: true },
       { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true },
       { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots', adminOnly: true },
       { name: "Departamentos", href: "/departamentos", icon: Building2, adminOnly: true },
@@ -145,6 +146,8 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
       items: section.items.filter(item => {
         // Check module access
         if (item.moduleKey && !modulesEnabled[item.moduleKey]) return false;
+        // Check superadmin-only item
+        if (item.superadminOnly && !isSuperadmin) return false;
         // Check admin-only item
         if (item.adminOnly && !userIsAdmin) return false;
         return true;

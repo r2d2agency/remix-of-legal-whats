@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,13 +9,14 @@ import { Input } from '@/components/ui/input';
 import { 
   Bot, Plus, Search, Settings, Database, Zap, 
   MessageSquare, BarChart3, Trash2, Copy, MoreVertical,
-  Brain, Globe, FileText, Sparkles
+  Brain, Globe, FileText, Sparkles, Loader2
 } from 'lucide-react';
 import { useAIAgents, AIAgent } from '@/hooks/use-ai-agents';
 import { toast } from 'sonner';
 import { AgentEditorDialog } from '@/components/ai-agents/AgentEditorDialog';
 import { AgentStatsDialog } from '@/components/ai-agents/AgentStatsDialog';
 import { KnowledgeBaseDialog } from '@/components/ai-agents/KnowledgeBaseDialog';
+import { API_URL, getAuthToken } from '@/lib/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +36,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function AgentesIA() {
+  const navigate = useNavigate();
   const [agents, setAgents] = useState<AIAgent[]>([]);
   const [search, setSearch] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -44,8 +47,45 @@ export default function AgentesIA() {
   const [knowledgeAgent, setKnowledgeAgent] = useState<AIAgent | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<AIAgent | null>(null);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
 
   const { getAgents, toggleAgent, deleteAgent, loading } = useAIAgents();
+
+  // Check superadmin access
+  useEffect(() => {
+    const checkAccess = async () => {
+      try {
+        const token = getAuthToken();
+        if (!token) {
+          navigate('/');
+          return;
+        }
+
+        const response = await fetch(`${API_URL}/api/admin/check`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (!data.isSuperadmin) {
+            toast.error('Acesso restrito a superadmins');
+            navigate('/');
+            return;
+          }
+          setIsSuperadmin(true);
+        } else {
+          navigate('/');
+          return;
+        }
+      } catch {
+        navigate('/');
+      } finally {
+        setCheckingAccess(false);
+      }
+    };
+    checkAccess();
+  }, [navigate]);
 
   const loadAgents = async () => {
     const data = await getAgents();
@@ -53,8 +93,10 @@ export default function AgentesIA() {
   };
 
   useEffect(() => {
-    loadAgents();
-  }, []);
+    if (isSuperadmin) {
+      loadAgents();
+    }
+  }, [isSuperadmin]);
 
   const handleToggle = async (agent: AIAgent) => {
     const result = await toggleAgent(agent.id);
@@ -115,6 +157,17 @@ export default function AgentesIA() {
     };
     return labels[cap] || cap;
   };
+
+  // Show loading while checking access
+  if (checkingAccess) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
