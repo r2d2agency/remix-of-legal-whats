@@ -166,12 +166,18 @@ export default function CRMConfiguracoes() {
 
   const saveLossReason = () => {
     if (!lossReasonForm.name.trim()) return;
+    // Prevent double submission
+    if (createLossReason.isPending || updateLossReason.isPending) return;
+    
     if (editingLossReason) {
-      updateLossReason.mutate({ id: editingLossReason.id, ...lossReasonForm });
+      updateLossReason.mutate({ id: editingLossReason.id, ...lossReasonForm }, {
+        onSuccess: () => setLossReasonDialog(false)
+      });
     } else {
-      createLossReason.mutate(lossReasonForm);
+      createLossReason.mutate(lossReasonForm, {
+        onSuccess: () => setLossReasonDialog(false)
+      });
     }
-    setLossReasonDialog(false);
   };
 
   // Funnel handlers
@@ -1329,7 +1335,13 @@ export default function CRMConfiguracoes() {
             <Button variant="outline" onClick={() => setLossReasonDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={saveLossReason} disabled={!lossReasonForm.name.trim()}>
+            <Button 
+              onClick={saveLossReason} 
+              disabled={!lossReasonForm.name.trim() || createLossReason.isPending || updateLossReason.isPending}
+            >
+              {(createLossReason.isPending || updateLossReason.isPending) && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
               Salvar
             </Button>
           </DialogFooter>
