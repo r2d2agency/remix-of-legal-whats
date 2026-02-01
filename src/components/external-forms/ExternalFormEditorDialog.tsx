@@ -239,153 +239,157 @@ export function ExternalFormEditorDialog({
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 px-1">
-            {/* FIELDS TAB */}
-            <TabsContent value="fields" className="space-y-4 mt-4">
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label>Nome do Formulário *</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Ex: Captura de Leads - Black Friday"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Descrição (opcional)</Label>
-                  <Input
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Descrição interna do formulário"
-                  />
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <Label className="text-base">Perguntas do Formulário</Label>
-                  <Button variant="outline" size="sm" onClick={addField}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Adicionar Campo
-                  </Button>
+          {/* FIELDS TAB */}
+          <TabsContent value="fields" className="mt-4 flex-1 min-h-0">
+            <ScrollArea className="h-[50vh]">
+              <div className="pr-4 space-y-4">
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label>Nome do Formulário *</Label>
+                    <Input
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Ex: Captura de Leads - Black Friday"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Descrição (opcional)</Label>
+                    <Input
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="Descrição interna do formulário"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-3">
-                  {fields.map((field, index) => (
-                    <Card key={field.id || index} className="relative">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="flex flex-col gap-1 mt-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              disabled={index === 0}
-                              onClick={() => moveField(index, index - 1)}
-                            >
-                              <span className="text-xs">↑</span>
-                            </Button>
-                            <GripVertical className="h-4 w-4 text-muted-foreground" />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              disabled={index === fields.length - 1}
-                              onClick={() => moveField(index, index + 1)}
-                            >
-                              <span className="text-xs">↓</span>
-                            </Button>
-                          </div>
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <Label className="text-base">Perguntas do Formulário</Label>
+                    <Button variant="outline" size="sm" onClick={addField}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Adicionar Campo
+                    </Button>
+                  </div>
 
-                          <div className="flex-1 grid gap-3">
-                            <div className="grid sm:grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Pergunta</Label>
-                                <Input
-                                  value={field.field_label}
-                                  onChange={(e) => updateField(index, { field_label: e.target.value })}
-                                  placeholder="Digite a pergunta..."
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Tipo</Label>
-                                <Select
-                                  value={field.field_type}
-                                  onValueChange={(value) => updateField(index, { field_type: value as FormField["field_type"] })}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {FIELD_TYPES.map((type) => (
-                                      <SelectItem key={type.value} value={type.value}>
-                                        {type.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                  <div className="space-y-3">
+                    {fields.map((field, index) => (
+                      <Card key={field.id || index} className="relative">
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex flex-col gap-1 mt-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                disabled={index === 0}
+                                onClick={() => moveField(index, index - 1)}
+                              >
+                                <span className="text-xs">↑</span>
+                              </Button>
+                              <GripVertical className="h-4 w-4 text-muted-foreground" />
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                disabled={index === fields.length - 1}
+                                onClick={() => moveField(index, index + 1)}
+                              >
+                                <span className="text-xs">↓</span>
+                              </Button>
                             </div>
 
-                            <div className="grid sm:grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Placeholder (opcional)</Label>
-                                <Input
-                                  value={field.placeholder || ""}
-                                  onChange={(e) => updateField(index, { placeholder: e.target.value })}
-                                  placeholder="Ex: Digite aqui..."
-                                />
-                              </div>
-                              <div className="flex items-center gap-4 pt-5">
-                                <div className="flex items-center gap-2">
-                                  <Switch
-                                    checked={field.is_required}
-                                    onCheckedChange={(checked) => updateField(index, { is_required: checked })}
+                            <div className="flex-1 grid gap-3">
+                              <div className="grid sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Pergunta</Label>
+                                  <Input
+                                    value={field.field_label}
+                                    onChange={(e) => updateField(index, { field_label: e.target.value })}
+                                    placeholder="Digite a pergunta..."
                                   />
-                                  <Label className="text-xs">Obrigatório</Label>
                                 </div>
-                                <Badge variant="outline" className="text-xs">
-                                  {field.field_key}
-                                </Badge>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Tipo</Label>
+                                  <Select
+                                    value={field.field_type}
+                                    onValueChange={(value) => updateField(index, { field_type: value as FormField["field_type"] })}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {FIELD_TYPES.map((type) => (
+                                        <SelectItem key={type.value} value={type.value}>
+                                          {type.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
+
+                              <div className="grid sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Placeholder (opcional)</Label>
+                                  <Input
+                                    value={field.placeholder || ""}
+                                    onChange={(e) => updateField(index, { placeholder: e.target.value })}
+                                    placeholder="Ex: Digite aqui..."
+                                  />
+                                </div>
+                                <div className="flex items-center gap-4 pt-5">
+                                  <div className="flex items-center gap-2">
+                                    <Switch
+                                      checked={field.is_required}
+                                      onCheckedChange={(checked) => updateField(index, { is_required: checked })}
+                                    />
+                                    <Label className="text-xs">Obrigatório</Label>
+                                  </div>
+                                  <Badge variant="outline" className="text-xs">
+                                    {field.field_key}
+                                  </Badge>
+                                </div>
+                              </div>
+
+                              {field.field_type === "select" && (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Opções (uma por linha)</Label>
+                                  <Textarea
+                                    value={(field.options || []).join("\n")}
+                                    onChange={(e) =>
+                                      updateField(index, {
+                                        options: e.target.value.split("\n").filter(Boolean),
+                                      })
+                                    }
+                                    placeholder="Opção 1&#10;Opção 2&#10;Opção 3"
+                                    className="min-h-[80px]"
+                                  />
+                                </div>
+                              )}
                             </div>
 
-                            {field.field_type === "select" && (
-                              <div className="space-y-1">
-                                <Label className="text-xs">Opções (uma por linha)</Label>
-                                <Textarea
-                                  value={(field.options || []).join("\n")}
-                                  onChange={(e) =>
-                                    updateField(index, {
-                                      options: e.target.value.split("\n").filter(Boolean),
-                                    })
-                                  }
-                                  placeholder="Opção 1&#10;Opção 2&#10;Opção 3"
-                                  className="min-h-[80px]"
-                                />
-                              </div>
-                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => removeField(index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => removeField(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </TabsContent>
+            </ScrollArea>
+          </TabsContent>
 
-            {/* STYLE TAB */}
-            <TabsContent value="style" className="space-y-4 mt-4">
-              <div className="grid gap-4">
+          {/* STYLE TAB */}
+          <TabsContent value="style" className="mt-4 flex-1 min-h-0">
+            <ScrollArea className="h-[50vh]">
+              <div className="pr-4 space-y-4">
                 <div className="grid gap-2">
                   <Label>URL da Logo (opcional)</Label>
                   <Input
@@ -482,11 +486,13 @@ export function ExternalFormEditorDialog({
                   </div>
                 </div>
               </div>
-            </TabsContent>
+            </ScrollArea>
+          </TabsContent>
 
-            {/* MESSAGES TAB */}
-            <TabsContent value="messages" className="space-y-4 mt-4">
-              <div className="grid gap-4">
+          {/* MESSAGES TAB */}
+          <TabsContent value="messages" className="mt-4 flex-1 min-h-0">
+            <ScrollArea className="h-[50vh]">
+              <div className="pr-4 space-y-4">
                 <div className="grid gap-2">
                   <Label>Mensagem de Boas-vindas</Label>
                   <Textarea
@@ -525,11 +531,13 @@ export function ExternalFormEditorDialog({
                   </p>
                 </div>
               </div>
-            </TabsContent>
+            </ScrollArea>
+          </TabsContent>
 
-            {/* ACTIONS TAB */}
-            <TabsContent value="actions" className="space-y-4 mt-4">
-              <div className="grid gap-4">
+          {/* ACTIONS TAB */}
+          <TabsContent value="actions" className="mt-4 flex-1 min-h-0">
+            <ScrollArea className="h-[50vh]">
+              <div className="pr-4 space-y-4">
                 <div className="grid gap-2">
                   <Label>Disparar Fluxo Automático (opcional)</Label>
                   <Select
@@ -564,14 +572,17 @@ export function ExternalFormEditorDialog({
                   <div className="grid gap-2">
                     <Label>Conexão para Disparo</Label>
                     <Select
-                      value={formData.connection_id}
-                      onValueChange={(value) => setFormData({ ...formData, connection_id: value })}
+                      value={formData.connection_id || "__none__"}
+                      onValueChange={(value) => setFormData({ ...formData, connection_id: value === "__none__" ? "" : value })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione uma conexão..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {connections.map((conn) => (
+                        <SelectItem value="__none__">Nenhuma</SelectItem>
+                        {connections
+                          .filter((conn) => conn.id && String(conn.id).trim() !== "")
+                          .map((conn) => (
                           <SelectItem key={conn.id} value={conn.id}>
                             {conn.name}
                           </SelectItem>
@@ -598,8 +609,8 @@ export function ExternalFormEditorDialog({
                   </div>
                 </div>
               </div>
-            </TabsContent>
-          </ScrollArea>
+            </ScrollArea>
+          </TabsContent>
         </Tabs>
 
         <div className="flex justify-end gap-2 pt-4 border-t">
