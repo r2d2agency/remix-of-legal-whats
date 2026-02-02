@@ -260,6 +260,16 @@ export default function FluxosExternos() {
                         />
                       </TableCell>
                       <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEdit(form)}
+                            title="Editar formulário"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
@@ -293,6 +303,7 @@ export default function FluxosExternos() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
