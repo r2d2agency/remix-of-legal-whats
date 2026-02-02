@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import systemPreviewChat from "@/assets/system-preview-chat.png";
 import systemPreviewCRM from "@/assets/system-preview-crm.png";
+import systemPreviewFlows from "@/assets/system-preview-flows.png";
 
 const systemScreenshots = [
   {
@@ -38,6 +39,12 @@ const systemScreenshots = [
     title: "CRM Kanban",
     description: "Visualize seu funil de vendas completo",
     image: systemPreviewCRM,
+  },
+  {
+    id: "flows",
+    title: "Construtor de Fluxos",
+    description: "Crie automações visuais com drag-and-drop",
+    image: systemPreviewFlows,
   },
 ];
 
