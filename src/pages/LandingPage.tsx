@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import systemPreview from "@/assets/system-preview-chat.png";
 
 const features = [
   {
@@ -210,12 +211,11 @@ export default function LandingPage() {
                   {branding.company_name || "Whatsale"} - Dashboard
                 </div>
               </div>
-              <div className="aspect-[16/9] bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
-                <div className="text-center">
-                  <MessageSquare className="h-16 w-16 text-primary mx-auto mb-4 opacity-50" />
-                  <p className="text-muted-foreground">Preview do Sistema</p>
-                </div>
-              </div>
+              <img 
+                src={systemPreview} 
+                alt="Preview do sistema de chat e CRM"
+                className="w-full h-auto"
+              />
             </div>
           </div>
         </div>
