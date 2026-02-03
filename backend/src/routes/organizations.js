@@ -25,7 +25,8 @@ router.get('/', async (req, res) => {
 });
 
 // Get organization by ID
-router.get('/:id', async (req, res) => {
+// NOTE: constrain :id to UUID to avoid conflicts with static routes like /ai-config
+router.get('/:id([0-9a-fA-F-]{36})', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -56,7 +57,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Get connections for organization (for member assignment)
-router.get('/:id/connections', async (req, res) => {
+router.get('/:id([0-9a-fA-F-]{36})/connections', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -132,7 +133,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update organization
-router.patch('/:id', async (req, res) => {
+router.patch('/:id([0-9a-fA-F-]{36})', async (req, res) => {
   try {
     const { id } = req.params;
     const { name, logo_url, modules_enabled } = req.body;
@@ -189,7 +190,7 @@ router.patch('/:id', async (req, res) => {
 });
 
 // Get organization modules settings
-router.get('/:id/modules', async (req, res) => {
+router.get('/:id([0-9a-fA-F-]{36})/modules', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -231,7 +232,7 @@ router.get('/:id/modules', async (req, res) => {
 });
 
 // List organization members with their connection assignments
-router.get('/:id/members', async (req, res) => {
+router.get('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -311,7 +312,7 @@ router.get('/:id/members', async (req, res) => {
 });
 
 // Add member to organization (creates user if not exists)
-router.post('/:id/members', async (req, res) => {
+router.post('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
   try {
     const { id } = req.params;
     const { email, name, password, role, connection_ids } = req.body;
@@ -503,7 +504,7 @@ router.patch('/:id/members/:userId', async (req, res) => {
 });
 
 // Get organization departments (for member assignment)
-router.get('/:id/departments', async (req, res) => {
+router.get('/:id([0-9a-fA-F-]{36})/departments', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -538,7 +539,7 @@ router.get('/:id/departments', async (req, res) => {
 });
 
 // Update user password (admin only)
-router.patch('/:id/members/:userId/password', async (req, res) => {
+router.patch('/:id([0-9a-fA-F-]{36})/members/:userId([0-9a-fA-F-]{36})/password', async (req, res) => {
   try {
     const { id, userId } = req.params;
     const { password } = req.body;
@@ -574,7 +575,7 @@ router.patch('/:id/members/:userId/password', async (req, res) => {
 });
 
 // Remove member from organization
-router.delete('/:id/members/:userId', async (req, res) => {
+router.delete('/:id([0-9a-fA-F-]{36})/members/:userId([0-9a-fA-F-]{36})', async (req, res) => {
   try {
     const { id, userId } = req.params;
 
@@ -712,6 +713,12 @@ router.put('/ai-config', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Update AI config error:', error);
+    // Migration resilience: missing columns
+    if (error?.code === '42703' || (error?.message && error.message.includes('column') && error.message.includes('does not exist'))) {
+      return res.status(503).json({
+        error: 'Configuração de IA indisponível: migração do banco pendente (colunas ai_provider/ai_model/ai_api_key).',
+      });
+    }
     res.status(500).json({ error: 'Erro ao salvar configurações de IA' });
   }
 });
@@ -790,6 +797,12 @@ router.post('/ai-config/test', async (req, res) => {
     res.json({ success: true, message: 'Conexão testada com sucesso' });
   } catch (error) {
     console.error('Test AI config error:', error);
+    // Migration resilience: missing columns
+    if (error?.code === '42703' || (error?.message && error.message.includes('column') && error.message.includes('does not exist'))) {
+      return res.status(503).json({
+        error: 'Teste de IA indisponível: migração do banco pendente (colunas ai_provider/ai_model/ai_api_key).',
+      });
+    }
     res.status(500).json({ error: 'Erro ao testar conexão' });
   }
 });

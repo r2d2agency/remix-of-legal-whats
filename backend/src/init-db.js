@@ -129,6 +129,13 @@ EXCEPTION WHEN duplicate_column THEN null; END $$;
 DO $$ BEGIN
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS modules_enabled JSONB DEFAULT '{"campaigns": true, "billing": true, "groups": true, "scheduled_messages": true, "chatbots": true, "chat": true}'::jsonb;
 EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+-- Organização: configuração global de IA (OpenAI/Gemini)
+DO $$ BEGIN
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_provider VARCHAR(20) DEFAULT 'none';
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_model VARCHAR(100);
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_api_key TEXT;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
 `;
 
 // ============================================
