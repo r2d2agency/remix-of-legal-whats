@@ -381,12 +381,12 @@ export default function Organizacoes() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Organizações</h1>
-            <p className="text-muted-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">Organizações</h1>
+            <p className="text-muted-foreground text-sm sm:text-base">
               Gerencie suas organizações e membros da equipe
             </p>
           </div>
@@ -394,7 +394,7 @@ export default function Organizacoes() {
           {isSuperadmin && (
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="shrink-0 w-full sm:w-auto">
                   <Plus className="h-4 w-4 mr-2" />
                   Nova Organização
                 </Button>
@@ -446,7 +446,7 @@ export default function Organizacoes() {
           )}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-4">
+        <div className="grid gap-6 lg:grid-cols-4 min-w-0">
           {/* Sidebar - Organizations List */}
           <Card className="lg:col-span-1">
             <CardHeader>
@@ -496,26 +496,26 @@ export default function Organizacoes() {
           </Card>
 
           {/* Main Content - Selected Organization */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className="lg:col-span-3 space-y-6 min-w-0 overflow-hidden">
             {selectedOrg ? (
               <>
                 {/* Org Header */}
                 <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="h-16 w-16 rounded-xl bg-primary/10 flex items-center justify-center">
-                          <Building2 className="h-8 w-8 text-primary" />
+                  <CardHeader className="p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                        <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                          <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
                         </div>
-                        <div>
-                          <CardTitle className="text-2xl">{selectedOrg.name}</CardTitle>
-                          <CardDescription>/{selectedOrg.slug}</CardDescription>
+                        <div className="min-w-0">
+                          <CardTitle className="text-xl sm:text-2xl truncate">{selectedOrg.name}</CardTitle>
+                          <CardDescription className="truncate">/{selectedOrg.slug}</CardDescription>
                         </div>
                       </div>
                       {canManageOrg && (
                         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
                           <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" onClick={() => setEditOrgName(selectedOrg.name)}>
+                            <Button variant="outline" size="sm" onClick={() => setEditOrgName(selectedOrg.name)} className="shrink-0 w-full sm:w-auto">
                               <Pencil className="h-4 w-4 mr-2" />
                               Editar
                             </Button>
