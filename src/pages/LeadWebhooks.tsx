@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useLeadWebhooks, useLeadWebhookMutations, useWebhookLogs, getWebhookUrl, LeadWebhook } from "@/hooks/use-lead-webhooks";
+import { useLeadWebhooks, useLeadWebhookMutations, useWebhookLogs, useWebhookDistribution, getWebhookUrl, LeadWebhook } from "@/hooks/use-lead-webhooks";
 import { useCRMFunnels } from "@/hooks/use-crm";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -31,7 +31,9 @@ import {
   Code,
   Loader2,
   AlertCircle,
-  Eye
+  Eye,
+  Users,
+  UserPlus
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -46,11 +48,12 @@ export default function LeadWebhooks() {
       return response.members || [];
     },
   });
-  const { createWebhook, updateWebhook, deleteWebhook, regenerateToken } = useLeadWebhookMutations();
+  const { createWebhook, updateWebhook, deleteWebhook, regenerateToken, toggleDistribution, addDistributionMember, removeDistributionMember } = useLeadWebhookMutations();
 
   const [showEditor, setShowEditor] = useState(false);
   const [editingWebhook, setEditingWebhook] = useState<LeadWebhook | null>(null);
   const [showLogs, setShowLogs] = useState(false);
+  const [showDistribution, setShowDistribution] = useState(false);
   const [selectedWebhookId, setSelectedWebhookId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
@@ -137,6 +140,11 @@ export default function LeadWebhooks() {
     setShowLogs(true);
   };
 
+  const handleViewDistribution = (webhookId: string) => {
+    setSelectedWebhookId(webhookId);
+    setShowDistribution(true);
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6 p-6">
@@ -191,6 +199,12 @@ export default function LeadWebhooks() {
                             {webhook.funnel_name} → {webhook.stage_name}
                           </Badge>
                         )}
+                        {webhook.distribution_enabled && (
+                          <Badge variant="secondary" className="gap-1">
+                            <Users className="h-3 w-3" />
+                            Distribuição
+                          </Badge>
+                        )}
                       </div>
                       {webhook.description && (
                         <p className="text-sm text-muted-foreground mb-2">{webhook.description}</p>
@@ -208,7 +222,7 @@ export default function LeadWebhooks() {
                             })}
                           </span>
                         )}
-                        {webhook.owner_name && (
+                        {!webhook.distribution_enabled && webhook.owner_name && (
                           <span>Responsável: {webhook.owner_name}</span>
                         )}
                       </div>
@@ -228,13 +242,23 @@ export default function LeadWebhooks() {
                         variant="outline" 
                         size="sm"
                         onClick={() => handleViewLogs(webhook.id)}
+                        title="Ver logs"
                       >
                         <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant={webhook.distribution_enabled ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleViewDistribution(webhook.id)}
+                        title="Distribuição de leads"
+                      >
+                        <Users className="h-4 w-4" />
                       </Button>
                       <Button 
                         variant="outline" 
                         size="sm"
                         onClick={() => handleEdit(webhook)}
+                        title="Configurações"
                       >
                         <Settings className="h-4 w-4" />
                       </Button>
@@ -565,6 +589,18 @@ Content-Type: application/json
         open={showLogs}
         onOpenChange={setShowLogs}
       />
+
+      {/* Distribution Dialog */}
+      <DistributionDialog
+        webhookId={selectedWebhookId}
+        webhook={webhooks.find(w => w.id === selectedWebhookId) || null}
+        open={showDistribution}
+        onOpenChange={setShowDistribution}
+        members={members}
+        toggleDistribution={toggleDistribution}
+        addMember={addDistributionMember}
+        removeMember={removeDistributionMember}
+      />
     </MainLayout>
   );
 }
@@ -643,6 +679,166 @@ function WebhookLogsDialog({
             </Table>
           )}
         </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DistributionDialog({ 
+  webhookId,
+  webhook,
+  open, 
+  onOpenChange,
+  members,
+  toggleDistribution,
+  addMember,
+  removeMember
+}: { 
+  webhookId: string | null;
+  webhook: LeadWebhook | null;
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+  members: Array<{ user_id: string; name: string; email: string; role: string }>;
+  toggleDistribution: any;
+  addMember: any;
+  removeMember: any;
+}) {
+  const { data: distribution, isLoading } = useWebhookDistribution(open ? webhookId : null);
+  const [selectedUserId, setSelectedUserId] = useState("");
+
+  const handleToggle = async (enabled: boolean) => {
+    if (!webhookId) return;
+    await toggleDistribution.mutateAsync({ id: webhookId, enabled });
+  };
+
+  const handleAddMember = async () => {
+    if (!webhookId || !selectedUserId) return;
+    await addMember.mutateAsync({ webhookId, userId: selectedUserId });
+    setSelectedUserId("");
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!webhookId) return;
+    await removeMember.mutateAsync({ webhookId, userId });
+  };
+
+  // Filter out already added members
+  const availableMembers = members.filter(
+    m => !distribution?.members?.some(dm => dm.user_id === m.user_id)
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Distribuição de Leads
+          </DialogTitle>
+          <DialogDescription>
+            Distribua os leads automaticamente entre os usuários selecionados (round-robin).
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Toggle distribution */}
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div>
+                <p className="font-medium text-sm">Distribuição automática</p>
+                <p className="text-xs text-muted-foreground">
+                  Quando ativado, os leads são distribuídos entre os membros
+                </p>
+              </div>
+              <Switch
+                checked={distribution?.distribution_enabled || false}
+                onCheckedChange={handleToggle}
+                disabled={toggleDistribution.isPending}
+              />
+            </div>
+
+            {/* Add member */}
+            <div className="flex gap-2">
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Selecione um usuário" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableMembers.length === 0 ? (
+                    <SelectItem value="" disabled>Todos os usuários já foram adicionados</SelectItem>
+                  ) : (
+                    availableMembers.map((member) => (
+                      <SelectItem key={member.user_id} value={member.user_id}>
+                        {member.name} ({member.role})
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <Button 
+                onClick={handleAddMember}
+                disabled={!selectedUserId || addMember.isPending}
+                className="gap-1"
+              >
+                <UserPlus className="h-4 w-4" />
+                Adicionar
+              </Button>
+            </div>
+
+            {/* Members list */}
+            <div className="space-y-2">
+              <Label>Membros da distribuição</Label>
+              {distribution?.members?.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground text-sm bg-muted/50 rounded-lg">
+                  Nenhum membro adicionado
+                </div>
+              ) : (
+                <ScrollArea className="max-h-[200px]">
+                  <div className="space-y-2">
+                    {distribution?.members?.map((member) => (
+                      <div 
+                        key={member.user_id}
+                        className="flex items-center justify-between p-2 bg-muted/50 rounded-lg"
+                      >
+                        <div>
+                          <p className="font-medium text-sm">{member.user_name}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{member.user_email}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {member.leads_today} leads hoje
+                            </Badge>
+                            {!member.is_active && (
+                              <Badge variant="secondary">Pausado</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveMember(member.user_id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+
+            {distribution?.distribution_enabled && distribution?.members?.length === 0 && (
+              <div className="flex items-center gap-2 p-3 bg-yellow-500/10 text-yellow-600 rounded-lg text-sm">
+                <AlertCircle className="h-4 w-4" />
+                Adicione membros para a distribuição funcionar
+              </div>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

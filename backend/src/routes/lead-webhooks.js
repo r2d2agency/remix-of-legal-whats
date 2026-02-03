@@ -155,13 +155,29 @@ router.post('/receive/:token', async (req, res) => {
       // Build description
       const description = buildDescription(mappedData, payload, webhook.name);
 
+      // Determine owner - use distribution if enabled, otherwise default owner
+      let assignedOwnerId = webhook.owner_id || webhook.created_by;
+      let assignedUserName = null;
+
+      if (webhook.distribution_enabled) {
+        const distributedUser = await getNextDistributedUser(webhook.id);
+        if (distributedUser) {
+          assignedOwnerId = distributedUser.user_id;
+          assignedUserName = distributedUser.user_name;
+          logInfo(`[Lead Webhook] Distributed to user ${assignedUserName}`, { 
+            webhookId: webhook.id, 
+            userId: assignedOwnerId 
+          });
+        }
+      }
+
       // Create deal
       const dealResult = await query(
         `INSERT INTO crm_deals (
            organization_id, funnel_id, stage_id, company_id,
            title, value, probability, status, description,
            owner_id, created_by
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8, $9, $9)
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8, $9, $10)
          RETURNING id`,
         [
           webhook.organization_id,
@@ -172,7 +188,8 @@ router.post('/receive/:token', async (req, res) => {
           mappedData.value || 0,
           webhook.default_probability || 10,
           description,
-          webhook.owner_id || webhook.created_by
+          assignedOwnerId,
+          webhook.created_by
         ]
       );
       
@@ -532,8 +549,243 @@ router.post('/:id/regenerate-token', async (req, res) => {
 });
 
 // ============================================
+// DISTRIBUTION ENDPOINTS
+// ============================================
+
+// Get distribution members for a webhook
+router.get('/:id/distribution', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const { id } = req.params;
+
+    // Verify webhook belongs to org
+    const webhookCheck = await query(
+      `SELECT id, distribution_enabled FROM lead_webhooks WHERE id = $1 AND organization_id = $2`,
+      [id, org.organization_id]
+    );
+
+    if (webhookCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Webhook não encontrado' });
+    }
+
+    const result = await query(
+      `SELECT d.*, u.name as user_name, u.email as user_email
+       FROM lead_webhook_distribution d
+       JOIN users u ON u.id = d.user_id
+       WHERE d.webhook_id = $1
+       ORDER BY u.name`,
+      [id]
+    );
+
+    res.json({
+      distribution_enabled: webhookCheck.rows[0].distribution_enabled,
+      members: result.rows
+    });
+  } catch (error) {
+    logError('Error getting distribution members', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Toggle distribution for a webhook
+router.patch('/:id/distribution/toggle', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { id } = req.params;
+    const { enabled } = req.body;
+
+    const result = await query(
+      `UPDATE lead_webhooks 
+       SET distribution_enabled = $1, updated_at = NOW()
+       WHERE id = $2 AND organization_id = $3
+       RETURNING id, distribution_enabled`,
+      [enabled, id, org.organization_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Webhook não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    logError('Error toggling distribution', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add user to distribution
+router.post('/:id/distribution/members', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { id } = req.params;
+    const { user_id, max_leads_per_day } = req.body;
+
+    // Verify webhook belongs to org
+    const webhookCheck = await query(
+      `SELECT id FROM lead_webhooks WHERE id = $1 AND organization_id = $2`,
+      [id, org.organization_id]
+    );
+
+    if (webhookCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Webhook não encontrado' });
+    }
+
+    // Verify user belongs to org
+    const userCheck = await query(
+      `SELECT user_id FROM organization_members WHERE user_id = $1 AND organization_id = $2`,
+      [user_id, org.organization_id]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Usuário não pertence à organização' });
+    }
+
+    const result = await query(
+      `INSERT INTO lead_webhook_distribution (webhook_id, user_id, max_leads_per_day)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (webhook_id, user_id) DO UPDATE SET 
+         is_active = true,
+         max_leads_per_day = COALESCE($3, lead_webhook_distribution.max_leads_per_day)
+       RETURNING *`,
+      [id, user_id, max_leads_per_day || null]
+    );
+
+    // Get user info
+    const userInfo = await query('SELECT name, email FROM users WHERE id = $1', [user_id]);
+
+    res.json({
+      ...result.rows[0],
+      user_name: userInfo.rows[0]?.name,
+      user_email: userInfo.rows[0]?.email
+    });
+  } catch (error) {
+    logError('Error adding distribution member', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update distribution member
+router.patch('/:id/distribution/members/:userId', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { id, userId } = req.params;
+    const { is_active, max_leads_per_day } = req.body;
+
+    const result = await query(
+      `UPDATE lead_webhook_distribution SET
+         is_active = COALESCE($1, is_active),
+         max_leads_per_day = $2
+       WHERE webhook_id = $3 AND user_id = $4
+       RETURNING *`,
+      [is_active, max_leads_per_day, id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Membro não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    logError('Error updating distribution member', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Remove user from distribution
+router.delete('/:id/distribution/members/:userId', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { id, userId } = req.params;
+
+    const result = await query(
+      `DELETE FROM lead_webhook_distribution 
+       WHERE webhook_id = $1 AND user_id = $2
+       RETURNING id`,
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Membro não encontrado' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    logError('Error removing distribution member', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
 // HELPER FUNCTIONS
 // ============================================
+
+// Get next user for round-robin distribution
+async function getNextDistributedUser(webhookId) {
+  try {
+    // Get active members who haven't exceeded daily limit
+    const membersResult = await query(
+      `SELECT d.*, u.name as user_name, u.email as user_email
+       FROM lead_webhook_distribution d
+       JOIN users u ON u.id = d.user_id
+       WHERE d.webhook_id = $1
+         AND d.is_active = true
+         AND (d.max_leads_per_day IS NULL OR d.leads_today < d.max_leads_per_day)
+       ORDER BY d.last_lead_at ASC NULLS FIRST`,
+      [webhookId]
+    );
+
+    if (membersResult.rows.length === 0) {
+      return null;
+    }
+
+    // Get current index
+    const webhookResult = await query(
+      `SELECT distribution_last_index FROM lead_webhooks WHERE id = $1`,
+      [webhookId]
+    );
+
+    const lastIndex = webhookResult.rows[0]?.distribution_last_index || 0;
+    const nextIndex = (lastIndex + 1) % membersResult.rows.length;
+    const selectedUser = membersResult.rows[nextIndex];
+
+    // Update counters
+    await query(
+      `UPDATE lead_webhook_distribution 
+       SET leads_today = leads_today + 1, last_lead_at = NOW()
+       WHERE webhook_id = $1 AND user_id = $2`,
+      [webhookId, selectedUser.user_id]
+    );
+
+    // Update webhook index
+    await query(
+      `UPDATE lead_webhooks SET distribution_last_index = $1 WHERE id = $2`,
+      [nextIndex, webhookId]
+    );
+
+    return selectedUser;
+  } catch (error) {
+    logError('Error getting next distributed user', error);
+    return null;
+  }
+}
 
 function getNestedValue(obj, path) {
   return path.split('.').reduce((current, key) => {

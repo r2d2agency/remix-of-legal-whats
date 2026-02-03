@@ -11,6 +11,7 @@ export interface LeadWebhook {
   funnel_id?: string;
   stage_id?: string;
   owner_id?: string;
+  distribution_enabled: boolean;
   field_mapping: Record<string, string>;
   default_value: number;
   default_probability: number;
@@ -32,9 +33,22 @@ export interface WebhookLog {
   response_message: string;
   deal_id?: string;
   prospect_id?: string;
+  assigned_to?: string;
   source_ip: string;
   user_agent: string;
   created_at: string;
+}
+
+export interface DistributionMember {
+  id: string;
+  webhook_id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  is_active: boolean;
+  max_leads_per_day: number | null;
+  leads_today: number;
+  last_lead_at?: string;
 }
 
 export function useLeadWebhooks() {
@@ -52,6 +66,19 @@ export function useWebhookLogs(webhookId: string | null) {
     queryFn: async () => {
       if (!webhookId) return [];
       return api<WebhookLog[]>(`/api/lead-webhooks/${webhookId}/logs`);
+    },
+    enabled: !!webhookId,
+  });
+}
+
+export function useWebhookDistribution(webhookId: string | null) {
+  return useQuery({
+    queryKey: ["webhook-distribution", webhookId],
+    queryFn: async () => {
+      if (!webhookId) return { distribution_enabled: false, members: [] };
+      return api<{ distribution_enabled: boolean; members: DistributionMember[] }>(
+        `/api/lead-webhooks/${webhookId}/distribution`
+      );
     },
     enabled: !!webhookId,
   });
@@ -101,7 +128,67 @@ export function useLeadWebhookMutations() {
     },
   });
 
-  return { createWebhook, updateWebhook, deleteWebhook, regenerateToken };
+  const toggleDistribution = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      return api<{ id: string; distribution_enabled: boolean }>(
+        `/api/lead-webhooks/${id}/distribution/toggle`,
+        { method: "PATCH", body: { enabled } }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-webhooks"] });
+      queryClient.invalidateQueries({ queryKey: ["webhook-distribution"] });
+    },
+  });
+
+  const addDistributionMember = useMutation({
+    mutationFn: async ({ webhookId, userId, maxLeadsPerDay }: { webhookId: string; userId: string; maxLeadsPerDay?: number }) => {
+      return api<DistributionMember>(
+        `/api/lead-webhooks/${webhookId}/distribution/members`,
+        { method: "POST", body: { user_id: userId, max_leads_per_day: maxLeadsPerDay } }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["webhook-distribution"] });
+      toast({ title: "Membro adicionado à distribuição" });
+    },
+  });
+
+  const updateDistributionMember = useMutation({
+    mutationFn: async ({ webhookId, userId, ...data }: { webhookId: string; userId: string; is_active?: boolean; max_leads_per_day?: number | null }) => {
+      return api<DistributionMember>(
+        `/api/lead-webhooks/${webhookId}/distribution/members/${userId}`,
+        { method: "PATCH", body: data }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["webhook-distribution"] });
+    },
+  });
+
+  const removeDistributionMember = useMutation({
+    mutationFn: async ({ webhookId, userId }: { webhookId: string; userId: string }) => {
+      return api<void>(
+        `/api/lead-webhooks/${webhookId}/distribution/members/${userId}`,
+        { method: "DELETE" }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["webhook-distribution"] });
+      toast({ title: "Membro removido da distribuição" });
+    },
+  });
+
+  return { 
+    createWebhook, 
+    updateWebhook, 
+    deleteWebhook, 
+    regenerateToken,
+    toggleDistribution,
+    addDistributionMember,
+    updateDistributionMember,
+    removeDistributionMember
+  };
 }
 
 export function getWebhookUrl(token: string): string {
