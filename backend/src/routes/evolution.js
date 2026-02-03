@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import * as whatsappProvider from '../lib/whatsapp-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { logError, logInfo } from '../logger.js';
+import { pauseNurturingOnReply } from './nurturing.js';
 
 
 const router = Router();
@@ -1766,6 +1767,12 @@ async function handleMessageUpsert(connection, data) {
       if (insertResult.rows.length > 0) {
         console.log('Webhook: Message saved/updated:', messageId, 'Type:', messageType, 'FromMe:', fromMe, 'Content:', content?.substring(0, 50));
         
+        // Pause nurturing sequences on incoming message
+        if (!fromMe && contactPhone && connection.organization_id) {
+          pauseNurturingOnReply(contactPhone, connection.organization_id, conversationId)
+            .catch(err => console.error('[Evolution] Error pausing nurturing:', err.message));
+        }
+
         // Check for active flow sessions first (priority over keywords)
         if (!fromMe && messageType === 'text' && content) {
           console.log('[Evolution] Checking for active flow sessions...');
