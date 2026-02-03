@@ -287,6 +287,9 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
       has_scheduled_messages,
       has_crm,
       has_ai_agents,
+      has_departments,
+      has_lead_scoring,
+      has_ai_summary,
       price, 
       billing_period,
       visible_on_signup,
@@ -298,8 +301,8 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, has_crm, has_ai_agents, price, billing_period, visible_on_signup, trial_days)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
+      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, price, billing_period, visible_on_signup, trial_days)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *`,
       [
         name,
         description,
@@ -315,6 +318,9 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
         has_scheduled_messages !== false,
         has_crm !== false,
         has_ai_agents !== false,
+        has_departments !== false,
+        has_lead_scoring !== false,
+        has_ai_summary !== false,
         price || 0,
         billing_period || 'monthly',
         visible_on_signup || false,
@@ -348,6 +354,9 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
       has_scheduled_messages,
       has_crm,
       has_ai_agents,
+      has_departments,
+      has_lead_scoring,
+      has_ai_summary,
       price, 
       billing_period, 
       is_active,
@@ -371,13 +380,16 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
            has_scheduled_messages = COALESCE($12, has_scheduled_messages),
            has_crm = COALESCE($13, has_crm),
            has_ai_agents = COALESCE($14, has_ai_agents),
-           price = COALESCE($15, price),
-           billing_period = COALESCE($16, billing_period),
-           is_active = COALESCE($17, is_active),
-           visible_on_signup = COALESCE($18, visible_on_signup),
-           trial_days = COALESCE($19, trial_days),
+           has_departments = COALESCE($15, has_departments),
+           has_lead_scoring = COALESCE($16, has_lead_scoring),
+           has_ai_summary = COALESCE($17, has_ai_summary),
+           price = COALESCE($18, price),
+           billing_period = COALESCE($19, billing_period),
+           is_active = COALESCE($20, is_active),
+           visible_on_signup = COALESCE($21, visible_on_signup),
+           trial_days = COALESCE($22, trial_days),
            updated_at = NOW()
-       WHERE id = $20
+       WHERE id = $23
        RETURNING *`,
       [
         name,
@@ -394,6 +406,9 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
         has_scheduled_messages,
         has_crm,
         has_ai_agents,
+        has_departments,
+        has_lead_scoring,
+        has_ai_summary,
         price,
         billing_period,
         is_active,
@@ -419,7 +434,7 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
   try {
     // Get all plans with their modules
     const plansResult = await query(
-      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents FROM plans`
+      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary FROM plans`
     );
 
     let syncedCount = 0;
@@ -435,6 +450,9 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
         chat: plan.has_chat ?? true,
         crm: plan.has_crm ?? true,
         ai_agents: plan.has_ai_agents ?? true,
+        departments: plan.has_departments ?? true,
+        lead_scoring: plan.has_lead_scoring ?? true,
+        ai_summary: plan.has_ai_summary ?? true,
       };
 
       console.log(`[sync-all] Plan "${plan.name}" (${plan.id}) modules:`, modulesEnabled);

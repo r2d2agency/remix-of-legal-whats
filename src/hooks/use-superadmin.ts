@@ -33,6 +33,9 @@ interface Plan {
   has_scheduled_messages: boolean;
   has_crm: boolean;
   has_ai_agents: boolean;
+  has_departments: boolean;
+  has_lead_scoring: boolean;
+  has_ai_summary: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -114,6 +117,9 @@ export function useSuperadmin() {
     has_scheduled_messages: boolean;
     has_crm: boolean;
     has_ai_agents: boolean;
+    has_departments: boolean;
+    has_lead_scoring: boolean;
+    has_ai_summary: boolean;
     price: number;
     billing_period: string;
     visible_on_signup?: boolean;

@@ -57,6 +57,9 @@ interface Plan {
   has_scheduled_messages: boolean;
   has_crm: boolean;
   has_ai_agents: boolean;
+  has_departments: boolean;
+  has_lead_scoring: boolean;
+  has_ai_summary: boolean;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -143,6 +146,9 @@ export default function Admin() {
   const [newPlanScheduled, setNewPlanScheduled] = useState(true);
   const [newPlanCRM, setNewPlanCRM] = useState(true);
   const [newPlanAIAgents, setNewPlanAIAgents] = useState(true);
+  const [newPlanDepartments, setNewPlanDepartments] = useState(true);
+  const [newPlanLeadScoring, setNewPlanLeadScoring] = useState(true);
+  const [newPlanAISummary, setNewPlanAISummary] = useState(true);
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
   const [newPlanVisibleOnSignup, setNewPlanVisibleOnSignup] = useState(false);
   const [newPlanTrialDays, setNewPlanTrialDays] = useState('3');
@@ -296,6 +302,9 @@ export default function Admin() {
       has_scheduled_messages: newPlanScheduled,
       has_crm: newPlanCRM,
       has_ai_agents: newPlanAIAgents,
+      has_departments: newPlanDepartments,
+      has_lead_scoring: newPlanLeadScoring,
+      has_ai_summary: newPlanAISummary,
       price: parseFloat(newPlanPrice) || 0,
       billing_period: newPlanPeriod,
       visible_on_signup: newPlanVisibleOnSignup,
@@ -328,6 +337,9 @@ export default function Admin() {
     setNewPlanScheduled(true);
     setNewPlanCRM(true);
     setNewPlanAIAgents(true);
+    setNewPlanDepartments(true);
+    setNewPlanLeadScoring(true);
+    setNewPlanAISummary(true);
     setNewPlanPeriod('monthly');
     setNewPlanVisibleOnSignup(false);
     setNewPlanTrialDays('3');
@@ -351,6 +363,9 @@ export default function Admin() {
       has_scheduled_messages: editingPlan.has_scheduled_messages,
       has_crm: editingPlan.has_crm,
       has_ai_agents: editingPlan.has_ai_agents,
+      has_departments: editingPlan.has_departments,
+      has_lead_scoring: editingPlan.has_lead_scoring,
+      has_ai_summary: editingPlan.has_ai_summary,
       price: editingPlan.price,
       billing_period: editingPlan.billing_period,
       is_active: editingPlan.is_active,
@@ -833,6 +848,39 @@ export default function Admin() {
                           onCheckedChange={setNewPlanAIAgents}
                         />
                       </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-muted-foreground" />
+                          <Label htmlFor="departments-switch">Departamentos/Filas</Label>
+                        </div>
+                        <Switch
+                          id="departments-switch"
+                          checked={newPlanDepartments}
+                          onCheckedChange={setNewPlanDepartments}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-2">
+                          <Crown className="h-4 w-4 text-muted-foreground" />
+                          <Label htmlFor="lead-scoring-switch">Lead Scoring</Label>
+                        </div>
+                        <Switch
+                          id="lead-scoring-switch"
+                          checked={newPlanLeadScoring}
+                          onCheckedChange={setNewPlanLeadScoring}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-muted-foreground" />
+                          <Label htmlFor="ai-summary-switch">Resumo IA de Conversas</Label>
+                        </div>
+                        <Switch
+                          id="ai-summary-switch"
+                          checked={newPlanAISummary}
+                          onCheckedChange={setNewPlanAISummary}
+                        />
+                      </div>
                     </div>
                     <div className="border-t pt-4 space-y-4">
                       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -955,6 +1003,15 @@ export default function Admin() {
                         )}
                         {plan.has_ai_agents && (
                           <Badge variant="secondary" className="text-xs">Agentes IA</Badge>
+                        )}
+                        {plan.has_departments && (
+                          <Badge variant="secondary" className="text-xs">Filas</Badge>
+                        )}
+                        {plan.has_lead_scoring && (
+                          <Badge variant="secondary" className="text-xs">Lead Score</Badge>
+                        )}
+                        {plan.has_ai_summary && (
+                          <Badge variant="secondary" className="text-xs">Resumo IA</Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t">
@@ -1752,6 +1809,30 @@ export default function Admin() {
                     id="edit-ai-agents"
                     checked={editingPlan.has_ai_agents}
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_ai_agents: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-departments">Departamentos/Filas</Label>
+                  <Switch
+                    id="edit-departments"
+                    checked={editingPlan.has_departments}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_departments: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-lead-scoring">Lead Scoring</Label>
+                  <Switch
+                    id="edit-lead-scoring"
+                    checked={editingPlan.has_lead_scoring}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_lead_scoring: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-ai-summary">Resumo IA de Conversas</Label>
+                  <Switch
+                    id="edit-ai-summary"
+                    checked={editingPlan.has_ai_summary}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan, has_ai_summary: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">

@@ -88,6 +88,9 @@ DO $$ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_scheduled_messages BOOLEAN DEFAULT true;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS visible_on_signup BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS trial_days INTEGER DEFAULT 3;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_departments BOOLEAN DEFAULT true;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_lead_scoring BOOLEAN DEFAULT true;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ai_summary BOOLEAN DEFAULT true;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
