@@ -29,6 +29,7 @@ import {
 import { useCRMGroups, useCRMGroupMembers, useCRMGroupMutations, useCRMFunnels, useCRMFunnel, useCRMFunnelMutations, CRMFunnel } from "@/hooks/use-crm";
 import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
 import { GoogleCalendarPanel } from "@/components/crm/GoogleCalendarPanel";
+import { LeadScoringConfigPanel } from "@/components/crm/LeadScoringConfigPanel";
 
 import {
   Plus,
@@ -50,6 +51,7 @@ import {
   XCircle,
   GitBranch,
   Link2,
+  Flame,
 } from "lucide-react";
 
 const ICON_OPTIONS = [
@@ -363,10 +365,14 @@ export default function CRMConfiguracoes() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-7 w-full max-w-5xl">
+          <TabsList className="grid grid-cols-8 w-full max-w-6xl">
             <TabsTrigger value="funnels" className="flex items-center gap-2">
               <GitBranch className="h-4 w-4" />
               <span className="hidden sm:inline">Funis</span>
+            </TabsTrigger>
+            <TabsTrigger value="lead-scoring" className="flex items-center gap-2">
+              <Flame className="h-4 w-4" />
+              <span className="hidden sm:inline">Scoring</span>
             </TabsTrigger>
             <TabsTrigger value="task-types" className="flex items-center gap-2">
               <CheckSquare className="h-4 w-4" />
@@ -490,6 +496,11 @@ export default function CRMConfiguracoes() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Lead Scoring Tab */}
+          <TabsContent value="lead-scoring" className="mt-6">
+            <LeadScoringConfigPanel />
           </TabsContent>
 
           {/* Task Types Tab */}

@@ -3,11 +3,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CRMDeal } from "@/hooks/use-crm";
 import { cn } from "@/lib/utils";
-import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock } from "lucide-react";
+import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake } from "lucide-react";
 import { differenceInHours, parseISO } from "date-fns";
 
 interface DealCardProps {
-  deal: CRMDeal;
+  deal: CRMDeal & { lead_score?: number; lead_score_label?: string };
   isDragging?: boolean;
   onClick: () => void;
   isNewWin?: boolean;
@@ -169,6 +169,24 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
                   {deal.owner_name.charAt(0).toUpperCase()}
                 </div>
               </div>
+            )}
+
+            {/* Lead Score - show for all open deals */}
+            {!isWon && !isLost && deal.lead_score !== undefined && deal.lead_score > 0 && (
+              <Badge 
+                variant="secondary"
+                className={cn(
+                  "text-[10px] px-1.5 flex items-center gap-0.5",
+                  deal.lead_score_label === 'hot' && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                  deal.lead_score_label === 'warm' && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+                  deal.lead_score_label === 'cold' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                )}
+              >
+                {deal.lead_score_label === 'hot' && <Flame className="h-3 w-3" />}
+                {deal.lead_score_label === 'warm' && <Thermometer className="h-3 w-3" />}
+                {deal.lead_score_label === 'cold' && <Snowflake className="h-3 w-3" />}
+                <span>{deal.lead_score}</span>
+              </Badge>
             )}
 
             {/* Probability - hide for closed deals */}

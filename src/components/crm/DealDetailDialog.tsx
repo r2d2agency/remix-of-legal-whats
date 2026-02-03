@@ -14,7 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel, useCRMCompanies } from "@/hooks/use-crm";
 import { api } from "@/lib/api";
-import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building, Mail, Video, Send, ClipboardList } from "lucide-react";
+import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building, Mail, Video, Send, ClipboardList, RefreshCw, Flame } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,8 @@ import { CompanyDialog } from "./CompanyDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDealScore, useRecalculateDealScore } from "@/hooks/use-lead-scoring";
+import { LeadScoreDetail, LeadScoreBadge } from "./LeadScoreBadge";
 
 interface ChatContact {
   id: string;
@@ -101,6 +103,10 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const { updateDeal, moveDeal, addContact, removeContact } = useCRMDealMutations();
   const { createTask, completeTask, deleteTask } = useCRMTaskMutations();
   const { uploadFile, isUploading } = useUpload();
+  
+  // Lead Scoring
+  const { data: dealScore, isLoading: loadingScore } = useDealScore(deal?.id);
+  const recalculateScore = useRecalculateDealScore();
 
   const currentDeal = fullDeal || deal;
   const stages = funnelData?.stages || [];
@@ -569,6 +575,31 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                     </div>
                   )}
                 </Card>
+
+                {/* Lead Score Card */}
+                {dealScore && dealScore.score > 0 && (
+                  <Card className="p-4 col-span-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium flex items-center gap-2">
+                        <Flame className="h-4 w-4" />
+                        Lead Score
+                      </h4>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => recalculateScore.mutate({ dealId: deal!.id })}
+                        disabled={recalculateScore.isPending}
+                      >
+                        {recalculateScore.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <LeadScoreDetail scoreData={dealScore} />
+                  </Card>
+                )}
 
                 {/* Ações Rápidas Card */}
                 <Card className="p-4 col-span-2">
