@@ -40,6 +40,7 @@ import {
   Video,
   ClipboardList,
   ArrowLeft,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -63,6 +64,7 @@ import { api } from "@/lib/api";
 import { TaskDialog } from "@/components/crm/TaskDialog";
 import { MeetingScheduleDialog } from "./MeetingScheduleDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
+import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialog";
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 
 interface CRMSidePanelProps {
@@ -138,6 +140,7 @@ export function CRMSidePanel({
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showDealDetailDialog, setShowDealDetailDialog] = useState(false);
+  const [showSequenceDialog, setShowSequenceDialog] = useState(false);
 
   // Inline deal creation state
   const [showCreateDeal, setShowCreateDeal] = useState(false);
@@ -547,33 +550,43 @@ export function CRMSidePanel({
       )}
 
       {/* Quick Actions */}
-      <div className="flex gap-2 p-2 border-b bg-muted/10">
+      <div className="grid grid-cols-4 gap-1 p-2 border-b bg-muted/10">
         <Button
           variant="outline"
           size="sm"
-          className="flex-1 h-8 text-xs gap-1.5"
+          className="h-8 text-xs gap-1 px-2"
           onClick={() => setShowTaskDialog(true)}
         >
           <ClipboardList className="h-3.5 w-3.5" />
-          Tarefa
+          <span className="hidden sm:inline">Tarefa</span>
         </Button>
         <Button
           variant="outline"
           size="sm"
-          className="flex-1 h-8 text-xs gap-1.5"
+          className="h-8 text-xs gap-1 px-2"
           onClick={() => setShowMeetingDialog(true)}
         >
           <Video className="h-3.5 w-3.5 text-green-600" />
-          Reunião
+          <span className="hidden sm:inline">Reunião</span>
         </Button>
         <Button
           variant="outline"
           size="sm"
-          className="flex-1 h-8 text-xs gap-1.5"
+          className="h-8 text-xs gap-1 px-2"
           onClick={() => setShowEmailDialog(true)}
         >
           <Mail className="h-3.5 w-3.5 text-blue-600" />
-          Email
+          <span className="hidden sm:inline">Email</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs gap-1 px-2"
+          onClick={() => setShowSequenceDialog(true)}
+          title="Inscrever em Sequência de Nurturing"
+        >
+          <RefreshCw className="h-3.5 w-3.5 text-purple-600" />
+          <span className="hidden sm:inline">Seq.</span>
         </Button>
       </div>
 
@@ -1158,6 +1171,16 @@ export function CRMSidePanel({
             refetchDeals();
           }
         }}
+      />
+
+      {/* Enroll in Sequence Dialog */}
+      <EnrollSequenceDialog
+        open={showSequenceDialog}
+        onOpenChange={setShowSequenceDialog}
+        contactPhone={contactPhone}
+        contactName={contactName}
+        conversationId={conversationId}
+        dealId={selectedDeal?.id}
       />
     </div>
   );

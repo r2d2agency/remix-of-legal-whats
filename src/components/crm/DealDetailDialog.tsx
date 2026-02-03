@@ -24,6 +24,7 @@ import { useNavigate } from "react-router-dom";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { CompanyDialog } from "./CompanyDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
+import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDealScore, useRecalculateDealScore } from "@/hooks/use-lead-scoring";
@@ -97,6 +98,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [contactSearchOpen, setContactSearchOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [showSequenceDialog, setShowSequenceDialog] = useState(false);
 
   const { data: fullDeal, isLoading } = useCRMDeal(deal?.id || null);
   const { data: funnelData } = useCRMFunnel(deal?.funnel_id || null);
@@ -426,6 +428,10 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowSequenceDialog(true)} title="Inscrever em Sequência de Nurturing">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Sequência
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setShowEmailDialog(true)}>
                 <Mail className="h-4 w-4 mr-2" />
                 Email
@@ -1245,6 +1251,15 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
         valor: currentDeal?.value ? formatCurrency(currentDeal.value) : "",
         etapa: currentDeal?.stage_name || "",
       }}
+    />
+
+    {/* Enroll in Sequence Dialog */}
+    <EnrollSequenceDialog
+      open={showSequenceDialog}
+      onOpenChange={setShowSequenceDialog}
+      contactPhone={currentDeal?.contacts?.[0]?.phone}
+      contactName={currentDeal?.contacts?.[0]?.name}
+      dealId={deal?.id}
     />
     </>
   );
