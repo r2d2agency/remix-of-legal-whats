@@ -353,12 +353,24 @@ export default function SequenciasNurturing() {
                                           step.delay_unit === 'hours' ? 'h' : 'd'
                                         }
                                       </span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs gap-1"
+                                        onClick={() => {
+                                          setStepToEdit(step);
+                                          setShowStepDialog(true);
+                                        }}
+                                      >
+                                        <Edit2 className="h-3 w-3" />
+                                        Editar
+                                      </Button>
                                       <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                           <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="h-7 w-7"
                                           >
                                             <MoreVertical className="h-4 w-4" />
                                           </Button>
