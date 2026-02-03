@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS lead_webhooks (
     stage_id UUID REFERENCES crm_stages(id) ON DELETE SET NULL,
     owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
     
+    -- Lead distribution
+    distribution_enabled BOOLEAN DEFAULT false,
+    distribution_last_index INTEGER DEFAULT 0,
+    
     -- Field mapping (JSON: { "source_field": "target_field" })
     -- target_field can be: name, email, phone, company_name, value, description, custom_fields
     field_mapping JSONB DEFAULT '{}',
@@ -32,6 +36,19 @@ CREATE TABLE IF NOT EXISTS lead_webhooks (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Webhook distribution members (users to receive leads)
+CREATE TABLE IF NOT EXISTS lead_webhook_distribution (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    webhook_id UUID NOT NULL REFERENCES lead_webhooks(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT true,
+    max_leads_per_day INTEGER DEFAULT NULL,
+    leads_today INTEGER DEFAULT 0,
+    last_lead_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(webhook_id, user_id)
+);
+
 -- Lead webhook logs (for debugging and audit)
 CREATE TABLE IF NOT EXISTS lead_webhook_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,6 +58,7 @@ CREATE TABLE IF NOT EXISTS lead_webhook_logs (
     response_message TEXT,
     deal_id UUID REFERENCES crm_deals(id) ON DELETE SET NULL,
     prospect_id UUID REFERENCES crm_prospects(id) ON DELETE SET NULL,
+    assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
     source_ip VARCHAR(50),
     user_agent TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -49,5 +67,6 @@ CREATE TABLE IF NOT EXISTS lead_webhook_logs (
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_lead_webhooks_org ON lead_webhooks(organization_id);
 CREATE INDEX IF NOT EXISTS idx_lead_webhooks_token ON lead_webhooks(webhook_token);
+CREATE INDEX IF NOT EXISTS idx_lead_webhook_distribution_webhook ON lead_webhook_distribution(webhook_id);
 CREATE INDEX IF NOT EXISTS idx_lead_webhook_logs_webhook ON lead_webhook_logs(webhook_id);
 CREATE INDEX IF NOT EXISTS idx_lead_webhook_logs_created ON lead_webhook_logs(created_at DESC);
