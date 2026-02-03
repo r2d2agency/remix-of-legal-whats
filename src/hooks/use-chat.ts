@@ -528,6 +528,25 @@ export const useChat = () => {
     }
   }, []);
 
+  // Log voice call
+  const logCall = useCallback(async (conversationId: string, callData: {
+    call_type: 'outgoing' | 'incoming' | 'missed';
+    duration_seconds: number;
+    outcome: string;
+    notes: string;
+  }): Promise<ChatMessage | null> => {
+    try {
+      const data = await api<ChatMessage>(`/api/chat/conversations/${conversationId}/call-log`, {
+        method: 'POST',
+        body: callData,
+      });
+      return data;
+    } catch (err: any) {
+      setError(err.message || 'Erro ao registrar chamada');
+      return null;
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -581,5 +600,7 @@ export const useChat = () => {
     stopAlertsPolling,
     // Attendance counts
     getAttendanceCounts,
+    // Call logs
+    logCall,
   };
 };

@@ -2824,4 +2824,90 @@ router.post('/conversations', authenticate, async (req, res) => {
   }
 });
 
+// ==========================================
+// CALL LOGS - Voice call tracking
+// ==========================================
+
+// Log a voice call (records it as a special message type in the conversation)
+router.post('/conversations/:id/call-log', authenticate, async (req, res) => {
+  try {
+    const userOrg = await getUserOrganization(req.userId);
+    if (userOrg && isViewOnlyRole(userOrg.role)) {
+      return res.status(403).json({ error: 'Supervisores não podem registrar chamadas' });
+    }
+
+    const { id } = req.params;
+    const { call_type, duration_seconds, outcome, notes } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    // Verify conversation access
+    const convResult = await query(
+      `SELECT conv.* FROM conversations conv
+       WHERE conv.id = $1 AND conv.connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    // Format duration for display
+    const minutes = Math.floor(duration_seconds / 60);
+    const seconds = duration_seconds % 60;
+    const durationFormatted = duration_seconds > 0 
+      ? `${minutes}:${seconds.toString().padStart(2, '0')}`
+      : 'N/A';
+
+    // Build call log content
+    const callTypeLabels = {
+      outgoing: '📞 Chamada realizada',
+      incoming: '📲 Chamada recebida',
+      missed: '📵 Chamada perdida'
+    };
+
+    const content = [
+      callTypeLabels[call_type] || '📞 Chamada',
+      `⏱️ Duração: ${durationFormatted}`,
+      `📋 Resultado: ${outcome}`,
+      notes ? `📝 Notas: ${notes}` : null
+    ].filter(Boolean).join('\n');
+
+    // Insert as a special 'call_log' message type
+    const messageResult = await query(
+      `INSERT INTO chat_messages 
+        (conversation_id, message_id, from_me, sender_id, content, message_type, status, timestamp)
+       VALUES ($1, $2, true, $3, $4, 'call_log', 'sent', NOW())
+       RETURNING *`,
+      [
+        id,
+        `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        req.userId,
+        content
+      ]
+    );
+
+    // Update conversation last_message_at
+    await query(
+      `UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    // Also add to conversation notes for CRM purposes
+    await query(
+      `INSERT INTO conversation_notes (conversation_id, user_id, content, created_at)
+       VALUES ($1, $2, $3, NOW())`,
+      [
+        id,
+        req.userId,
+        `${callTypeLabels[call_type]} - ${outcome}${notes ? `\n${notes}` : ''}`
+      ]
+    );
+
+    res.status(201).json(messageResult.rows[0]);
+  } catch (error) {
+    console.error('Log call error:', error);
+    res.status(500).json({ error: 'Erro ao registrar chamada' });
+  }
+});
+
 export default router;

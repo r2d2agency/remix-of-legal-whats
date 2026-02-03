@@ -113,6 +113,7 @@ import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
 import { ScheduledMessage } from "@/hooks/use-chat";
 import { StartFlowDialog } from "./StartFlowDialog";
 import { DealLinkDialog } from "./DealLinkDialog";
+import { CallLogDialog } from "./CallLogDialog";
 import { useCRMDealsByPhone, CRMDeal } from "@/hooks/use-crm";
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 
@@ -236,6 +237,8 @@ export function ChatArea({
   const [showDealDetailDialog, setShowDealDetailDialog] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<CRMDeal | null>(null);
   const [showSummaryPanel, setShowSummaryPanel] = useState(false);
+  const [showCallDialog, setShowCallDialog] = useState(false);
+  const [savingCall, setSavingCall] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -252,7 +255,7 @@ export function ChatArea({
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
-  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage } = useChat();
+  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall } = useChat();
   
   // AI Summary hooks
   const finishWithSummary = useFinishWithSummary();
@@ -1325,6 +1328,14 @@ export function ChatArea({
                 </>
               )}
 
+              {/* Voice Call - only for individual chats */}
+              {!conversation.is_group && !isViewOnly && (
+                <DropdownMenuItem onClick={() => setShowCallDialog(true)}>
+                  <Phone className="h-4 w-4 mr-2" />
+                  Chamada de voz
+                </DropdownMenuItem>
+              )}
+
               <DropdownMenuItem onClick={() => setShowNotes(!showNotes)}>
                 <StickyNote className="h-4 w-4 mr-2" />
                 Anotações internas
@@ -1731,8 +1742,23 @@ export function ChatArea({
                   </a>
                 )}
 
+                {/* Call Log - special display */}
+                {msg.message_type === 'call_log' && (
+                  <div className="bg-background/50 rounded-lg p-3 border border-primary/20 mb-2">
+                    <div className="flex items-center gap-2 text-primary mb-2">
+                      <Phone className="h-4 w-4" />
+                      <span className="font-medium text-sm">Registro de Chamada</span>
+                    </div>
+                    {msg.content && (
+                      <p className="text-sm whitespace-pre-wrap opacity-90" style={{ wordBreak: 'break-word' }}>
+                        {msg.content}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Text content */}
-                {msg.content && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) && (
+                {msg.content && msg.message_type !== 'call_log' && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) && (
                   <p className="text-sm whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {searchQuery ? highlightText(msg.content, searchQuery) : msg.content}
                   </p>
@@ -2590,6 +2616,29 @@ export function ChatArea({
           onOpenChange={setShowDealDialog}
           contactName={conversation.contact_name}
           contactPhone={conversation.contact_phone}
+        />
+      )}
+
+      {/* Call Log Dialog */}
+      {conversation && (
+        <CallLogDialog
+          open={showCallDialog}
+          onOpenChange={setShowCallDialog}
+          contactName={conversation.contact_name}
+          contactPhone={conversation.contact_phone}
+          saving={savingCall}
+          onLogCall={async (callData) => {
+            setSavingCall(true);
+            try {
+              const result = await logCall(conversation.id, callData);
+              if (result) {
+                toast.success('Chamada registrada no histórico');
+                setShowCallDialog(false);
+              }
+            } finally {
+              setSavingCall(false);
+            }
+          }}
         />
       )}
 
