@@ -10,7 +10,7 @@ import { analyzeDeal } from "./PredictiveAnalytics";
 interface DealCardProps {
   deal: CRMDeal & { lead_score?: number; lead_score_label?: string };
   isDragging?: boolean;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   isNewWin?: boolean;
 }
 

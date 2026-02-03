@@ -83,7 +83,13 @@ function SortableDealItem({
       
       <DealCard
         deal={deal}
-        onClick={() => onDealClick(deal)}
+        onClick={(e) => {
+          e.stopPropagation();
+          // Only trigger click if not dragging
+          if (!isDragging) {
+            onDealClick(deal);
+          }
+        }}
         isNewWin={isNewWin}
         isDragging={isDragging}
       />
