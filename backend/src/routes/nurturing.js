@@ -746,4 +746,100 @@ router.get('/:id/stats', authenticate, async (req, res) => {
   }
 });
 
+// ==========================================
+// HELPER: Pause nurturing sequences on reply
+// Called from webhook handlers (evolution.js, wapi.js)
+// ==========================================
+
+/**
+ * Pause active nurturing enrollments when a contact sends a message.
+ * This implements the "pause_on_reply" and "exit_on_reply" features.
+ * 
+ * @param {string} contactPhone - The phone number of the contact who sent a message
+ * @param {string} organizationId - The organization ID
+ * @param {string} conversationId - Optional conversation ID for more precise matching
+ * @returns {Promise<{paused: number, exited: number}>}
+ */
+export async function pauseNurturingOnReply(contactPhone, organizationId, conversationId = null) {
+  if (!contactPhone || !organizationId) {
+    return { paused: 0, exited: 0 };
+  }
+
+  try {
+    console.log('[Nurturing] Checking for active enrollments to pause/exit for phone:', contactPhone);
+
+    // Find active enrollments for this contact in sequences that have pause_on_reply or exit_on_reply enabled
+    const enrollmentsResult = await query(
+      `SELECT 
+        e.id as enrollment_id,
+        e.sequence_id,
+        e.status,
+        s.pause_on_reply,
+        s.exit_on_reply,
+        s.name as sequence_name
+       FROM nurturing_enrollments e
+       JOIN nurturing_sequences s ON s.id = e.sequence_id
+       WHERE e.organization_id = $1
+         AND e.contact_phone = $2
+         AND e.status = 'active'
+         AND (s.pause_on_reply = true OR s.exit_on_reply = true)`,
+      [organizationId, contactPhone]
+    );
+
+    if (enrollmentsResult.rows.length === 0) {
+      console.log('[Nurturing] No active enrollments found for phone:', contactPhone);
+      return { paused: 0, exited: 0 };
+    }
+
+    let paused = 0;
+    let exited = 0;
+
+    for (const enrollment of enrollmentsResult.rows) {
+      if (enrollment.exit_on_reply) {
+        // Exit the sequence entirely
+        await query(
+          `UPDATE nurturing_enrollments 
+           SET status = 'exited', 
+               pause_reason = 'replied',
+               paused_at = NOW(),
+               updated_at = NOW()
+           WHERE id = $1`,
+          [enrollment.enrollment_id]
+        );
+        
+        // Update sequence stats
+        await query(
+          `UPDATE nurturing_sequences 
+           SET contacts_enrolled = GREATEST(0, contacts_enrolled - 1)
+           WHERE id = $1`,
+          [enrollment.sequence_id]
+        );
+
+        exited++;
+        console.log('[Nurturing] Contact exited sequence:', enrollment.sequence_name, 'due to reply');
+      } else if (enrollment.pause_on_reply) {
+        // Just pause the sequence
+        await query(
+          `UPDATE nurturing_enrollments 
+           SET status = 'paused', 
+               pause_reason = 'replied',
+               paused_at = NOW(),
+               updated_at = NOW()
+           WHERE id = $1`,
+          [enrollment.enrollment_id]
+        );
+
+        paused++;
+        console.log('[Nurturing] Paused sequence:', enrollment.sequence_name, 'due to reply');
+      }
+    }
+
+    console.log('[Nurturing] Pause/exit complete. Paused:', paused, 'Exited:', exited);
+    return { paused, exited };
+  } catch (error) {
+    console.error('[Nurturing] Error pausing/exiting enrollments:', error.message);
+    return { paused: 0, exited: 0 };
+  }
+}
+
 export default router;

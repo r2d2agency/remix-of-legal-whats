@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats, getGroupInfo as wapiGetGroupInfo, getGroups as wapiGetGroups } from '../lib/wapi-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
+import { pauseNurturingOnReply } from './nurturing.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -1351,6 +1352,12 @@ async function handleIncomingMessage(connection, payload) {
     );
 
     console.log('[W-API] Message saved. Type:', messageType, 'MediaURL:', effectiveMediaUrl?.slice?.(0, 100));
+
+    // Pause nurturing sequences on incoming message (fromMe is always false here)
+    if (cleanPhone && connection.organization_id) {
+      pauseNurturingOnReply(cleanPhone, connection.organization_id, conversationId)
+        .catch(err => console.error('[W-API] Error pausing nurturing:', err.message));
+    }
 
     // Check for active flow sessions first (priority over keywords)
     if (messageType === 'text' && content) {
