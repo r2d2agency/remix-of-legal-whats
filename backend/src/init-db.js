@@ -2577,6 +2577,80 @@ BEGIN
 END $$;
 `;
 
+// Step 31: CTWA Analytics
+const step31CTWAAnalytics = `
+-- CTWA Campaigns
+CREATE TABLE IF NOT EXISTS ctwa_campaigns (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    platform VARCHAR(50) NOT NULL DEFAULT 'meta',
+    campaign_id VARCHAR(255),
+    ad_set_id VARCHAR(255),
+    ad_id VARCHAR(255),
+    utm_source VARCHAR(255),
+    utm_medium VARCHAR(255),
+    utm_campaign VARCHAR(255),
+    utm_content VARCHAR(255),
+    utm_term VARCHAR(255),
+    tracking_code VARCHAR(50),
+    total_spend DECIMAL(12,2) DEFAULT 0,
+    currency VARCHAR(10) DEFAULT 'BRL',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- CTWA Leads
+CREATE TABLE IF NOT EXISTS ctwa_leads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    campaign_id UUID REFERENCES ctwa_campaigns(id) ON DELETE SET NULL,
+    phone VARCHAR(50) NOT NULL,
+    contact_name VARCHAR(255),
+    conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+    deal_id UUID,
+    source_platform VARCHAR(50),
+    referrer_url TEXT,
+    landing_page TEXT,
+    utm_source VARCHAR(255),
+    utm_medium VARCHAR(255),
+    utm_campaign VARCHAR(255),
+    utm_content VARCHAR(255),
+    utm_term VARCHAR(255),
+    tracking_code VARCHAR(50),
+    entry_message TEXT,
+    status VARCHAR(30) DEFAULT 'new',
+    converted_at TIMESTAMP WITH TIME ZONE,
+    conversion_value DECIMAL(12,2),
+    first_response_at TIMESTAMP WITH TIME ZONE,
+    response_time_seconds INTEGER,
+    assigned_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- CTWA Events
+CREATE TABLE IF NOT EXISTS ctwa_lead_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lead_id UUID NOT NULL REFERENCES ctwa_leads(id) ON DELETE CASCADE,
+    event_type VARCHAR(50) NOT NULL,
+    event_data JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_ctwa_campaigns_org ON ctwa_campaigns(organization_id);
+CREATE INDEX IF NOT EXISTS idx_ctwa_campaigns_tracking ON ctwa_campaigns(tracking_code);
+CREATE INDEX IF NOT EXISTS idx_ctwa_leads_org ON ctwa_leads(organization_id);
+CREATE INDEX IF NOT EXISTS idx_ctwa_leads_campaign ON ctwa_leads(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_ctwa_leads_phone ON ctwa_leads(phone);
+CREATE INDEX IF NOT EXISTS idx_ctwa_leads_status ON ctwa_leads(status);
+CREATE INDEX IF NOT EXISTS idx_ctwa_leads_created ON ctwa_leads(created_at);
+CREATE INDEX IF NOT EXISTS idx_ctwa_events_lead ON ctwa_lead_events(lead_id);
+`;
+
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -2610,6 +2684,7 @@ const migrationSteps = [
   { name: 'Lead Scoring', sql: step28LeadScoring, critical: false },
   { name: 'Conversation Summaries', sql: step29ConversationSummaries, critical: false },
   { name: 'Nurturing Sequences', sql: step30NurturingSequences, critical: false },
+  { name: 'CTWA Analytics', sql: step31CTWAAnalytics, critical: false },
 ];
 
 export async function initDatabase() {
