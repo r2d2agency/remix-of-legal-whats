@@ -79,6 +79,7 @@ import {
   NurturingStep,
   NurturingEnrollment,
 } from "@/hooks/use-nurturing";
+import { NurturingStepDialog } from "@/components/nurturing/NurturingStepDialog";
 
 export default function SequenciasNurturing() {
   const { modulesEnabled } = useAuth();
@@ -87,6 +88,8 @@ export default function SequenciasNurturing() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [sequenceToDelete, setSequenceToDelete] = useState<NurturingSequence | null>(null);
+  const [showStepDialog, setShowStepDialog] = useState(false);
+  const [stepToEdit, setStepToEdit] = useState<NurturingStep | null>(null);
 
   const { data: sequences, isLoading } = useNurturingSequences();
   const { data: sequenceDetail, isLoading: loadingDetail } = useNurturingSequence(
@@ -333,7 +336,7 @@ export default function SequenciasNurturing() {
                               </div>
 
                               {/* Step content */}
-                              <Card className="flex-1">
+                              <Card className="flex-1 group">
                                 <CardHeader className="pb-2">
                                   <div className="flex items-center justify-between">
                                     <CardTitle className="text-base flex items-center gap-2">
@@ -342,12 +345,51 @@ export default function SequenciasNurturing() {
                                         {step.channel === 'whatsapp' ? 'WhatsApp' : 'Email'}
                                       </Badge>
                                     </CardTitle>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <Clock className="h-3 w-3" />
-                                      Após {step.delay_value} {
-                                        step.delay_unit === 'minutes' ? 'min' :
-                                        step.delay_unit === 'hours' ? 'h' : 'd'
-                                      }
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        Após {step.delay_value} {
+                                          step.delay_unit === 'minutes' ? 'min' :
+                                          step.delay_unit === 'hours' ? 'h' : 'd'
+                                        }
+                                      </span>
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                          >
+                                            <MoreVertical className="h-4 w-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              setStepToEdit(step);
+                                              setShowStepDialog(true);
+                                            }}
+                                          >
+                                            <Edit2 className="h-4 w-4 mr-2" />
+                                            Editar
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              if (confirm("Tem certeza que deseja excluir este passo?")) {
+                                                deleteStep.mutate({
+                                                  stepId: step.id,
+                                                  sequenceId: selectedSequence.id,
+                                                });
+                                              }
+                                            }}
+                                            className="text-destructive"
+                                          >
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            Excluir
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     </div>
                                   </div>
                                 </CardHeader>
@@ -387,7 +429,8 @@ export default function SequenciasNurturing() {
                             variant="outline"
                             className="ml-14"
                             onClick={() => {
-                              // TODO: Open add step dialog
+                              setStepToEdit(null);
+                              setShowStepDialog(true);
                             }}
                           >
                             <Plus className="h-4 w-4 mr-2" />
@@ -579,6 +622,18 @@ export default function SequenciasNurturing() {
         onOpenChange={setShowCreateDialog}
         onSuccess={() => setShowCreateDialog(false)}
       />
+
+      {/* Add/Edit Step Dialog */}
+      {selectedSequence && (
+        <NurturingStepDialog
+          open={showStepDialog}
+          onOpenChange={setShowStepDialog}
+          sequenceId={selectedSequence.id}
+          step={stepToEdit}
+          nextStepOrder={(sequenceDetail?.steps?.length || 0) + 1}
+          onSuccess={() => setStepToEdit(null)}
+        />
+      )}
 
       {/* Delete Confirmation */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
