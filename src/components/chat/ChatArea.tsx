@@ -101,6 +101,7 @@ import { api } from "@/lib/api";
 import { QuickRepliesPanel } from "./QuickRepliesPanel";
 import { ConversationSummaryPanel, SummaryBadge } from "./ConversationSummaryPanel";
 import { SentimentIndicator } from "./SentimentIndicator";
+import { ActionSuggestions } from "./ActionSuggestions";
 import { useFinishWithSummary, useGenerateSummary } from "@/hooks/use-conversation-summary";
 import { NotesPanel } from "./NotesPanel";
 import { AudioWaveform } from "./AudioWaveform";
@@ -1890,6 +1891,32 @@ export function ChatArea({
             )}
           </Label>
         </div>
+
+        {/* AI Action Suggestions */}
+        {!isMobile && messages.length > 5 && (
+          <div className="mb-3">
+            <ActionSuggestions
+              messages={messages}
+              conversationData={{
+                lastMessageAt: conversation?.last_message_at || undefined,
+                attendanceStatus: conversation?.attendance_status,
+                tags: conversation?.tags
+              }}
+              onScheduleMessage={() => setShowScheduleDialog(true)}
+              onScheduleMeeting={() => {
+                // If CRM is enabled, open deal dialog to schedule meeting
+                if (modulesEnabled.crm) {
+                  setShowDealDialog(true);
+                } else {
+                  setShowScheduleDialog(true);
+                }
+              }}
+              onOpenCRM={() => setShowDealDialog(true)}
+              onSendQuickReply={() => setShowQuickReplies(true)}
+              compact
+            />
+          </div>
+        )}
         
         {/* Hidden file input */}
         <input
