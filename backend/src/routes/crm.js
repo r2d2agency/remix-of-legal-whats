@@ -6,6 +6,16 @@ import { logInfo, logError } from '../logger.js';
 const router = express.Router();
 router.use(authenticate);
 
+// Some CRM/Intelligence tables/columns may not exist yet during partial deployments.
+// Avoid 500s on dashboards by returning safe empty payloads when schema is missing.
+function isMissingSchemaError(error) {
+  return ['42P01', '42703'].includes(error?.code);
+}
+
+function closedAtSql(alias = 'd') {
+  return `COALESCE(${alias}.won_at, ${alias}.lost_at)`;
+}
+
 // Helper: Get user's organization
 async function getUserOrg(userId) {
   const result = await query(
@@ -2845,25 +2855,48 @@ router.get('/intelligence/revenue-forecast', async (req, res) => {
 
     const { months = 6 } = req.query;
 
-    // Get current pipeline value by probability
-    const pipelineData = await query(
-      `SELECT 
-        f.name as funnel_name,
-        s.name as stage_name,
-        s.position,
-        s.is_final,
-        COUNT(d.id) as deal_count,
-        COALESCE(SUM(d.value), 0) as total_value,
-        COALESCE(SUM(ls.score), 0) / NULLIF(COUNT(d.id), 0) as avg_lead_score
-       FROM crm_deals d
-       JOIN crm_stages s ON s.id = d.stage_id
-       JOIN crm_funnels f ON f.id = d.funnel_id
-       LEFT JOIN crm_lead_scores ls ON ls.deal_id = d.id
-       WHERE d.organization_id = $1 AND d.status = 'open'
-       GROUP BY f.id, f.name, s.id, s.name, s.position, s.is_final
-       ORDER BY f.name, s.position`,
-      [org.organization_id]
-    );
+    // Get current pipeline value by stage
+    // Note: crm_lead_scores may not exist in some deployments; fallback gracefully.
+    let pipelineData;
+    try {
+      pipelineData = await query(
+        `SELECT 
+          f.name as funnel_name,
+          s.name as stage_name,
+          s.position,
+          s.is_final,
+          COUNT(d.id) as deal_count,
+          COALESCE(SUM(d.value), 0) as total_value,
+          COALESCE(SUM(ls.score), 0) / NULLIF(COUNT(d.id), 0) as avg_lead_score
+         FROM crm_deals d
+         JOIN crm_stages s ON s.id = d.stage_id
+         JOIN crm_funnels f ON f.id = d.funnel_id
+         LEFT JOIN crm_lead_scores ls ON ls.deal_id = d.id
+         WHERE d.organization_id = $1 AND d.status = 'open'
+         GROUP BY f.id, f.name, s.id, s.name, s.position, s.is_final
+         ORDER BY f.name, s.position`,
+        [org.organization_id]
+      );
+    } catch (error) {
+      if (!isMissingSchemaError(error)) throw error;
+      pipelineData = await query(
+        `SELECT 
+          f.name as funnel_name,
+          s.name as stage_name,
+          s.position,
+          s.is_final,
+          COUNT(d.id) as deal_count,
+          COALESCE(SUM(d.value), 0) as total_value,
+          NULL::numeric as avg_lead_score
+         FROM crm_deals d
+         JOIN crm_stages s ON s.id = d.stage_id
+         JOIN crm_funnels f ON f.id = d.funnel_id
+         WHERE d.organization_id = $1 AND d.status = 'open'
+         GROUP BY f.id, f.name, s.id, s.name, s.position, s.is_final
+         ORDER BY f.name, s.position`,
+        [org.organization_id]
+      );
+    }
 
     // Calculate weighted pipeline (value * probability based on stage position)
     // Get total stages per funnel for probability calculation
@@ -2882,13 +2915,13 @@ router.get('/intelligence/revenue-forecast', async (req, res) => {
     // Historical win rates by month
     const historicalWins = await query(
       `SELECT 
-        DATE_TRUNC('month', closed_at) as month,
+        DATE_TRUNC('month', ${closedAtSql('d')}) as month,
         COUNT(*) as won_count,
         COALESCE(SUM(value), 0) as won_value
-       FROM crm_deals
-       WHERE organization_id = $1 AND status = 'won' AND closed_at IS NOT NULL
-         AND closed_at >= NOW() - INTERVAL '12 months'
-       GROUP BY DATE_TRUNC('month', closed_at)
+       FROM crm_deals d
+       WHERE d.organization_id = $1 AND d.status = 'won' AND ${closedAtSql('d')} IS NOT NULL
+         AND ${closedAtSql('d')} >= NOW() - INTERVAL '12 months'
+       GROUP BY DATE_TRUNC('month', ${closedAtSql('d')})
        ORDER BY month DESC`,
       [org.organization_id]
     );
@@ -2897,9 +2930,9 @@ router.get('/intelligence/revenue-forecast', async (req, res) => {
     const avgDeal = await query(
       `SELECT 
         AVG(value) as avg_value,
-        AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 86400) as avg_days_to_close
-       FROM crm_deals
-       WHERE organization_id = $1 AND status = 'won' AND value > 0`,
+        AVG(EXTRACT(EPOCH FROM (${closedAtSql('d')} - d.created_at)) / 86400) as avg_days_to_close
+       FROM crm_deals d
+       WHERE d.organization_id = $1 AND d.status = 'won' AND d.value > 0`,
       [org.organization_id]
     );
 
@@ -2944,6 +2977,16 @@ router.get('/intelligence/revenue-forecast', async (req, res) => {
     });
   } catch (error) {
     console.error('Revenue forecast error:', error);
+    if (isMissingSchemaError(error)) {
+      return res.json({
+        pipeline: [],
+        historical_wins: [],
+        avg_deal_value: 0,
+        avg_days_to_close: 0,
+        current_pipeline_value: 0,
+        forecast: [],
+      });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -2986,8 +3029,9 @@ router.get('/intelligence/pipeline-velocity', async (req, res) => {
           COUNT(DISTINCT d.id) as deals_entered,
           COUNT(DISTINCT CASE WHEN d.status = 'won' THEN d.id END) as deals_won
         FROM crm_stages s
-        LEFT JOIN crm_deals d ON d.stage_id = s.id AND d.organization_id = $1 ${funnelFilter.replace('d.funnel_id', 's.funnel_id')}
-        WHERE s.organization_id = $1 ${funnel_id ? 'AND s.funnel_id = $2' : ''}
+        JOIN crm_funnels f ON f.id = s.funnel_id
+        LEFT JOIN crm_deals d ON d.stage_id = s.id AND d.organization_id = $1 ${funnel_id ? 'AND d.funnel_id = $2' : ''}
+        WHERE f.organization_id = $1 ${funnel_id ? 'AND s.funnel_id = $2' : ''}
         GROUP BY s.id, s.name, s.position
       )
       SELECT *, 
@@ -3003,7 +3047,7 @@ router.get('/intelligence/pipeline-velocity', async (req, res) => {
         s.name as stage_name,
         s.position,
         AVG(EXTRACT(EPOCH FROM (
-          COALESCE(d.closed_at, NOW()) - d.updated_at
+          COALESCE(${closedAtSql('d')}, NOW()) - d.updated_at
         )) / 86400) as avg_days_in_stage
        FROM crm_deals d
        JOIN crm_stages s ON s.id = d.stage_id
@@ -3033,6 +3077,20 @@ router.get('/intelligence/pipeline-velocity', async (req, res) => {
     });
   } catch (error) {
     console.error('Pipeline velocity error:', error);
+    if (isMissingSchemaError(error)) {
+      return res.json({
+        velocity: 0,
+        metrics: {
+          won_deals: 0,
+          open_deals: 0,
+          avg_deal_value: 0,
+          avg_cycle_days: 0,
+          win_rate: 0,
+        },
+        stage_conversion: [],
+        stage_time: [],
+      });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -3051,7 +3109,7 @@ router.get('/intelligence/win-loss-analysis', async (req, res) => {
     let paramIndex = 2;
 
     if (start_date && end_date) {
-      dateFilter = `AND d.closed_at BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+      dateFilter = `AND ${closedAtSql('d')} BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
       params.push(start_date, end_date);
       paramIndex += 2;
     }
@@ -3067,7 +3125,7 @@ router.get('/intelligence/win-loss-analysis', async (req, res) => {
         COUNT(*) as count,
         COALESCE(SUM(value), 0) as total_value,
         AVG(value) as avg_value,
-        AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 86400) as avg_days
+        AVG(EXTRACT(EPOCH FROM (${closedAtSql('d')} - created_at)) / 86400) as avg_days
        FROM crm_deals d
        WHERE d.organization_id = $1 AND d.status IN ('won', 'lost') ${dateFilter} ${funnelFilter}
        GROUP BY status`,
@@ -3075,15 +3133,15 @@ router.get('/intelligence/win-loss-analysis', async (req, res) => {
     );
 
     // Loss reasons breakdown
+    // Some schemas store the reason as free text (crm_deals.lost_reason).
     const lossReasons = await query(
       `SELECT 
-        lr.name as reason,
+        COALESCE(NULLIF(BTRIM(d.lost_reason), ''), 'Sem motivo') as reason,
         COUNT(d.id) as count,
         COALESCE(SUM(d.value), 0) as lost_value
        FROM crm_deals d
-       JOIN crm_loss_reasons lr ON lr.id = d.loss_reason_id
        WHERE d.organization_id = $1 AND d.status = 'lost' ${dateFilter} ${funnelFilter}
-       GROUP BY lr.id, lr.name
+       GROUP BY COALESCE(NULLIF(BTRIM(d.lost_reason), ''), 'Sem motivo')
        ORDER BY count DESC`,
       params
     );
@@ -3105,33 +3163,51 @@ router.get('/intelligence/win-loss-analysis', async (req, res) => {
       params
     );
 
-    // Win/Loss by company segment
-    const bySegment = await query(
-      `SELECT 
-        COALESCE(c.segment, 'Sem segmento') as segment,
-        COUNT(*) FILTER (WHERE d.status = 'won') as won_count,
-        COUNT(*) FILTER (WHERE d.status = 'lost') as lost_count,
-        COALESCE(SUM(d.value) FILTER (WHERE d.status = 'won'), 0) as won_value
-       FROM crm_deals d
-       LEFT JOIN crm_companies c ON c.id = d.company_id
-       WHERE d.organization_id = $1 AND d.status IN ('won', 'lost') ${dateFilter} ${funnelFilter}
-       GROUP BY c.segment
-       ORDER BY won_count DESC`,
-      params
-    );
+    // Win/Loss by company segment (column can vary by schema; fallback to custom_fields->>'segment')
+    let bySegment;
+    try {
+      bySegment = await query(
+        `SELECT 
+          COALESCE(c.segment, 'Sem segmento') as segment,
+          COUNT(*) FILTER (WHERE d.status = 'won') as won_count,
+          COUNT(*) FILTER (WHERE d.status = 'lost') as lost_count,
+          COALESCE(SUM(d.value) FILTER (WHERE d.status = 'won'), 0) as won_value
+         FROM crm_deals d
+         LEFT JOIN crm_companies c ON c.id = d.company_id
+         WHERE d.organization_id = $1 AND d.status IN ('won', 'lost') ${dateFilter} ${funnelFilter}
+         GROUP BY c.segment
+         ORDER BY won_count DESC`,
+        params
+      );
+    } catch (error) {
+      if (!isMissingSchemaError(error)) throw error;
+      bySegment = await query(
+        `SELECT 
+          COALESCE(NULLIF(BTRIM(c.custom_fields->>'segment'), ''), 'Sem segmento') as segment,
+          COUNT(*) FILTER (WHERE d.status = 'won') as won_count,
+          COUNT(*) FILTER (WHERE d.status = 'lost') as lost_count,
+          COALESCE(SUM(d.value) FILTER (WHERE d.status = 'won'), 0) as won_value
+         FROM crm_deals d
+         LEFT JOIN crm_companies c ON c.id = d.company_id
+         WHERE d.organization_id = $1 AND d.status IN ('won', 'lost') ${dateFilter} ${funnelFilter}
+         GROUP BY COALESCE(NULLIF(BTRIM(c.custom_fields->>'segment'), ''), 'Sem segmento')
+         ORDER BY won_count DESC`,
+        params
+      );
+    }
 
     // Win/Loss trend by month
     const trend = await query(
       `SELECT 
-        DATE_TRUNC('month', closed_at) as month,
+        DATE_TRUNC('month', ${closedAtSql('d')}) as month,
         COUNT(*) FILTER (WHERE status = 'won') as won_count,
         COUNT(*) FILTER (WHERE status = 'lost') as lost_count,
         COALESCE(SUM(value) FILTER (WHERE status = 'won'), 0) as won_value,
         COALESCE(SUM(value) FILTER (WHERE status = 'lost'), 0) as lost_value
        FROM crm_deals d
-       WHERE d.organization_id = $1 AND d.status IN ('won', 'lost') AND closed_at IS NOT NULL
-         AND closed_at >= NOW() - INTERVAL '12 months'
-       GROUP BY DATE_TRUNC('month', closed_at)
+       WHERE d.organization_id = $1 AND d.status IN ('won', 'lost') AND ${closedAtSql('d')} IS NOT NULL
+         AND ${closedAtSql('d')} >= NOW() - INTERVAL '12 months'
+       GROUP BY DATE_TRUNC('month', ${closedAtSql('d')})
        ORDER BY month ASC`,
       [org.organization_id]
     );
@@ -3162,6 +3238,19 @@ router.get('/intelligence/win-loss-analysis', async (req, res) => {
     });
   } catch (error) {
     console.error('Win/Loss analysis error:', error);
+    if (isMissingSchemaError(error)) {
+      return res.json({
+        summary: {
+          won: { count: 0, total_value: 0, avg_value: 0, avg_days: 0 },
+          lost: { count: 0, total_value: 0, avg_value: 0, avg_days: 0 },
+          win_rate: 0,
+        },
+        loss_reasons: [],
+        by_owner: [],
+        by_segment: [],
+        trend: [],
+      });
+    }
     res.status(500).json({ error: error.message });
   }
 });
