@@ -336,6 +336,24 @@ export async function getQRCode(instanceId, token) {
       return null;
     }
 
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    logInfo('wapi.qrcode_content_type', { instance_id: instanceId, contentType });
+
+    // If the API returns a binary image, convert to base64 data URI
+    if (contentType.includes('image/')) {
+      const arrayBuffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+      const mimeType = contentType.includes('png') ? 'image/png' : 'image/jpeg';
+      logInfo('wapi.qrcode_binary_converted', { instance_id: instanceId, byteLength: bytes.length });
+      return `data:${mimeType};base64,${base64}`;
+    }
+
+    // Otherwise treat as text (JSON or raw base64)
     const rawText = await response.text();
     logInfo('wapi.qrcode_raw_response', {
       instance_id: instanceId,
@@ -349,12 +367,10 @@ export async function getQRCode(instanceId, token) {
       const s = value.trim();
       if (!s) return null;
       if (s.startsWith('data:image/')) return s;
-      // Raw base64 should be long enough to represent a PNG
-      if (s.length >= 200) return s;
+      if (s.length >= 200) return `data:image/png;base64,${s}`;
       return null;
     };
 
-    // If API returns a plain string
     const directText = normalizeQrString(rawText);
     if (directText) return directText;
 
@@ -362,44 +378,25 @@ export async function getQRCode(instanceId, token) {
     try {
       data = JSON.parse(rawText);
     } catch (e) {
-      logWarn('wapi.qrcode_not_json', {
-        instance_id: instanceId,
-        body_preview: rawText.slice(0, 300),
-      });
+      logWarn('wapi.qrcode_not_json', { instance_id: instanceId, body_preview: rawText.slice(0, 300) });
       return null;
     }
 
-    if (!data || typeof data !== 'object') {
-      logWarn('wapi.qrcode_unexpected_shape', {
-        instance_id: instanceId,
-        type: typeof data,
-      });
-      return null;
-    }
+    if (!data || typeof data !== 'object') return null;
 
-    logInfo('wapi.qrcode_parsed', {
-      instance_id: instanceId,
-      keys: Object.keys(data),
-    });
+    logInfo('wapi.qrcode_parsed', { instance_id: instanceId, keys: Object.keys(data) });
 
-    // Common direct fields
     const direct =
       normalizeQrString(data.qrcode) ||
       normalizeQrString(data.base64) ||
       normalizeQrString(data.qr) ||
       normalizeQrString(data.image);
-
     if (direct) return direct;
 
-    // Shallow nested scan (some APIs wrap payload under data/result/etc)
     for (const key of Object.keys(data)) {
       const val = data[key];
-
       const found = normalizeQrString(val);
-      if (found) {
-        logInfo('wapi.qrcode_found_in_field', { instance_id: instanceId, field: key, length: found.length });
-        return found;
-      }
+      if (found) return found;
 
       if (val && typeof val === 'object') {
         const nested =
@@ -407,15 +404,10 @@ export async function getQRCode(instanceId, token) {
           normalizeQrString(val.base64) ||
           normalizeQrString(val.qr) ||
           normalizeQrString(val.image);
-
-        if (nested) {
-          logInfo('wapi.qrcode_found_in_nested_field', { instance_id: instanceId, field: key, length: nested.length });
-          return nested;
-        }
+        if (nested) return nested;
       }
     }
 
-    // IMPORTANT: do not return numbers/booleans like `1` (they break the <img> src)
     return null;
   } catch (error) {
     logError('wapi.qrcode_error', error, { instance_id: instanceId });
