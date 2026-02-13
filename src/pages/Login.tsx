@@ -89,7 +89,7 @@ const Login = () => {
             <CardHeader className="text-center">
               <div className="flex justify-center mb-4">
                 {branding.logo_login ? (
-                  <img src={branding.logo_login} alt="Logo" className="h-24 max-w-[280px] object-contain" />
+                  <img src={branding.logo_login} alt="Logo" className="h-48 max-w-[500px] object-contain" />
                 ) : (
                   <div className="gradient-primary p-3 rounded-full neon-glow">
                     <Zap className="h-8 w-8 text-primary-foreground" />
