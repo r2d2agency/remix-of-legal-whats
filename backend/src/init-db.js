@@ -305,6 +305,7 @@ DO $$ BEGIN
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS push_name VARCHAR(255);
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT false;
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
