@@ -89,14 +89,14 @@ const Login = () => {
             <CardHeader className="text-center">
               <div className="flex justify-center mb-4">
                 {branding.logo_login ? (
-                  <img src={branding.logo_login} alt="Logo" className="h-48 max-w-[500px] object-contain" />
+                  <img src={branding.logo_login} alt="Logo" className="h-64 max-w-[600px] object-contain" />
                 ) : (
                   <div className="gradient-primary p-3 rounded-full neon-glow">
                     <Zap className="h-8 w-8 text-primary-foreground" />
                   </div>
                 )}
               </div>
-              <CardTitle className="text-2xl neon-text">Entrar no {branding.company_name || 'Lawer Whats - Glee-go'}</CardTitle>
+              <CardTitle className="text-2xl neon-text">Lower Whats</CardTitle>
               <CardDescription>
                 Plataforma completa de CRM e automação de WhatsApp para gerenciar contatos, 
                 campanhas e atendimento ao cliente
