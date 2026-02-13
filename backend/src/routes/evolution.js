@@ -165,8 +165,11 @@ async function evolutionRequest(endpoint, method = 'GET', body = null) {
   
   if (!response.ok) {
     const text = await response.text();
-    console.error('Evolution API error:', response.status, text);
-    throw new Error(`Evolution API error: ${response.status}`);
+    console.error('Evolution API error:', response.status, text, 'endpoint:', endpoint);
+    const err = new Error(`Evolution API error: ${response.status} - ${text}`);
+    err.status = response.status;
+    err.responseBody = text;
+    throw err;
   }
 
   return response.json();
@@ -433,8 +436,24 @@ router.post('/create', authenticate, async (req, res) => {
       };
     }
 
-    const createResult = await evolutionRequest('/instance/create', 'POST', createPayload);
-    console.log('Evolution create result:', createResult);
+    let createResult;
+    try {
+      createResult = await evolutionRequest('/instance/create', 'POST', createPayload);
+      console.log('Evolution create result:', createResult);
+    } catch (createError) {
+      console.error('Evolution create error:', createError.message, createError.responseBody);
+      // If instance already exists (409 or 400 with "already exists"), try to connect to it
+      const bodyLower = (createError.responseBody || '').toLowerCase();
+      if (bodyLower.includes('already') || bodyLower.includes('exist') || createError.status === 409) {
+        console.log('Instance may already exist, continuing with connect...');
+        createResult = { instanceName };
+      } else {
+        return res.status(createError.status || 500).json({ 
+          error: 'Erro ao criar instância na Evolution API',
+          details: createError.responseBody || createError.message
+        });
+      }
+    }
 
     // Save connection to database
     const dbResult = await query(
