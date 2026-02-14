@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as whatsappProvider from '../lib/whatsapp-provider.js';
-import { startAgentSession, stopAgentSession, getActiveAgentSession } from '../lib/ai-agent-processor.js';
+import { startAgentSession, stopAgentSession, getActiveAgentSession, pauseSessionForHumanReply, setHumanTakeover } from '../lib/ai-agent-processor.js';
 
 const router = Router();
 
@@ -1443,6 +1443,14 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     // Return response immediately (optimistic)
     // ============================================================
     res.status(201).json(savedMessage);
+
+    // ============================================================
+    // PAUSE AI AGENT: When a human sends a message, pause the AI
+    // so it doesn't respond on top of the human agent
+    // ============================================================
+    pauseSessionForHumanReply(id, 5).catch(err => {
+      console.error('Error pausing AI agent session:', err.message);
+    });
 
     // ============================================================
     // ASYNC: Send to WhatsApp via unified provider (Evolution or W-API)
@@ -2985,6 +2993,18 @@ router.delete('/conversations/:id/agent-session', authenticate, async (req, res)
   } catch (error) {
     console.error('Stop agent session error:', error);
     res.status(500).json({ error: 'Erro ao encerrar sessão do agente' });
+  }
+});
+
+// Enable/disable human takeover (disables AI for this conversation)
+router.post('/conversations/:id/agent-session/takeover', authenticate, async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const result = await setHumanTakeover(req.params.id, enabled !== false, req.userId);
+    res.json({ success: true, takeover: result, enabled: enabled !== false });
+  } catch (error) {
+    console.error('Human takeover error:', error);
+    res.status(500).json({ error: 'Erro ao alterar controle humano' });
   }
 });
 

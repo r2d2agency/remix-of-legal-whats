@@ -47,6 +47,22 @@ export async function processIncomingWithAgent({
     // 1. Check for active session first
     let session = await getActiveSession(conversationId);
 
+    // 1.1 If session exists but is paused or human-taken-over, skip AI processing
+    if (session) {
+      if (session.human_takeover) {
+        logInfo('ai_agent_processor.human_takeover_active', { conversationId });
+        return { handled: false, reason: 'human_takeover' };
+      }
+      if (session.paused_until && new Date(session.paused_until) > new Date()) {
+        logInfo('ai_agent_processor.session_paused', { conversationId, paused_until: session.paused_until });
+        return { handled: false, reason: 'paused' };
+      }
+      // If paused_until has expired, clear it
+      if (session.paused_until && new Date(session.paused_until) <= new Date()) {
+        await query(`UPDATE ai_agent_sessions SET paused_until = NULL WHERE id = $1`, [session.id]);
+      }
+    }
+
     // 2. If no active session, check if an agent is linked to this connection
     if (!session) {
       const agent = await findAgentForConnection(connection.id, messageContent);
@@ -1069,6 +1085,49 @@ export async function getActiveAgentSession(conversationId) {
     [conversationId]
   );
   return result.rows[0] || null;
+}
+
+/**
+ * Pause the AI agent session when a human agent sends a message.
+ * The AI will wait `cooldownMinutes` before resuming automatic responses.
+ */
+export async function pauseSessionForHumanReply(conversationId, cooldownMinutes = 5) {
+  const pauseUntil = new Date(Date.now() + cooldownMinutes * 60 * 1000);
+  const result = await query(
+    `UPDATE ai_agent_sessions SET paused_until = $2
+     WHERE conversation_id = $1 AND is_active = true RETURNING id`,
+    [conversationId, pauseUntil.toISOString()]
+  );
+  if (result.rows[0]) {
+    logInfo('ai_agent_processor.paused_for_human', { conversationId, paused_until: pauseUntil });
+  }
+  return result.rows[0] || null;
+}
+
+/**
+ * Enable/disable human takeover for a conversation's AI agent session.
+ * When enabled, the AI completely stops responding until re-enabled.
+ */
+export async function setHumanTakeover(conversationId, enabled, userId) {
+  if (enabled) {
+    const result = await query(
+      `UPDATE ai_agent_sessions 
+       SET human_takeover = true, human_takeover_by = $2, human_takeover_at = NOW(), paused_until = NULL
+       WHERE conversation_id = $1 AND is_active = true RETURNING id, agent_id`,
+      [conversationId, userId]
+    );
+    logInfo('ai_agent_processor.human_takeover_enabled', { conversationId, userId });
+    return result.rows[0] || null;
+  } else {
+    const result = await query(
+      `UPDATE ai_agent_sessions 
+       SET human_takeover = false, human_takeover_by = NULL, human_takeover_at = NULL
+       WHERE conversation_id = $1 AND is_active = true RETURNING id, agent_id`,
+      [conversationId]
+    );
+    logInfo('ai_agent_processor.human_takeover_disabled', { conversationId });
+    return result.rows[0] || null;
+  }
 }
 
 // ==================== HELPERS ====================
