@@ -25,7 +25,7 @@ import {
   Shield,
 } from 'lucide-react';
 
-type ModuleKey = 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents';
+type ModuleKey = 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary';
 
 interface FeatureDoc {
   id: string;
@@ -33,6 +33,7 @@ interface FeatureDoc {
   icon: React.ReactNode;
   title: string;
   description: string;
+  howToActivate?: string;
   features: {
     name: string;
     description: string;
@@ -161,6 +162,24 @@ const allFeatures: FeatureDoc[] = [
     ],
   },
   {
+    id: 'group_secretary',
+    moduleKey: 'group_secretary',
+    icon: <Bot className="h-5 w-5" />,
+    title: 'Secretária IA de Grupos',
+    description: 'Monitora grupos de WhatsApp e detecta quando alguém solicita algo à equipe, notificando o responsável.',
+    features: [
+      { name: 'Detecção inteligente', description: 'A IA analisa mensagens em grupos e identifica quando alguém está pedindo algo ou mencionando um membro da equipe.' },
+      { name: 'Identificação por nome e apelido', description: 'Cadastre apelidos e nomes pelos quais cada membro é chamado nos grupos para identificação precisa.' },
+      { name: 'Identificação por contexto', description: 'A IA entende o contexto da mensagem (ex: "preciso do financeiro") e mapeia para o responsável da área.' },
+      { name: 'Criação de tarefa no CRM', description: 'Quando uma solicitação é detectada, uma tarefa é criada automaticamente no CRM atribuída ao responsável.' },
+      { name: 'Popup com som na tela', description: 'Notificação instantânea na tela do responsável com preview da mensagem e som de alerta.' },
+      { name: 'Seleção de grupos', description: 'Escolha quais grupos a IA deve monitorar, filtrando por conexão WhatsApp.' },
+      { name: 'Nível de confiança', description: 'Ajuste a sensibilidade da IA — mais alto significa mais preciso, mais baixo detecta menções mais sutis.' },
+      { name: 'Logs de detecção', description: 'Histórico completo de todas as detecções com grupo, remetente, responsável e confiança.' },
+    ],
+    howToActivate: 'Para ativar: acesse Configurações da Organização → aba Módulos → ative "Secretária IA de Grupos". O superadmin também pode habilitar/desabilitar no plano.',
+  },
+  {
     id: 'nurturing',
     icon: <Zap className="h-5 w-5" />,
     title: 'Sequências de Nurturing',
@@ -277,6 +296,11 @@ export function FeaturesDocumentation() {
               </AccordionTrigger>
               <AccordionContent>
                 <div className="pl-12 space-y-3">
+                  {feature.howToActivate && (
+                    <div className="bg-muted/50 rounded-lg p-3 mb-2 text-sm text-muted-foreground border">
+                      <strong className="text-foreground">Como ativar/desativar:</strong> {feature.howToActivate}
+                    </div>
+                  )}
                   {feature.features.map((item, idx) => (
                     <div key={idx} className="border-l-2 border-primary/20 pl-4 py-1">
                       <div className="font-medium text-sm">{item.name}</div>

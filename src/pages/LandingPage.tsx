@@ -95,6 +95,11 @@ const featureCategories = [
         description: "Atribua e acompanhe tarefas entre advogados, estagiários e secretaria.",
       },
       {
+        icon: Bot,
+        title: "Secretária IA nos Grupos",
+        description: "IA monitora grupos internos e notifica quando alguém solicita algo à equipe.",
+      },
+      {
         icon: Users,
         title: "Gestão de Grupos",
         description: "Grupos internos por caso ou área para comunicação rápida da equipe.",
@@ -254,6 +259,7 @@ const pricingPlans = [
       { text: "Setores e áreas de atuação", included: true },
       { text: "Distribuição de clientes", included: true },
       { text: "Gestão de grupos internos", included: true },
+      { text: "Secretária IA nos grupos", included: true },
       { text: "Disparos em massa", included: true },
       { text: "IA para peças jurídicas", included: false },
     ],
@@ -272,6 +278,7 @@ const pricingPlans = [
       { text: "Tudo do Escritório +", included: true },
       { text: "IA jurídica ilimitada", included: true },
       { text: "Assistente para peças", included: true },
+      { text: "Secretária IA nos grupos", included: true },
       { text: "Resumos de conversas por IA", included: true },
       { text: "Relatórios gerenciais", included: true },
       { text: "Suporte prioritário", included: true },
