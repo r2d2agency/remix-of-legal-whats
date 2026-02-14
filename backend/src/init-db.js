@@ -92,6 +92,11 @@ DO $$ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_lead_scoring BOOLEAN DEFAULT true;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ai_summary BOOLEAN DEFAULT true;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_group_secretary BOOLEAN DEFAULT false;
+    ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_minutes INTEGER DEFAULT NULL;
+    ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_whatsapp BOOLEAN DEFAULT false;
+    ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_popup BOOLEAN DEFAULT true;
+    ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT false;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_phone VARCHAR(50);
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
@@ -1438,6 +1443,10 @@ CREATE TABLE IF NOT EXISTS crm_tasks (
     priority VARCHAR(20) DEFAULT 'medium',
     due_date TIMESTAMP WITH TIME ZONE,
     reminder_at TIMESTAMP WITH TIME ZONE,
+    reminder_minutes INTEGER DEFAULT NULL,
+    reminder_whatsapp BOOLEAN DEFAULT false,
+    reminder_popup BOOLEAN DEFAULT true,
+    reminder_sent BOOLEAN DEFAULT false,
     status VARCHAR(20) DEFAULT 'pending',
     completed_at TIMESTAMP WITH TIME ZONE,
     completed_by UUID REFERENCES users(id) ON DELETE SET NULL,

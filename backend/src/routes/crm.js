@@ -1396,13 +1396,22 @@ router.post('/tasks', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { deal_id, company_id, assigned_to, title, description, type, priority, due_date, reminder_at } = req.body;
+    const { deal_id, company_id, assigned_to, title, description, type, priority, due_date, reminder_at, reminder_minutes, reminder_whatsapp, reminder_popup } = req.body;
     
+    // Calculate reminder_at from due_date and reminder_minutes if provided
+    let calculatedReminderAt = reminder_at;
+    if (reminder_minutes && due_date && !reminder_at) {
+      const dueDateTime = new Date(due_date);
+      dueDateTime.setMinutes(dueDateTime.getMinutes() - reminder_minutes);
+      calculatedReminderAt = dueDateTime.toISOString();
+    }
+
     const result = await query(
-      `INSERT INTO crm_tasks (organization_id, deal_id, company_id, assigned_to, created_by, title, description, type, priority, due_date, reminder_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      `INSERT INTO crm_tasks (organization_id, deal_id, company_id, assigned_to, created_by, title, description, type, priority, due_date, reminder_at, reminder_minutes, reminder_whatsapp, reminder_popup)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
       [org.organization_id, deal_id, company_id, assigned_to || req.userId, req.userId, 
-       title, description, type || 'task', priority || 'medium', due_date, reminder_at]
+       title, description, type || 'task', priority || 'medium', due_date, calculatedReminderAt,
+       reminder_minutes || null, reminder_whatsapp ?? false, reminder_popup ?? true]
     );
 
     // If linked to deal, update last_activity
@@ -1423,7 +1432,7 @@ router.put('/tasks/:id', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { assigned_to, title, description, type, priority, due_date, reminder_at, status } = req.body;
+    const { assigned_to, title, description, type, priority, due_date, reminder_at, reminder_minutes, reminder_whatsapp, reminder_popup, status } = req.body;
 
     let extraFields = '';
     if (status === 'completed') {
@@ -1431,24 +1440,15 @@ router.put('/tasks/:id', async (req, res) => {
     } else if (status === 'pending') {
       extraFields = `, completed_at = NULL, completed_by = NULL`;
     }
-    
-    // Validate finalContactId is set
-    if (!finalContactId) {
-       logError('crm.null_contact_id', new Error('finalContactId is null or undefined'), {
-        contact_id,
-        chatContactFound: chatContact.rows.length > 0
-      });
-      return res.status(400).json({ error: 'Could not resolve contact ID' });
+
+    // Calculate reminder_at from due_date and reminder_minutes if provided
+    let calculatedReminderAt = reminder_at;
+    if (reminder_minutes && due_date && !reminder_at) {
+      const dueDateTime = new Date(due_date);
+      dueDateTime.setMinutes(dueDateTime.getMinutes() - reminder_minutes);
+      calculatedReminderAt = dueDateTime.toISOString();
     }
-    
-     logInfo('crm.adding_contact_to_deal', {
-      dealId: req.params.id,
-      contactId: contact_id,
-      finalContactId,
-      role,
-      is_primary
-    });
-    
+
     const result = await query(
       `UPDATE crm_tasks SET 
         assigned_to = COALESCE($1, assigned_to),
@@ -1458,11 +1458,16 @@ router.put('/tasks/:id', async (req, res) => {
         priority = COALESCE($5, priority),
         due_date = $6,
         reminder_at = $7,
-        status = COALESCE($8, status),
+        reminder_minutes = $8,
+        reminder_whatsapp = COALESCE($9, reminder_whatsapp),
+        reminder_popup = COALESCE($10, reminder_popup),
+        reminder_sent = false,
+        status = COALESCE($11, status),
         updated_at = NOW()
         ${extraFields}
-       WHERE id = $9 AND organization_id = $10 RETURNING *`,
-      [assigned_to, title, description, type, priority, due_date, reminder_at, status, req.params.id, org.organization_id]
+       WHERE id = $12 AND organization_id = $13 RETURNING *`,
+      [assigned_to, title, description, type, priority, due_date, calculatedReminderAt,
+       reminder_minutes || null, reminder_whatsapp, reminder_popup, status, req.params.id, org.organization_id]
     );
     res.json(result.rows[0]);
   } catch (error) {

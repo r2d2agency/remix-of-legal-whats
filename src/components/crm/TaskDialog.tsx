@@ -13,7 +13,8 @@ import { api } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGoogleCalendarStatus } from "@/hooks/use-google-calendar";
 import { toast } from "sonner";
-import { Video, Users, Calendar, X, Plus, Mail, Loader2, ExternalLink } from "lucide-react";
+import { Video, Users, Calendar, X, Plus, Mail, Loader2, ExternalLink, Bell, MessageSquare } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 interface TaskDialogProps {
   task: CRMTask | null;
@@ -87,6 +88,11 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
   const [externalEmail, setExternalEmail] = useState("");
   const [externalEmails, setExternalEmails] = useState<string[]>([]);
 
+  // Reminder state
+  const [reminderMinutes, setReminderMinutes] = useState<string>("");
+  const [reminderWhatsapp, setReminderWhatsapp] = useState(false);
+  const [reminderPopup, setReminderPopup] = useState(true);
+
   const { data: members } = useOrgMembers(user?.organization_id || null);
   const { data: googleStatus } = useGoogleCalendarStatus();
   const { createTask, updateTask } = useCRMTaskMutations();
@@ -106,6 +112,9 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
       setAddGoogleMeet(false);
       setSelectedAttendees([]);
       setExternalEmails([]);
+      setReminderMinutes(task.reminder_minutes ? String(task.reminder_minutes) : "");
+      setReminderWhatsapp(task.reminder_whatsapp ?? false);
+      setReminderPopup(task.reminder_popup ?? true);
     } else {
       setTitle("");
       setDescription("");
@@ -127,6 +136,9 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
       setSelectedAttendees([]);
       setExternalEmails([]);
       setExternalEmail("");
+      setReminderMinutes("15");
+      setReminderWhatsapp(false);
+      setReminderPopup(true);
     }
   }, [task, open, user, defaultDate]);
 
@@ -214,6 +226,7 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
     }
 
     // Otherwise, create as regular CRM task
+    const reminderMins = reminderMinutes ? parseInt(reminderMinutes) : undefined;
     const data = {
       title,
       description,
@@ -223,6 +236,9 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
       assigned_to: assignedTo || undefined,
       deal_id: dealId,
       company_id: companyId,
+      reminder_minutes: reminderMins,
+      reminder_whatsapp: reminderWhatsapp,
+      reminder_popup: reminderPopup,
     };
 
     if (task) {
@@ -451,6 +467,56 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
                 <Calendar className="h-4 w-4" />
                 Conecte o Google Calendar nas Configurações para criar reuniões com Meet
               </p>
+            </div>
+          )}
+
+          {/* Reminder Section */}
+          {dueDate && (
+            <div className="space-y-3 p-3 rounded-lg border bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-primary" />
+                <Label className="font-medium">Lembrete</Label>
+              </div>
+              <div className="space-y-2">
+                <Select value={reminderMinutes || "none"} onValueChange={(v) => setReminderMinutes(v === "none" ? "" : v)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Sem lembrete" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem lembrete</SelectItem>
+                    <SelectItem value="5">5 minutos antes</SelectItem>
+                    <SelectItem value="10">10 minutos antes</SelectItem>
+                    <SelectItem value="15">15 minutos antes</SelectItem>
+                    <SelectItem value="30">30 minutos antes</SelectItem>
+                    <SelectItem value="60">1 hora antes</SelectItem>
+                    <SelectItem value="120">2 horas antes</SelectItem>
+                    <SelectItem value="1440">1 dia antes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {reminderMinutes && (
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm">Popup na tela</span>
+                    </div>
+                    <Switch checked={reminderPopup} onCheckedChange={setReminderPopup} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm">Enviar WhatsApp</span>
+                    </div>
+                    <Switch checked={reminderWhatsapp} onCheckedChange={setReminderWhatsapp} />
+                  </div>
+                  {reminderWhatsapp && (
+                    <p className="text-xs text-muted-foreground">
+                      A mensagem será enviada no WhatsApp do responsável
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

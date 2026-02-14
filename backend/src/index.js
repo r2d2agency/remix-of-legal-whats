@@ -44,6 +44,7 @@ import { syncTodaysDueBoletos, checkPaymentStatusUpdates } from './asaas-auto-sy
 import { executeCRMAutomations } from './crm-automation-scheduler.js';
 import { processEmailQueue } from './email-scheduler.js';
 import { executeNurturing } from './nurturing-scheduler.js';
+import { executeTaskReminders } from './task-reminder-scheduler.js';
 import { requestContext } from './request-context.js';
 import { log, logError } from './logger.js';
 
@@ -330,6 +331,17 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
 
+    // Schedule task reminders - runs every minute to check for due reminders
+    cron.schedule('* * * * *', async () => {
+      try {
+        await executeTaskReminders();
+      } catch (error) {
+        console.error('⏰ [CRON] Error executing task reminders:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+
     console.log('⏰ Notification scheduler started - checks every hour (timezone: America/Sao_Paulo)');
     console.log('📤 Campaign scheduler started - checks every 30 seconds');
     console.log('📅 Scheduled messages started - checks every minute');
@@ -338,5 +350,6 @@ initDatabase().then((ok) => {
     console.log('🤖 CRM automation started - checks every 2 minutes');
     console.log('📧 Email queue processor started - checks every minute');
     console.log('🔄 Nurturing sequences started - checks every 2 minutes');
+    console.log('⏰ Task reminders started - checks every minute');
   });
 });

@@ -31,7 +31,7 @@ export function GroupSecretaryPopup() {
     try {
       const allAlerts = await getAlerts();
       const secretaryAlerts = allAlerts.filter(
-        (a) => a.type === "group_secretary" && !a.is_read
+        (a) => (a.type === "group_secretary" || a.type === "task_reminder") && !a.is_read
       );
 
       // Show new ones

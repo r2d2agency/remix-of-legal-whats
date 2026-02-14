@@ -118,6 +118,10 @@ export interface CRMTask {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   due_date?: string;
   reminder_at?: string;
+  reminder_minutes?: number;
+  reminder_whatsapp?: boolean;
+  reminder_popup?: boolean;
+  reminder_sent?: boolean;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   completed_at?: string;
   created_at: string;
