@@ -277,7 +277,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] p-0 flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
         <DialogHeader className="p-6 pb-0">
           <DialogTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-primary" />
@@ -310,8 +310,8 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
             </TabsList>
           </div>
 
-          <ScrollArea className="flex-1 max-h-[calc(85vh-220px)]">
-            <div className="p-6 pt-4">
+          <ScrollArea className="flex-1 h-[calc(90vh-220px)]">
+            <div className="p-6 pt-4 pb-24">
               {/* Basic Tab */}
               <TabsContent value="basic" className="space-y-4 mt-0">
                 <div className="grid gap-4">
