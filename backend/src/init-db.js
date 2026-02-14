@@ -98,6 +98,10 @@ DO $$ BEGIN
     ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT false;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_phone VARCHAR(50);
     ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS call_agent_config JSONB DEFAULT '{}';
+    ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS paused_until TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS human_takeover BOOLEAN DEFAULT false;
+    ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS human_takeover_by UUID REFERENCES users(id);
+    ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS human_takeover_at TIMESTAMP WITH TIME ZONE;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
@@ -2180,7 +2184,11 @@ CREATE TABLE IF NOT EXISTS ai_agent_sessions (
   failure_count INTEGER DEFAULT 0,
   started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   last_interaction_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  ended_at TIMESTAMP WITH TIME ZONE
+  ended_at TIMESTAMP WITH TIME ZONE,
+  paused_until TIMESTAMP WITH TIME ZONE,
+  human_takeover BOOLEAN DEFAULT false,
+  human_takeover_by UUID REFERENCES users(id),
+  human_takeover_at TIMESTAMP WITH TIME ZONE
 );
 
 -- Agent messages
