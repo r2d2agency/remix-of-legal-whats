@@ -13,16 +13,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock
+  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { useGroupSecretary, type SecretaryConfig, type SecretaryMember, type SecretaryLog, type AvailableUser } from "@/hooks/use-group-secretary";
+import { useGroupSecretary, type SecretaryConfig, type SecretaryMember, type SecretaryLog, type AvailableUser, type MonitoredGroup } from "@/hooks/use-group-secretary";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function SecretariaGrupos() {
   const {
-    getConfig, saveConfig, getMembers, addMember, removeMember, getLogs, getAvailableUsers
+    getConfig, saveConfig, getMembers, addMember, removeMember, getLogs, getAvailableUsers, getGroups
   } = useGroupSecretary();
 
   const [config, setConfig] = useState<SecretaryConfig>({
@@ -33,6 +34,8 @@ export default function SecretariaGrupos() {
   const [members, setMembers] = useState<SecretaryMember[]>([]);
   const [logs, setLogs] = useState<SecretaryLog[]>([]);
   const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([]);
+  const [allGroups, setAllGroups] = useState<MonitoredGroup[]>([]);
+  const [groupFilter, setGroupFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -47,13 +50,14 @@ export default function SecretariaGrupos() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [cfg, mems, lgs, users] = await Promise.all([
-        getConfig(), getMembers(), getLogs(), getAvailableUsers(),
+      const [cfg, mems, lgs, users, groups] = await Promise.all([
+        getConfig(), getMembers(), getLogs(), getAvailableUsers(), getGroups(),
       ]);
       setConfig(cfg);
       setMembers(mems);
       setLogs(lgs);
       setAvailableUsers(users);
+      setAllGroups(groups);
     } catch (err: any) {
       toast.error(err.message || "Erro ao carregar dados");
     } finally {
@@ -234,6 +238,91 @@ export default function SecretariaGrupos() {
 
           {/* SETTINGS TAB */}
           <TabsContent value="settings" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Grupos Monitorados
+                </CardTitle>
+                <CardDescription>
+                  Selecione quais grupos a secretária IA deve monitorar. Se nenhum for selecionado, todos os grupos serão monitorados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {allGroups.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhum grupo encontrado nas conexões.</p>
+                ) : (
+                  <>
+                    <Input
+                      placeholder="Filtrar grupos..."
+                      value={groupFilter}
+                      onChange={(e) => setGroupFilter(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="flex gap-2 mb-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setConfig(c => ({ ...c, group_jids: allGroups.map(g => g.remote_jid) }))}
+                      >
+                        Selecionar todos
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setConfig(c => ({ ...c, group_jids: null }))}
+                      >
+                        Limpar (monitorar todos)
+                      </Button>
+                    </div>
+                    <ScrollArea className="h-[250px] border rounded-md p-2">
+                      <div className="space-y-2">
+                        {allGroups
+                          .filter(g => !groupFilter || g.group_name?.toLowerCase().includes(groupFilter.toLowerCase()))
+                          .map((group) => {
+                            const isSelected = config.group_jids?.includes(group.remote_jid) ?? false;
+                            return (
+                              <label
+                                key={group.remote_jid}
+                                className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                              >
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    setConfig(c => {
+                                      const current = c.group_jids || [];
+                                      if (checked) {
+                                        return { ...c, group_jids: [...current, group.remote_jid] };
+                                      } else {
+                                        const updated = current.filter(j => j !== group.remote_jid);
+                                        return { ...c, group_jids: updated.length > 0 ? updated : null };
+                                      }
+                                    });
+                                  }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm font-medium truncate block">
+                                    {group.group_name || group.remote_jid}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {group.connection_name}
+                                  </span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </ScrollArea>
+                    {config.group_jids && config.group_jids.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {config.group_jids.length} grupo(s) selecionado(s)
+                      </p>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Comportamento</CardTitle>
