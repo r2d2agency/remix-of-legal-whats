@@ -42,6 +42,7 @@ import LeadWebhooks from "./pages/LeadWebhooks";
 import SequenciasNurturing from "./pages/SequenciasNurturing";
 import CTWAAnalytics from "./pages/CTWAAnalytics";
 import RevenueIntelligence from "./pages/RevenueIntelligence";
+import SecretariaGrupos from "./pages/SecretariaGrupos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -109,6 +110,7 @@ const App = () => (
             <Route path="/sequencias" element={<ProtectedRoute><SequenciasNurturing /></ProtectedRoute>} />
             <Route path="/ctwa-analytics" element={<ProtectedRoute><CTWAAnalytics /></ProtectedRoute>} />
             <Route path="/revenue-intelligence" element={<ProtectedRoute><RevenueIntelligence /></ProtectedRoute>} />
+            <Route path="/secretaria-grupos" element={<ProtectedRoute><SecretariaGrupos /></ProtectedRoute>} />
             <Route path="/f/:slug" element={<PublicFormPage />} />
             <Route path="/politica-privacidade" element={<PoliticaPrivacidade />} />
             <Route path="*" element={<NotFound />} />
