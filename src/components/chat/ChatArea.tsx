@@ -205,6 +205,10 @@ export function ChatArea({
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [transferTo, setTransferTo] = useState<string>("");
   const [transferNote, setTransferNote] = useState("");
+  const [transferMode, setTransferMode] = useState<'human' | 'ai'>('human');
+  const [transferAgents, setTransferAgents] = useState<Array<{ id: string; name: string; is_active: boolean }>>([]);
+  const [transferToAgent, setTransferToAgent] = useState<string>("");
+  const [transferringToAI, setTransferringToAI] = useState(false);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [syncDays, setSyncDays] = useState<string>("7");
   const [showTagDialog, setShowTagDialog] = useState(false);
@@ -822,13 +826,42 @@ export function ChatArea({
     setShowEmojiPicker(false);
   }, []);
 
-  const handleTransfer = () => {
+  const handleTransfer = async () => {
+    if (transferMode === 'ai') {
+      if (!transferToAgent || !conversation?.id) return;
+      setTransferringToAI(true);
+      try {
+        await api(`/api/chat/conversations/${conversation.id}/agent-session`, {
+          method: 'POST',
+          body: { agent_id: transferToAgent },
+        });
+        toast.success("Conversa transferida para agente IA!");
+        setShowTransferDialog(false);
+        setTransferToAgent("");
+        setTransferNote("");
+        setTransferMode('human');
+      } catch (err: any) {
+        toast.error(err.message || "Erro ao transferir para IA");
+      } finally {
+        setTransferringToAI(false);
+      }
+      return;
+    }
     const userId = transferTo === "__none__" ? null : (transferTo || null);
     onTransfer(userId, transferNote);
     setShowTransferDialog(false);
     setTransferTo("");
     setTransferNote("");
     toast.success("Conversa transferida!");
+  };
+
+  const handleOpenTransferDialog = () => {
+    setShowTransferDialog(true);
+    setTransferMode('human');
+    // Load AI agents
+    api<Array<{ id: string; name: string; is_active: boolean }>>('/api/ai-agents', { auth: true })
+      .then(data => setTransferAgents((data || []).filter(a => a.is_active)))
+      .catch(() => {});
   };
 
   const handleSaveDepartment = async () => {
@@ -1438,7 +1471,7 @@ export function ChatArea({
               {isMobile && !isViewOnly && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
+                  <DropdownMenuItem onClick={handleOpenTransferDialog}>
                     <UserPlus className="h-4 w-4 mr-2" />
                     Atribuir atendente
                     {conversation.assigned_name && (
@@ -1463,7 +1496,7 @@ export function ChatArea({
                     <Bot className="h-4 w-4 mr-2" />
                     Iniciar fluxo de chatbot
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowTransferDialog(true)}>
+                  <DropdownMenuItem onClick={handleOpenTransferDialog}>
                     <ArrowLeftRight className="h-4 w-4 mr-2" />
                     Transferir atendimento
                   </DropdownMenuItem>
@@ -2327,39 +2360,97 @@ export function ChatArea({
 
       {/* Transfer Dialog */}
       <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Transferir Atendimento</DialogTitle>
             <DialogDescription>
-              Selecione um membro da equipe para transferir esta conversa.
+              Transfira para um atendente humano ou para um agente de IA.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <Select value={transferTo} onValueChange={setTransferTo}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um atendente" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Liberar (sem atendente)</SelectItem>
-                {team.filter(member => member.id).map(member => (
-                  <SelectItem key={member.id} value={member.id}>
-                    {member.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Textarea
-              placeholder="Observação (opcional)"
-              value={transferNote}
-              onChange={(e) => setTransferNote(e.target.value)}
-            />
+
+          {/* Mode tabs */}
+          <div className="flex gap-1 p-1 bg-muted rounded-lg">
+            <Button
+              variant={transferMode === 'human' ? 'default' : 'ghost'}
+              size="sm"
+              className="flex-1 gap-1.5 text-xs"
+              onClick={() => setTransferMode('human')}
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Atendente
+            </Button>
+            <Button
+              variant={transferMode === 'ai' ? 'default' : 'ghost'}
+              size="sm"
+              className="flex-1 gap-1.5 text-xs"
+              onClick={() => setTransferMode('ai')}
+            >
+              <Bot className="h-3.5 w-3.5" />
+              Agente IA
+            </Button>
           </div>
+
+          <div className="space-y-4">
+            {transferMode === 'human' ? (
+              <>
+                <Select value={transferTo} onValueChange={setTransferTo}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um atendente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Liberar (sem atendente)</SelectItem>
+                    {team.filter(member => member.id).map(member => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  placeholder="Observação (opcional)"
+                  value={transferNote}
+                  onChange={(e) => setTransferNote(e.target.value)}
+                />
+              </>
+            ) : (
+              <>
+                <Select value={transferToAgent} onValueChange={setTransferToAgent}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um agente IA" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {transferAgents.map(agent => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        <div className="flex items-center gap-2">
+                          <Bot className="h-3.5 w-3.5 text-primary" />
+                          {agent.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                    {transferAgents.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        Nenhum agente IA ativo
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  O agente de IA assumirá o atendimento e responderá automaticamente ao contato.
+                </p>
+              </>
+            )}
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTransferDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleTransfer}>
-              Transferir
+            <Button 
+              onClick={handleTransfer} 
+              disabled={transferringToAI || (transferMode === 'ai' && !transferToAgent)}
+            >
+              {transferringToAI && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {transferMode === 'ai' ? 'Transferir para IA' : 'Transferir'}
             </Button>
           </DialogFooter>
         </DialogContent>
