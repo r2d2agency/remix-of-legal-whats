@@ -487,4 +487,249 @@ export const EMAIL_TEMPLATE_PRESETS: EmailTemplatePreset[] = [
 </div>
     `.trim(),
   },
+
+  // JURÍDICO
+  {
+    id: "legal-consultation",
+    name: "Agendamento de Consulta Jurídica",
+    description: "Confirmação de agendamento de consulta com advogado",
+    category: "juridico",
+    subject: "⚖️ {nome}, sua consulta jurídica está confirmada",
+    body_html: `
+<div style="font-family: 'Georgia', 'Times New Roman', serif; max-width: 600px; margin: 0 auto; background: #fafaf8;">
+  <div style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 40px 30px; text-align: center;">
+    <div style="font-size: 48px; margin-bottom: 10px;">⚖️</div>
+    <h1 style="color: #f1f5f9; margin: 0; font-size: 26px; font-weight: 700; letter-spacing: 0.5px;">Consulta Confirmada</h1>
+    <p style="color: #94a3b8; margin: 10px 0 0 0; font-size: 14px;">Escritório de Advocacia {empresa}</p>
+  </div>
+  <div style="padding: 35px 30px;">
+    <p style="font-size: 17px; line-height: 1.7; color: #374151;">Prezado(a) <strong>{nome}</strong>,</p>
+    <p style="font-size: 16px; line-height: 1.7; color: #4b5563;">Confirmamos o agendamento da sua consulta jurídica conforme os detalhes abaixo:</p>
+    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 25px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📅 Data:</td><td style="padding: 8px 0; color: #1f2937; font-weight: 600;">{data}</td></tr>
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">🕐 Horário:</td><td style="padding: 8px 0; color: #1f2937; font-weight: 600;">{horario}</td></tr>
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">👤 Advogado(a):</td><td style="padding: 8px 0; color: #1f2937; font-weight: 600;">Dr(a). {advogado}</td></tr>
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">📍 Local:</td><td style="padding: 8px 0; color: #1f2937; font-weight: 600;">{endereco}</td></tr>
+      </table>
+    </div>
+    <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0;">
+      <p style="margin: 0; color: #92400e; font-size: 14px;"><strong>📋 Documentos necessários:</strong><br>Documento de identidade (RG/CNH), CPF e documentos relacionados ao caso.</p>
+    </div>
+    <p style="font-size: 15px; line-height: 1.7; color: #4b5563;">Caso necessite reagendar, entre em contato com pelo menos 24 horas de antecedência.</p>
+    <div style="text-align: center; padding: 20px 0;">
+      <a href="#" style="display: inline-block; background: #1e293b; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600;">Confirmar Presença</a>
+    </div>
+  </div>
+  <div style="background: #1e293b; padding: 20px 30px; text-align: center;">
+    <p style="margin: 0; color: #94a3b8; font-size: 13px;">Escritório {empresa} • OAB/SP nº XXXXX<br>{telefone} • {email}</p>
+  </div>
+</div>
+    `.trim(),
+  },
+  {
+    id: "legal-case-update",
+    name: "Atualização de Processo",
+    description: "Informar o cliente sobre andamento processual",
+    category: "juridico",
+    subject: "📄 Atualização do seu processo - {nome}",
+    body_html: `
+<div style="font-family: 'Georgia', 'Times New Roman', serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+  <div style="background: #1e293b; padding: 30px; display: flex; align-items: center;">
+    <div style="flex: 1;">
+      <h1 style="color: white; margin: 0; font-size: 22px;">Andamento Processual</h1>
+      <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 13px;">Atualização Nº {numero_processo}</p>
+    </div>
+  </div>
+  <div style="padding: 30px;">
+    <p style="font-size: 16px; line-height: 1.7; color: #374151;">Prezado(a) <strong>{nome}</strong>,</p>
+    <p style="font-size: 15px; line-height: 1.7; color: #4b5563;">Gostaríamos de informar sobre o andamento do seu processo:</p>
+    <div style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin: 25px 0;">
+      <div style="background: #f8fafc; padding: 15px 20px; border-bottom: 1px solid #e2e8f0;">
+        <span style="font-size: 13px; color: #6b7280;">PROCESSO</span>
+        <p style="margin: 5px 0 0 0; font-weight: 700; color: #1f2937;">{numero_processo}</p>
+      </div>
+      <div style="padding: 20px;">
+        <div style="display: flex; margin-bottom: 15px;">
+          <div style="width: 10px; height: 10px; background: #22c55e; border-radius: 50%; margin-top: 6px; flex-shrink: 0;"></div>
+          <div style="margin-left: 12px;"><strong style="color: #1f2937; font-size: 14px;">Movimentação recente</strong><p style="margin: 4px 0 0; color: #6b7280; font-size: 13px;">{movimentacao}</p></div>
+        </div>
+        <div style="display: flex;">
+          <div style="width: 10px; height: 10px; background: #3b82f6; border-radius: 50%; margin-top: 6px; flex-shrink: 0;"></div>
+          <div style="margin-left: 12px;"><strong style="color: #1f2937; font-size: 14px;">Próxima etapa</strong><p style="margin: 4px 0 0; color: #6b7280; font-size: 13px;">{proxima_etapa}</p></div>
+        </div>
+      </div>
+    </div>
+    <div style="background: #eff6ff; border-radius: 10px; padding: 20px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 14px; color: #1e40af;"><strong>📌 Observação do advogado:</strong><br>{observacao}</p>
+    </div>
+    <p style="font-size: 15px; color: #4b5563;">Caso tenha dúvidas, não hesite em entrar em contato.</p>
+    <p style="margin-top: 25px; color: #374151;">Atenciosamente,<br><strong>Dr(a). {advogado}</strong><br><span style="color: #6b7280; font-size: 14px;">OAB nº {oab}</span></p>
+  </div>
+  <div style="border-top: 1px solid #e5e7eb; padding: 20px 30px; text-align: center;">
+    <p style="margin: 0; color: #9ca3af; font-size: 13px;">Este email contém informações confidenciais. Se você não é o destinatário, desconsidere.</p>
+  </div>
+</div>
+    `.trim(),
+  },
+  {
+    id: "legal-contract-signature",
+    name: "Assinatura de Contrato",
+    description: "Solicitar assinatura digital de contrato ou procuração",
+    category: "juridico",
+    subject: "✍️ {nome}, seu contrato está pronto para assinatura",
+    body_html: `
+<div style="font-family: 'Georgia', 'Times New Roman', serif; max-width: 600px; margin: 0 auto;">
+  <div style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); padding: 40px 30px; text-align: center;">
+    <div style="display: inline-block; background: rgba(255,255,255,0.1); padding: 12px 24px; border-radius: 8px; margin-bottom: 15px;">
+      <span style="font-size: 36px;">✍️</span>
+    </div>
+    <h1 style="color: white; margin: 0; font-size: 24px;">Contrato Pronto para Assinatura</h1>
+  </div>
+  <div style="padding: 30px; background: #fafaf8;">
+    <p style="font-size: 16px; line-height: 1.7; color: #374151;">Prezado(a) <strong>{nome}</strong>,</p>
+    <p style="font-size: 15px; line-height: 1.7; color: #4b5563;">Informamos que o documento abaixo está disponível para sua análise e assinatura digital:</p>
+    <div style="background: white; border: 2px solid #cbd5e1; border-radius: 12px; padding: 25px; margin: 25px 0; text-align: center;">
+      <div style="font-size: 44px; margin-bottom: 10px;">📄</div>
+      <h3 style="margin: 0 0 8px; color: #1f2937; font-size: 18px;">{tipo_documento}</h3>
+      <p style="margin: 0; color: #6b7280; font-size: 14px;">Ref: {referencia}</p>
+      <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+        <span style="background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">⏳ Aguardando assinatura</span>
+      </div>
+    </div>
+    <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0;">
+      <p style="margin: 0; font-size: 14px; color: #166534;"><strong>✅ Como assinar:</strong><br>1. Clique no botão abaixo para acessar o documento<br>2. Leia o conteúdo com atenção<br>3. Assine digitalmente no campo indicado</p>
+    </div>
+    <div style="text-align: center; padding: 20px 0;">
+      <a href="#" style="display: inline-block; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; padding: 16px 44px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">Acessar Documento →</a>
+    </div>
+    <p style="font-size: 13px; color: #9ca3af; text-align: center;">Prazo para assinatura: <strong>{prazo}</strong></p>
+  </div>
+  <div style="background: #1e293b; padding: 20px 30px; text-align: center;">
+    <p style="margin: 0; color: #94a3b8; font-size: 13px;">Escritório {empresa} • {telefone}</p>
+  </div>
+</div>
+    `.trim(),
+  },
+  {
+    id: "legal-payment-reminder",
+    name: "Cobrança de Honorários",
+    description: "Lembrete de pagamento de honorários advocatícios",
+    category: "juridico",
+    subject: "💼 Lembrete de honorários - {nome}",
+    body_html: `
+<div style="font-family: 'Georgia', 'Times New Roman', serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+  <div style="background: #1e293b; padding: 30px; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 22px;">💼 Lembrete de Honorários</h1>
+    <p style="color: #94a3b8; margin: 8px 0 0; font-size: 14px;">Escritório {empresa}</p>
+  </div>
+  <div style="padding: 30px;">
+    <p style="font-size: 16px; line-height: 1.7; color: #374151;">Prezado(a) <strong>{nome}</strong>,</p>
+    <p style="font-size: 15px; line-height: 1.7; color: #4b5563;">Gostaríamos de lembrá-lo(a) sobre a parcela de honorários advocatícios com vencimento próximo:</p>
+    <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 25px; margin: 25px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Referência:</td><td style="padding: 8px 0; color: #1f2937; font-weight: 600; text-align: right;">{referencia}</td></tr>
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Vencimento:</td><td style="padding: 8px 0; color: #dc2626; font-weight: 600; text-align: right;">{data_vencimento}</td></tr>
+        <tr style="border-top: 1px dashed #fecaca;"><td style="padding: 12px 0 8px; color: #6b7280; font-size: 14px;">Valor:</td><td style="padding: 12px 0 8px; color: #1f2937; font-weight: 800; font-size: 24px; text-align: right;">{valor}</td></tr>
+      </table>
+    </div>
+    <div style="text-align: center; padding: 15px 0;">
+      <a href="#" style="display: inline-block; background: #059669; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600;">Pagar Agora</a>
+    </div>
+    <p style="font-size: 14px; color: #6b7280; text-align: center;">Caso já tenha efetuado o pagamento, desconsidere este aviso.</p>
+    <p style="margin-top: 25px; color: #374151; font-size: 15px;">Atenciosamente,<br><strong>Financeiro - {empresa}</strong></p>
+  </div>
+  <div style="border-top: 1px solid #e5e7eb; padding: 15px 30px; text-align: center;">
+    <p style="margin: 0; color: #9ca3af; font-size: 12px;">Dúvidas? Entre em contato: {telefone}</p>
+  </div>
+</div>
+    `.trim(),
+  },
+  {
+    id: "legal-power-of-attorney",
+    name: "Procuração / Substabelecimento",
+    description: "Comunicar sobre procuração ou substabelecimento",
+    category: "juridico",
+    subject: "📋 Procuração outorgada - {nome}",
+    body_html: `
+<div style="font-family: 'Georgia', 'Times New Roman', serif; max-width: 600px; margin: 0 auto;">
+  <div style="background: linear-gradient(135deg, #1e293b 0%, #475569 100%); padding: 35px 30px; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">📋 Procuração</h1>
+    <p style="color: #cbd5e1; margin: 8px 0 0; font-size: 14px;">Instrumento de Mandato</p>
+  </div>
+  <div style="padding: 30px;">
+    <p style="font-size: 16px; line-height: 1.7; color: #374151;">Prezado(a) <strong>{nome}</strong>,</p>
+    <p style="font-size: 15px; line-height: 1.7; color: #4b5563;">Conforme solicitado, encaminhamos os detalhes da procuração outorgada em seu nome:</p>
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 25px 0;">
+      <h3 style="margin: 0 0 15px; color: #1f2937; font-size: 16px;">Detalhes do Instrumento</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 40%;">Tipo:</td><td style="padding: 8px 0; color: #1f2937; font-weight: 600;">{tipo_procuracao}</td></tr>
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Outorgante:</td><td style="padding: 8px 0; color: #1f2937;">{nome}</td></tr>
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Outorgado:</td><td style="padding: 8px 0; color: #1f2937;">Dr(a). {advogado}</td></tr>
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Poderes:</td><td style="padding: 8px 0; color: #1f2937;">{poderes}</td></tr>
+        <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Validade:</td><td style="padding: 8px 0; color: #1f2937;">{validade}</td></tr>
+      </table>
+    </div>
+    <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px 20px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; font-size: 14px; color: #92400e;"><strong>⚠️ Importante:</strong> Para utilização da procuração em determinados atos, poderá ser necessário reconhecimento de firma em cartório.</p>
+    </div>
+    <div style="text-align: center; padding: 25px 0;">
+      <a href="#" style="display: inline-block; background: #1e293b; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600;">Baixar Documento</a>
+    </div>
+    <p style="margin-top: 20px; color: #374151; font-size: 15px;">Cordialmente,<br><strong>Dr(a). {advogado}</strong><br><span style="color: #6b7280; font-size: 13px;">OAB nº {oab} • {empresa}</span></p>
+  </div>
+  <div style="background: #f1f5f9; padding: 15px 30px; text-align: center;">
+    <p style="margin: 0; color: #94a3b8; font-size: 12px;">Este email e seus anexos são confidenciais e destinados exclusivamente ao destinatário.</p>
+  </div>
+</div>
+    `.trim(),
+  },
+  {
+    id: "legal-hearing-notice",
+    name: "Aviso de Audiência",
+    description: "Notificar cliente sobre audiência agendada",
+    category: "juridico",
+    subject: "🏛️ Audiência agendada - Processo {numero_processo}",
+    body_html: `
+<div style="font-family: 'Georgia', 'Times New Roman', serif; max-width: 600px; margin: 0 auto;">
+  <div style="background: #7c2d12; padding: 35px 30px; text-align: center;">
+    <div style="font-size: 40px; margin-bottom: 8px;">🏛️</div>
+    <h1 style="color: white; margin: 0; font-size: 24px;">Audiência Judicial Agendada</h1>
+    <p style="color: #fed7aa; margin: 8px 0 0; font-size: 14px;">Sua presença é indispensável</p>
+  </div>
+  <div style="padding: 30px;">
+    <p style="font-size: 16px; line-height: 1.7; color: #374151;">Prezado(a) <strong>{nome}</strong>,</p>
+    <p style="font-size: 15px; line-height: 1.7; color: #4b5563;">Comunicamos que foi designada audiência no processo abaixo indicado:</p>
+    <div style="background: white; border: 2px solid #dc2626; border-radius: 12px; overflow: hidden; margin: 25px 0;">
+      <div style="background: #fef2f2; padding: 12px 20px; border-bottom: 1px solid #fecaca;">
+        <span style="color: #dc2626; font-weight: 700; font-size: 13px;">⚠️ PRESENÇA OBRIGATÓRIA</span>
+      </div>
+      <div style="padding: 20px;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="padding: 10px 0; color: #6b7280; font-size: 14px;">Processo:</td><td style="padding: 10px 0; color: #1f2937; font-weight: 600;">{numero_processo}</td></tr>
+          <tr><td style="padding: 10px 0; color: #6b7280; font-size: 14px;">Tipo:</td><td style="padding: 10px 0; color: #1f2937; font-weight: 600;">{tipo_audiencia}</td></tr>
+          <tr><td style="padding: 10px 0; color: #6b7280; font-size: 14px;">Data:</td><td style="padding: 10px 0; color: #dc2626; font-weight: 700; font-size: 16px;">{data}</td></tr>
+          <tr><td style="padding: 10px 0; color: #6b7280; font-size: 14px;">Horário:</td><td style="padding: 10px 0; color: #1f2937; font-weight: 600;">{horario}</td></tr>
+          <tr><td style="padding: 10px 0; color: #6b7280; font-size: 14px;">Local:</td><td style="padding: 10px 0; color: #1f2937; font-weight: 600;">{local_audiencia}</td></tr>
+        </table>
+      </div>
+    </div>
+    <div style="background: #eff6ff; border-radius: 10px; padding: 20px; margin: 20px 0;">
+      <h4 style="margin: 0 0 10px; color: #1e40af; font-size: 14px;">📋 Recomendações:</h4>
+      <ul style="margin: 0; padding-left: 18px; color: #3b82f6; font-size: 14px; line-height: 1.8;">
+        <li>Chegue com 30 minutos de antecedência</li>
+        <li>Traje social (camisa e calça social)</li>
+        <li>Leve documento de identidade com foto</li>
+        <li>Não se atrase — a ausência pode gerar consequências processuais</li>
+      </ul>
+    </div>
+    <p style="font-size: 15px; color: #4b5563;">Nos reuniremos antes da audiência para alinhamento. Entraremos em contato para confirmar horário da reunião prévia.</p>
+    <p style="margin-top: 25px; color: #374151;">Atenciosamente,<br><strong>Dr(a). {advogado}</strong><br><span style="color: #6b7280; font-size: 13px;">OAB nº {oab}</span></p>
+  </div>
+  <div style="background: #1e293b; padding: 15px 30px; text-align: center;">
+    <p style="margin: 0; color: #94a3b8; font-size: 12px;">{empresa} • {telefone}</p>
+  </div>
+</div>
+    `.trim(),
+  },
 ];

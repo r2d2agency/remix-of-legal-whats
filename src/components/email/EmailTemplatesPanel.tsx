@@ -14,6 +14,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   crm: "CRM",
   campaign: "Campanhas",
   flow: "Fluxos",
+  juridico: "Jurídico",
 };
 
 export function EmailTemplatesPanel() {
