@@ -66,6 +66,7 @@ const navSections: NavSection[] = [
     icon: MessagesSquare,
     items: [
       { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat' },
+      { name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, adminOnly: true },
       { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, superadminOnly: true },
       { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true },
       { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots', adminOnly: true },

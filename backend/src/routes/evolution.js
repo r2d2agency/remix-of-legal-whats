@@ -8,6 +8,7 @@ import * as whatsappProvider from '../lib/whatsapp-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { logError, logInfo } from '../logger.js';
 import { pauseNurturingOnReply } from './nurturing.js';
+import { analyzeGroupMessage } from '../lib/group-secretary.js';
 
 
 const router = Router();
@@ -1827,6 +1828,18 @@ async function handleMessageUpsert(connection, data) {
         if (!fromMe && contactPhone && connection.organization_id) {
           pauseNurturingOnReply(contactPhone, connection.organization_id, conversationId)
             .catch(err => console.error('[Evolution] Error pausing nurturing:', err.message));
+        }
+
+        // ======= GROUP SECRETARY: AI analysis for group messages =======
+        if (isGroup && !fromMe && content && connection.organization_id) {
+          const groupNameForSecretary = data.groupMetadata?.subject || data.groupSubject || message.groupMetadata?.subject || 'Grupo';
+          analyzeGroupMessage({
+            organizationId: connection.organization_id,
+            conversationId,
+            messageContent: content,
+            senderName: pushName || senderName || 'Desconhecido',
+            groupName: groupNameForSecretary,
+          }).catch(err => console.error('[GroupSecretary] Error:', err.message));
         }
 
         // Check for active flow sessions first (priority over keywords)
