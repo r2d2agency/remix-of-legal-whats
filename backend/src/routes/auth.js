@@ -155,7 +155,7 @@ router.post('/register', async (req, res) => {
 
     const role = orgRoleResult.rows[0]?.role || null;
     const organizationId = orgRoleResult.rows[0]?.organization_id || null;
-    const modulesEnabled = orgRoleResult.rows[0]?.modules_enabled || {
+    const finalModules = orgRoleResult.rows[0]?.modules_enabled || {
       campaigns: true, billing: true, groups: true,
       scheduled_messages: true, chatbots: true, chat: true, crm: true
     };
@@ -167,7 +167,7 @@ router.post('/register', async (req, res) => {
         name: user.name,
         role,
         organization_id: organizationId,
-        modules_enabled: modulesEnabled,
+        modules_enabled: finalModules,
       }, 
       token 
     });
