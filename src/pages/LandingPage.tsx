@@ -45,6 +45,10 @@ import {
   Lock,
   Search,
   Layers,
+  ArrowLeftRight,
+  Database,
+  MessageCircle,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import heroImage from "@/assets/system-preview-crm-kanban.png";
@@ -151,9 +155,19 @@ const featureCategories = [
         description: "IA que ajuda a redigir petições, contestações e pareceres dentro do sistema.",
       },
       {
-        icon: Sparkles,
-        title: "Tira-Dúvidas Jurídico",
-        description: "Pergunte sobre legislação, jurisprudência e procedimentos diretamente no chat.",
+        icon: ArrowLeftRight,
+        title: "Transferir para IA",
+        description: "Transfira o atendimento de um cliente diretamente para um agente de IA especializado.",
+      },
+      {
+        icon: MessageCircle,
+        title: "Consulta IA no Chat",
+        description: "Peça ajuda à IA durante o atendimento: análise da conversa, sugestões de resposta e fechamento.",
+      },
+      {
+        icon: Database,
+        title: "Base de Conhecimento",
+        description: "Alimente a IA com documentos, URLs e textos do escritório para respostas precisas (RAG).",
       },
       {
         icon: Bot,
@@ -164,6 +178,16 @@ const featureCategories = [
         icon: FileText,
         title: "Resumos de Conversas",
         description: "IA resume conversas longas com clientes destacando os pontos importantes.",
+      },
+      {
+        icon: Cpu,
+        title: "Múltiplos Agentes IA",
+        description: "Crie agentes especializados: qualificação, fechamento, suporte técnico, cada um com seu conhecimento.",
+      },
+      {
+        icon: Sparkles,
+        title: "Tira-Dúvidas Jurídico",
+        description: "Pergunte sobre legislação, jurisprudência e procedimentos diretamente no chat.",
       },
     ],
   },
@@ -240,8 +264,9 @@ const pricingPlans = [
       { text: "Kanban de demandas", included: true },
       { text: "Lembretes e agendamentos", included: true },
       { text: "Chatbot de triagem", included: true },
-      { text: "IA para peças jurídicas", included: false },
-      { text: "Gestão de grupos", included: false },
+      { text: "Consulta IA no chat", included: false },
+      { text: "Transferir para IA", included: false },
+      { text: "Base de conhecimento IA", included: false },
     ],
     color: "border-border",
   },
@@ -261,7 +286,9 @@ const pricingPlans = [
       { text: "Gestão de grupos internos", included: true },
       { text: "Secretária IA nos grupos", included: true },
       { text: "Disparos em massa", included: true },
-      { text: "IA para peças jurídicas", included: false },
+      { text: "Consulta IA no chat", included: true },
+      { text: "Transferir para IA", included: false },
+      { text: "Base de conhecimento IA", included: false },
     ],
     color: "border-primary ring-2 ring-primary/20",
   },
@@ -277,8 +304,10 @@ const pricingPlans = [
       { text: "20 usuários", included: true },
       { text: "Tudo do Escritório +", included: true },
       { text: "IA jurídica ilimitada", included: true },
+      { text: "Transferir para IA", included: true },
+      { text: "Base de conhecimento IA (RAG)", included: true },
+      { text: "Múltiplos agentes especializados", included: true },
       { text: "Assistente para peças", included: true },
-      { text: "Secretária IA nos grupos", included: true },
       { text: "Resumos de conversas por IA", included: true },
       { text: "Relatórios gerenciais", included: true },
       { text: "Suporte prioritário", included: true },
@@ -481,8 +510,8 @@ export default function LandingPage() {
             </h1>
 
             <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Centralize conversas de clientes, crie lembretes, organize solicitações e use
-              inteligência artificial para ajudar com peças jurídicas — tudo dentro do sistema.
+              Centralize conversas, transfira atendimentos para agentes de IA, consulte a IA durante o chat,
+              organize solicitações e use inteligência artificial com base de conhecimento do seu escritório.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -552,8 +581,8 @@ export default function LandingPage() {
               { icon: Clock, title: "Esqueceu de retornar", desc: "Lembretes automáticos para retornos, reuniões e compromissos." },
               { icon: FolderOpen, title: "Solicitações perdidas", desc: "Kanban visual para organizar demandas e solicitações dos clientes." },
               { icon: Users, title: "Equipe descoordenada", desc: "Grupos internos, distribuição automática e alertas entre advogados." },
-              { icon: Brain, title: "Demora em peças", desc: "IA que ajuda a redigir petições, contestações e pareceres rapidamente." },
-              { icon: Shield, title: "Dados sensíveis", desc: "Permissões por cargo e controle de acesso para proteger informações." },
+              { icon: Brain, title: "Demora em peças", desc: "IA que ajuda a redigir petições e peças. Consulte a IA direto no chat durante o atendimento." },
+              { icon: ArrowLeftRight, title: "Atendimento manual 24h", desc: "Transfira conversas para agentes IA que atendem automaticamente com base no conhecimento do escritório." },
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-3 p-4 rounded-lg bg-background border">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -573,12 +602,12 @@ export default function LandingPage() {
       <section id="funcionalidades" className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <Badge variant="outline" className="mb-4">+25 Funcionalidades</Badge>
+            <Badge variant="outline" className="mb-4">+30 Funcionalidades</Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
               Tudo que seu escritório precisa no WhatsApp
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Da organização de conversas à IA para peças jurídicas, tudo em um só lugar.
+              Da organização de conversas à IA com base de conhecimento, transferência para agentes inteligentes e assistente jurídico.
             </p>
           </div>
 
