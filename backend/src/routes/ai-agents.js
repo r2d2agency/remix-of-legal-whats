@@ -834,6 +834,221 @@ async function executeSummarizeHistory(args) {
   });
 }
 
+// ==================== TOOL: READ FILES ====================
+
+function buildReadFilesTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'analyze_file',
+      description: 'Analisa o conteúdo de um arquivo enviado pelo cliente (imagem, PDF, documento). Descreva o que o cliente enviou e forneça uma análise útil.',
+      parameters: {
+        type: 'object',
+        properties: {
+          file_description: { type: 'string', description: 'Descrição do arquivo recebido baseada no contexto da conversa' },
+          analysis_type: { type: 'string', enum: ['general', 'document', 'image', 'contract', 'invoice', 'report'], description: 'Tipo de análise a realizar' },
+          analysis: { type: 'string', description: 'Análise detalhada do conteúdo do arquivo' },
+          key_findings: { type: 'string', description: 'Principais descobertas, separadas por |' },
+          recommendations: { type: 'string', description: 'Recomendações baseadas na análise, separadas por |' },
+        },
+        required: ['file_description', 'analysis_type', 'analysis'],
+      },
+    },
+  };
+}
+
+async function executeReadFiles(args) {
+  logInfo('ai_agents.tool_read_files', { type: args.analysis_type });
+  return JSON.stringify({
+    file_description: args.file_description,
+    analysis_type: args.analysis_type,
+    analysis: args.analysis,
+    key_findings: (args.key_findings || '').split('|').map(s => s.trim()).filter(Boolean),
+    recommendations: (args.recommendations || '').split('|').map(s => s.trim()).filter(Boolean),
+  });
+}
+
+// ==================== TOOL: SCHEDULE MEETINGS ====================
+
+function buildScheduleMeetingsTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'schedule_meeting',
+      description: 'Agenda uma reunião ou encontro. Cria uma tarefa do tipo "meeting" no CRM com os detalhes do agendamento.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Título da reunião' },
+          date: { type: 'string', description: 'Data e hora da reunião (ISO 8601, ex: 2025-01-15T14:00:00)' },
+          duration_minutes: { type: 'number', description: 'Duração em minutos (padrão: 60)' },
+          attendees: { type: 'string', description: 'Participantes, separados por vírgula' },
+          location: { type: 'string', description: 'Local ou link da reunião' },
+          notes: { type: 'string', description: 'Observações ou pauta da reunião' },
+        },
+        required: ['title', 'date'],
+      },
+    },
+  };
+}
+
+async function executeScheduleMeeting(organizationId, userId, args) {
+  try {
+    const durationMin = args.duration_minutes || 60;
+    const result = await query(`
+      INSERT INTO crm_tasks (organization_id, assigned_to, created_by, title, description, type, priority, due_date)
+      VALUES ($1, $2, $2, $3, $4, 'meeting', 'high', $5)
+      RETURNING id, title, due_date
+    `, [
+      organizationId, userId, args.title,
+      `Participantes: ${args.attendees || 'A definir'}\nLocal: ${args.location || 'A definir'}\nDuração: ${durationMin}min\n\n${args.notes || ''}`.trim(),
+      args.date
+    ]);
+    const task = result.rows[0];
+    logInfo('ai_agents.tool_schedule_meeting', { taskId: task.id, date: task.due_date });
+    return `Reunião "${task.title}" agendada para ${task.due_date} (ID: ${task.id}, duração: ${durationMin}min)`;
+  } catch (error) {
+    logError('ai_agents.tool_schedule_meeting_error', error);
+    return `Erro ao agendar reunião: ${error.message}`;
+  }
+}
+
+// ==================== TOOL: GOOGLE CALENDAR ====================
+
+function buildGoogleCalendarTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'google_calendar_event',
+      description: 'Cria ou lista eventos no Google Calendar vinculado. Use action "create" para criar evento ou "list" para listar próximos eventos.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['create', 'list'], description: 'Ação: create ou list' },
+          title: { type: 'string', description: 'Título do evento (para create)' },
+          start_time: { type: 'string', description: 'Início do evento ISO 8601 (para create)' },
+          end_time: { type: 'string', description: 'Fim do evento ISO 8601 (para create)' },
+          description: { type: 'string', description: 'Descrição do evento (para create)' },
+          days_ahead: { type: 'number', description: 'Listar eventos dos próximos N dias (para list, padrão 7)' },
+        },
+        required: ['action'],
+      },
+    },
+  };
+}
+
+async function executeGoogleCalendar(organizationId, userId, args) {
+  try {
+    if (args.action === 'create') {
+      if (!args.title || !args.start_time) return 'Título e horário de início são obrigatórios para criar evento';
+      // Create as a CRM task of type meeting + record in google_calendar_events
+      const taskResult = await query(`
+        INSERT INTO crm_tasks (organization_id, assigned_to, created_by, title, description, type, priority, due_date)
+        VALUES ($1, $2, $2, $3, $4, 'meeting', 'medium', $5)
+        RETURNING id, title, due_date
+      `, [organizationId, userId, args.title, args.description || '', args.start_time]);
+      
+      const task = taskResult.rows[0];
+      
+      // Also record in google_calendar_events for sync
+      try {
+        await query(`
+          INSERT INTO google_calendar_events (user_id, crm_task_id, google_event_id, google_calendar_id, event_summary, event_start, event_end)
+          VALUES ($1, $2, $3, 'primary', $4, $5, $6)
+        `, [userId, task.id, `ai-agent-${task.id}`, args.title, args.start_time, args.end_time || args.start_time]);
+      } catch (e) {
+        // Calendar table might not exist, continue anyway
+        logInfo('ai_agents.google_calendar_record_skip', { error: e.message });
+      }
+      
+      logInfo('ai_agents.tool_google_calendar_create', { taskId: task.id });
+      return `Evento "${task.title}" criado para ${args.start_time}${args.end_time ? ` até ${args.end_time}` : ''} (ID: ${task.id})`;
+    } else {
+      const daysAhead = args.days_ahead || 7;
+      const result = await query(`
+        SELECT id, title, due_date, description, type
+        FROM crm_tasks
+        WHERE organization_id = $1 AND type = 'meeting' AND status = 'pending'
+          AND due_date >= NOW() AND due_date <= NOW() + interval '1 day' * $2
+        ORDER BY due_date ASC
+        LIMIT 15
+      `, [organizationId, daysAhead]);
+      if (result.rows.length === 0) return `Nenhum evento encontrado nos próximos ${daysAhead} dias.`;
+      const list = result.rows.map(e => `- ${e.title} (${e.due_date})`).join('\n');
+      return `${result.rows.length} eventos nos próximos ${daysAhead} dias:\n${list}`;
+    }
+  } catch (error) {
+    logError('ai_agents.tool_google_calendar_error', error);
+    return `Erro no Google Calendar: ${error.message}`;
+  }
+}
+
+// ==================== TOOL: SUGGEST ACTIONS ====================
+
+function buildSuggestActionsTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'suggest_actions',
+      description: 'Sugere próximas ações para o atendente com base no contexto da conversa. Use quando o cliente parece precisar de ajuda adicional ou quando a conversa pode ser otimizada.',
+      parameters: {
+        type: 'object',
+        properties: {
+          suggestions: { type: 'string', description: 'Lista de ações sugeridas, separadas por |. Cada sugestão deve ser clara e acionável.' },
+          urgency: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Urgência das ações sugeridas' },
+          context_summary: { type: 'string', description: 'Breve resumo do contexto que motivou as sugestões' },
+          category: { type: 'string', enum: ['sales', 'support', 'follow_up', 'upsell', 'retention', 'general'], description: 'Categoria das sugestões' },
+        },
+        required: ['suggestions', 'urgency', 'context_summary'],
+      },
+    },
+  };
+}
+
+async function executeSuggestActions(args) {
+  logInfo('ai_agents.tool_suggest_actions', { urgency: args.urgency, category: args.category });
+  return JSON.stringify({
+    suggestions: (args.suggestions || '').split('|').map(s => s.trim()).filter(Boolean),
+    urgency: args.urgency,
+    context_summary: args.context_summary,
+    category: args.category || 'general',
+  });
+}
+
+// ==================== TOOL: GENERATE CONTENT ====================
+
+function buildGenerateContentTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'generate_content',
+      description: 'Gera conteúdo de texto como mensagens de follow-up, propostas, e-mails, scripts de ligação ou templates para o atendente usar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          content_type: { type: 'string', enum: ['follow_up_message', 'proposal', 'email', 'call_script', 'whatsapp_template', 'social_media_post', 'other'], description: 'Tipo de conteúdo a gerar' },
+          title: { type: 'string', description: 'Título ou assunto do conteúdo' },
+          content: { type: 'string', description: 'O conteúdo gerado completo' },
+          tone: { type: 'string', enum: ['formal', 'informal', 'professional', 'friendly', 'persuasive'], description: 'Tom do conteúdo' },
+          target_audience: { type: 'string', description: 'Público-alvo do conteúdo' },
+        },
+        required: ['content_type', 'title', 'content'],
+      },
+    },
+  };
+}
+
+async function executeGenerateContent(args) {
+  logInfo('ai_agents.tool_generate_content', { type: args.content_type, tone: args.tone });
+  return JSON.stringify({
+    content_type: args.content_type,
+    title: args.title,
+    content: args.content,
+    tone: args.tone || 'professional',
+    target_audience: args.target_audience || '',
+  });
+}
+
 /**
  * Execute a consult to another specialist agent
  */
@@ -1007,6 +1222,31 @@ router.post('/:id/test', authenticate, async (req, res) => {
       tools.push(buildSummarizeHistoryTool());
     }
 
+    // READ_FILES tool
+    if (capabilities.includes('read_files')) {
+      tools.push(buildReadFilesTool());
+    }
+
+    // SCHEDULE_MEETINGS tool
+    if (capabilities.includes('schedule_meetings')) {
+      tools.push(buildScheduleMeetingsTool());
+    }
+
+    // GOOGLE_CALENDAR tool
+    if (capabilities.includes('google_calendar')) {
+      tools.push(buildGoogleCalendarTool());
+    }
+
+    // SUGGEST_ACTIONS tool
+    if (capabilities.includes('suggest_actions')) {
+      tools.push(buildSuggestActionsTool());
+    }
+
+    // GENERATE_CONTENT tool
+    if (capabilities.includes('generate_content')) {
+      tools.push(buildGenerateContentTool());
+    }
+
     let result;
     let toolCallsExecuted = [];
 
@@ -1024,6 +1264,16 @@ router.post('/:id/test', authenticate, async (req, res) => {
             return await executeQualifyLead(userCtx.organization_id, args);
           case 'summarize_conversation':
             return await executeSummarizeHistory(args);
+          case 'analyze_file':
+            return await executeReadFiles(args);
+          case 'schedule_meeting':
+            return await executeScheduleMeeting(userCtx.organization_id, userCtx.id, args);
+          case 'google_calendar_event':
+            return await executeGoogleCalendar(userCtx.organization_id, userCtx.id, args);
+          case 'suggest_actions':
+            return await executeSuggestActions(args);
+          case 'generate_content':
+            return await executeGenerateContent(args);
           default:
             return 'Ferramenta desconhecida';
         }

@@ -120,6 +120,13 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
               : `📋 Listou tarefas pendentes`,
             qualify_lead: `🎯 Qualificou lead: ${tc.arguments?.qualification} (score: ${tc.arguments?.score})`,
             summarize_conversation: `📝 Resumiu conversa (sentimento: ${tc.arguments?.customer_sentiment})`,
+            analyze_file: `📎 Analisou arquivo: ${tc.arguments?.file_description} (${tc.arguments?.analysis_type})`,
+            schedule_meeting: `📅 Agendou reunião: "${tc.arguments?.title}" em ${tc.arguments?.date}`,
+            google_calendar_event: tc.arguments?.action === 'create'
+              ? `📆 Criou evento no Calendar: "${tc.arguments?.title}"`
+              : `📆 Listou eventos do Calendar`,
+            suggest_actions: `💡 Sugeriu ações (${tc.arguments?.urgency}): ${tc.arguments?.context_summary}`,
+            generate_content: `✍️ Gerou conteúdo: ${tc.arguments?.content_type} - "${tc.arguments?.title}"`,
           };
           setMessages(prev => [...prev, {
             id: `tool-${Date.now()}-${tc.tool}`,
