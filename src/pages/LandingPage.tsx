@@ -101,7 +101,7 @@ const featureCategories = [
       {
         icon: Bot,
         title: "Secretária IA nos Grupos",
-        description: "IA monitora grupos internos e notifica quando alguém solicita algo à equipe.",
+        description: "IA inteligente monitora grupos do WhatsApp, identifica solicitações, cria tarefas automaticamente e envia alertas para os responsáveis.",
       },
       {
         icon: Users,
@@ -580,7 +580,7 @@ export default function LandingPage() {
               { icon: MessageSquare, title: "WhatsApp caótico", desc: "Centralize todas as conversas de clientes em um único painel organizado." },
               { icon: Clock, title: "Esqueceu de retornar", desc: "Lembretes automáticos para retornos, reuniões e compromissos." },
               { icon: FolderOpen, title: "Solicitações perdidas", desc: "Kanban visual para organizar demandas e solicitações dos clientes." },
-              { icon: Users, title: "Equipe descoordenada", desc: "Grupos internos, distribuição automática e alertas entre advogados." },
+              { icon: Bot, title: "Grupos sem controle", desc: "Secretária IA monitora grupos do WhatsApp, identifica pedidos e cria tarefas automaticamente." },
               { icon: Brain, title: "Demora em peças", desc: "IA que ajuda a redigir petições e peças. Consulte a IA direto no chat durante o atendimento." },
               { icon: ArrowLeftRight, title: "Atendimento manual 24h", desc: "Transfira conversas para agentes IA que atendem automaticamente com base no conhecimento do escritório." },
             ].map((item, i) => (
