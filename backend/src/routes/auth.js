@@ -137,7 +137,7 @@ router.post('/register', async (req, res) => {
     );
 
     // Fetch role and modules like login does, so the frontend has full context
-    const orgResult = await query(
+    const orgRoleResult = await query(
       `SELECT om.role, o.id as organization_id, o.modules_enabled
        FROM organization_members om
        JOIN organizations o ON o.id = om.organization_id
@@ -153,9 +153,9 @@ router.post('/register', async (req, res) => {
       [user.id]
     );
 
-    const role = orgResult.rows[0]?.role || null;
-    const organizationId = orgResult.rows[0]?.organization_id || null;
-    const modulesEnabled = orgResult.rows[0]?.modules_enabled || {
+    const role = orgRoleResult.rows[0]?.role || null;
+    const organizationId = orgRoleResult.rows[0]?.organization_id || null;
+    const modulesEnabled = orgRoleResult.rows[0]?.modules_enabled || {
       campaigns: true, billing: true, groups: true,
       scheduled_messages: true, chatbots: true, chat: true, crm: true
     };
