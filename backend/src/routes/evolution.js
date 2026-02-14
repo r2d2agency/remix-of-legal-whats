@@ -1394,7 +1394,11 @@ async function handleMessageUpsert(connection, data) {
       return;
     }
 
-    const rawRemoteJid = key.remoteJid;
+    // Evolution v2 sends remoteJidAlt with the real phone JID when remoteJid is @lid
+    const remoteJidAlt = key.remoteJidAlt || data?.remoteJidAlt || null;
+    const rawRemoteJid = (String(key.remoteJid || '').includes('@lid') && remoteJidAlt)
+      ? remoteJidAlt
+      : key.remoteJid;
     const messageId = key.id;
     const fromMe = key.fromMe || false;
     const pushName = message.pushName || data.pushName;

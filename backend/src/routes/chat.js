@@ -1451,9 +1451,18 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
         // IMPORTANT: groups must keep the full JID (@g.us). If we strip it,
         // providers will send to an invalid destination.
         const isGroup = String(conversation.remote_jid || '').includes('@g.us') || conversation.is_group === true;
-        const to = isGroup
-          ? conversation.remote_jid
-          : String(conversation.remote_jid || '').replace('@s.whatsapp.net', '');
+        let to;
+        if (isGroup) {
+          to = conversation.remote_jid;
+        } else {
+          // For @lid JIDs, use contact_phone instead (the @lid ID is not a real phone number)
+          const jid = String(conversation.remote_jid || '');
+          if (jid.includes('@lid') && conversation.contact_phone) {
+            to = conversation.contact_phone;
+          } else {
+            to = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
+          }
+        }
 
         // Use unified provider to send message
         const result = await whatsappProvider.sendMessage(
