@@ -584,7 +584,8 @@ ${conversationContext}
     });
   } catch (error) {
     logError('ai_agents.consult_error', error);
-    res.status(500).json({ error: 'Erro ao consultar agente de IA' });
+    const errorMsg = error?.message || 'Erro desconhecido';
+    res.status(500).json({ error: `Erro ao consultar agente de IA: ${errorMsg}` });
   }
 });
 

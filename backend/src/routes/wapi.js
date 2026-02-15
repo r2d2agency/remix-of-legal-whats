@@ -5,6 +5,7 @@ import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia,
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { pauseNurturingOnReply } from './nurturing.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
+import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -1359,6 +1360,19 @@ async function handleIncomingMessage(connection, payload) {
     if (cleanPhone && connection.organization_id) {
       pauseNurturingOnReply(cleanPhone, connection.organization_id, conversationId)
         .catch(err => console.error('[W-API] Error pausing nurturing:', err.message));
+    }
+
+    // ======= GROUP SECRETARY: AI analysis for group messages =======
+    if (isGroup && content && connection.organization_id) {
+      const convForGroup = await query(`SELECT group_name FROM conversations WHERE id = $1`, [conversationId]);
+      const groupNameForSecretary = convForGroup.rows[0]?.group_name || 'Grupo';
+      analyzeGroupMessage({
+        organizationId: connection.organization_id,
+        conversationId,
+        messageContent: content,
+        senderName: senderName || 'Desconhecido',
+        groupName: groupNameForSecretary,
+      }).catch(err => console.error('[W-API][GroupSecretary] Error:', err.message));
     }
 
     // Check for active flow sessions first (priority over keywords)
