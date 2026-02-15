@@ -1447,8 +1447,29 @@ async function handleMessageUpsert(connection, data) {
       console.log('Webhook: Ignoring reaction message (early check)');
       return;
     }
-    if (msgContent.protocolMessage || msgContent.senderKeyDistributionMessage) {
-      console.log('Webhook: Ignoring protocol/system message (early check)');
+    if (msgContent.senderKeyDistributionMessage) {
+      console.log('Webhook: Ignoring senderKeyDistribution message (early check)');
+      return;
+    }
+    // Handle edited messages via protocolMessage
+    if (msgContent.protocolMessage) {
+      const editedMsg = msgContent.protocolMessage.editedMessage;
+      if (editedMsg && msgContent.protocolMessage.key?.id) {
+        const editedMessageId = msgContent.protocolMessage.key.id;
+        const newContent = editedMsg.message?.conversation || 
+                          editedMsg.message?.extendedTextMessage?.text || 
+                          editedMsg.conversation || 
+                          editedMsg.extendedTextMessage?.text || '';
+        if (newContent) {
+          console.log('Webhook: Message edited:', editedMessageId, 'New content:', newContent.substring(0, 50));
+          await query(
+            `UPDATE chat_messages SET content = $1, is_edited = true WHERE message_id = $2`,
+            [newContent, editedMessageId]
+          );
+        }
+      } else {
+        console.log('Webhook: Ignoring protocol message (early check)');
+      }
       return;
     }
     if (msgContent.messageContextInfo && Object.keys(msgContent).length <= 2) {
@@ -1732,9 +1753,28 @@ async function handleMessageUpsert(connection, data) {
       // Reactions are not displayed as messages
       console.log('Webhook: Ignoring reaction message');
       return;
-    } else if (msgContent.protocolMessage || msgContent.senderKeyDistributionMessage) {
-      // Protocol/system messages - ignore
-      console.log('Webhook: Ignoring protocol/system message');
+    } else if (msgContent.senderKeyDistributionMessage) {
+      console.log('Webhook: Ignoring senderKeyDistribution message');
+      return;
+    } else if (msgContent.protocolMessage) {
+      // Handle edited messages
+      const editedMsg = msgContent.protocolMessage.editedMessage;
+      if (editedMsg && msgContent.protocolMessage.key?.id) {
+        const editedMessageId = msgContent.protocolMessage.key.id;
+        const newContent = editedMsg.message?.conversation || 
+                          editedMsg.message?.extendedTextMessage?.text || 
+                          editedMsg.conversation || 
+                          editedMsg.extendedTextMessage?.text || '';
+        if (newContent) {
+          console.log('Webhook: Message edited (late):', editedMessageId, 'New content:', newContent.substring(0, 50));
+          await query(
+            `UPDATE chat_messages SET content = $1, is_edited = true WHERE message_id = $2`,
+            [newContent, editedMessageId]
+          );
+        }
+      } else {
+        console.log('Webhook: Ignoring protocol message');
+      }
       return;
     } else if (msgContent.messageContextInfo && Object.keys(msgContent).length <= 2) {
       // Message only contains context info without actual content - ignore

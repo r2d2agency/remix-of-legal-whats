@@ -73,6 +73,7 @@ export interface ChatMessage {
   status: string;
   error_message: string | null;
   timestamp: string;
+  is_edited?: boolean;
 }
 
 export interface TeamMember {

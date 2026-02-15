@@ -1889,6 +1889,9 @@ export function ChatArea({
                   "flex items-center gap-1 mt-1",
                   msg.from_me ? "justify-end" : "justify-start"
                 )}>
+                  {msg.is_edited && (
+                    <span className="text-[10px] opacity-50 italic">editada</span>
+                  )}
                   <span className="text-[10px] opacity-70">
                     {format(new Date(msg.timestamp), "HH:mm", { locale: ptBR })}
                   </span>
