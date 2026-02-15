@@ -117,18 +117,26 @@ Retorne SOMENTE um JSON válido:
 
     // Pre-process: resolve mentionedJids to member names for direct matching
     const mentionedMembers = [];
+    logInfo('group_secretary', `mentionedJids received: ${JSON.stringify(mentionedJids)}, members phones: ${JSON.stringify(members.map(m => ({ name: m.user_name, phone: m.whatsapp_phone })))}`);
     if (mentionedJids && mentionedJids.length > 0) {
       for (const jid of mentionedJids) {
-        const jidPhone = (jid || '').replace(/[@s.whatsapp.net]/g, '').replace(/\D/g, '');
+        // Extract phone number from JID format: 5511999999999@s.whatsapp.net or just a number
+        const jidPhone = String(jid || '').split('@')[0].replace(/\D/g, '');
+        logInfo('group_secretary', `Processing mentionedJid: ${jid} -> extracted phone: ${jidPhone}`);
         if (jidPhone.length >= 8) {
           const matched = members.find(m => {
             const mPhone = (m.whatsapp_phone || '').replace(/\D/g, '');
-            return mPhone && (mPhone.includes(jidPhone) || jidPhone.includes(mPhone) ||
-              mPhone.slice(-9) === jidPhone.slice(-9));
+            if (!mPhone) return false;
+            // Compare full numbers or last 9 digits (ignoring country code variations)
+            return mPhone === jidPhone || jidPhone === mPhone ||
+              mPhone.includes(jidPhone) || jidPhone.includes(mPhone) ||
+              mPhone.slice(-9) === jidPhone.slice(-9);
           });
           if (matched) {
             mentionedMembers.push(matched);
-            logInfo('group_secretary', `Resolved mentionedJid ${jid} -> ${matched.user_name}`);
+            logInfo('group_secretary', `✅ Resolved mentionedJid ${jid} -> ${matched.user_name} (phone: ${matched.whatsapp_phone})`);
+          } else {
+            logInfo('group_secretary', `❌ No member matched for mentionedJid phone: ${jidPhone}`);
           }
         }
       }

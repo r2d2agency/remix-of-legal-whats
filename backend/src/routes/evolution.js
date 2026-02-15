@@ -1850,16 +1850,41 @@ async function handleMessageUpsert(connection, data) {
         // ======= GROUP SECRETARY: AI analysis for group messages =======
          if (isGroup && !fromMe && content && connection.organization_id) {
           const groupNameForSecretary = data.groupMetadata?.subject || data.groupSubject || message.groupMetadata?.subject || 'Grupo';
-          // Extract mentionedJids from contextInfo
-          const ctxInfo = msgContent.extendedTextMessage?.contextInfo || msgContent.conversation?.contextInfo || {};
-          const mentionedJids = ctxInfo.mentionedJid || ctxInfo.mentionedJids || data.mentionedJids || [];
+          // Extract mentionedJids from ALL possible locations in the webhook payload
+          const extractMentionedJids = () => {
+            const sources = [
+              // extendedTextMessage is the most common for text with mentions
+              msgContent?.extendedTextMessage?.contextInfo?.mentionedJid,
+              msgContent?.extendedTextMessage?.contextInfo?.mentionedJids,
+              // Some Evolution versions put contextInfo at message root
+              msgContent?.contextInfo?.mentionedJid,
+              msgContent?.contextInfo?.mentionedJids,
+              // Direct on the message object
+              message?.contextInfo?.mentionedJid,
+              message?.contextInfo?.mentionedJids,
+              // In the data/payload root
+              data?.contextInfo?.mentionedJid,
+              data?.contextInfo?.mentionedJids,
+              data?.mentionedJids,
+              data?.mentionedJid,
+              // Some versions nest under message.message
+              message?.message?.extendedTextMessage?.contextInfo?.mentionedJid,
+              message?.message?.extendedTextMessage?.contextInfo?.mentionedJids,
+            ];
+            for (const src of sources) {
+              if (Array.isArray(src) && src.length > 0) return src;
+            }
+            return [];
+          };
+          const mentionedJids = extractMentionedJids();
+          console.log('[GroupSecretary] mentionedJids extracted:', JSON.stringify(mentionedJids), 'from message keys:', Object.keys(msgContent || {}));
           analyzeGroupMessage({
             organizationId: connection.organization_id,
             conversationId,
             messageContent: content,
             senderName: pushName || senderName || 'Desconhecido',
             groupName: groupNameForSecretary,
-            mentionedJids: Array.isArray(mentionedJids) ? mentionedJids : [],
+            mentionedJids,
           }).catch(err => console.error('[GroupSecretary] Error:', err.message));
         }
 

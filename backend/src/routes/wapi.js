@@ -1366,17 +1366,33 @@ async function handleIncomingMessage(connection, payload) {
     if (isGroup && content && connection.organization_id) {
       const convForGroup = await query(`SELECT group_name FROM conversations WHERE id = $1`, [conversationId]);
       const groupNameForSecretary = convForGroup.rows[0]?.group_name || 'Grupo';
-      // Extract mentionedJids from message content context
+      // Extract mentionedJids from ALL possible locations
       const msgContentObj = payload?.message || payload?.msgContent || {};
-      const ctxInfo = msgContentObj.extendedTextMessage?.contextInfo || {};
-      const mentionedJids = ctxInfo.mentionedJid || ctxInfo.mentionedJids || payload?.mentionedJids || [];
+      const extractMentionedJids = () => {
+        const sources = [
+          msgContentObj?.extendedTextMessage?.contextInfo?.mentionedJid,
+          msgContentObj?.extendedTextMessage?.contextInfo?.mentionedJids,
+          msgContentObj?.contextInfo?.mentionedJid,
+          msgContentObj?.contextInfo?.mentionedJids,
+          payload?.contextInfo?.mentionedJid,
+          payload?.contextInfo?.mentionedJids,
+          payload?.mentionedJids,
+          payload?.mentionedJid,
+        ];
+        for (const src of sources) {
+          if (Array.isArray(src) && src.length > 0) return src;
+        }
+        return [];
+      };
+      const mentionedJids = extractMentionedJids();
+      console.log('[W-API][GroupSecretary] mentionedJids:', JSON.stringify(mentionedJids));
       analyzeGroupMessage({
         organizationId: connection.organization_id,
         conversationId,
         messageContent: content,
         senderName: senderName || 'Desconhecido',
         groupName: groupNameForSecretary,
-        mentionedJids: Array.isArray(mentionedJids) ? mentionedJids : [],
+        mentionedJids,
       }).catch(err => console.error('[W-API][GroupSecretary] Error:', err.message));
     }
 
