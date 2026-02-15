@@ -2815,6 +2815,14 @@ CREATE INDEX IF NOT EXISTS idx_group_secretary_logs_org ON group_secretary_logs(
 CREATE INDEX IF NOT EXISTS idx_group_secretary_logs_conv ON group_secretary_logs(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_group_secretary_logs_matched ON group_secretary_logs(matched_user_id);
 CREATE INDEX IF NOT EXISTS idx_group_secretary_logs_created ON group_secretary_logs(created_at);
+
+-- Add new columns for member/external notifications
+DO $$ BEGIN
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS notify_external_enabled BOOLEAN DEFAULT false;
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS notify_external_phone VARCHAR(50);
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS notify_members_whatsapp BOOLEAN DEFAULT false;
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS default_connection_id UUID;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
 `;
 
 // Migration steps in order of execution

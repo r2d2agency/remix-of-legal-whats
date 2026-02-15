@@ -24,6 +24,8 @@ export interface SecretaryMember {
   user_id: string;
   user_name: string;
   email: string;
+  whatsapp_phone: string | null;
+  phone: string | null;
   aliases: string[];
   role_description: string | null;
   departments: string[];

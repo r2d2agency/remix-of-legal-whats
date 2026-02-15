@@ -190,13 +190,25 @@ export default function SecretariaGrupos() {
               <div className="grid gap-3">
                 {members.map((member) => (
                   <Card key={member.id}>
-                    <CardContent className="p-4 flex items-start justify-between">
+                     <CardContent className="p-4 flex items-start justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{member.user_name}</span>
                           <Badge variant="secondary" className="text-xs">
                             {member.email}
                           </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-3 w-3 text-muted-foreground" />
+                          {member.whatsapp_phone || member.phone ? (
+                            <span className="text-xs text-foreground font-mono">
+                              {member.whatsapp_phone || member.phone}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-destructive">
+                              Sem telefone cadastrado
+                            </span>
+                          )}
                         </div>
                         {member.aliases?.length > 0 && (
                           <div className="flex gap-1 flex-wrap">
