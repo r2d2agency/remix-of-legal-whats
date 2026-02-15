@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
-  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone, Smartphone, Wifi, AlertTriangle
+  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone, Smartphone, Wifi, AlertTriangle, Pencil
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -254,7 +254,7 @@ export default function SecretariaGrupos() {
                             {member.email}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <Phone className="h-3 w-3 text-muted-foreground" />
                           {member.whatsapp_phone || member.phone ? (
                             <span className="text-xs text-foreground font-mono">
@@ -265,6 +265,15 @@ export default function SecretariaGrupos() {
                               Sem telefone cadastrado
                             </span>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            onClick={() => openPhoneDialog(member.user_id, member.user_name)}
+                            title="Editar telefone"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
                         </div>
                         {member.aliases?.length > 0 && (
                           <div className="flex gap-1 flex-wrap">
