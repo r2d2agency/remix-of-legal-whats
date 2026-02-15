@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
-  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone, Smartphone, Wifi, AlertTriangle, Pencil, BarChart3, RefreshCw, Timer, FileText, ChevronDown, ChevronUp, CalendarDays
+  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone, Smartphone, Wifi, AlertTriangle, Pencil, BarChart3, RefreshCw, Timer, FileText, ChevronDown, ChevronUp, CalendarDays, UserX
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -38,6 +38,7 @@ export default function SecretariaGrupos() {
     followup_enabled: false, followup_hours: 4,
     daily_digest_enabled: false, daily_digest_hour: 8,
     auto_reply_enabled: false, auto_reply_message: '',
+    excluded_senders: [],
   });
   const [members, setMembers] = useState<SecretaryMember[]>([]);
   const [logs, setLogs] = useState<SecretaryLog[]>([]);
@@ -60,7 +61,7 @@ export default function SecretariaGrupos() {
   const [minutesHours, setMinutesHours] = useState("24");
   const [generatingMinutes, setGeneratingMinutes] = useState(false);
   const [expandedMinutes, setExpandedMinutes] = useState<string | null>(null);
-
+  const [newExcludedNumber, setNewExcludedNumber] = useState("");
   useEffect(() => {
     loadAll();
   }, []);
@@ -660,6 +661,74 @@ export default function SecretariaGrupos() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Números excluídos */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <UserX className="h-4 w-4 text-primary" />
+                    <Label className="font-medium">Números Excluídos (Equipe)</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Mensagens enviadas por esses números serão ignoradas pela IA. Use para números da sua equipe que cobram respostas de clientes nos grupos.
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="5511999999999 (com DDI)"
+                      value={newExcludedNumber}
+                      onChange={(e) => setNewExcludedNumber(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const phone = newExcludedNumber.trim().replace(/\D/g, '');
+                          if (phone.length >= 8 && !(config.excluded_senders || []).includes(phone)) {
+                            setConfig(c => ({ ...c, excluded_senders: [...(c.excluded_senders || []), phone] }));
+                            setNewExcludedNumber("");
+                          }
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const phone = newExcludedNumber.trim().replace(/\D/g, '');
+                        if (phone.length >= 8 && !(config.excluded_senders || []).includes(phone)) {
+                          setConfig(c => ({ ...c, excluded_senders: [...(c.excluded_senders || []), phone] }));
+                          setNewExcludedNumber("");
+                        } else if (phone.length < 8) {
+                          toast.error("Número inválido. Informe com DDI (ex: 5511999999999)");
+                        }
+                      }}
+                      className="gap-1 flex-shrink-0"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Adicionar
+                    </Button>
+                  </div>
+                  {(config.excluded_senders || []).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {(config.excluded_senders || []).map((phone, i) => (
+                        <Badge key={i} variant="secondary" className="gap-1 text-xs font-mono pr-1">
+                          <Phone className="h-3 w-3" />
+                          {phone}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-4 w-4 ml-1 hover:bg-destructive/20"
+                            onClick={() => {
+                              setConfig(c => ({
+                                ...c,
+                                excluded_senders: (c.excluded_senders || []).filter((_, idx) => idx !== i),
+                              }));
+                            }}
+                          >
+                            <Trash2 className="h-2.5 w-2.5" />
+                          </Button>
+                        </Badge>
+                      ))}
                     </div>
                   )}
                 </div>

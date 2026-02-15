@@ -22,6 +22,7 @@ export interface SecretaryConfig {
   daily_digest_hour?: number;
   auto_reply_enabled?: boolean;
   auto_reply_message?: string;
+  excluded_senders?: string[];
 }
 
 export interface SecretaryMember {

@@ -1391,6 +1391,7 @@ async function handleIncomingMessage(connection, payload) {
         conversationId,
         messageContent: content,
         senderName: senderName || 'Desconhecido',
+        senderPhone: senderPhone || null,
         groupName: groupNameForSecretary,
         mentionedJids,
       }).catch(err => console.error('[W-API][GroupSecretary] Error:', err.message));

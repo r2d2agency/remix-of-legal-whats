@@ -1883,6 +1883,7 @@ async function handleMessageUpsert(connection, data) {
             conversationId,
             messageContent: content,
             senderName: pushName || senderName || 'Desconhecido',
+            senderPhone: groupParticipantPhone || null,
             groupName: groupNameForSecretary,
             mentionedJids,
           }).catch(err => console.error('[GroupSecretary] Error:', err.message));

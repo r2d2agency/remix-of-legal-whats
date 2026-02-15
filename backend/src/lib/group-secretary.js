@@ -18,6 +18,7 @@ export async function analyzeGroupMessage({
   conversationId,
   messageContent,
   senderName,
+  senderPhone,
   groupName,
   mentionedJids = [],
 }) {
@@ -33,7 +34,25 @@ export async function analyzeGroupMessage({
     if (configResult.rows.length === 0) return null;
     const config = configResult.rows[0];
 
-    // 2. Check if this group should be monitored
+    // 2. Check if sender is excluded (team members whose messages should be ignored)
+    if (config.excluded_senders && config.excluded_senders.length > 0) {
+      const phoneToCheck = senderPhone || String(senderName || '').replace(/\D/g, '');
+      if (phoneToCheck && phoneToCheck.length >= 8) {
+        const isExcluded = config.excluded_senders.some(excl => {
+          const exclPhone = String(excl || '').replace(/\D/g, '');
+          if (!exclPhone || exclPhone.length < 8) return false;
+          return exclPhone === phoneToCheck || 
+            exclPhone.slice(-9) === phoneToCheck.slice(-9) ||
+            exclPhone.includes(phoneToCheck) || phoneToCheck.includes(exclPhone);
+        });
+        if (isExcluded) {
+          logInfo('group_secretary', `Sender ${senderName} (phone: ${phoneToCheck}) is in excluded_senders list, skipping`);
+          return null;
+        }
+      }
+    }
+
+    // 2b. Check if this group should be monitored
     if (config.group_jids && config.group_jids.length > 0) {
       const convResult = await query(
         `SELECT remote_jid FROM conversations WHERE id = $1`,
