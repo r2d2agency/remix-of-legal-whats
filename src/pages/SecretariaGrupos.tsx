@@ -686,11 +686,31 @@ export default function SecretariaGrupos() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Modelo</Label>
-                    <Input
-                      value={config.ai_model || ""}
-                      onChange={(e) => setConfig((c) => ({ ...c, ai_model: e.target.value || null }))}
-                      placeholder="Ex: gpt-4o-mini"
-                    />
+                    <Select
+                      value={config.ai_model || "default"}
+                      onValueChange={(v) => setConfig((c) => ({ ...c, ai_model: v === "default" ? null : v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Padrão da organização" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Padrão da organização</SelectItem>
+                        {(config.ai_provider === 'openai' || (!config.ai_provider || config.ai_provider === 'default')) && (
+                          <>
+                            <SelectItem value="gpt-4o">GPT-4o (Recomendado)</SelectItem>
+                            <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                            <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
+                          </>
+                        )}
+                        {(config.ai_provider === 'gemini' || (!config.ai_provider || config.ai_provider === 'default')) && (
+                          <>
+                            <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash (Recomendado)</SelectItem>
+                            <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                            <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 {config.ai_provider && config.ai_provider !== "default" && (
