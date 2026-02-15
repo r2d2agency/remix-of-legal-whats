@@ -1878,18 +1878,25 @@ export function ChatArea({
                 )}
 
                 {/* Text content */}
-                {msg.content && msg.message_type !== 'call_log' && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) && (
+                {msg.is_deleted ? (
+                  <p className="text-sm whitespace-pre-wrap line-through opacity-50 italic" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                    {msg.content || '🚫 Mensagem apagada'}
+                  </p>
+                ) : msg.content && msg.message_type !== 'call_log' && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) ? (
                   <p className="text-sm whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     {searchQuery ? highlightText(msg.content, searchQuery) : msg.content}
                   </p>
-                )}
+                ) : null}
 
                 {/* Timestamp and status */}
                 <div className={cn(
                   "flex items-center gap-1 mt-1",
                   msg.from_me ? "justify-end" : "justify-start"
                 )}>
-                  {msg.is_edited && (
+                  {msg.is_deleted && (
+                    <span className="text-[10px] opacity-50 italic">🚫 apagada</span>
+                  )}
+                  {msg.is_edited && !msg.is_deleted && (
                     <span className="text-[10px] opacity-50 italic">editada</span>
                   )}
                   <span className="text-[10px] opacity-70">

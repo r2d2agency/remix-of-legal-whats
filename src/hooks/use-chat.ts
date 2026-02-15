@@ -74,6 +74,7 @@ export interface ChatMessage {
   error_message: string | null;
   timestamp: string;
   is_edited?: boolean;
+  is_deleted?: boolean;
 }
 
 export interface TeamMember {
