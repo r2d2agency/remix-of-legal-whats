@@ -573,7 +573,7 @@ ${conversationContext}
     const result = await callAI(
       { provider, model: agent.ai_model, apiKey },
       aiMessages,
-      { temperature: agent.temperature || 0.7, maxTokens: agent.max_tokens || 1500 }
+      { temperature: parseFloat(agent.temperature) || 0.7, maxTokens: parseInt(agent.max_tokens) || 1500 }
     );
 
     res.json({
