@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,9 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
-  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone, Smartphone, Wifi
+  Bot, Users, Settings, Activity, Plus, Trash2, Save, Loader2, Shield, Clock, MessageSquare, BellRing, Phone, Smartphone, Wifi, AlertTriangle
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -175,6 +176,22 @@ export default function SecretariaGrupos() {
                 Adicionar Membro
               </Button>
             </div>
+
+            {/* Warning: members without phone when notify_members_whatsapp is active */}
+            {config.notify_members_whatsapp && members.length > 0 && (() => {
+              const noPhone = members.filter(m => !m.whatsapp_phone && !m.phone);
+              if (noPhone.length === 0) return null;
+              return (
+                <Alert variant="destructive" className="border-destructive/30 bg-destructive/5">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    <strong>{noPhone.length} membro(s)</strong> sem telefone cadastrado e não receberão notificações WhatsApp:{" "}
+                    <span className="font-medium">{noPhone.map(m => m.user_name).join(", ")}</span>.
+                    Cadastre o telefone no perfil do usuário.
+                  </AlertDescription>
+                </Alert>
+              );
+            })()}
 
             {members.length === 0 ? (
               <Card>
