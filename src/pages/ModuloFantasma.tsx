@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Ghost, AlertTriangle, TrendingDown, Clock, MessageSquareOff, Frown,
   Sparkles, Loader2, Eye, Users, Target, History, Trash2, ChevronDown,
-  Shield, Search, Zap, UserX, ScanEye,
+  Shield, Search, Zap, UserX, ScanEye, FileDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGhostAnalysis, GhostInsight, SavedAnalysis } from "@/hooks/use-ghost-analysis";
@@ -17,6 +17,7 @@ import { AnalysisProgressBar } from "@/components/ghost/AnalysisProgressBar";
 import { ExtraMetricsPanel } from "@/components/ghost/ExtraMetricsPanel";
 import { api } from "@/lib/api";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { exportGhostPDF } from "@/lib/ghost-pdf-export";
 
 // --- Configs ---
 const categoryConfig: Record<string, { label: string; icon: any; color: string }> = {
@@ -172,6 +173,12 @@ export default function ModuloFantasma() {
               <p className="text-sm text-muted-foreground">Análise inteligente de conversas por IA</p>
             </div>
           </div>
+          {data && (
+            <Button variant="outline" onClick={() => exportGhostPDF(data)} className="gap-2">
+              <FileDown className="h-4 w-4" />
+              Exportar PDF
+            </Button>
+          )}
         </div>
 
         {/* Analysis Type Selector */}
