@@ -95,7 +95,7 @@ async function loadImageAsBase64(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
-export async function exportGhostPDF(result: GhostAnalysisResult, options?: { logoUrl?: string | null; orgName?: string; days?: number }) {
+export async function exportGhostPDF(result: GhostAnalysisResult, options?: { logoUrl?: string | null; orgName?: string; days?: number; appName?: string }) {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
@@ -121,12 +121,8 @@ export async function exportGhostPDF(result: GhostAnalysisResult, options?: { lo
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('Relatório Módulo Fantasma', textStartX, 16);
-  if (options?.orgName) {
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text(options.orgName, textStartX, 23);
-  }
+  const headerTitle = options?.orgName || 'Relatório de Análise';
+  doc.text(headerTitle, textStartX, 16);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
 
@@ -137,7 +133,7 @@ export async function exportGhostPDF(result: GhostAnalysisResult, options?: { lo
   startDate.setDate(startDate.getDate() - daysNum);
   const periodStr = `Período: ${startDate.toLocaleDateString('pt-BR')} a ${analyzedDate.toLocaleDateString('pt-BR')} (${daysNum} dias)`;
 
-  const baseY = options?.orgName ? 30 : 26;
+  const baseY = 26;
   doc.text(periodStr, textStartX, baseY);
   doc.text(`Gerado em: ${analyzedDate.toLocaleString('pt-BR')} • ${result.summary.total_analyzed} conversas analisadas`, textStartX, baseY + 6);
 
@@ -324,8 +320,9 @@ export async function exportGhostPDF(result: GhostAnalysisResult, options?: { lo
     doc.setPage(i);
     doc.setFontSize(7);
     doc.setTextColor(150, 150, 150);
+    const footerAppName = options?.appName || 'Sistema';
     doc.text(
-      `Módulo Fantasma • Página ${i} de ${pageCount} • Confidencial`,
+      `${footerAppName} • Página ${i} de ${pageCount} • Confidencial`,
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 8,
       { align: 'center' }
