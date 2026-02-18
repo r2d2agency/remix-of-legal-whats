@@ -96,7 +96,7 @@ async function getAIConfig(organizationId) {
 // GET /api/ghost/analyze
 router.get('/analyze', authenticate, async (req, res) => {
   try {
-    const org = await getUserOrganization(req.user.id);
+    const org = await getUserOrganization(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
     if (org.role !== 'owner') return res.status(403).json({ error: 'Acesso restrito ao proprietário da organização' });
 
@@ -309,9 +309,9 @@ router.get('/analyze', authenticate, async (req, res) => {
     await query(
       `INSERT INTO ghost_audit_logs (user_id, organization_id, days_analyzed, conversations_analyzed, insights_count, categories_summary)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [req.user.id, org.organization_id, days, summary.total_analyzed, enrichedInsights.length, JSON.stringify(summary)]
+      [req.userId, org.organization_id, days, summary.total_analyzed, enrichedInsights.length, JSON.stringify(summary)]
     );
-    logInfo('ghost_audit', { userId: req.user.id, orgId: org.organization_id, days, conversations: summary.total_analyzed, insights: enrichedInsights.length });
+    logInfo('ghost_audit', { userId: req.userId, orgId: org.organization_id, days, conversations: summary.total_analyzed, insights: enrichedInsights.length });
 
     res.json({
       summary,
