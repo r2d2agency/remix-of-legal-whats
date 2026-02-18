@@ -176,7 +176,7 @@ export default function ModuloFantasma() {
             </div>
           </div>
           {data && (
-            <Button variant="outline" onClick={() => exportGhostPDF(data, { logoUrl: orgInfo.logo_url, orgName: orgInfo.name })} className="gap-2">
+            <Button variant="outline" onClick={() => exportGhostPDF(data, { logoUrl: orgInfo.logo_url, orgName: orgInfo.name, days: parseInt(days) })} className="gap-2">
               <FileDown className="h-4 w-4" />
               Exportar PDF
             </Button>

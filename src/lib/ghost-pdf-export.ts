@@ -95,7 +95,7 @@ async function loadImageAsBase64(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
-export async function exportGhostPDF(result: GhostAnalysisResult, options?: { logoUrl?: string | null; orgName?: string }) {
+export async function exportGhostPDF(result: GhostAnalysisResult, options?: { logoUrl?: string | null; orgName?: string; days?: number }) {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
@@ -129,8 +129,17 @@ export async function exportGhostPDF(result: GhostAnalysisResult, options?: { lo
   }
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Gerado em: ${new Date(result.analyzed_at).toLocaleString('pt-BR')}`, textStartX, options?.orgName ? 30 : 26);
-  doc.text(`Conversas analisadas: ${result.summary.total_analyzed}`, textStartX, options?.orgName ? 36 : 32);
+
+  // Period info
+  const analyzedDate = new Date(result.analyzed_at);
+  const daysNum = options?.days || 7;
+  const startDate = new Date(analyzedDate);
+  startDate.setDate(startDate.getDate() - daysNum);
+  const periodStr = `Período: ${startDate.toLocaleDateString('pt-BR')} a ${analyzedDate.toLocaleDateString('pt-BR')} (${daysNum} dias)`;
+
+  const baseY = options?.orgName ? 30 : 26;
+  doc.text(periodStr, textStartX, baseY);
+  doc.text(`Gerado em: ${analyzedDate.toLocaleString('pt-BR')} • ${result.summary.total_analyzed} conversas analisadas`, textStartX, baseY + 6);
 
   cursorY = 50;
 
