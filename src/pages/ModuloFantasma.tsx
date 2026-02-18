@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,23 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import {
-  Ghost,
-  AlertTriangle,
-  TrendingDown,
-  Clock,
-  MessageSquareOff,
-  Frown,
-  Sparkles,
-  Loader2,
-  Eye,
-  Users,
-  ShieldAlert,
-  Target,
-  RefreshCw,
+  Ghost, AlertTriangle, TrendingDown, Clock, MessageSquareOff, Frown,
+  Sparkles, Loader2, Eye, Users, Target, History, Trash2, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useGhostAnalysis, GhostInsight } from "@/hooks/use-ghost-analysis";
+import { useGhostAnalysis, GhostInsight, SavedAnalysis } from "@/hooks/use-ghost-analysis";
+import { AnalysisProgressBar } from "@/components/ghost/AnalysisProgressBar";
+import { api } from "@/lib/api";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
+// --- Configs ---
 const categoryConfig: Record<string, { label: string; icon: any; color: string }> = {
   off_topic: { label: "Fora do Foco", icon: MessageSquareOff, color: "text-orange-500" },
   deal_risk: { label: "Risco de Perda", icon: TrendingDown, color: "text-destructive" },
@@ -40,6 +33,7 @@ const severityConfig: Record<string, { label: string; variant: "default" | "seco
   critical: { label: "Crítico", variant: "destructive" },
 };
 
+// --- Components ---
 function InsightCard({ insight }: { insight: GhostInsight }) {
   const cat = categoryConfig[insight.category] || categoryConfig.off_topic;
   const sev = severityConfig[insight.severity] || severityConfig.low;
@@ -76,13 +70,72 @@ function InsightCard({ insight }: { insight: GhostInsight }) {
   );
 }
 
+function AnalysisHistoryPanel({
+  analyses, onLoad, onDelete
+}: {
+  analyses: SavedAnalysis[];
+  onLoad: (a: SavedAnalysis) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (analyses.length === 0) return null;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <Button variant="outline" className="gap-2 w-full justify-between">
+          <span className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            Análises anteriores ({analyses.length})
+          </span>
+          <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-3 space-y-2">
+        {analyses.map(a => (
+          <div
+            key={a.id}
+            className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-accent/50 transition-colors"
+          >
+            <button onClick={() => onLoad(a)} className="flex-1 text-left">
+              <p className="text-sm font-medium">{a.label}</p>
+              <p className="text-xs text-muted-foreground">
+                {new Date(a.timestamp).toLocaleString("pt-BR")} •{" "}
+                {a.data.insights.length} insights • {a.data.summary.total_analyzed} conversas
+              </p>
+            </button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => onDelete(a.id)}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+// --- Main Page ---
 export default function ModuloFantasma() {
-  const { data, isLoading, runAnalysis } = useGhostAnalysis();
+  const { data, isLoading, step, savedAnalyses, runAnalysis, loadAnalysis, deleteAnalysis } = useGhostAnalysis();
   const [days, setDays] = useState("7");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [connectionId, setConnectionId] = useState<string>("all");
+  const [connections, setConnections] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    api<Array<{ id: string; name: string }>>("/api/connections")
+      .then(setConnections)
+      .catch(() => {});
+  }, []);
 
   const handleAnalyze = () => {
-    runAnalysis({ days: parseInt(days) });
+    const conn = connections.find(c => c.id === connectionId);
+    runAnalysis({
+      days: parseInt(days),
+      connectionId: connectionId !== "all" ? connectionId : undefined,
+      connectionName: conn?.name,
+    });
   };
 
   const filteredInsights = data?.insights.filter(
@@ -102,34 +155,55 @@ export default function ModuloFantasma() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">Módulo Fantasma</h1>
-              <p className="text-sm text-muted-foreground">
-                Análise inteligente de conversas por IA
-              </p>
+              <p className="text-sm text-muted-foreground">Análise inteligente de conversas por IA</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Select value={days} onValueChange={setDays}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">Últimas 24h</SelectItem>
-                <SelectItem value="3">Últimos 3 dias</SelectItem>
-                <SelectItem value="7">Últimos 7 dias</SelectItem>
-                <SelectItem value="15">Últimos 15 dias</SelectItem>
-                <SelectItem value="30">Últimos 30 dias</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={handleAnalyze} disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Eye className="h-4 w-4 mr-2" />
-              )}
-              Analisar
-            </Button>
-          </div>
         </div>
+
+        {/* Controls */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Select value={connectionId} onValueChange={setConnectionId}>
+                <SelectTrigger className="sm:w-[200px]">
+                  <SelectValue placeholder="Instância WhatsApp" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as instâncias</SelectItem>
+                  {connections.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={days} onValueChange={setDays}>
+                <SelectTrigger className="sm:w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Últimas 24h</SelectItem>
+                  <SelectItem value="3">Últimos 3 dias</SelectItem>
+                  <SelectItem value="7">Últimos 7 dias</SelectItem>
+                  <SelectItem value="15">Últimos 15 dias</SelectItem>
+                  <SelectItem value="30">Últimos 30 dias</SelectItem>
+                  <SelectItem value="45">Últimos 45 dias</SelectItem>
+                  <SelectItem value="60">Últimos 2 meses</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button onClick={handleAnalyze} disabled={isLoading} className="sm:ml-auto">
+                {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
+                Analisar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Progress Bar */}
+        <AnalysisProgressBar currentStep={step} />
+
+        {/* History */}
+        <AnalysisHistoryPanel analyses={savedAnalyses} onLoad={loadAnalysis} onDelete={deleteAnalysis} />
 
         {/* Summary Cards */}
         {summary && (
