@@ -19,6 +19,7 @@ router.get('/analyze', authenticate, async (req, res) => {
   try {
     const org = await getUserOrganization(req.user.id);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
+    if (org.role !== 'owner') return res.status(403).json({ error: 'Acesso restrito ao proprietário da organização' });
 
     const days = parseInt(req.query.days) || 7;
     const connectionId = req.query.connection_id;
