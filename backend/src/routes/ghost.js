@@ -230,6 +230,64 @@ router.get('/analyze', authenticate, async (req, res) => {
       };
     });
 
+    // === Compute extra metrics from raw message data ===
+
+    // 1. Avg response time per attendant (minutes between client msg and attendant reply)
+    const responseTimesByUser = {};
+    for (const convId of Object.keys(msgsByConv)) {
+      const msgs = (msgsByConv[convId] || []).reverse(); // chronological
+      const conv = convMap[convId];
+      if (!conv?.assigned_to_name) continue;
+      const userName = conv.assigned_to_name;
+      if (!responseTimesByUser[userName]) responseTimesByUser[userName] = [];
+      
+      for (let i = 1; i < msgs.length; i++) {
+        if (!msgs[i].from_me && msgs[i-1]?.from_me) continue; // skip
+        if (msgs[i].from_me && !msgs[i-1]?.from_me) {
+          const diff = (new Date(msgs[i].created_at) - new Date(msgs[i-1].created_at)) / 60000;
+          if (diff > 0 && diff < 1440) { // ignore > 24h gaps
+            responseTimesByUser[userName].push(diff);
+          }
+        }
+      }
+    }
+
+    const avg_response_times = Object.entries(responseTimesByUser).map(([user_name, times]) => ({
+      user_name,
+      avg_minutes: times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 0,
+      total_replies: times.length,
+    })).sort((a, b) => a.avg_minutes - b.avg_minutes);
+
+    // 2. Peak problem hours (from insights)
+    const hourCounts = {};
+    for (const ins of enrichedInsights) {
+      if (ins.last_message_at) {
+        const h = new Date(ins.last_message_at).getHours();
+        hourCounts[h] = (hourCounts[h] || 0) + 1;
+      }
+    }
+    const peak_hours = Object.entries(hourCounts)
+      .map(([hour, count]) => ({ hour: parseInt(hour), count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    // 3. Critical clients ranking (most issues)
+    const clientIssues = {};
+    for (const ins of enrichedInsights) {
+      const key = ins.contact_name || ins.contact_phone;
+      if (!key) continue;
+      if (!clientIssues[key]) clientIssues[key] = { name: key, phone: ins.contact_phone, issues: 0, categories: [] };
+      clientIssues[key].issues++;
+      if (!clientIssues[key].categories.includes(ins.category)) clientIssues[key].categories.push(ins.category);
+    }
+    const critical_clients = Object.values(clientIssues)
+      .sort((a, b) => b.issues - a.issues)
+      .slice(0, 10);
+
+    // 4. Resolution rate (conversations with status 'resolved' or 'closed' vs total)
+    const resolved = conversations.filter(c => ['resolved', 'closed', 'finalizado'].includes(c.attendance_status)).length;
+    const resolution_rate = conversations.length > 0 ? Math.round((resolved / conversations.length) * 100) : 0;
+
     // Build summary
     const summary = {
       total_analyzed: conversationSummaries.length,
@@ -240,6 +298,11 @@ router.get('/analyze', authenticate, async (req, res) => {
       sentiment_negative: enrichedInsights.filter(i => i.category === 'sentiment_negative').length,
       opportunities: enrichedInsights.filter(i => i.category === 'opportunity').length,
       team_scores: aiResult.team_scores || [],
+      // Extra metrics
+      avg_response_times,
+      peak_hours,
+      critical_clients,
+      resolution_rate,
     };
 
     // Audit log
