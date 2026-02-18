@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
-import { getAIConfig, callAI } from '../lib/ai-caller.js';
+import { callAI } from '../lib/ai-caller.js';
 import logger from '../logger.js';
 
 const router = Router();
@@ -12,6 +12,16 @@ async function getUserOrganization(userId) {
     [userId]
   );
   return result.rows[0] || null;
+}
+
+async function getAIConfig(organizationId) {
+  const agentResult = await query(
+    `SELECT ai_provider, ai_model, ai_api_key FROM ai_agents WHERE organization_id = $1 AND is_active = true AND ai_api_key IS NOT NULL LIMIT 1`,
+    [organizationId]
+  );
+  if (agentResult.rows[0]) return agentResult.rows[0];
+  const orgResult = await query(`SELECT ai_api_key, ai_provider, ai_model FROM organizations WHERE id = $1`, [organizationId]);
+  return orgResult.rows[0] || null;
 }
 
 // GET /api/ghost/analyze
@@ -98,7 +108,11 @@ router.get('/analyze', authenticate, async (req, res) => {
         };
       });
 
-    const aiConfig = await getAIConfig(org.organization_id);
+    const rawAIConfig = await getAIConfig(org.organization_id);
+    if (!rawAIConfig?.ai_api_key) {
+      return res.status(400).json({ error: 'Nenhum agente de IA configurado com API key. Configure um agente ou a chave na organização.' });
+    }
+    const aiConfig = { provider: rawAIConfig.ai_provider, model: rawAIConfig.ai_model, apiKey: rawAIConfig.ai_api_key };
 
     const systemPrompt = `Você é um analista de performance comercial. Analise as conversas de WhatsApp de uma empresa e identifique problemas e oportunidades.
 
@@ -134,8 +148,11 @@ Seja direto e objetivo. Não invente dados. Se uma conversa está normal, não a
 
     let aiResult;
     try {
-      const response = await callAI(aiConfig, systemPrompt, userPrompt);
-      // Try to parse JSON from response
+      const aiResponse = await callAI(aiConfig, [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ], { maxTokens: 4000, temperature: 0.3 });
+      const response = aiResponse.content;
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         aiResult = JSON.parse(jsonMatch[0]);
