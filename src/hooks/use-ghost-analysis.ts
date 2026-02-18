@@ -74,13 +74,14 @@ export function useGhostAnalysis() {
   const [step, setStep] = useState<AnalysisStep>('idle');
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>(loadSavedAnalyses);
 
-  const runAnalysis = useCallback(async (params?: { days?: number; connectionId?: string; connectionName?: string }) => {
+  const runAnalysis = useCallback(async (params?: { days?: number; connectionId?: string; connectionName?: string; analysisType?: string; analysisLabel?: string }) => {
     setIsLoading(true);
     setStep('fetching');
     try {
       const queryParams = new URLSearchParams();
       if (params?.days) queryParams.set('days', String(params.days));
       if (params?.connectionId) queryParams.set('connection_id', params.connectionId);
+      if (params?.analysisType) queryParams.set('analysis_type', params.analysisType);
 
       // Simulate step progression
       await new Promise(r => setTimeout(r, 800));
@@ -99,7 +100,7 @@ export function useGhostAnalysis() {
       // Save to history
       const newEntry: SavedAnalysis = {
         id: `analysis-${Date.now()}`,
-        label: `${params?.connectionName || 'Todas'} • ${params?.days || 7}d`,
+        label: `${params?.analysisLabel || 'Completa'} • ${params?.connectionName || 'Todas'} • ${params?.days || 7}d`,
         data: result,
         days: params?.days || 7,
         connectionId: params?.connectionId,

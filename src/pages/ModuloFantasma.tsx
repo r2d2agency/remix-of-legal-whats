@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Ghost, AlertTriangle, TrendingDown, Clock, MessageSquareOff, Frown,
   Sparkles, Loader2, Eye, Users, Target, History, Trash2, ChevronDown,
+  Shield, Search, Zap, UserX, ScanEye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGhostAnalysis, GhostInsight, SavedAnalysis } from "@/hooks/use-ghost-analysis";
@@ -121,7 +122,16 @@ export default function ModuloFantasma() {
   const [days, setDays] = useState("7");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [connectionId, setConnectionId] = useState<string>("all");
+  const [analysisType, setAnalysisType] = useState<string>("full");
   const [connections, setConnections] = useState<Array<{ id: string; name: string }>>([]);
+
+  const analysisTypes = [
+    { value: "full", label: "Análise Completa", icon: ScanEye, desc: "Todos os problemas e oportunidades" },
+    { value: "quality", label: "Qualidade de Atendimento", icon: Shield, desc: "Foco em atendimento e profissionalismo" },
+    { value: "opportunities", label: "Oportunidades de Venda", icon: Zap, desc: "Vendas perdidas e upsell" },
+    { value: "risks", label: "Riscos e Churn", icon: AlertTriangle, desc: "Clientes em risco de desistir" },
+    { value: "conduct", label: "Conduta Profissional", icon: UserX, desc: "Desvios de conduta e foco" },
+  ];
 
   useEffect(() => {
     api<Array<{ id: string; name: string }>>("/api/connections")
@@ -131,10 +141,13 @@ export default function ModuloFantasma() {
 
   const handleAnalyze = () => {
     const conn = connections.find(c => c.id === connectionId);
+    const at = analysisTypes.find(a => a.value === analysisType);
     runAnalysis({
       days: parseInt(days),
       connectionId: connectionId !== "all" ? connectionId : undefined,
       connectionName: conn?.name,
+      analysisType,
+      analysisLabel: at?.label,
     });
   };
 
@@ -158,6 +171,30 @@ export default function ModuloFantasma() {
               <p className="text-sm text-muted-foreground">Análise inteligente de conversas por IA</p>
             </div>
           </div>
+        </div>
+
+        {/* Analysis Type Selector */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {analysisTypes.map(at => {
+            const Icon = at.icon;
+            const isSelected = analysisType === at.value;
+            return (
+              <button
+                key={at.value}
+                onClick={() => setAnalysisType(at.value)}
+                className={cn(
+                  "rounded-xl border-2 p-4 text-left transition-all hover:shadow-md",
+                  isSelected
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-transparent bg-card hover:border-muted-foreground/20"
+                )}
+              >
+                <Icon className={cn("h-5 w-5 mb-2", isSelected ? "text-primary" : "text-muted-foreground")} />
+                <p className={cn("text-sm font-semibold", isSelected ? "text-foreground" : "text-muted-foreground")}>{at.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{at.desc}</p>
+              </button>
+            );
+          })}
         </div>
 
         {/* Controls */}

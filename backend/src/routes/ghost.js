@@ -6,6 +6,75 @@ import { log, logInfo, logError } from '../logger.js';
 
 const router = Router();
 
+const JSON_FORMAT = `Responda SOMENTE com um JSON válido (sem markdown) no formato:
+{
+  "insights": [
+    {
+      "conversation_id": "id",
+      "category": "CATEGORIAS_AQUI",
+      "severity": "low|medium|high|critical",
+      "title": "Título curto",
+      "description": "Descrição do que foi identificado",
+      "recommendation": "Ação sugerida",
+      "snippet": "Trecho relevante da conversa"
+    }
+  ],
+  "team_scores": [
+    { "user_name": "nome", "score": 0-100, "conversations": N, "issues": N }
+  ]
+}
+Seja direto e objetivo. Não invente dados. Se uma conversa está normal, não a inclua.`;
+
+const ANALYSIS_PROMPTS = {
+  full: {
+    intro: 'Você é um analista de performance comercial. Analise as conversas de WhatsApp e identifique TODOS os tipos de problemas e oportunidades.',
+    categories: `- off_topic: Conversa fora do foco comercial (assuntos pessoais, brincadeiras excessivas)
+- deal_risk: Cliente demonstra insatisfação ou pode desistir da compra
+- slow_response: Atendente demorou muito para responder
+- no_followup: Cliente ficou sem resposta ou acompanhamento
+- sentiment_negative: Cliente com sentimento claramente negativo
+- opportunity: Oportunidade de venda ou upsell não aproveitada`,
+    categoryValues: 'off_topic|deal_risk|slow_response|no_followup|sentiment_negative|opportunity',
+  },
+  quality: {
+    intro: 'Você é um auditor de qualidade de atendimento ao cliente. Foque APENAS na qualidade do atendimento prestado pelos atendentes: educação, clareza, tempo de resposta, resolução efetiva e profissionalismo.',
+    categories: `- slow_response: Atendente demorou muito para responder (gaps grandes)
+- off_topic: Atendente desviou do foco profissional
+- sentiment_negative: Atendente foi rude, impaciente ou pouco profissional
+- no_followup: Atendente não fez acompanhamento adequado`,
+    categoryValues: 'slow_response|off_topic|sentiment_negative|no_followup',
+  },
+  opportunities: {
+    intro: 'Você é um especialista em vendas e growth. Analise as conversas focando EXCLUSIVAMENTE em oportunidades de negócio perdidas, upsell, cross-sell e sinais de compra não aproveitados.',
+    categories: `- opportunity: Oportunidade de venda, upsell ou cross-sell não aproveitada
+- deal_risk: Cliente mostrou interesse mas não foi bem conduzido ao fechamento`,
+    categoryValues: 'opportunity|deal_risk',
+  },
+  risks: {
+    intro: 'Você é um analista de retenção e churn. Foque EXCLUSIVAMENTE em identificar clientes em risco de desistência, insatisfação e sinais de churn.',
+    categories: `- deal_risk: Risco real de perda do negócio ou cliente
+- sentiment_negative: Cliente irritado, frustrado ou insatisfeito
+- no_followup: Cliente em risco que ficou sem acompanhamento`,
+    categoryValues: 'deal_risk|sentiment_negative|no_followup',
+  },
+  conduct: {
+    intro: 'Você é um supervisor de conduta profissional. Analise as conversas focando EXCLUSIVAMENTE em desvios de conduta: conversas pessoais no horário de trabalho, linguagem inadequada, brincadeiras excessivas e falta de profissionalismo.',
+    categories: `- off_topic: Conversa fora do foco profissional (assuntos pessoais, brincadeiras)
+- sentiment_negative: Linguagem inadequada ou falta de profissionalismo por parte do atendente`,
+    categoryValues: 'off_topic|sentiment_negative',
+  },
+};
+
+function buildSystemPrompt(analysisType) {
+  const config = ANALYSIS_PROMPTS[analysisType] || ANALYSIS_PROMPTS.full;
+  return `${config.intro}
+
+Para cada conversa problemática, classifique em uma das categorias:
+${config.categories}
+
+${JSON_FORMAT.replace('CATEGORIAS_AQUI', config.categoryValues)}`;
+}
+
 async function getUserOrganization(userId) {
   const result = await query(
     `SELECT om.organization_id, om.role FROM organization_members om WHERE om.user_id = $1 LIMIT 1`,
@@ -33,6 +102,7 @@ router.get('/analyze', authenticate, async (req, res) => {
 
     const days = parseInt(req.query.days) || 7;
     const connectionId = req.query.connection_id;
+    const analysisType = req.query.analysis_type || 'full';
 
     // Fetch recent conversations with messages
     let convQuery = `
@@ -114,35 +184,7 @@ router.get('/analyze', authenticate, async (req, res) => {
     }
     const aiConfig = { provider: rawAIConfig.ai_provider, model: rawAIConfig.ai_model, apiKey: rawAIConfig.ai_api_key };
 
-    const systemPrompt = `Você é um analista de performance comercial. Analise as conversas de WhatsApp de uma empresa e identifique problemas e oportunidades.
-
-Para cada conversa problemática, classifique em uma das categorias:
-- off_topic: Conversa que foge do foco comercial da empresa (assuntos pessoais, brincadeiras excessivas)
-- deal_risk: Conversa onde o cliente demonstra insatisfação ou pode desistir da compra
-- slow_response: Atendente demorou muito para responder (gaps grandes entre mensagens)
-- no_followup: Cliente ficou sem resposta ou sem acompanhamento
-- sentiment_negative: Cliente com sentimento claramente negativo
-- opportunity: Oportunidade de venda ou upsell não aproveitada
-
-Responda SOMENTE com um JSON válido (sem markdown) no formato:
-{
-  "insights": [
-    {
-      "conversation_id": "id",
-      "category": "off_topic|deal_risk|slow_response|no_followup|sentiment_negative|opportunity",
-      "severity": "low|medium|high|critical",
-      "title": "Título curto do problema",
-      "description": "Descrição do que foi identificado",
-      "recommendation": "Ação sugerida para o gestor",
-      "snippet": "Trecho relevante da conversa"
-    }
-  ],
-  "team_scores": [
-    { "user_name": "nome", "score": 0-100, "conversations": N, "issues": N }
-  ]
-}
-
-Seja direto e objetivo. Não invente dados. Se uma conversa está normal, não a inclua.`;
+    const systemPrompt = buildSystemPrompt(analysisType);
 
     const userPrompt = `Analise estas ${conversationSummaries.length} conversas dos últimos ${days} dias:\n\n${JSON.stringify(conversationSummaries, null, 0)}`;
 
