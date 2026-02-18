@@ -800,7 +800,7 @@ export default function LandingPage() {
             Pronto para modernizar seu escritório?
           </h2>
           <p className="text-lg opacity-90 mb-8">
-            Junte-se a mais de 2.000 escritórios que já gerenciam processos e clientes pela nossa plataforma.
+            Comece agora e descubra como a IA pode transformar o atendimento do seu escritório.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
