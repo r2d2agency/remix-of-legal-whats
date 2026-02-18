@@ -33,6 +33,22 @@ export interface GhostSummary {
     conversations: number;
     issues: number;
   }>;
+  avg_response_times?: Array<{
+    user_name: string;
+    avg_minutes: number;
+    total_replies: number;
+  }>;
+  peak_hours?: Array<{
+    hour: number;
+    count: number;
+  }>;
+  critical_clients?: Array<{
+    name: string;
+    phone: string;
+    issues: number;
+    categories: string[];
+  }>;
+  resolution_rate?: number;
 }
 
 export interface GhostAnalysisResult {

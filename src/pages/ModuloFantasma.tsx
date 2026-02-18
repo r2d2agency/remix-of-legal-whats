@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useGhostAnalysis, GhostInsight, SavedAnalysis } from "@/hooks/use-ghost-analysis";
 import { AnalysisProgressBar } from "@/components/ghost/AnalysisProgressBar";
+import { ExtraMetricsPanel } from "@/components/ghost/ExtraMetricsPanel";
 import { api } from "@/lib/api";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -314,6 +315,9 @@ export default function ModuloFantasma() {
             </CardContent>
           </Card>
         )}
+
+        {/* Extra Metrics */}
+        {summary && <ExtraMetricsPanel summary={summary} />}
 
         {/* Insights List */}
         {data && (
