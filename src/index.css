@@ -7,7 +7,7 @@
 @layer base {
   :root,
   .light {
-    --background: 210 20% 97%;
+    --background: 220 18% 96%;
     --foreground: 220 30% 10%;
 
     --card: 0 0% 100%;
@@ -16,17 +16,17 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 30% 10%;
 
-    --primary: 217 70% 50%;
+    --primary: 24 90% 52%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 152 40% 90%;
-    --secondary-foreground: 152 40% 25%;
+    --secondary: 217 60% 92%;
+    --secondary-foreground: 217 55% 30%;
 
-    --muted: 210 15% 92%;
-    --muted-foreground: 210 15% 35%;
+    --muted: 220 15% 92%;
+    --muted-foreground: 220 12% 40%;
 
     --accent: 152 50% 90%;
-    --accent-foreground: 152 60% 30%;
+    --accent-foreground: 152 55% 30%;
 
     --destructive: 0 84% 55%;
     --destructive-foreground: 0 0% 100%;
@@ -34,67 +34,67 @@
     --success: 152 60% 38%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 25 90% 52%;
+    --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 210 20% 78%;
-    --input: 210 20% 78%;
-    --ring: 217 70% 50%;
+    --border: 220 18% 78%;
+    --input: 220 18% 80%;
+    --ring: 24 90% 52%;
 
     --radius: 0.75rem;
 
     /* Chat specific - Light mode */
-    --chat-bg: 210 20% 94%;
-    --chat-pattern: hsl(210 25% 80% / 0.7);
-    --message-sent: 217 70% 50%;
+    --chat-bg: 220 18% 94%;
+    --chat-pattern: hsl(220 20% 80% / 0.7);
+    --message-sent: 24 90% 52%;
     --message-sent-foreground: 0 0% 100%;
     --message-received: 0 0% 100%;
     --message-received-foreground: 220 30% 10%;
 
     /* Modern tokens - Light mode */
-    --neon-blue: 217 70% 50%;
-    --neon-glow: 152 55% 45%;
-    --gradient-primary: linear-gradient(135deg, hsl(217 70% 50%), hsl(152 55% 45%));
-    --gradient-hero: linear-gradient(135deg, hsl(217 70% 48%) 0%, hsl(195 70% 50%) 50%, hsl(152 55% 45%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 20% 97%) 100%);
-    --shadow-card: 0 2px 12px -2px hsl(220 25% 10% / 0.12), 0 1px 4px hsl(220 25% 10% / 0.06);
-    --shadow-elevated: 0 8px 30px -8px hsl(220 25% 10% / 0.2);
-    --shadow-neon: 0 0 20px hsl(217 70% 50% / 0.3);
+    --neon-blue: 217 70% 52%;
+    --neon-glow: 24 90% 55%;
+    --gradient-primary: linear-gradient(135deg, hsl(24 90% 52%), hsl(35 95% 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(217 70% 50%) 0%, hsl(24 90% 52%) 50%, hsl(152 55% 45%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(220 18% 96%) 100%);
+    --shadow-card: 0 2px 12px -2px hsl(220 25% 10% / 0.1), 0 1px 4px hsl(220 25% 10% / 0.06);
+    --shadow-elevated: 0 8px 30px -8px hsl(220 25% 10% / 0.18);
+    --shadow-neon: 0 0 20px hsl(24 90% 52% / 0.3);
     --glass-bg: hsl(0 0% 100% / 0.95);
-    --glass-border: hsl(210 20% 75% / 0.9);
+    --glass-border: hsl(220 18% 78% / 0.9);
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 220 25% 20%;
-    --sidebar-primary: 217 70% 50%;
+    --sidebar-primary: 24 90% 52%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 152 50% 92%;
-    --sidebar-accent-foreground: 152 60% 30%;
-    --sidebar-border: 210 20% 85%;
-    --sidebar-ring: 217 70% 50%;
+    --sidebar-accent: 24 80% 94%;
+    --sidebar-accent-foreground: 24 80% 35%;
+    --sidebar-border: 220 18% 85%;
+    --sidebar-ring: 24 90% 52%;
   }
 
   .dark {
-    /* Dark mode - Blue & Green Identity */
-    --background: 220 25% 6%;
+    /* Dark mode - Gleego Identity: Dark + Orange/Blue/Green neon */
+    --background: 225 30% 5%;
     --foreground: 210 10% 95%;
 
-    --card: 220 22% 10%;
+    --card: 225 25% 9%;
     --card-foreground: 210 10% 95%;
 
-    --popover: 220 22% 8%;
+    --popover: 225 25% 7%;
     --popover-foreground: 210 10% 95%;
 
-    --primary: 217 75% 58%;
+    --primary: 24 92% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 152 30% 16%;
-    --secondary-foreground: 152 20% 85%;
+    --secondary: 217 40% 16%;
+    --secondary-foreground: 217 30% 85%;
 
-    --muted: 220 18% 14%;
-    --muted-foreground: 210 10% 55%;
+    --muted: 225 20% 13%;
+    --muted-foreground: 220 10% 50%;
 
-    --accent: 152 40% 18%;
-    --accent-foreground: 152 55% 65%;
+    --accent: 152 40% 16%;
+    --accent-foreground: 152 55% 60%;
 
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
@@ -102,41 +102,41 @@
     --success: 152 60% 45%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 25 90% 50%;
+    --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 220 18% 18%;
-    --input: 220 18% 18%;
-    --ring: 217 75% 58%;
+    --border: 225 20% 16%;
+    --input: 225 20% 16%;
+    --ring: 24 92% 55%;
 
     /* Chat specific - Dark mode */
-    --chat-bg: 220 22% 8%;
-    --chat-pattern: hsl(220 18% 12% / 0.5);
-    --message-sent: 217 75% 58%;
+    --chat-bg: 225 25% 7%;
+    --chat-pattern: hsl(225 20% 11% / 0.5);
+    --message-sent: 24 92% 55%;
     --message-sent-foreground: 0 0% 100%;
-    --message-received: 220 18% 16%;
+    --message-received: 225 20% 15%;
     --message-received-foreground: 210 10% 95%;
 
     /* Neon tokens - Dark mode */
     --neon-blue: 217 75% 58%;
-    --neon-glow: 152 55% 50%;
-    --gradient-primary: linear-gradient(135deg, hsl(217 75% 55%), hsl(152 55% 48%));
-    --gradient-hero: linear-gradient(135deg, hsl(217 75% 52%) 0%, hsl(195 65% 50%) 50%, hsl(152 55% 48%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(220 22% 10%) 0%, hsl(220 22% 8%) 100%);
-    --shadow-card: 0 4px 24px -4px hsl(0 0% 0% / 0.4);
+    --neon-glow: 24 92% 58%;
+    --gradient-primary: linear-gradient(135deg, hsl(24 92% 55%), hsl(35 95% 58%));
+    --gradient-hero: linear-gradient(135deg, hsl(217 75% 52%) 0%, hsl(24 92% 55%) 50%, hsl(152 55% 48%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(225 25% 9%) 0%, hsl(225 25% 7%) 100%);
+    --shadow-card: 0 4px 24px -4px hsl(0 0% 0% / 0.5);
     --shadow-elevated: 0 12px 40px -12px hsl(0 0% 0% / 0.6);
-    --shadow-neon: 0 0 30px hsl(217 75% 58% / 0.4);
-    --glass-bg: hsl(220 22% 10% / 0.85);
-    --glass-border: hsl(220 18% 22% / 0.6);
+    --shadow-neon: 0 0 30px hsl(24 92% 55% / 0.4);
+    --glass-bg: hsl(225 25% 9% / 0.85);
+    --glass-border: hsl(225 20% 20% / 0.6);
 
-    --sidebar-background: 220 22% 8%;
+    --sidebar-background: 225 28% 7%;
     --sidebar-foreground: 210 10% 90%;
-    --sidebar-primary: 217 75% 58%;
+    --sidebar-primary: 24 92% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 152 40% 18%;
-    --sidebar-accent-foreground: 152 55% 65%;
-    --sidebar-border: 220 18% 16%;
-    --sidebar-ring: 217 75% 58%;
+    --sidebar-accent: 24 60% 15%;
+    --sidebar-accent-foreground: 24 80% 65%;
+    --sidebar-border: 225 20% 14%;
+    --sidebar-ring: 24 92% 55%;
   }
 }
 
