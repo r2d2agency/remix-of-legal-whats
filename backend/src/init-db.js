@@ -93,16 +93,7 @@ DO $$ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ai_summary BOOLEAN DEFAULT true;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_group_secretary BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ghost BOOLEAN DEFAULT false;
-    ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_minutes INTEGER DEFAULT NULL;
-    ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_whatsapp BOOLEAN DEFAULT false;
-    ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_popup BOOLEAN DEFAULT true;
-    ALTER TABLE crm_tasks ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT false;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_phone VARCHAR(50);
-    ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS call_agent_config JSONB DEFAULT '{}';
-    ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS paused_until TIMESTAMP WITH TIME ZONE;
-    ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS human_takeover BOOLEAN DEFAULT false;
-    ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS human_takeover_by UUID REFERENCES users(id);
-    ALTER TABLE ai_agent_sessions ADD COLUMN IF NOT EXISTS human_takeover_at TIMESTAMP WITH TIME ZONE;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
@@ -2131,6 +2122,10 @@ CREATE TABLE IF NOT EXISTS ai_agents (
 -- Google Calendar connection for agents (which user's calendar to use)
 DO $$ BEGIN
   ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS google_calendar_user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS call_agent_config JSONB DEFAULT '{}';
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 
 -- Knowledge sources
