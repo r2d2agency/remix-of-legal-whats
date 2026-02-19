@@ -35,6 +35,7 @@ import {
   Lock,
   Webhook,
   Ghost,
+  FolderKanban,
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
 import gleegoLogo from "@/assets/gleego-logo.png";
@@ -94,6 +95,13 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
       { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, adminOnly: true },
       { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, ownerOnly: true, moduleKey: 'ghost' },
       { name: "Configurações", href: "/crm/configuracoes", icon: Settings, adminOnly: true },
+    ],
+  },
+  {
+    title: "Projetos",
+    icon: FolderKanban,
+    items: [
+      { name: "Kanban", href: "/projetos", icon: FolderKanban },
     ],
   },
   {

@@ -1,0 +1,749 @@
+import { useState, useMemo } from "react";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Plus, Search, Settings, FolderKanban, Trash2, GripVertical, Edit,
+  FileText, MessageSquare, CheckSquare, Paperclip, Upload, Loader2, X,
+  Calendar, User, ArrowRight, ExternalLink, Clock, Send, Reply, LayoutTemplate
+} from "lucide-react";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUpload } from "@/hooks/use-upload";
+import { useOrganizations } from "@/hooks/use-organizations";
+import { resolveMediaUrl } from "@/lib/media";
+import {
+  useProjectStages, useProjects, useProjectMutations, useProjectStageMutations,
+  useProjectAttachments, useProjectNotes, useProjectTasks, useProjectTemplates,
+  useProjectTemplateTasks, useProjectNoteMutations, useProjectAttachmentMutations,
+  useProjectTaskMutations, useProjectTemplateMutations,
+  Project, ProjectStage, ProjectTask, ProjectNote, ProjectTemplate
+} from "@/hooks/use-projects";
+
+export default function Projetos() {
+  const { user } = useAuth();
+  const { data: stages = [], isLoading: loadingStages } = useProjectStages();
+  const { data: projects = [], isLoading: loadingProjects } = useProjects();
+  const { data: templates = [] } = useProjectTemplates();
+  const projectMut = useProjectMutations();
+  const stageMut = useProjectStageMutations();
+  const templateMut = useProjectTemplateMutations();
+
+  const [search, setSearch] = useState("");
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [showStageEditor, setShowStageEditor] = useState(false);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+
+  // Create project state
+  const [newProject, setNewProject] = useState({ title: "", description: "", priority: "medium", template_id: "" });
+
+  // Stage editor state
+  const [newStageName, setNewStageName] = useState("");
+  const [newStageColor, setNewStageColor] = useState("#6366f1");
+
+  // Template editor state
+  const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | null>(null);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDesc, setTemplateDesc] = useState("");
+  const [templateTasks, setTemplateTasks] = useState<Array<{ title: string; duration_days: number }>>([]);
+
+  const isAdmin = ['owner', 'admin', 'manager'].includes(user?.role || '');
+
+  // Group projects by stage
+  const projectsByStage = useMemo(() => {
+    const map: Record<string, Project[]> = {};
+    const filtered = projects.filter(p =>
+      !search || p.title.toLowerCase().includes(search.toLowerCase())
+    );
+    for (const stage of stages) {
+      map[stage.id] = filtered.filter(p => p.stage_id === stage.id);
+    }
+    // Unassigned
+    const unassigned = filtered.filter(p => !p.stage_id || !stages.find(s => s.id === p.stage_id));
+    if (unassigned.length > 0) {
+      map['_unassigned'] = unassigned;
+    }
+    return map;
+  }, [projects, stages, search]);
+
+  const handleCreateProject = () => {
+    if (!newProject.title.trim()) return toast.error("Título obrigatório");
+    projectMut.create.mutate({
+      title: newProject.title,
+      description: newProject.description,
+      priority: newProject.priority,
+      template_id: newProject.template_id || undefined,
+    }, {
+      onSuccess: () => {
+        setShowCreateProject(false);
+        setNewProject({ title: "", description: "", priority: "medium", template_id: "" });
+      }
+    });
+  };
+
+  const handleCreateStage = () => {
+    if (!newStageName.trim()) return;
+    stageMut.create.mutate({ name: newStageName, color: newStageColor }, {
+      onSuccess: () => { setNewStageName(""); setNewStageColor("#6366f1"); }
+    });
+  };
+
+  const handleMoveProject = (projectId: string, stageId: string) => {
+    projectMut.move.mutate({ id: projectId, stage_id: stageId });
+  };
+
+  const handleSaveTemplate = () => {
+    if (!templateName.trim()) return toast.error("Nome obrigatório");
+    if (editingTemplate) {
+      templateMut.update.mutate({ id: editingTemplate.id, name: templateName, description: templateDesc, tasks: templateTasks });
+    } else {
+      templateMut.create.mutate({ name: templateName, description: templateDesc, tasks: templateTasks });
+    }
+    setShowTemplateEditor(false);
+    setEditingTemplate(null);
+    setTemplateName("");
+    setTemplateDesc("");
+    setTemplateTasks([]);
+  };
+
+  return (
+    <MainLayout>
+      <div className="space-y-4">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <FolderKanban className="h-6 w-6 text-primary" />
+              Projetos
+            </h1>
+            <p className="text-sm text-muted-foreground">{projects.length} projeto(s)</p>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar projetos..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button onClick={() => setShowCreateProject(true)} size="sm">
+              <Plus className="h-4 w-4 mr-1" /> Novo Projeto
+            </Button>
+            {isAdmin && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setShowStageEditor(true)}>
+                  <Settings className="h-4 w-4 mr-1" /> Etapas
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => { setShowTemplateEditor(true); setEditingTemplate(null); setTemplateName(""); setTemplateDesc(""); setTemplateTasks([]); }}>
+                  <LayoutTemplate className="h-4 w-4 mr-1" /> Templates
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Kanban Board */}
+        {loadingStages || loadingProjects ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : stages.length === 0 ? (
+          <Card className="py-16 text-center">
+            <CardContent>
+              <FolderKanban className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Nenhuma etapa configurada</h3>
+              <p className="text-muted-foreground mb-4">Crie etapas para organizar seus projetos no Kanban.</p>
+              {isAdmin && (
+                <Button onClick={() => setShowStageEditor(true)}>
+                  <Plus className="h-4 w-4 mr-1" /> Criar Etapas
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "60vh" }}>
+            {stages.map(stage => {
+              const stageProjects = projectsByStage[stage.id] || [];
+              return (
+                <div
+                  key={stage.id}
+                  className="flex-shrink-0 w-80 bg-muted/30 rounded-xl border border-border"
+                >
+                  <div
+                    className="flex items-center justify-between px-4 py-3 rounded-t-xl border-b border-border"
+                    style={{ borderTopColor: stage.color, borderTopWidth: 3 }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm">{stage.name}</span>
+                      <Badge variant="secondary" className="text-xs">{stageProjects.length}</Badge>
+                    </div>
+                  </div>
+                  <ScrollArea className="p-2" style={{ maxHeight: "calc(100vh - 280px)" }}>
+                    <div className="space-y-2">
+                      {stageProjects.map(project => (
+                        <ProjectCard
+                          key={project.id}
+                          project={project}
+                          stages={stages}
+                          onOpen={() => setSelectedProject(project)}
+                          onMove={handleMoveProject}
+                        />
+                      ))}
+                      {stageProjects.length === 0 && (
+                        <div className="py-8 text-center text-xs text-muted-foreground">
+                          Nenhum projeto
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Create Project Dialog */}
+      <Dialog open={showCreateProject} onOpenChange={setShowCreateProject}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Novo Projeto</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Título *</Label>
+              <Input value={newProject.title} onChange={e => setNewProject(p => ({ ...p, title: e.target.value }))} placeholder="Nome do projeto" />
+            </div>
+            <div>
+              <Label>Descrição</Label>
+              <Textarea value={newProject.description} onChange={e => setNewProject(p => ({ ...p, description: e.target.value }))} placeholder="Descreva o projeto..." />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Prioridade</Label>
+                <Select value={newProject.priority} onValueChange={v => setNewProject(p => ({ ...p, priority: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="urgent">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Template</Label>
+                <Select value={newProject.template_id} onValueChange={v => setNewProject(p => ({ ...p, template_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Sem template" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sem template</SelectItem>
+                    {templates.map(t => (
+                      <SelectItem key={t.id} value={t.id}>{t.name} ({t.task_count} tarefas)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateProject(false)}>Cancelar</Button>
+            <Button onClick={handleCreateProject} disabled={projectMut.create.isPending}>
+              {projectMut.create.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+              Criar Projeto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stage Editor Dialog */}
+      <Dialog open={showStageEditor} onOpenChange={setShowStageEditor}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Gerenciar Etapas</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input value={newStageName} onChange={e => setNewStageName(e.target.value)} placeholder="Nova etapa..." className="flex-1" />
+              <input type="color" value={newStageColor} onChange={e => setNewStageColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer border" />
+              <Button size="sm" onClick={handleCreateStage}><Plus className="h-4 w-4" /></Button>
+            </div>
+            <div className="space-y-2">
+              {stages.map(stage => (
+                <div key={stage.id} className="flex items-center gap-2 p-2 rounded-lg border">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
+                  <span className="flex-1 text-sm font-medium">{stage.name}</span>
+                  {stage.is_final && <Badge variant="outline" className="text-xs">Final</Badge>}
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => stageMut.remove.mutate(stage.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Editor Dialog */}
+      <Dialog open={showTemplateEditor} onOpenChange={setShowTemplateEditor}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editingTemplate ? "Editar Template" : "Templates de Projeto"}</DialogTitle></DialogHeader>
+          {!editingTemplate ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {templates.map(t => (
+                  <div key={t.id} className="flex items-center gap-2 p-3 rounded-lg border">
+                    <LayoutTemplate className="h-4 w-4 text-primary" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{t.name}</p>
+                      <p className="text-xs text-muted-foreground">{t.task_count} tarefas</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                      setEditingTemplate(t);
+                      setTemplateName(t.name);
+                      setTemplateDesc(t.description || "");
+                      setTemplateTasks([]);
+                    }}>
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => templateMut.remove.mutate(t.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button variant="outline" className="w-full" onClick={() => {
+                setEditingTemplate({} as ProjectTemplate);
+                setTemplateName("");
+                setTemplateDesc("");
+                setTemplateTasks([{ title: "", duration_days: 1 }]);
+              }}>
+                <Plus className="h-4 w-4 mr-1" /> Novo Template
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <Label>Nome</Label>
+                <Input value={templateName} onChange={e => setTemplateName(e.target.value)} />
+              </div>
+              <div>
+                <Label>Descrição</Label>
+                <Textarea value={templateDesc} onChange={e => setTemplateDesc(e.target.value)} />
+              </div>
+              <div>
+                <Label>Tarefas</Label>
+                <div className="space-y-2">
+                  {templateTasks.map((t, i) => (
+                    <div key={i} className="flex gap-2">
+                      <Input value={t.title} onChange={e => {
+                        const arr = [...templateTasks];
+                        arr[i].title = e.target.value;
+                        setTemplateTasks(arr);
+                      }} placeholder={`Tarefa ${i + 1}`} className="flex-1" />
+                      <Input type="number" value={t.duration_days} onChange={e => {
+                        const arr = [...templateTasks];
+                        arr[i].duration_days = parseInt(e.target.value) || 1;
+                        setTemplateTasks(arr);
+                      }} className="w-20" min={1} />
+                      <Button variant="ghost" size="icon" onClick={() => setTemplateTasks(templateTasks.filter((_, j) => j !== i))}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={() => setTemplateTasks([...templateTasks, { title: "", duration_days: 1 }])}>
+                    <Plus className="h-4 w-4 mr-1" /> Tarefa
+                  </Button>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditingTemplate(null)}>Voltar</Button>
+                <Button onClick={handleSaveTemplate}>Salvar Template</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Project Detail Dialog */}
+      {selectedProject && (
+        <ProjectDetailDialog
+          project={selectedProject}
+          open={!!selectedProject}
+          onOpenChange={(o) => { if (!o) setSelectedProject(null); }}
+          stages={stages}
+          onMove={handleMoveProject}
+        />
+      )}
+    </MainLayout>
+  );
+}
+
+// ========================
+// Project Card
+// ========================
+function ProjectCard({ project, stages, onOpen, onMove }: {
+  project: Project;
+  stages: ProjectStage[];
+  onOpen: () => void;
+  onMove: (projectId: string, stageId: string) => void;
+}) {
+  const progress = project.total_tasks > 0 ? Math.round((project.completed_tasks / project.total_tasks) * 100) : 0;
+  const priorityColors: Record<string, string> = {
+    low: "bg-green-500/10 text-green-600",
+    medium: "bg-yellow-500/10 text-yellow-600",
+    high: "bg-orange-500/10 text-orange-600",
+    urgent: "bg-red-500/10 text-red-600",
+  };
+
+  return (
+    <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={onOpen}>
+      <CardContent className="p-3 space-y-2">
+        <div className="flex items-start justify-between">
+          <h4 className="text-sm font-semibold line-clamp-2">{project.title}</h4>
+          <Badge className={cn("text-[10px] shrink-0 ml-2", priorityColors[project.priority] || "")}>
+            {project.priority === "low" ? "Baixa" : project.priority === "medium" ? "Média" : project.priority === "high" ? "Alta" : "Urgente"}
+          </Badge>
+        </div>
+
+        {project.deal_title && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <ExternalLink className="h-3 w-3" />
+            <span className="truncate">{project.deal_title}</span>
+          </div>
+        )}
+
+        {project.total_tasks > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{project.completed_tasks}/{project.total_tasks} tarefas</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress value={progress} className="h-1.5" />
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          {project.assigned_to_name && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <User className="h-3 w-3" />
+              <span className="truncate">{project.assigned_to_name}</span>
+            </div>
+          )}
+          <span className="text-[10px] text-muted-foreground">
+            {format(new Date(project.created_at), "dd/MM", { locale: ptBR })}
+          </span>
+        </div>
+
+        {/* Quick stage move */}
+        <div className="flex gap-1 pt-1" onClick={e => e.stopPropagation()}>
+          {stages.filter(s => s.id !== project.stage_id).slice(0, 3).map(s => (
+            <Tooltip key={s.id} delayDuration={0}>
+              <TooltipTrigger asChild>
+                <button
+                  className="h-5 w-5 rounded-full border-2 hover:scale-110 transition-transform"
+                  style={{ borderColor: s.color, backgroundColor: `${s.color}30` }}
+                  onClick={() => onMove(project.id, s.id)}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">{s.name}</TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ========================
+// Project Detail Dialog
+// ========================
+function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
+  project: Project;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  stages: ProjectStage[];
+  onMove: (projectId: string, stageId: string) => void;
+}) {
+  const { user } = useAuth();
+  const { data: attachments = [] } = useProjectAttachments(project.id);
+  const { data: notes = [] } = useProjectNotes(project.id);
+  const { data: tasks = [] } = useProjectTasks(project.id);
+  const noteMut = useProjectNoteMutations();
+  const attMut = useProjectAttachmentMutations();
+  const taskMut = useProjectTaskMutations();
+  const projectMut = useProjectMutations();
+  const { uploadFile, isUploading } = useUpload();
+
+  const [noteText, setNoteText] = useState("");
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskDuration, setNewTaskDuration] = useState(1);
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [desc, setDesc] = useState(project.description || "");
+
+  const handleAddNote = () => {
+    if (!noteText.trim()) return;
+    noteMut.create.mutate({ projectId: project.id, content: noteText, parent_id: replyTo || undefined }, {
+      onSuccess: () => { setNoteText(""); setReplyTo(null); }
+    });
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await uploadFile(file);
+      if (url) {
+        attMut.create.mutate({ projectId: project.id, name: file.name, url, mimetype: file.type, size: file.size });
+      }
+    } catch {}
+  };
+
+  const handleAddTask = () => {
+    if (!newTaskTitle.trim()) return;
+    taskMut.create.mutate({ projectId: project.id, title: newTaskTitle, duration_days: newTaskDuration }, {
+      onSuccess: () => { setNewTaskTitle(""); setNewTaskDuration(1); }
+    });
+  };
+
+  const handleSaveDesc = () => {
+    projectMut.update.mutate({ id: project.id, description: desc });
+    setEditingDesc(false);
+  };
+
+  // Group notes: root + replies
+  const rootNotes = notes.filter(n => !n.parent_id);
+  const repliesMap: Record<string, ProjectNote[]> = {};
+  notes.filter(n => n.parent_id).forEach(n => {
+    if (!repliesMap[n.parent_id!]) repliesMap[n.parent_id!] = [];
+    repliesMap[n.parent_id!].push(n);
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <FolderKanban className="h-5 w-5 text-primary" />
+            <DialogTitle className="text-lg">{project.title}</DialogTitle>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            {project.deal_title && (
+              <Badge variant="outline" className="text-xs">
+                <ExternalLink className="h-3 w-3 mr-1" />
+                {project.deal_title}
+              </Badge>
+            )}
+            <Select value={project.stage_id || ""} onValueChange={v => onMove(project.id, v)}>
+              <SelectTrigger className="h-7 w-40 text-xs">
+                <SelectValue placeholder="Mover etapa" />
+              </SelectTrigger>
+              <SelectContent>
+                {stages.map(s => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                      {s.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {project.requested_by_name && (
+              <span className="text-xs text-muted-foreground">Solicitado por: {project.requested_by_name}</span>
+            )}
+          </div>
+        </DialogHeader>
+
+        <Tabs defaultValue="details" className="flex-1 overflow-hidden flex flex-col">
+          <TabsList className="w-full justify-start">
+            <TabsTrigger value="details"><FileText className="h-3.5 w-3.5 mr-1" /> Detalhes</TabsTrigger>
+            <TabsTrigger value="notes"><MessageSquare className="h-3.5 w-3.5 mr-1" /> Notas ({notes.length})</TabsTrigger>
+            <TabsTrigger value="tasks"><CheckSquare className="h-3.5 w-3.5 mr-1" /> Tarefas ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="attachments"><Paperclip className="h-3.5 w-3.5 mr-1" /> Arquivos ({attachments.length})</TabsTrigger>
+          </TabsList>
+
+          <ScrollArea className="flex-1 mt-3">
+            {/* Details */}
+            <TabsContent value="details" className="mt-0 space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-sm font-semibold">Descrição</Label>
+                  <Button variant="ghost" size="sm" onClick={() => setEditingDesc(!editingDesc)}>
+                    <Edit className="h-3 w-3 mr-1" /> {editingDesc ? "Cancelar" : "Editar"}
+                  </Button>
+                </div>
+                {editingDesc ? (
+                  <div className="space-y-2">
+                    <Textarea value={desc} onChange={e => setDesc(e.target.value)} rows={4} />
+                    <Button size="sm" onClick={handleSaveDesc}>Salvar</Button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {project.description || "Sem descrição"}
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Prioridade</Label>
+                  <p className="text-sm font-medium capitalize">{project.priority}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Responsável</Label>
+                  <p className="text-sm font-medium">{project.assigned_to_name || "Não atribuído"}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Criado em</Label>
+                  <p className="text-sm">{format(new Date(project.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Atualizado em</Label>
+                  <p className="text-sm">{format(new Date(project.updated_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Notes */}
+            <TabsContent value="notes" className="mt-0 space-y-3">
+              <div className="space-y-3">
+                {rootNotes.map(note => (
+                  <div key={note.id} className="space-y-2">
+                    <div className="rounded-lg bg-muted/50 p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold">{note.user_name || "Usuário"}</span>
+                        <span className="text-[10px] text-muted-foreground">{format(new Date(note.created_at), "dd/MM HH:mm", { locale: ptBR })}</span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                      <Button variant="ghost" size="sm" className="mt-1 h-6 text-xs" onClick={() => setReplyTo(note.id)}>
+                        <Reply className="h-3 w-3 mr-1" /> Responder
+                      </Button>
+                    </div>
+                    {/* Replies */}
+                    {repliesMap[note.id]?.map(reply => (
+                      <div key={reply.id} className="ml-6 rounded-lg bg-accent/30 p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold">{reply.user_name || "Usuário"}</span>
+                          <span className="text-[10px] text-muted-foreground">{format(new Date(reply.created_at), "dd/MM HH:mm", { locale: ptBR })}</span>
+                        </div>
+                        <p className="text-sm whitespace-pre-wrap">{reply.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {notes.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhuma nota ainda</p>
+                )}
+              </div>
+              <div className="border-t pt-3">
+                {replyTo && (
+                  <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                    <Reply className="h-3 w-3" />
+                    <span>Respondendo nota</span>
+                    <Button variant="ghost" size="sm" className="h-5 text-xs" onClick={() => setReplyTo(null)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Escreva uma nota..." className="min-h-[60px]" />
+                  <Button size="icon" onClick={handleAddNote} disabled={noteMut.create.isPending}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Tasks */}
+            <TabsContent value="tasks" className="mt-0 space-y-3">
+              <div className="flex gap-2">
+                <Input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder="Nova tarefa..." className="flex-1" />
+                <Input type="number" value={newTaskDuration} onChange={e => setNewTaskDuration(parseInt(e.target.value) || 1)} className="w-20" min={1} placeholder="Dias" />
+                <Button size="sm" onClick={handleAddTask}><Plus className="h-4 w-4" /></Button>
+              </div>
+              <div className="space-y-2">
+                {tasks.map((task, i) => {
+                  const isCompleted = task.status === 'completed';
+                  return (
+                    <div key={task.id} className={cn("flex items-center gap-3 p-3 rounded-lg border transition-colors", isCompleted && "opacity-60")}>
+                      <button
+                        onClick={() => taskMut.update.mutate({
+                          taskId: task.id,
+                          projectId: project.id,
+                          status: isCompleted ? 'pending' : 'completed'
+                        })}
+                        className={cn(
+                          "h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
+                          isCompleted ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"
+                        )}
+                      >
+                        {isCompleted && <CheckSquare className="h-3 w-3" />}
+                      </button>
+                      <div className="flex-1">
+                        <p className={cn("text-sm font-medium", isCompleted && "line-through")}>{task.title}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          <span>{task.duration_days} dia(s)</span>
+                          {task.assigned_to_name && <><User className="h-3 w-3 ml-2" /><span>{task.assigned_to_name}</span></>}
+                        </div>
+                      </div>
+                      <Badge variant={isCompleted ? "default" : task.status === 'in_progress' ? "secondary" : "outline"} className="text-[10px]">
+                        {isCompleted ? "Concluída" : task.status === 'in_progress' ? "Em andamento" : "Pendente"}
+                      </Badge>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => taskMut.remove.mutate({ taskId: task.id, projectId: project.id })}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
+                {tasks.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhuma tarefa ainda</p>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* Attachments */}
+            <TabsContent value="attachments" className="mt-0 space-y-3">
+              <div>
+                <input type="file" id="proj-file-upload" className="hidden" onChange={handleUpload} />
+                <Button variant="outline" size="sm" onClick={() => document.getElementById("proj-file-upload")?.click()} disabled={isUploading}>
+                  {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />}
+                  Anexar Arquivo
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {attachments.map(att => (
+                  <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg border">
+                    <FileText className="h-5 w-5 text-primary shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <a href={resolveMediaUrl(att.url)} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:underline truncate block">{att.name}</a>
+                      <p className="text-xs text-muted-foreground">{att.uploaded_by_name} · {format(new Date(att.created_at), "dd/MM HH:mm", { locale: ptBR })}</p>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => attMut.remove.mutate({ attId: att.id, projectId: project.id })}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+                {attachments.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum arquivo anexado</p>
+                )}
+              </div>
+            </TabsContent>
+          </ScrollArea>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}
