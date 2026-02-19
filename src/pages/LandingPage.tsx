@@ -53,6 +53,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import heroImage from "@/assets/system-preview-crm-kanban.png";
+import gleegoLogo from "@/assets/gleego-logo.png";
 
 const featureCategories = [
   {
@@ -439,9 +440,7 @@ export default function LandingPage() {
                 />
               ) : (
                 <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-                    <Building2 className="h-5 w-5 text-primary-foreground" />
-                  </div>
+                  <img src={gleegoLogo} alt="Glee-go Whats" className="h-9 w-9 object-contain" />
                   <div className="flex flex-col">
                     <span className="font-bold text-lg leading-tight">
                       {branding.company_name || "Glee-go Whats"}
@@ -988,10 +987,6 @@ export default function LandingPage() {
                 a: "Sim. Você pode criar campanhas de disparos em massa para toda sua base de contatos ou segmentos específicos com tags.",
               },
               {
-                q: "Tem contrato de fidelidade?",
-                a: "Não. Todos os planos são mensais sem fidelidade. Você pode cancelar a qualquer momento.",
-              },
-              {
                 q: "Como funciona o período de teste?",
                 a: "Você testa por 7 dias com todas as funcionalidades do plano escolhido, sem precisar de cartão de crédito. Nossa equipe ajuda na configuração.",
               },
@@ -1051,9 +1046,7 @@ export default function LandingPage() {
                 <img src={branding.logo_topbar} alt={branding.company_name || "Logo"} className="h-8 object-contain" />
               ) : (
                 <>
-                  <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
-                    <Building2 className="h-5 w-5 text-primary-foreground" />
-                  </div>
+                  <img src={gleegoLogo} alt="Glee-go Whats" className="h-8 w-8 object-contain" />
                   <span className="font-semibold text-lg">{branding.company_name || "Glee-go Whats"}</span>
                 </>
               )}

@@ -37,6 +37,7 @@ import {
   Ghost,
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
+import gleegoLogo from "@/assets/gleego-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/use-branding";
 import { Button } from "@/components/ui/button";
@@ -242,9 +243,7 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
             className="h-10 w-10 object-contain shrink-0 rounded-xl"
           />
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary neon-glow shrink-0">
-            <Zap className="h-5 w-5 text-primary-foreground" />
-          </div>
+          <img src={gleegoLogo} alt="Glee-go Whats" className="h-10 w-10 object-contain shrink-0 rounded-xl" />
         )}
         {isExpanded && (
           <div className="overflow-hidden">
