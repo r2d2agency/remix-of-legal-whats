@@ -337,7 +337,7 @@ export function CRMSidePanel({
         id: selectedDeal.id,
         company_id: companyId,
       });
-      refetchDeals();
+      await refetchDeals();
       refetchCompany();
       setIsAssigningCompany(false);
       setCompanySearch("");
@@ -357,7 +357,7 @@ export function CRMSidePanel({
           id: selectedDeal.id,
           company_id: newCompany.id,
         });
-        refetchDeals();
+        await refetchDeals();
         refetchCompany();
         setIsCreatingCompany(false);
         setNewCompanyName("");
