@@ -261,8 +261,8 @@ const featureCategories = [
     features: [
       {
         icon: Ghost,
-        title: "Análise Invisível",
-        description: "Monitore conversas da equipe de forma silenciosa, sem que os atendentes saibam.",
+        title: "IA de Monitoramento",
+        description: "Inteligência artificial que analisa a qualidade das conversas automaticamente, sem interferir no fluxo de atendimento.",
       },
       {
         icon: Eye,
