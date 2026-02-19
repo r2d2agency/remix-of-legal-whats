@@ -278,7 +278,7 @@ const pricingPlans = [
     price: "Sob consulta",
     period: "",
     popular: true,
-    cta: "Testar 7 Dias Grátis",
+    cta: "Falar com Consultor",
     features: [
       { text: "3 conexões WhatsApp", included: true },
       { text: "8 usuários", included: true },
@@ -300,7 +300,7 @@ const pricingPlans = [
     price: "Sob consulta",
     period: "",
     popular: false,
-    cta: "Testar 7 Dias Grátis",
+    cta: "Falar com Consultor",
     features: [
       { text: "6 conexões WhatsApp", included: true },
       { text: "20 usuários", included: true },
