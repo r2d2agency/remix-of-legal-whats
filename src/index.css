@@ -7,136 +7,136 @@
 @layer base {
   :root,
   .light {
-    --background: 240 15% 97%;
-    --foreground: 240 30% 10%;
+    --background: 210 20% 97%;
+    --foreground: 220 30% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 240 30% 10%;
+    --card-foreground: 220 30% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 30% 10%;
+    --popover-foreground: 220 30% 10%;
 
-    --primary: 210 100% 50%;
+    --primary: 217 70% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 20% 90%;
-    --secondary-foreground: 210 25% 20%;
+    --secondary: 152 40% 90%;
+    --secondary-foreground: 152 40% 25%;
 
     --muted: 210 15% 92%;
     --muted-foreground: 210 15% 35%;
 
-    --accent: 210 70% 92%;
-    --accent-foreground: 210 100% 40%;
+    --accent: 152 50% 90%;
+    --accent-foreground: 152 60% 30%;
 
     --destructive: 0 84% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 69% 35%;
+    --success: 152 60% 38%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 45%;
+    --warning: 25 90% 52%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 210 20% 75%;
+    --border: 210 20% 78%;
     --input: 210 20% 78%;
-    --ring: 210 100% 50%;
+    --ring: 217 70% 50%;
 
     --radius: 0.75rem;
 
     /* Chat specific - Light mode */
-    --chat-bg: 240 20% 94%;
-    --chat-pattern: hsl(240 25% 80% / 0.7);
-    --message-sent: 210 100% 50%;
+    --chat-bg: 210 20% 94%;
+    --chat-pattern: hsl(210 25% 80% / 0.7);
+    --message-sent: 217 70% 50%;
     --message-sent-foreground: 0 0% 100%;
     --message-received: 0 0% 100%;
-    --message-received-foreground: 210 30% 10%;
+    --message-received-foreground: 220 30% 10%;
 
     /* Modern tokens - Light mode */
-    --neon-blue: 210 100% 50%;
-    --neon-glow: 200 100% 60%;
-    --gradient-primary: linear-gradient(135deg, hsl(200 100% 50%), hsl(220 100% 55%));
-    --gradient-hero: linear-gradient(135deg, hsl(200 100% 45%) 0%, hsl(220 90% 50%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(240 15% 97%) 100%);
-    --shadow-card: 0 2px 12px -2px hsl(240 25% 10% / 0.12), 0 1px 4px hsl(240 25% 10% / 0.06);
-    --shadow-elevated: 0 8px 30px -8px hsl(240 25% 10% / 0.2);
-    --shadow-neon: 0 0 20px hsl(210 100% 50% / 0.3);
+    --neon-blue: 217 70% 50%;
+    --neon-glow: 152 55% 45%;
+    --gradient-primary: linear-gradient(135deg, hsl(217 70% 50%), hsl(152 55% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(217 70% 48%) 0%, hsl(195 70% 50%) 50%, hsl(152 55% 45%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 20% 97%) 100%);
+    --shadow-card: 0 2px 12px -2px hsl(220 25% 10% / 0.12), 0 1px 4px hsl(220 25% 10% / 0.06);
+    --shadow-elevated: 0 8px 30px -8px hsl(220 25% 10% / 0.2);
+    --shadow-neon: 0 0 20px hsl(217 70% 50% / 0.3);
     --glass-bg: hsl(0 0% 100% / 0.95);
-    --glass-border: hsl(240 20% 75% / 0.9);
+    --glass-border: hsl(210 20% 75% / 0.9);
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 240 25% 20%;
-    --sidebar-primary: 210 100% 50%;
+    --sidebar-foreground: 220 25% 20%;
+    --sidebar-primary: 217 70% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 70% 92%;
-    --sidebar-accent-foreground: 210 100% 40%;
+    --sidebar-accent: 152 50% 92%;
+    --sidebar-accent-foreground: 152 60% 30%;
     --sidebar-border: 210 20% 85%;
-    --sidebar-ring: 210 100% 50%;
+    --sidebar-ring: 217 70% 50%;
   }
 
   .dark {
-    /* Dark mode - Blue & Purple Neon */
-    --background: 240 20% 6%;
-    --foreground: 240 10% 95%;
+    /* Dark mode - Blue & Green Identity */
+    --background: 220 25% 6%;
+    --foreground: 210 10% 95%;
 
-    --card: 240 20% 10%;
-    --card-foreground: 240 10% 95%;
+    --card: 220 22% 10%;
+    --card-foreground: 210 10% 95%;
 
-    --popover: 240 20% 8%;
-    --popover-foreground: 240 10% 95%;
+    --popover: 220 22% 8%;
+    --popover-foreground: 210 10% 95%;
 
-    --primary: 210 100% 60%;
+    --primary: 217 75% 58%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 18% 16%;
-    --secondary-foreground: 210 10% 85%;
+    --secondary: 152 30% 16%;
+    --secondary-foreground: 152 20% 85%;
 
-    --muted: 210 18% 14%;
+    --muted: 220 18% 14%;
     --muted-foreground: 210 10% 55%;
 
-    --accent: 210 60% 20%;
-    --accent-foreground: 210 100% 70%;
+    --accent: 152 40% 18%;
+    --accent-foreground: 152 55% 65%;
 
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 69% 45%;
+    --success: 152 60% 45%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    --warning: 25 90% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 210 18% 18%;
-    --input: 210 18% 18%;
-    --ring: 210 100% 60%;
+    --border: 220 18% 18%;
+    --input: 220 18% 18%;
+    --ring: 217 75% 58%;
 
     /* Chat specific - Dark mode */
-    --chat-bg: 240 20% 8%;
-    --chat-pattern: hsl(240 18% 12% / 0.5);
-    --message-sent: 210 100% 60%;
+    --chat-bg: 220 22% 8%;
+    --chat-pattern: hsl(220 18% 12% / 0.5);
+    --message-sent: 217 75% 58%;
     --message-sent-foreground: 0 0% 100%;
-    --message-received: 210 18% 16%;
+    --message-received: 220 18% 16%;
     --message-received-foreground: 210 10% 95%;
 
-    /* Neon blue tokens - Dark mode */
-    --neon-blue: 210 100% 60%;
-    --neon-glow: 200 100% 65%;
-    --gradient-primary: linear-gradient(135deg, hsl(200 100% 55%), hsl(220 100% 60%));
-    --gradient-hero: linear-gradient(135deg, hsl(200 100% 50%) 0%, hsl(220 90% 50%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(240 20% 10%) 0%, hsl(240 20% 8%) 100%);
+    /* Neon tokens - Dark mode */
+    --neon-blue: 217 75% 58%;
+    --neon-glow: 152 55% 50%;
+    --gradient-primary: linear-gradient(135deg, hsl(217 75% 55%), hsl(152 55% 48%));
+    --gradient-hero: linear-gradient(135deg, hsl(217 75% 52%) 0%, hsl(195 65% 50%) 50%, hsl(152 55% 48%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(220 22% 10%) 0%, hsl(220 22% 8%) 100%);
     --shadow-card: 0 4px 24px -4px hsl(0 0% 0% / 0.4);
     --shadow-elevated: 0 12px 40px -12px hsl(0 0% 0% / 0.6);
-    --shadow-neon: 0 0 30px hsl(210 100% 60% / 0.4);
-    --glass-bg: hsl(240 20% 10% / 0.85);
-    --glass-border: hsl(240 18% 22% / 0.6);
+    --shadow-neon: 0 0 30px hsl(217 75% 58% / 0.4);
+    --glass-bg: hsl(220 22% 10% / 0.85);
+    --glass-border: hsl(220 18% 22% / 0.6);
 
-    --sidebar-background: 240 20% 8%;
-    --sidebar-foreground: 240 10% 90%;
-    --sidebar-primary: 210 100% 60%;
+    --sidebar-background: 220 22% 8%;
+    --sidebar-foreground: 210 10% 90%;
+    --sidebar-primary: 217 75% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 60% 20%;
-    --sidebar-accent-foreground: 210 100% 70%;
-    --sidebar-border: 210 18% 16%;
-    --sidebar-ring: 210 100% 60%;
+    --sidebar-accent: 152 40% 18%;
+    --sidebar-accent-foreground: 152 55% 65%;
+    --sidebar-border: 220 18% 16%;
+    --sidebar-ring: 217 75% 58%;
   }
 }
 

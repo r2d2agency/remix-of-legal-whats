@@ -470,7 +470,7 @@ const Configuracoes = () => {
                     Instalar App
                   </CardTitle>
                   <CardDescription>
-                    Adicione o Whatsale à tela inicial do seu celular
+                    Adicione o Glee-go Whats à tela inicial do seu celular
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -502,7 +502,7 @@ const Configuracoes = () => {
                     }}
                   >
                     <Smartphone className="h-4 w-4 mr-2" />
-                    Instalar Whatsale
+                    Instalar Glee-go Whats
                   </Button>
                 </CardContent>
               </Card>

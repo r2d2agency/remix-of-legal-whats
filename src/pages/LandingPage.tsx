@@ -443,7 +443,7 @@ export default function LandingPage() {
                   </div>
                   <div className="flex flex-col">
                     <span className="font-bold text-lg leading-tight">
-                      {branding.company_name || "WhatSale"}
+                      {branding.company_name || "Glee-go Whats"}
                     </span>
                     <span className="text-[10px] text-muted-foreground leading-tight tracking-wider uppercase">
                       Gestão Comercial
@@ -562,7 +562,7 @@ export default function LandingPage() {
                   <div className="w-3 h-3 rounded-full bg-green-500" />
                 </div>
                 <div className="flex-1 text-center text-xs text-muted-foreground">
-                  {branding.company_name || "WhatSale"} — Gestão Comercial Inteligente
+                  {branding.company_name || "Glee-go Whats"} — Gestão Comercial Inteligente
                 </div>
               </div>
               <img src={heroImage} alt="Plataforma de gestão comercial com WhatsApp e CRM integrado" className="w-full h-auto" />
@@ -833,7 +833,7 @@ export default function LandingPage() {
                   <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
                     <Building2 className="h-5 w-5 text-primary-foreground" />
                   </div>
-                  <span className="font-semibold text-lg">{branding.company_name || "WhatSale"}</span>
+                  <span className="font-semibold text-lg">{branding.company_name || "Glee-go Whats"}</span>
                 </>
               )}
             </div>
@@ -848,7 +848,7 @@ export default function LandingPage() {
               <Building2 className="h-4 w-4" />
               <span>CNPJ: 04.609.030/0001-29</span>
             </div>
-            <span>© {new Date().getFullYear()} {branding.company_name || "WhatSale"}. Todos os direitos reservados.</span>
+            <span>© {new Date().getFullYear()} {branding.company_name || "Glee-go Whats"}. Todos os direitos reservados.</span>
           </div>
         </div>
       </footer>

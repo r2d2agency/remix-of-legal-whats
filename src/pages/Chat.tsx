@@ -129,7 +129,7 @@ const Chat = () => {
       
       // Use notify() which handles both sound AND push notification
       notify(
-        '🔔 Whatsale', 
+        '🔔 Glee-go Whats', 
         message,
         { playSound: true }
       );
