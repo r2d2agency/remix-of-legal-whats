@@ -253,6 +253,37 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    // Check if user has any connections assigned
+    let hasConnections = false;
+    try {
+      const connResult = await query(
+        `SELECT 1 FROM connection_members WHERE user_id = $1 LIMIT 1`,
+        [user.id]
+      );
+      if (connResult.rows.length > 0) {
+        hasConnections = true;
+      } else {
+        const directConn = await query(
+          `SELECT 1 FROM connections WHERE user_id = $1 LIMIT 1`,
+          [user.id]
+        );
+        hasConnections = directConn.rows.length > 0;
+      }
+    } catch (e) {
+      try {
+        const directConn = await query(
+          `SELECT 1 FROM connections WHERE user_id = $1 LIMIT 1`,
+          [user.id]
+        );
+        hasConnections = directConn.rows.length > 0;
+      } catch (e2) {
+        hasConnections = true;
+      }
+    }
+    if (isSuperadmin || ['owner', 'admin', 'manager'].includes(role)) {
+      hasConnections = true;
+    }
+
     res.json({
       user: { 
         id: user.id, 
@@ -262,6 +293,7 @@ router.post('/login', async (req, res) => {
         role,
         organization_id: organizationId,
         modules_enabled: modulesEnabled,
+        has_connections: hasConnections,
       },
       token
     });
@@ -332,6 +364,40 @@ router.get('/me', async (req, res) => {
       modulesEnabled = orgResult.rows[0]?.modules_enabled || allModulesEnabled;
     }
 
+    // Check if user has any connections assigned
+    let hasConnections = false;
+    try {
+      const connResult = await query(
+        `SELECT 1 FROM connection_members WHERE user_id = $1 LIMIT 1`,
+        [decoded.userId]
+      );
+      if (connResult.rows.length > 0) {
+        hasConnections = true;
+      } else {
+        // Also check if user owns connections directly or has org-level access
+        const directConn = await query(
+          `SELECT 1 FROM connections WHERE user_id = $1 LIMIT 1`,
+          [decoded.userId]
+        );
+        hasConnections = directConn.rows.length > 0;
+      }
+    } catch (e) {
+      // connection_members table might not exist, fallback to direct connections
+      try {
+        const directConn = await query(
+          `SELECT 1 FROM connections WHERE user_id = $1 LIMIT 1`,
+          [decoded.userId]
+        );
+        hasConnections = directConn.rows.length > 0;
+      } catch (e2) {
+        hasConnections = true; // Assume true if we can't check
+      }
+    }
+    // Superadmin/admin always has connections access
+    if (isSuperadmin || ['owner', 'admin', 'manager'].includes(role)) {
+      hasConnections = true;
+    }
+
     res.json({ 
       user: { 
         id: user.id,
@@ -341,6 +407,7 @@ router.get('/me', async (req, res) => {
         role,
         organization_id: organizationId,
         modules_enabled: modulesEnabled,
+        has_connections: hasConnections,
       } 
     });
   } catch (error) {

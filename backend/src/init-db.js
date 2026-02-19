@@ -2905,6 +2905,20 @@ CREATE INDEX IF NOT EXISTS idx_ghost_saved_org ON ghost_saved_analyses(organizat
 CREATE INDEX IF NOT EXISTS idx_ghost_saved_created ON ghost_saved_analyses(created_at);
 `;
 
+// Step 35: Group Funnels (link groups to specific funnels)
+const step35GroupFunnels = `
+CREATE TABLE IF NOT EXISTS crm_group_funnels (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id UUID REFERENCES crm_user_groups(id) ON DELETE CASCADE NOT NULL,
+    funnel_id UUID REFERENCES crm_funnels(id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(group_id, funnel_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_crm_group_funnels_group ON crm_group_funnels(group_id);
+CREATE INDEX IF NOT EXISTS idx_crm_group_funnels_funnel ON crm_group_funnels(funnel_id);
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -2942,6 +2956,7 @@ const migrationSteps = [
   { name: 'Group Secretary', sql: step32GroupSecretary, critical: false },
   { name: 'Ghost Audit Logs', sql: step33GhostAudit, critical: false },
   { name: 'Ghost Saved Analyses', sql: step34GhostSavedAnalyses, critical: false },
+  { name: 'Group Funnels', sql: step35GroupFunnels, critical: false },
 ];
 
 export async function initDatabase() {

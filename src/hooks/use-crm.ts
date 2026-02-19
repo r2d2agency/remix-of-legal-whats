@@ -217,6 +217,44 @@ export function useCRMGroupMutations() {
   return { createGroup, updateGroup, deleteGroup, addMember, removeMember };
 }
 
+// Group Funnels
+export interface CRMGroupFunnel {
+  funnel_id: string;
+  name: string;
+  color: string;
+}
+
+export function useCRMGroupFunnels(groupId: string | null) {
+  return useQuery({
+    queryKey: ["crm-group-funnels", groupId],
+    queryFn: async () => {
+      if (!groupId) return [];
+      return api<CRMGroupFunnel[]>(`/api/crm/groups/${groupId}/funnels`);
+    },
+    enabled: !!groupId,
+  });
+}
+
+export function useCRMGroupFunnelMutations() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const setGroupFunnels = useMutation({
+    mutationFn: async ({ groupId, funnelIds }: { groupId: string; funnelIds: string[] }) => {
+      return api<void>(`/api/crm/groups/${groupId}/funnels`, { 
+        method: "PUT", 
+        body: { funnel_ids: funnelIds } 
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["crm-group-funnels", variables.groupId] });
+      toast({ title: "Funis do grupo atualizados" });
+    },
+  });
+
+  return { setGroupFunnels };
+}
+
 // Funnels
 export function useCRMFunnels() {
   return useQuery({

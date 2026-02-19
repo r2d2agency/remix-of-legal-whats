@@ -63,18 +63,18 @@ interface NavSection {
   adminOnly?: boolean; // Entire section requires admin role
 }
 
-const navSections: NavSection[] = [
+const getNavSections = (hasConnections: boolean): NavSection[] => [
   {
     title: "Atendimento",
     icon: MessagesSquare,
     items: [
-      { name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat' },
-      { name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, moduleKey: 'group_secretary', adminOnly: true },
+      ...(hasConnections ? [{ name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat' as const }] : []),
+      ...(hasConnections ? [{ name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, moduleKey: 'group_secretary' as const, adminOnly: true }] : []),
       { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, superadminOnly: true },
-      { name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots', adminOnly: true },
-      { name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots', adminOnly: true },
+      ...(hasConnections ? [{ name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots' as const, adminOnly: true }] : []),
+      ...(hasConnections ? [{ name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots' as const, adminOnly: true }] : []),
       { name: "Departamentos", href: "/departamentos", icon: Building2, adminOnly: true },
-      { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages' },
+      ...(hasConnections ? [{ name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages' as const }] : []),
       { name: "Tags", href: "/tags", icon: Receipt },
       { name: "Contatos", href: "/contatos-chat", icon: Users },
     ],
@@ -120,7 +120,7 @@ const navSections: NavSection[] = [
   {
     title: "Administração",
     icon: Shield,
-    adminOnly: true, // Entire section is admin-only
+    adminOnly: true,
     items: [
       { name: "Cobrança", href: "/cobranca", icon: Receipt, moduleKey: 'billing' },
       { name: "Conexões", href: "/conexao", icon: Plug },
@@ -147,6 +147,9 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
   const isOwnerRole = (role?: string) => role === 'owner';
   const userIsAdmin = isSuperadmin || isAdminRole(user?.role);
   const userIsOwner = isSuperadmin || isOwnerRole(user?.role);
+  const hasConnections = user?.has_connections !== false; // default true if undefined
+
+  const navSections = getNavSections(hasConnections);
 
   // Filter sections and items based on modules enabled AND role
   const filteredSections = navSections

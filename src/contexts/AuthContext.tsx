@@ -22,6 +22,7 @@ interface User {
   role?: string;
   organization_id?: string;
   modules_enabled?: ModulesEnabled;
+  has_connections?: boolean;
 }
 
 interface AuthContextType {

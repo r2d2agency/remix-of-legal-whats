@@ -213,15 +213,116 @@ router.delete('/groups/:groupId/members/:userId', async (req, res) => {
 });
 
 // ============================================
+// GROUP FUNNELS (link groups to specific funnels)
+// ============================================
+
+// Get funnels assigned to a group
+router.get('/groups/:id/funnels', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const result = await query(
+      `SELECT gf.funnel_id, f.name, f.color
+       FROM crm_group_funnels gf
+       JOIN crm_funnels f ON f.id = gf.funnel_id
+       WHERE gf.group_id = $1
+       ORDER BY f.name`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    if (isMissingSchemaError(error)) return res.json([]);
+    console.error('Error fetching group funnels:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Set funnels for a group (replace all)
+router.put('/groups/:id/funnels', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { funnel_ids } = req.body;
+    
+    // Delete existing
+    await query(`DELETE FROM crm_group_funnels WHERE group_id = $1`, [req.params.id]);
+    
+    // Insert new
+    if (funnel_ids && funnel_ids.length > 0) {
+      const values = funnel_ids.map((fid, i) => `($1, $${i + 2})`).join(', ');
+      await query(
+        `INSERT INTO crm_group_funnels (group_id, funnel_id) VALUES ${values}
+         ON CONFLICT DO NOTHING`,
+        [req.params.id, ...funnel_ids]
+      );
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    if (isMissingSchemaError(error)) return res.json({ success: true });
+    console.error('Error setting group funnels:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
 // FUNNELS
 // ============================================
 
-// List funnels
+// List funnels (filtered by user's group access if not admin)
 router.get('/funnels', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
+    // Admins/owners/managers see all funnels
+    if (canManage(org.role)) {
+      const result = await query(
+        `SELECT f.*, 
+          (SELECT COUNT(*) FROM crm_deals WHERE funnel_id = f.id AND status = 'open') as open_deals,
+          (SELECT COALESCE(SUM(value), 0) FROM crm_deals WHERE funnel_id = f.id AND status = 'open') as total_value
+         FROM crm_funnels f 
+         WHERE f.organization_id = $1 AND f.is_active = true
+         ORDER BY f.name`,
+        [org.organization_id]
+      );
+      return res.json(result.rows);
+    }
+
+    // Regular users: check if crm_group_funnels table exists and filter
+    try {
+      const groupFunnels = await query(
+        `SELECT DISTINCT gf.funnel_id 
+         FROM crm_group_funnels gf
+         JOIN crm_user_group_members gm ON gm.group_id = gf.group_id
+         WHERE gm.user_id = $1`,
+        [req.userId]
+      );
+      
+      // If user has group funnel restrictions, filter
+      if (groupFunnels.rows.length > 0) {
+        const funnelIds = groupFunnels.rows.map(r => r.funnel_id);
+        const placeholders = funnelIds.map((_, i) => `$${i + 2}`).join(', ');
+        const result = await query(
+          `SELECT f.*, 
+            (SELECT COUNT(*) FROM crm_deals WHERE funnel_id = f.id AND status = 'open') as open_deals,
+            (SELECT COALESCE(SUM(value), 0) FROM crm_deals WHERE funnel_id = f.id AND status = 'open') as total_value
+           FROM crm_funnels f 
+           WHERE f.organization_id = $1 AND f.is_active = true AND f.id IN (${placeholders})
+           ORDER BY f.name`,
+          [org.organization_id, ...funnelIds]
+        );
+        return res.json(result.rows);
+      }
+    } catch (e) {
+      // crm_group_funnels table might not exist yet, fall through to show all
+    }
+
+    // No group restrictions or table doesn't exist: show all
     const result = await query(
       `SELECT f.*, 
         (SELECT COUNT(*) FROM crm_deals WHERE funnel_id = f.id AND status = 'open') as open_deals,

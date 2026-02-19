@@ -26,7 +26,7 @@ import {
   CRMCustomField,
   CRMLossReason,
 } from "@/hooks/use-crm-config";
-import { useCRMGroups, useCRMGroupMembers, useCRMGroupMutations, useCRMFunnels, useCRMFunnel, useCRMFunnelMutations, CRMFunnel } from "@/hooks/use-crm";
+import { useCRMGroups, useCRMGroupMembers, useCRMGroupMutations, useCRMFunnels, useCRMFunnel, useCRMFunnelMutations, useCRMGroupFunnels, useCRMGroupFunnelMutations, CRMFunnel } from "@/hooks/use-crm";
 import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
 import { GoogleCalendarPanel } from "@/components/crm/GoogleCalendarPanel";
 import { LeadScoringConfigPanel } from "@/components/crm/LeadScoringConfigPanel";
@@ -117,6 +117,13 @@ export default function CRMConfiguracoes() {
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; name: string; email: string }>>([]);
   const [loadingOrgMembers, setLoadingOrgMembers] = useState(false);
+
+  // Group Funnels
+  const [funnelAssignGroupId, setFunnelAssignGroupId] = useState<string | null>(null);
+  const [funnelAssignDialogOpen, setFunnelAssignDialogOpen] = useState(false);
+  const { data: groupFunnels } = useCRMGroupFunnels(funnelAssignGroupId);
+  const { setGroupFunnels } = useCRMGroupFunnelMutations();
+  
 
   // Custom Fields
   const { data: customFields, isLoading: loadingFields } = useCRMCustomFields();
@@ -305,6 +312,13 @@ export default function CRMConfiguracoes() {
   const handleRemoveMember = (userId: string) => {
     if (!selectedGroupId) return;
     removeMember.mutate({ groupId: selectedGroupId, userId });
+  };
+
+  // Group Funnel Assignment handlers
+  const openFunnelAssignDialog = (group: any) => {
+    setFunnelAssignGroupId(group.id);
+    setEditingGroup(group);
+    setFunnelAssignDialogOpen(true);
   };
 
   // Custom Field handlers
@@ -727,7 +741,8 @@ export default function CRMConfiguracoes() {
                       <TableRow>
                         <TableHead>Grupo</TableHead>
                         <TableHead>Membros</TableHead>
-                        <TableHead className="w-[100px]">Ações</TableHead>
+                        <TableHead>Funis</TableHead>
+                        <TableHead className="w-[140px]">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -745,7 +760,21 @@ export default function CRMConfiguracoes() {
                             <Badge variant="secondary">{group.member_count} membros</Badge>
                           </TableCell>
                           <TableCell>
+                            <Badge variant="outline" className="cursor-pointer" onClick={() => openFunnelAssignDialog(group)}>
+                              <GitBranch className="h-3 w-3 mr-1" />
+                              Configurar
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
                             <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openFunnelAssignDialog(group)}
+                                title="Gerenciar funis"
+                              >
+                                <GitBranch className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1423,6 +1452,58 @@ export default function CRMConfiguracoes() {
           if (!open) setEditingFunnelId(null);
         }}
       />
+
+      {/* Group Funnel Assignment Dialog */}
+      <Dialog open={funnelAssignDialogOpen} onOpenChange={(open) => {
+        setFunnelAssignDialogOpen(open);
+        if (!open) setFunnelAssignGroupId(null);
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Funis do Grupo: {editingGroup?.name}</DialogTitle>
+            <DialogDescription>
+              Selecione quais funis/kanbans este grupo pode acessar. Se nenhum for selecionado, o grupo terá acesso a todos os funis.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[400px] overflow-y-auto">
+            {funnels?.map((funnel) => {
+              const isAssigned = groupFunnels?.some(gf => gf.funnel_id === funnel.id) || false;
+              return (
+                <div key={funnel.id} className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: funnel.color }} />
+                    <div>
+                      <p className="font-medium text-sm">{funnel.name}</p>
+                      {funnel.description && (
+                        <p className="text-xs text-muted-foreground">{funnel.description}</p>
+                      )}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={isAssigned}
+                    onCheckedChange={(checked) => {
+                      if (!funnelAssignGroupId) return;
+                      const currentIds = groupFunnels?.map(gf => gf.funnel_id) || [];
+                      const newIds = checked
+                        ? [...currentIds, funnel.id]
+                        : currentIds.filter(id => id !== funnel.id);
+                      setGroupFunnels.mutate({ groupId: funnelAssignGroupId, funnelIds: newIds });
+                    }}
+                  />
+                </div>
+              );
+            })}
+            {!funnels?.length && (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhum funil cadastrado</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFunnelAssignDialogOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
