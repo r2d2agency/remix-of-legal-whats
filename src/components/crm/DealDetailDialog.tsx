@@ -30,6 +30,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDealScore, useRecalculateDealScore } from "@/hooks/use-lead-scoring";
 import { LeadScoreDetail, LeadScoreBadge } from "./LeadScoreBadge";
 import { PredictiveAnalyticsCard } from "./PredictiveAnalytics";
+import { useProjectsByDeal, useProjectMutations, useProjectTemplates, Project } from "@/hooks/use-projects";
+import { FolderKanban } from "lucide-react";
 
 interface ChatContact {
   id: string;
@@ -99,6 +101,10 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [contactSearch, setContactSearch] = useState("");
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showSequenceDialog, setShowSequenceDialog] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [newProjectTitle, setNewProjectTitle] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [newProjectTemplateId, setNewProjectTemplateId] = useState<string>("");
 
   const { data: fullDeal, isLoading } = useCRMDeal(deal?.id || null);
   const { data: funnelData } = useCRMFunnel(deal?.funnel_id || null);
@@ -110,6 +116,11 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   // Lead Scoring
   const { data: dealScore, isLoading: loadingScore } = useDealScore(deal?.id);
   const recalculateScore = useRecalculateDealScore();
+
+  // Projects
+  const { data: dealProjects } = useProjectsByDeal(deal?.id || null);
+  const { create: createProject } = useProjectMutations();
+  const { data: projectTemplates } = useProjectTemplates();
 
   const currentDeal = fullDeal || deal;
   const stages = funnelData?.stages || [];
@@ -428,6 +439,10 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setShowNewProject(true); setActiveTab("projects"); }} title="Solicitar Projeto">
+                <FolderKanban className="h-4 w-4 mr-2" />
+                Projeto
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setShowSequenceDialog(true)} title="Inscrever em Sequência de Nurturing">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Sequência
@@ -505,6 +520,14 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
               {attachments.length > 0 && (
                 <Badge variant="secondary" className="ml-1 text-xs">
                   {attachments.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="projects">
+              Projetos
+              {dealProjects && dealProjects.length > 0 && (
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  {dealProjects.length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -1191,6 +1214,124 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                   <p className="text-center text-muted-foreground py-8">
                     Nenhum arquivo anexado
                   </p>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* Projects Tab */}
+            <TabsContent value="projects" className="m-0">
+              <div className="space-y-4">
+                {/* New project form */}
+                {showNewProject && (
+                  <Card className="p-4 space-y-3">
+                    <h4 className="font-medium">Solicitar Projeto</h4>
+                    <div>
+                      <Label>Título</Label>
+                      <Input
+                        value={newProjectTitle}
+                        onChange={(e) => setNewProjectTitle(e.target.value)}
+                        placeholder="Ex: Projeto de reforma..."
+                      />
+                    </div>
+                    <div>
+                      <Label>Descrição da solicitação</Label>
+                      <Textarea
+                        value={newProjectDescription}
+                        onChange={(e) => setNewProjectDescription(e.target.value)}
+                        placeholder="Descreva o que precisa..."
+                        rows={3}
+                      />
+                    </div>
+                    {projectTemplates && projectTemplates.length > 0 && (
+                      <div>
+                        <Label>Template (opcional)</Label>
+                        <Select value={newProjectTemplateId} onValueChange={setNewProjectTemplateId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sem template" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sem template</SelectItem>
+                            {projectTemplates.map(t => (
+                              <SelectItem key={t.id} value={t.id}>{t.name} ({t.task_count} tarefas)</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (!newProjectTitle.trim()) { toast.error("Informe o título"); return; }
+                          createProject.mutate({
+                            title: newProjectTitle,
+                            description: newProjectDescription,
+                            deal_id: deal?.id,
+                            template_id: newProjectTemplateId && newProjectTemplateId !== "none" ? newProjectTemplateId : undefined,
+                          }, {
+                            onSuccess: () => {
+                              setShowNewProject(false);
+                              setNewProjectTitle("");
+                              setNewProjectDescription("");
+                              setNewProjectTemplateId("");
+                            }
+                          });
+                        }}
+                        disabled={createProject.isPending}
+                      >
+                        {createProject.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                        Criar Projeto
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setShowNewProject(false)}>Cancelar</Button>
+                    </div>
+                  </Card>
+                )}
+
+                {!showNewProject && (
+                  <Button variant="outline" size="sm" onClick={() => setShowNewProject(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Solicitar Projeto
+                  </Button>
+                )}
+
+                {/* Project list */}
+                {dealProjects && dealProjects.length > 0 ? (
+                  <div className="space-y-3">
+                    {dealProjects.map((project: Project) => (
+                      <Card
+                        key={project.id}
+                        className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                        onClick={() => navigate(`/projetos?project=${project.id}`)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <FolderKanban className="h-5 w-5 text-primary" />
+                            <div>
+                              <p className="font-medium">{project.title}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {project.stage_name || "Sem etapa"} • {project.completed_tasks}/{project.total_tasks} tarefas
+                              </p>
+                            </div>
+                          </div>
+                          {project.stage_color && (
+                            <Badge style={{ backgroundColor: project.stage_color, color: "#fff" }}>
+                              {project.stage_name}
+                            </Badge>
+                          )}
+                        </div>
+                        {project.total_tasks > 0 && (
+                          <div className="mt-2 w-full bg-muted rounded-full h-1.5">
+                            <div
+                              className="bg-primary h-1.5 rounded-full transition-all"
+                              style={{ width: `${(project.completed_tasks / project.total_tasks) * 100}%` }}
+                            />
+                          </div>
+                        )}
+                      </Card>
+                    ))}
+                  </div>
+                ) : !showNewProject && (
+                  <p className="text-center text-muted-foreground py-8">Nenhum projeto vinculado</p>
                 )}
               </div>
             </TabsContent>
