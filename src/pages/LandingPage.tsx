@@ -506,9 +506,9 @@ export default function LandingPage() {
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
               Organize seu{" "}
-              <span className="text-primary">WhatsApp comercial</span>{" "}
+              <span className="bg-gradient-to-r from-[hsl(217,75%,55%)] via-[hsl(152,55%,48%)] to-[hsl(24,92%,55%)] bg-clip-text text-transparent">WhatsApp comercial</span>{" "}
               com CRM e IA{" "}
-              <span className="text-primary">inteligente</span>
+              <span className="bg-gradient-to-r from-[hsl(24,92%,55%)] via-[hsl(340,70%,55%)] to-[hsl(217,75%,55%)] bg-clip-text text-transparent">inteligente</span>
             </h1>
 
             <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
