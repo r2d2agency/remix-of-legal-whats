@@ -947,6 +947,72 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section id="faq" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-12">
+            <Badge variant="outline" className="mb-4">FAQ</Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Perguntas frequentes
+            </h2>
+            <p className="text-muted-foreground">
+              Tire suas dúvidas antes de começar
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {[
+              {
+                q: "Preciso trocar meu número de WhatsApp?",
+                a: "Não. Você conecta o WhatsApp que já usa na empresa. A plataforma funciona em paralelo ao app do celular sem interferir.",
+              },
+              {
+                q: "Quantos atendentes podem usar ao mesmo tempo?",
+                a: "Depende do plano. No Starter são 2 usuários, Business até 8, Premium até 20 e no Enterprise é ilimitado. Todos acessam simultaneamente.",
+              },
+              {
+                q: "A IA responde sozinha para os clientes?",
+                a: "Sim, se você quiser. Você pode configurar agentes IA especializados que atendem automaticamente usando a base de conhecimento da sua empresa. Mas o controle é sempre seu — pode ativar/desativar a qualquer momento.",
+              },
+              {
+                q: "Meus dados e conversas ficam seguros?",
+                a: "Sim. Utilizamos criptografia, servidores seguros e somos compatíveis com a LGPD. Seus dados nunca são compartilhados com terceiros.",
+              },
+              {
+                q: "Funciona no celular?",
+                a: "Sim. A plataforma é responsiva e funciona em qualquer navegador, tanto no computador quanto no celular ou tablet.",
+              },
+              {
+                q: "Consigo enviar mensagens em massa?",
+                a: "Sim. Você pode criar campanhas de disparos em massa para toda sua base de contatos ou segmentos específicos com tags.",
+              },
+              {
+                q: "Tem contrato de fidelidade?",
+                a: "Não. Todos os planos são mensais sem fidelidade. Você pode cancelar a qualquer momento.",
+              },
+              {
+                q: "Como funciona o período de teste?",
+                a: "Você testa por 7 dias com todas as funcionalidades do plano escolhido, sem precisar de cartão de crédito. Nossa equipe ajuda na configuração.",
+              },
+              {
+                q: "Posso integrar com outros sistemas?",
+                a: "Sim. Oferecemos webhooks, API e integrações com ferramentas como Google Calendar, sistemas de cobrança e formulários externos.",
+              },
+            ].map((item, i) => (
+              <details key={i} className="group border rounded-xl bg-card">
+                <summary className="flex items-center justify-between cursor-pointer p-5 font-medium text-sm sm:text-base list-none">
+                  {item.q}
+                  <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90 shrink-0 ml-4" />
+                </summary>
+                <div className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed border-t pt-4">
+                  {item.a}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-primary text-primary-foreground">
         <div className="max-w-4xl mx-auto text-center">
