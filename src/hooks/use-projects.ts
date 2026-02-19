@@ -285,7 +285,17 @@ export function useProjectTaskMutations() {
     onSuccess: (_, vars) => { qc.invalidateQueries({ queryKey: ["project-tasks", vars.projectId] }); qc.invalidateQueries({ queryKey: ["projects"] }); },
   });
 
-  return { create, update, remove };
+  const applyTemplate = useMutation({
+    mutationFn: ({ projectId, template_id }: { projectId: string; template_id: string }) =>
+      api(`/api/projects/${projectId}/apply-template`, { method: "POST", body: { template_id }, auth: true }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["project-tasks", vars.projectId] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Template aplicado!");
+    },
+  });
+
+  return { create, update, remove, applyTemplate };
 }
 
 export function useProjectTemplateMutations() {

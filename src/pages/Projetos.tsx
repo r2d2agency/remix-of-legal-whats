@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import {
   Plus, Search, Settings, FolderKanban, Trash2, GripVertical, Edit,
   FileText, MessageSquare, CheckSquare, Paperclip, Upload, Loader2, X,
-  Calendar, User, ArrowRight, ExternalLink, Clock, Send, Reply, LayoutTemplate
+  Calendar, User, ArrowRight, ExternalLink, Clock, Send, Reply, LayoutTemplate,
+  BarChart3
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -556,18 +557,31 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
   const { data: attachments = [] } = useProjectAttachments(project.id);
   const { data: notes = [] } = useProjectNotes(project.id);
   const { data: tasks = [] } = useProjectTasks(project.id);
+  const { data: templates = [] } = useProjectTemplates();
   const noteMut = useProjectNoteMutations();
   const attMut = useProjectAttachmentMutations();
   const taskMut = useProjectTaskMutations();
   const projectMut = useProjectMutations();
   const { uploadFile, isUploading } = useUpload();
+  const { getMembers } = useOrganizations();
 
   const [noteText, setNoteText] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDuration, setNewTaskDuration] = useState(1);
+  const [newTaskAssignedTo, setNewTaskAssignedTo] = useState("");
+  const [newTaskEndDate, setNewTaskEndDate] = useState("");
   const [editingDesc, setEditingDesc] = useState(false);
   const [desc, setDesc] = useState(project.description || "");
+  const [viewMode, setViewMode] = useState<"list" | "gantt">("list");
+  const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; name: string }>>([]);
+
+  // Load org members for responsible selector
+  useEffect(() => {
+    if (user?.organization_id) {
+      getMembers(user.organization_id).then((m: any[]) => setOrgMembers(m));
+    }
+  });
 
   const handleAddNote = () => {
     if (!noteText.trim()) return;
@@ -589,9 +603,27 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
 
   const handleAddTask = () => {
     if (!newTaskTitle.trim()) return;
-    taskMut.create.mutate({ projectId: project.id, title: newTaskTitle, duration_days: newTaskDuration }, {
-      onSuccess: () => { setNewTaskTitle(""); setNewTaskDuration(1); }
+    const endDate = newTaskEndDate || undefined;
+    const startDate = new Date().toISOString();
+    taskMut.create.mutate({
+      projectId: project.id,
+      title: newTaskTitle,
+      duration_days: newTaskDuration,
+      assigned_to: newTaskAssignedTo || undefined,
+      end_date: endDate,
+      start_date: startDate,
+    }, {
+      onSuccess: () => {
+        setNewTaskTitle("");
+        setNewTaskDuration(1);
+        setNewTaskAssignedTo("");
+        setNewTaskEndDate("");
+      }
     });
+  };
+
+  const handleApplyTemplate = (templateId: string) => {
+    taskMut.applyTemplate.mutate({ projectId: project.id, template_id: templateId });
   };
 
   const handleSaveDesc = () => {
@@ -607,9 +639,29 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
     repliesMap[n.parent_id!].push(n);
   });
 
+  // Gantt chart calculations
+  const ganttData = useMemo(() => {
+    if (tasks.length === 0) return { tasks: [], minDate: new Date(), maxDate: new Date(), totalDays: 1 };
+    const now = new Date();
+    let minDate = new Date(now);
+    let maxDate = new Date(now);
+    const mapped = tasks.map(t => {
+      const start = t.start_date ? new Date(t.start_date) : now;
+      const end = t.end_date ? new Date(t.end_date) : new Date(start.getTime() + (t.duration_days || 1) * 86400000);
+      if (start < minDate) minDate = new Date(start);
+      if (end > maxDate) maxDate = new Date(end);
+      return { ...t, startDate: start, endDate: end };
+    });
+    // Add padding
+    minDate.setDate(minDate.getDate() - 1);
+    maxDate.setDate(maxDate.getDate() + 1);
+    const totalDays = Math.max(1, Math.ceil((maxDate.getTime() - minDate.getTime()) / 86400000));
+    return { tasks: mapped, minDate, maxDate, totalDays };
+  }, [tasks]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <FolderKanban className="h-5 w-5 text-primary" />
@@ -707,7 +759,6 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                         <Reply className="h-3 w-3 mr-1" /> Responder
                       </Button>
                     </div>
-                    {/* Replies */}
                     {repliesMap[note.id]?.map(reply => (
                       <div key={reply.id} className="ml-6 rounded-lg bg-accent/30 p-3">
                         <div className="flex items-center justify-between mb-1">
@@ -744,50 +795,204 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
 
             {/* Tasks */}
             <TabsContent value="tasks" className="mt-0 space-y-3">
-              <div className="flex gap-2">
-                <Input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder="Nova tarefa..." className="flex-1" />
-                <Input type="number" value={newTaskDuration} onChange={e => setNewTaskDuration(parseInt(e.target.value) || 1)} className="w-20" min={1} placeholder="Dias" />
-                <Button size="sm" onClick={handleAddTask}><Plus className="h-4 w-4" /></Button>
-              </div>
-              <div className="space-y-2">
-                {tasks.map((task, i) => {
-                  const isCompleted = task.status === 'completed';
-                  return (
-                    <div key={task.id} className={cn("flex items-center gap-3 p-3 rounded-lg border transition-colors", isCompleted && "opacity-60")}>
-                      <button
-                        onClick={() => taskMut.update.mutate({
-                          taskId: task.id,
-                          projectId: project.id,
-                          status: isCompleted ? 'pending' : 'completed'
-                        })}
-                        className={cn(
-                          "h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
-                          isCompleted ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"
-                        )}
-                      >
-                        {isCompleted && <CheckSquare className="h-3 w-3" />}
-                      </button>
-                      <div className="flex-1">
-                        <p className={cn("text-sm font-medium", isCompleted && "line-through")}>{task.title}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          <span>{task.duration_days} dia(s)</span>
-                          {task.assigned_to_name && <><User className="h-3 w-3 ml-2" /><span>{task.assigned_to_name}</span></>}
-                        </div>
-                      </div>
-                      <Badge variant={isCompleted ? "default" : task.status === 'in_progress' ? "secondary" : "outline"} className="text-[10px]">
-                        {isCompleted ? "Concluída" : task.status === 'in_progress' ? "Em andamento" : "Pendente"}
-                      </Badge>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => taskMut.remove.mutate({ taskId: task.id, projectId: project.id })}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+              {/* Template selector when no tasks */}
+              {tasks.length === 0 && templates.length > 0 && (
+                <Card className="border-dashed">
+                  <CardContent className="p-4 text-center space-y-3">
+                    <LayoutTemplate className="h-8 w-8 mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Nenhuma tarefa ainda. Carregar de um template?</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {templates.map(t => (
+                        <Button
+                          key={t.id}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleApplyTemplate(t.id)}
+                          disabled={taskMut.applyTemplate.isPending}
+                        >
+                          <LayoutTemplate className="h-3 w-3 mr-1" />
+                          {t.name} ({t.task_count} tarefas)
+                        </Button>
+                      ))}
                     </div>
-                  );
-                })}
-                {tasks.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">Nenhuma tarefa ainda</p>
-                )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* View toggle */}
+              {tasks.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-1">
+                    <Button
+                      variant={viewMode === "list" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setViewMode("list")}
+                    >
+                      <CheckSquare className="h-3.5 w-3.5 mr-1" /> Lista
+                    </Button>
+                    <Button
+                      variant={viewMode === "gantt" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setViewMode("gantt")}
+                    >
+                      <BarChart3 className="h-3.5 w-3.5 mr-1" /> Gantt
+                    </Button>
+                  </div>
+                  {templates.length > 0 && (
+                    <Select onValueChange={handleApplyTemplate}>
+                      <SelectTrigger className="h-7 w-auto text-xs">
+                        <SelectValue placeholder="+ Template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map(t => (
+                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+
+              {/* Add task form */}
+              <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
+                <div className="flex gap-2">
+                  <Input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder="Nova tarefa..." className="flex-1" />
+                  <Button size="sm" onClick={handleAddTask} disabled={!newTaskTitle.trim()}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Select value={newTaskAssignedTo} onValueChange={setNewTaskAssignedTo}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem responsável</SelectItem>
+                      {orgMembers.map(m => (
+                        <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="date"
+                    value={newTaskEndDate}
+                    onChange={e => setNewTaskEndDate(e.target.value)}
+                    className="h-8 text-xs"
+                    placeholder="Data final"
+                  />
+                  <Input
+                    type="number"
+                    value={newTaskDuration}
+                    onChange={e => setNewTaskDuration(parseInt(e.target.value) || 1)}
+                    className="h-8 text-xs"
+                    min={1}
+                    placeholder="Dias"
+                  />
+                </div>
               </div>
+
+              {/* Gantt View */}
+              {viewMode === "gantt" && tasks.length > 0 && (
+                <div className="border rounded-lg overflow-x-auto">
+                  <div className="min-w-[600px]">
+                    {/* Gantt header - dates */}
+                    <div className="flex border-b bg-muted/50">
+                      <div className="w-48 shrink-0 p-2 text-xs font-semibold border-r">Tarefa</div>
+                      <div className="flex-1 flex">
+                        {Array.from({ length: Math.min(ganttData.totalDays, 60) }, (_, i) => {
+                          const d = new Date(ganttData.minDate);
+                          d.setDate(d.getDate() + i);
+                          return (
+                            <div key={i} className="flex-1 min-w-[28px] text-center text-[9px] text-muted-foreground p-1 border-r">
+                              {format(d, "dd", { locale: ptBR })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {/* Gantt rows */}
+                    {ganttData.tasks.map(task => {
+                      const startOffset = Math.max(0, Math.ceil((task.startDate.getTime() - ganttData.minDate.getTime()) / 86400000));
+                      const duration = Math.max(1, Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / 86400000));
+                      const isCompleted = task.status === "completed";
+                      const displayDays = Math.min(ganttData.totalDays, 60);
+
+                      return (
+                        <div key={task.id} className="flex border-b hover:bg-muted/30">
+                          <div className="w-48 shrink-0 p-2 border-r">
+                            <p className={cn("text-xs font-medium truncate", isCompleted && "line-through text-muted-foreground")}>{task.title}</p>
+                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                              {task.assigned_to_name && <><User className="h-2.5 w-2.5" /><span className="truncate">{task.assigned_to_name}</span></>}
+                              {task.end_date && <><Calendar className="h-2.5 w-2.5 ml-1" /><span>{format(new Date(task.end_date), "dd/MM")}</span></>}
+                            </div>
+                          </div>
+                          <div className="flex-1 flex relative py-1.5">
+                            {Array.from({ length: displayDays }, (_, i) => (
+                              <div key={i} className="flex-1 min-w-[28px] border-r border-dashed border-border/30" />
+                            ))}
+                            {/* Bar */}
+                            <div
+                              className={cn(
+                                "absolute top-1/2 -translate-y-1/2 h-5 rounded-sm",
+                                isCompleted ? "bg-primary/60" : "bg-primary"
+                              )}
+                              style={{
+                                left: `${(startOffset / displayDays) * 100}%`,
+                                width: `${Math.min((duration / displayDays) * 100, 100 - (startOffset / displayDays) * 100)}%`,
+                                minWidth: "8px",
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* List View */}
+              {viewMode === "list" && (
+                <div className="space-y-2">
+                  {tasks.map(task => {
+                    const isCompleted = task.status === 'completed';
+                    return (
+                      <div key={task.id} className={cn("flex items-center gap-3 p-3 rounded-lg border transition-colors", isCompleted && "opacity-60")}>
+                        <button
+                          onClick={() => taskMut.update.mutate({
+                            taskId: task.id,
+                            projectId: project.id,
+                            status: isCompleted ? 'pending' : 'completed'
+                          })}
+                          className={cn(
+                            "h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
+                            isCompleted ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"
+                          )}
+                        >
+                          {isCompleted && <CheckSquare className="h-3 w-3" />}
+                        </button>
+                        <div className="flex-1">
+                          <p className={cn("text-sm font-medium", isCompleted && "line-through")}>{task.title}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>{task.duration_days} dia(s)</span>
+                            {task.assigned_to_name && <><User className="h-3 w-3 ml-2" /><span>{task.assigned_to_name}</span></>}
+                            {task.end_date && <><Calendar className="h-3 w-3 ml-2" /><span>{format(new Date(task.end_date), "dd/MM/yyyy")}</span></>}
+                          </div>
+                        </div>
+                        <Badge variant={isCompleted ? "default" : task.status === 'in_progress' ? "secondary" : "outline"} className="text-[10px]">
+                          {isCompleted ? "Concluída" : task.status === 'in_progress' ? "Em andamento" : "Pendente"}
+                        </Badge>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => taskMut.remove.mutate({ taskId: task.id, projectId: project.id })}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                  {tasks.length === 0 && templates.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">Nenhuma tarefa ainda</p>
+                  )}
+                </div>
+              )}
             </TabsContent>
 
             {/* Attachments */}

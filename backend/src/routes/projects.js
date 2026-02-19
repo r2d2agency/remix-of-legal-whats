@@ -430,6 +430,42 @@ router.post('/:id/move', async (req, res) => {
   }
 });
 
+// Apply template to existing project (adds tasks from template)
+router.post('/:id/apply-template', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !(await canEditProject(req.userId, org))) return res.status(403).json({ error: 'Forbidden' });
+    const { template_id } = req.body;
+    if (!template_id) return res.status(400).json({ error: 'template_id required' });
+    const tmplTasks = await query(
+      `SELECT * FROM project_template_tasks WHERE template_id = $1 ORDER BY position ASC`,
+      [template_id]
+    );
+    const taskIdMap = {};
+    const maxPosR = await query(`SELECT COALESCE(MAX(position), -1) + 1 as pos FROM project_tasks WHERE project_id = $1`, [req.params.id]);
+    let basePos = maxPosR.rows[0].pos;
+    for (const t of tmplTasks.rows) {
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + (t.duration_days || 1));
+      const tr = await query(
+        `INSERT INTO project_tasks (project_id, title, description, position, duration_days, start_date, end_date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [req.params.id, t.title, t.description, basePos + t.position, t.duration_days, startDate, endDate]
+      );
+      taskIdMap[t.position] = tr.rows[0].id;
+    }
+    for (const t of tmplTasks.rows) {
+      if (t.depends_on_position != null && taskIdMap[t.depends_on_position]) {
+        await query(`UPDATE project_tasks SET depends_on = $1 WHERE id = $2`, [taskIdMap[t.depends_on_position], taskIdMap[t.position]]);
+      }
+    }
+    res.json({ success: true, count: tmplTasks.rows.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Delete project (admin/manager only)
 router.delete('/:id', async (req, res) => {
   try {

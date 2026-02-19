@@ -1420,7 +1420,8 @@ router.get('/tasks', async (req, res) => {
       d.title as deal_title,
       c.name as company_name,
       u.name as assigned_to_name,
-      cu.name as created_by_name
+      cu.name as created_by_name,
+      'crm' as source
       FROM crm_tasks t
       LEFT JOIN crm_deals d ON d.id = t.deal_id
       LEFT JOIN crm_companies c ON c.id = t.company_id
@@ -1477,7 +1478,63 @@ router.get('/tasks', async (req, res) => {
     sql += ` ORDER BY t.due_date ASC NULLS LAST, t.priority DESC`;
 
     const result = await query(sql, params);
-    res.json(result.rows);
+
+    // Also fetch project tasks for this user/org (centralized view)
+    let projectTasks = [];
+    try {
+      let ptSql = `SELECT pt.id, pt.title, pt.description, pt.status, pt.start_date, pt.end_date as due_date,
+        pt.assigned_to, pt.completed_at, pt.created_at, pt.project_id,
+        u.name as assigned_to_name,
+        p.title as project_title, p.priority,
+        'project' as source, 'task' as type
+        FROM project_tasks pt
+        JOIN projects p ON p.id = pt.project_id AND p.organization_id = $1
+        LEFT JOIN users u ON u.id = pt.assigned_to
+        WHERE p.organization_id = $1`;
+      const ptParams = [org.organization_id];
+      let ptIdx = 2;
+
+      if (!isAdmin) {
+        ptSql += ` AND pt.assigned_to = $${ptIdx}`;
+        ptParams.push(req.userId);
+        ptIdx++;
+      } else if (assigned_to && assigned_to !== 'all') {
+        ptSql += ` AND pt.assigned_to = $${ptIdx}`;
+        ptParams.push(assigned_to);
+        ptIdx++;
+      }
+
+      if (status) {
+        ptSql += ` AND pt.status = $${ptIdx}`;
+        ptParams.push(status === 'completed' ? 'completed' : 'pending');
+        ptIdx++;
+      }
+
+      if (start_date && end_date) {
+        ptSql += ` AND pt.end_date >= $${ptIdx} AND pt.end_date < $${ptIdx + 1}::date + INTERVAL '1 day'`;
+        ptParams.push(start_date, end_date);
+        ptIdx += 2;
+      } else if (period === 'today') {
+        ptSql += ` AND DATE(pt.end_date) = CURRENT_DATE`;
+      } else if (period === 'week') {
+        ptSql += ` AND pt.end_date >= CURRENT_DATE AND pt.end_date < CURRENT_DATE + INTERVAL '7 days'`;
+      } else if (period === 'month') {
+        ptSql += ` AND pt.end_date >= CURRENT_DATE AND pt.end_date < CURRENT_DATE + INTERVAL '30 days'`;
+      } else if (period === 'overdue') {
+        ptSql += ` AND pt.end_date < NOW() AND pt.status = 'pending'`;
+      }
+
+      ptSql += ` ORDER BY pt.end_date ASC NULLS LAST`;
+      const ptResult = await query(ptSql, ptParams);
+      projectTasks = ptResult.rows.map(r => ({
+        ...r,
+        deal_title: r.project_title ? `📁 ${r.project_title}` : null,
+        company_name: null,
+        created_by_name: null,
+      }));
+    } catch (_) {}
+
+    res.json([...result.rows, ...projectTasks]);
   } catch (error) {
     console.error('Error fetching tasks:', error);
     res.status(500).json({ error: error.message });
@@ -1498,7 +1555,7 @@ router.get('/tasks/counts', async (req, res) => {
       params.push(req.userId);
     }
 
-    const result = await query(
+    const crmResult = await query(
       `SELECT 
         COUNT(*) FILTER (WHERE DATE(due_date) = CURRENT_DATE AND status = 'pending') as today,
         COUNT(*) FILTER (WHERE due_date >= CURRENT_DATE AND due_date < CURRENT_DATE + INTERVAL '7 days' AND status = 'pending') as week,
@@ -1510,7 +1567,41 @@ router.get('/tasks/counts', async (req, res) => {
        WHERE organization_id = $1${userFilter}`,
       params
     );
-    res.json(result.rows[0]);
+
+    // Also count project tasks
+    let ptCounts = { today: 0, week: 0, month: 0, overdue: 0, pending: 0, completed: 0 };
+    try {
+      let ptUserFilter = '';
+      const ptParams = [org.organization_id];
+      if (!canManage(org.role)) {
+        ptUserFilter = ` AND pt.assigned_to = $2`;
+        ptParams.push(req.userId);
+      }
+      const ptResult = await query(
+        `SELECT 
+          COUNT(*) FILTER (WHERE DATE(pt.end_date) = CURRENT_DATE AND pt.status = 'pending') as today,
+          COUNT(*) FILTER (WHERE pt.end_date >= CURRENT_DATE AND pt.end_date < CURRENT_DATE + INTERVAL '7 days' AND pt.status = 'pending') as week,
+          COUNT(*) FILTER (WHERE pt.end_date >= CURRENT_DATE AND pt.end_date < CURRENT_DATE + INTERVAL '30 days' AND pt.status = 'pending') as month,
+          COUNT(*) FILTER (WHERE pt.end_date < NOW() AND pt.status = 'pending') as overdue,
+          COUNT(*) FILTER (WHERE pt.status = 'pending') as pending,
+          COUNT(*) FILTER (WHERE pt.status = 'completed') as completed
+         FROM project_tasks pt
+         JOIN projects p ON p.id = pt.project_id AND p.organization_id = $1
+         WHERE p.organization_id = $1${ptUserFilter}`,
+        ptParams
+      );
+      ptCounts = ptResult.rows[0] || ptCounts;
+    } catch (_) {}
+
+    const crm = crmResult.rows[0];
+    res.json({
+      today: Number(crm.today) + Number(ptCounts.today),
+      week: Number(crm.week) + Number(ptCounts.week),
+      month: Number(crm.month) + Number(ptCounts.month),
+      overdue: Number(crm.overdue) + Number(ptCounts.overdue),
+      pending: Number(crm.pending) + Number(ptCounts.pending),
+      completed: Number(crm.completed) + Number(ptCounts.completed),
+    });
   } catch (error) {
     console.error('Error fetching task counts:', error);
     res.status(500).json({ error: error.message });
