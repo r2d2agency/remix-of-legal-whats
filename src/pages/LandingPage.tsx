@@ -431,29 +431,8 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              {branding.logo_topbar ? (
-                <img
-                  src={branding.logo_topbar}
-                  alt={branding.company_name || "Logo"}
-                  className="h-8 object-contain"
-                />
-              ) : (
-                <div className="flex items-center gap-2">
-                  <img src={gleegoLogo} alt="Glee-go Whats" className="h-9 w-9 object-contain" />
-                  <div className="flex flex-col">
-                    <span className="font-bold text-lg leading-tight">
-                      {branding.company_name || "Glee-go Whats"}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground leading-tight tracking-wider uppercase">
-                      Gestão Comercial
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="hidden md:flex items-center gap-6">
+            {/* Left - Nav Links */}
+            <div className="hidden md:flex items-center gap-6 flex-1">
               <a href="#funcionalidades" className="text-sm text-muted-foreground hover:text-foreground transition">
                 Funcionalidades
               </a>
@@ -463,6 +442,16 @@ export default function LandingPage() {
               <a href="#depoimentos" className="text-sm text-muted-foreground hover:text-foreground transition">
                 Depoimentos
               </a>
+            </div>
+
+            {/* Center - Logo */}
+            <div className="flex items-center justify-center gap-2">
+              <img src={branding.logo_topbar || gleegoLogo} alt={branding.company_name || "Glee-go Whats"} className="h-10 w-10 object-contain" />
+              <span className="font-bold text-lg">{branding.company_name || "Glee-go Whats"}</span>
+            </div>
+
+            {/* Right - Buttons */}
+            <div className="hidden md:flex items-center gap-4 flex-1 justify-end">
               <Link to="/login">
                 <Button variant="ghost" size="sm">Entrar</Button>
               </Link>
