@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +48,10 @@ import {
   Send,
   Copy,
   Brain,
+  FolderKanban,
+  Clock,
+  Circle,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -74,6 +78,14 @@ import { MeetingScheduleDialog } from "./MeetingScheduleDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialog";
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  useProjects,
+  useProjectStages,
+  useProjectTemplates,
+  useProjectMutations,
+  Project,
+} from "@/hooks/use-projects";
 
 interface CRMSidePanelProps {
   conversationId: string;
@@ -176,6 +188,56 @@ export function CRMSidePanel({
   // Get stages for selected funnel in new deal form
   const { data: newDealFunnelData } = useCRMFunnel(newDealFunnelId || null);
   const newDealStages = newDealFunnelData?.stages?.filter(s => !s.is_final) || [];
+
+  // Projects section
+  const { modulesEnabled } = useAuth();
+  const { data: allProjects = [], refetch: refetchProjects } = useProjects();
+  const { data: projectStages = [] } = useProjectStages();
+  const { data: projectTemplates = [] } = useProjectTemplates();
+  const projectMut = useProjectMutations();
+
+  const dealIds = useMemo(() => allDeals.map(d => d.id), [allDeals]);
+  const contactProjects = useMemo(
+    () => allProjects.filter(p => p.deal_id && dealIds.includes(p.deal_id)),
+    [allProjects, dealIds]
+  );
+
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [newProjectTitle, setNewProjectTitle] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [newProjectPriority, setNewProjectPriority] = useState("medium");
+  const [newProjectTemplateId, setNewProjectTemplateId] = useState("");
+  const [newProjectDealId, setNewProjectDealId] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+
+  const handleCreateProject = async () => {
+    if (!newProjectTitle.trim()) {
+      toast.error("Informe o título do projeto");
+      return;
+    }
+    setCreatingProject(true);
+    try {
+      await projectMut.create.mutateAsync({
+        title: newProjectTitle.trim(),
+        description: newProjectDescription.trim() || undefined,
+        priority: newProjectPriority,
+        deal_id: newProjectDealId || selectedDeal?.id || undefined,
+        template_id: newProjectTemplateId || undefined,
+      });
+      refetchProjects();
+      setShowCreateProject(false);
+      setNewProjectTitle("");
+      setNewProjectDescription("");
+      setNewProjectPriority("medium");
+      setNewProjectTemplateId("");
+      setNewProjectDealId("");
+      toast.success("Projeto criado!");
+    } catch {
+      toast.error("Erro ao criar projeto");
+    } finally {
+      setCreatingProject(false);
+    }
+  };
 
   // Initialize deal form when deal changes
   useEffect(() => {
@@ -1226,6 +1288,156 @@ export function CRMSidePanel({
                   </div>
                 </AccordionContent>
               </AccordionItem>
+
+              {/* Projects Section */}
+              {modulesEnabled.projects && (
+                <AccordionItem value="projects" className="border rounded-lg px-3">
+                  <AccordionTrigger className="py-2 hover:no-underline">
+                    <div className="flex items-center gap-2 text-sm">
+                      <FolderKanban className="h-4 w-4 text-primary" />
+                      <span>Projetos</span>
+                      {contactProjects.length > 0 && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5">{contactProjects.length}</Badge>
+                      )}
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2">
+                      {/* Project list */}
+                      {contactProjects.map((project) => {
+                        const progress = project.total_tasks > 0
+                          ? Math.round((project.completed_tasks / project.total_tasks) * 100)
+                          : 0;
+                        return (
+                          <div
+                            key={project.id}
+                            className="bg-muted/30 rounded-lg p-2 cursor-pointer hover:bg-muted/60 transition-colors"
+                            onClick={() => navigate("/projetos")}
+                          >
+                            <div className="flex items-start justify-between">
+                              <h4 className="font-medium text-xs truncate flex-1">{project.title}</h4>
+                              <Badge variant="outline" className="text-[10px] ml-1">
+                                {project.priority === 'urgent' ? 'Urgente' : project.priority === 'high' ? 'Alta' : project.priority === 'low' ? 'Baixa' : 'Média'}
+                              </Badge>
+                            </div>
+                            {project.stage_name && (
+                              <Badge variant="outline" className="text-[10px] mt-1" style={{ borderColor: project.stage_color || undefined }}>
+                                {project.stage_name}
+                              </Badge>
+                            )}
+                            {project.total_tasks > 0 && (
+                              <div className="mt-1.5">
+                                <div className="flex justify-between text-[10px] text-muted-foreground mb-0.5">
+                                  <span>{project.completed_tasks}/{project.total_tasks}</span>
+                                  <span>{progress}%</span>
+                                </div>
+                                <div className="w-full bg-muted rounded-full h-1">
+                                  <div className="bg-primary rounded-full h-1 transition-all" style={{ width: `${progress}%` }} />
+                                </div>
+                              </div>
+                            )}
+                            {project.due_date && (
+                              <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                <span>{format(parseISO(project.due_date), "dd/MM/yyyy", { locale: ptBR })}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {contactProjects.length === 0 && !showCreateProject && (
+                        <p className="text-xs text-muted-foreground py-1">Nenhum projeto vinculado</p>
+                      )}
+
+                      {/* Create project form */}
+                      {showCreateProject ? (
+                        <div className="space-y-2 border rounded-lg p-2 bg-muted/20">
+                          <Input
+                            placeholder="Título do projeto *"
+                            value={newProjectTitle}
+                            onChange={(e) => setNewProjectTitle(e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                          <Textarea
+                            placeholder="Descrição (opcional)"
+                            value={newProjectDescription}
+                            onChange={(e) => setNewProjectDescription(e.target.value)}
+                            className="text-xs min-h-[50px] max-h-[80px] resize-none"
+                          />
+                          <Select value={newProjectPriority} onValueChange={setNewProjectPriority}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Prioridade" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="low">Baixa</SelectItem>
+                              <SelectItem value="medium">Média</SelectItem>
+                              <SelectItem value="high">Alta</SelectItem>
+                              <SelectItem value="urgent">Urgente</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {allDeals.length > 1 && (
+                            <Select value={newProjectDealId} onValueChange={setNewProjectDealId}>
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Vincular a negociação" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {allDeals.map(d => (
+                                  <SelectItem key={d.id} value={d.id}>{d.title}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          {projectTemplates.length > 0 && (
+                            <Select value={newProjectTemplateId} onValueChange={setNewProjectTemplateId}>
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Usar template (opcional)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {projectTemplates.map(t => (
+                                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 h-7 text-xs"
+                              onClick={() => { setShowCreateProject(false); setNewProjectTitle(""); setNewProjectDescription(""); }}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="flex-1 h-7 text-xs"
+                              onClick={handleCreateProject}
+                              disabled={creatingProject || !newProjectTitle.trim()}
+                            >
+                              {creatingProject ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+                              Criar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full h-7 text-xs"
+                          onClick={() => {
+                            setShowCreateProject(true);
+                            if (selectedDeal) setNewProjectDealId(selectedDeal.id);
+                          }}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Solicitar Projeto
+                        </Button>
+                      )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
 
               {/* AI Agents */}
               <AccordionItem value="ai-agents" className="border rounded-lg px-3">
