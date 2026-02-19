@@ -52,6 +52,9 @@ import {
   Clock,
   Circle,
   CheckCircle2,
+  Upload,
+  Paperclip,
+  Reply,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -84,8 +87,14 @@ import {
   useProjectStages,
   useProjectTemplates,
   useProjectMutations,
+  useProjectNotes,
+  useProjectNoteMutations,
+  useProjectAttachmentMutations,
   Project,
+  ProjectNote,
 } from "@/hooks/use-projects";
+import { useUpload } from "@/hooks/use-upload";
+import { resolveMediaUrl } from "@/lib/media";
 
 interface CRMSidePanelProps {
   conversationId: string;
@@ -195,12 +204,19 @@ export function CRMSidePanel({
   const { data: projectStages = [] } = useProjectStages();
   const { data: projectTemplates = [] } = useProjectTemplates();
   const projectMut = useProjectMutations();
+  const projectNoteMut = useProjectNoteMutations();
+  const projectAttMut = useProjectAttachmentMutations();
+  const { uploadFile: projectUploadFile, isUploading: projectUploading } = useUpload();
 
   const dealIds = useMemo(() => allDeals.map(d => d.id), [allDeals]);
   const contactProjects = useMemo(
     () => allProjects.filter(p => p.deal_id && dealIds.includes(p.deal_id)),
     [allProjects, dealIds]
   );
+
+  // Expanded project in sidebar (to show notes/attachments inline)
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const { data: expandedProjectNotes = [] } = useProjectNotes(expandedProjectId);
 
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [newProjectTitle, setNewProjectTitle] = useState("");
@@ -209,6 +225,8 @@ export function CRMSidePanel({
   const [newProjectTemplateId, setNewProjectTemplateId] = useState("");
   const [newProjectDealId, setNewProjectDealId] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
+  const [projectNoteText, setProjectNoteText] = useState("");
+  const [replyToProjectNote, setReplyToProjectNote] = useState<string | null>(null);
 
   const handleCreateProject = async () => {
     if (!newProjectTitle.trim()) {
@@ -237,6 +255,40 @@ export function CRMSidePanel({
     } finally {
       setCreatingProject(false);
     }
+  };
+
+  const handleAddProjectNote = (projectId: string) => {
+    if (!projectNoteText.trim()) return;
+    projectNoteMut.create.mutate({
+      projectId,
+      content: projectNoteText.trim(),
+      parent_id: replyToProjectNote || undefined,
+    }, {
+      onSuccess: () => {
+        setProjectNoteText("");
+        setReplyToProjectNote(null);
+      }
+    });
+  };
+
+  const handleProjectFileUpload = async (projectId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await projectUploadFile(file);
+      if (url) {
+        projectAttMut.create.mutate({
+          projectId,
+          name: file.name,
+          url,
+          mimetype: file.type,
+          size: file.size,
+        });
+      }
+    } catch {
+      toast.error("Erro ao enviar arquivo");
+    }
+    e.target.value = "";
   };
 
   // Initialize deal form when deal changes
@@ -1303,43 +1355,140 @@ export function CRMSidePanel({
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-2">
-                      {/* Project list */}
                       {contactProjects.map((project) => {
                         const progress = project.total_tasks > 0
                           ? Math.round((project.completed_tasks / project.total_tasks) * 100)
                           : 0;
+                        const isExpanded = expandedProjectId === project.id;
                         return (
-                          <div
-                            key={project.id}
-                            className="bg-muted/30 rounded-lg p-2 cursor-pointer hover:bg-muted/60 transition-colors"
-                            onClick={() => navigate("/projetos")}
-                          >
-                            <div className="flex items-start justify-between">
-                              <h4 className="font-medium text-xs truncate flex-1">{project.title}</h4>
-                              <Badge variant="outline" className="text-[10px] ml-1">
-                                {project.priority === 'urgent' ? 'Urgente' : project.priority === 'high' ? 'Alta' : project.priority === 'low' ? 'Baixa' : 'Média'}
-                              </Badge>
-                            </div>
-                            {project.stage_name && (
-                              <Badge variant="outline" className="text-[10px] mt-1" style={{ borderColor: project.stage_color || undefined }}>
-                                {project.stage_name}
-                              </Badge>
-                            )}
-                            {project.total_tasks > 0 && (
-                              <div className="mt-1.5">
-                                <div className="flex justify-between text-[10px] text-muted-foreground mb-0.5">
-                                  <span>{project.completed_tasks}/{project.total_tasks}</span>
-                                  <span>{progress}%</span>
-                                </div>
-                                <div className="w-full bg-muted rounded-full h-1">
-                                  <div className="bg-primary rounded-full h-1 transition-all" style={{ width: `${progress}%` }} />
-                                </div>
+                          <div key={project.id} className="bg-muted/30 rounded-lg overflow-hidden">
+                            <div
+                              className="p-2 cursor-pointer hover:bg-muted/60 transition-colors"
+                              onClick={() => setExpandedProjectId(isExpanded ? null : project.id)}
+                            >
+                              <div className="flex items-start justify-between">
+                                <h4 className="font-medium text-xs truncate flex-1">{project.title}</h4>
+                                <Badge variant="outline" className="text-[10px] ml-1">
+                                  {project.priority === 'urgent' ? 'Urgente' : project.priority === 'high' ? 'Alta' : project.priority === 'low' ? 'Baixa' : 'Média'}
+                                </Badge>
                               </div>
-                            )}
-                            {project.due_date && (
-                              <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
-                                <Clock className="h-3 w-3" />
-                                <span>{format(parseISO(project.due_date), "dd/MM/yyyy", { locale: ptBR })}</span>
+                              {project.stage_name && (
+                                <Badge variant="outline" className="text-[10px] mt-1" style={{ borderColor: project.stage_color || undefined }}>
+                                  {project.stage_name}
+                                </Badge>
+                              )}
+                              {project.total_tasks > 0 && (
+                                <div className="mt-1.5">
+                                  <div className="flex justify-between text-[10px] text-muted-foreground mb-0.5">
+                                    <span>{project.completed_tasks}/{project.total_tasks}</span>
+                                    <span>{progress}%</span>
+                                  </div>
+                                  <div className="w-full bg-muted rounded-full h-1">
+                                    <div className="bg-primary rounded-full h-1 transition-all" style={{ width: `${progress}%` }} />
+                                  </div>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2 mt-1">
+                                {project.due_date && (
+                                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                    <Clock className="h-3 w-3" />
+                                    <span>{format(parseISO(project.due_date), "dd/MM/yyyy", { locale: ptBR })}</span>
+                                  </div>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 text-[10px] px-1 ml-auto"
+                                  onClick={(e) => { e.stopPropagation(); navigate("/projetos"); }}
+                                >
+                                  <ExternalLink className="h-3 w-3 mr-0.5" /> Abrir
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Expanded: notes + file upload */}
+                            {isExpanded && (
+                              <div className="border-t p-2 space-y-2">
+                                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                  {expandedProjectNotes.length === 0 ? (
+                                    <p className="text-[10px] text-muted-foreground text-center py-1">Nenhuma nota</p>
+                                  ) : (
+                                    expandedProjectNotes.map(note => (
+                                      <div key={note.id} className={cn("rounded p-1.5 text-xs", note.parent_id ? "ml-4 bg-accent/30" : "bg-muted/50")}>
+                                        <div className="flex items-center justify-between mb-0.5">
+                                          <span className="font-medium text-[10px]">{note.user_name || "Usuário"}</span>
+                                          <span className="text-[9px] text-muted-foreground">
+                                            {format(new Date(note.created_at), "dd/MM HH:mm", { locale: ptBR })}
+                                          </span>
+                                        </div>
+                                        <p className="text-[11px] whitespace-pre-wrap">{note.content}</p>
+                                        {!note.parent_id && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-4 text-[9px] px-1 mt-0.5"
+                                            onClick={() => setReplyToProjectNote(note.id)}
+                                          >
+                                            <Reply className="h-2.5 w-2.5 mr-0.5" /> Responder
+                                          </Button>
+                                        )}
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+
+                                {replyToProjectNote && (
+                                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                    <Reply className="h-3 w-3" />
+                                    <span>Respondendo</span>
+                                    <Button variant="ghost" size="sm" className="h-4 text-[9px] px-1" onClick={() => setReplyToProjectNote(null)}>
+                                      <X className="h-2.5 w-2.5" />
+                                    </Button>
+                                  </div>
+                                )}
+
+                                <div className="flex gap-1">
+                                  <Textarea
+                                    value={projectNoteText}
+                                    onChange={(e) => setProjectNoteText(e.target.value)}
+                                    placeholder="Nota..."
+                                    className="text-xs min-h-[32px] max-h-[60px] resize-none flex-1"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleAddProjectNote(project.id);
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex flex-col gap-1">
+                                    <Button
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => handleAddProjectNote(project.id)}
+                                      disabled={!projectNoteText.trim() || projectNoteMut.create.isPending}
+                                    >
+                                      {projectNoteMut.create.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                                    </Button>
+                                    <label>
+                                      <input
+                                        type="file"
+                                        className="hidden"
+                                        onChange={(e) => handleProjectFileUpload(project.id, e)}
+                                      />
+                                      <Button
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        disabled={projectUploading}
+                                        asChild
+                                      >
+                                        <span>
+                                          {projectUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                                        </span>
+                                      </Button>
+                                    </label>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1350,7 +1499,6 @@ export function CRMSidePanel({
                         <p className="text-xs text-muted-foreground py-1">Nenhum projeto vinculado</p>
                       )}
 
-                      {/* Create project form */}
                       {showCreateProject ? (
                         <div className="space-y-2 border rounded-lg p-2 bg-muted/20">
                           <Input

@@ -5,6 +5,23 @@ import { query } from '../db.js';
 const router = Router();
 router.use(authenticate);
 
+// Ensure notification table exists
+(async () => {
+  try {
+    await query(`CREATE TABLE IF NOT EXISTS project_note_notifications (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL,
+      project_id UUID NOT NULL,
+      note_id UUID NOT NULL,
+      project_title TEXT,
+      sender_name TEXT,
+      content_preview TEXT,
+      read BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+  } catch (_) {}
+})();
+
 // Helper
 async function getUserOrg(userId) {
   const r = await query(
@@ -551,6 +568,35 @@ router.post('/:id/notes', async (req, res) => {
       `SELECT pn.*, u.name as user_name FROM project_notes pn LEFT JOIN users u ON pn.user_id = u.id WHERE pn.id = $1`,
       [r.rows[0].id]
     );
+
+    // Create notification for other project participants
+    try {
+      const project = await query(`SELECT p.title, p.deal_id, p.requested_by, p.assigned_to FROM projects p WHERE p.id = $1`, [req.params.id]);
+      if (project.rows[0]) {
+        const proj = project.rows[0];
+        const notifyUserIds = new Set([proj.requested_by, proj.assigned_to].filter(id => id && id !== req.userId));
+        
+        // Also notify deal owner if applicable
+        if (proj.deal_id) {
+          const dealOwner = await query(`SELECT owner_id FROM crm_deals WHERE id = $1`, [proj.deal_id]);
+          if (dealOwner.rows[0]?.owner_id && dealOwner.rows[0].owner_id !== req.userId) {
+            notifyUserIds.add(dealOwner.rows[0].owner_id);
+          }
+        }
+
+        const senderName = full.rows[0]?.user_name || 'Usuário';
+        for (const uid of notifyUserIds) {
+          try {
+            await query(
+              `INSERT INTO project_note_notifications (user_id, project_id, note_id, project_title, sender_name, content_preview)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [uid, req.params.id, r.rows[0].id, proj.title, senderName, content.substring(0, 100)]
+            );
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
     res.json(full.rows[0]);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -627,6 +673,41 @@ router.patch('/tasks/:taskId', async (req, res) => {
 router.delete('/tasks/:taskId', async (req, res) => {
   try {
     await query(`DELETE FROM project_tasks WHERE id = $1`, [req.params.taskId]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========================
+// NOTE NOTIFICATIONS
+// ========================
+
+router.get('/note-notifications/unread', async (req, res) => {
+  try {
+    const r = await query(
+      `SELECT * FROM project_note_notifications WHERE user_id = $1 AND read = false ORDER BY created_at DESC LIMIT 20`,
+      [req.userId]
+    );
+    res.json(r.rows);
+  } catch (e) {
+    if (isMissing(e)) return res.json([]);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/note-notifications/read-all', async (req, res) => {
+  try {
+    await query(`UPDATE project_note_notifications SET read = true WHERE user_id = $1`, [req.userId]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/note-notifications/:id/read', async (req, res) => {
+  try {
+    await query(`UPDATE project_note_notifications SET read = true WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId]);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

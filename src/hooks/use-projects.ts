@@ -91,6 +91,18 @@ export interface ProjectTemplateTask {
   depends_on_position: number | null;
 }
 
+export interface ProjectNoteNotification {
+  id: string;
+  user_id: string;
+  project_id: string;
+  note_id: string;
+  project_title: string;
+  sender_name: string;
+  content_preview: string;
+  read: boolean;
+  created_at: string;
+}
+
 // Hooks
 export function useProjectStages() {
   return useQuery<ProjectStage[]>({
@@ -168,7 +180,30 @@ export function useIsDesigner() {
   });
 }
 
-// Mutations
+export function useProjectNoteNotifications() {
+  return useQuery<ProjectNoteNotification[]>({
+    queryKey: ["project-note-notifications"],
+    queryFn: () => api("/api/projects/note-notifications/unread", { auth: true }),
+    refetchInterval: 10000,
+  });
+}
+
+export function useProjectNoteNotificationMutations() {
+  const qc = useQueryClient();
+  const inv = () => qc.invalidateQueries({ queryKey: ["project-note-notifications"] });
+
+  const markRead = useMutation({
+    mutationFn: (id: string) => api(`/api/projects/note-notifications/${id}/read`, { method: "POST", auth: true }),
+    onSuccess: inv,
+  });
+
+  const markAllRead = useMutation({
+    mutationFn: () => api("/api/projects/note-notifications/read-all", { method: "POST", auth: true }),
+    onSuccess: inv,
+  });
+
+  return { markRead, markAllRead };
+}
 export function useProjectStageMutations() {
   const qc = useQueryClient();
   const inv = () => qc.invalidateQueries({ queryKey: ["project-stages"] });

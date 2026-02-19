@@ -9,7 +9,7 @@ import { DealFormDialog } from "@/components/crm/DealFormDialog";
 import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
 import { WinCelebration } from "@/components/crm/WinCelebration";
 import { LossReasonDialog } from "@/components/crm/LossReasonDialog";
-import { useCRMFunnels, useCRMFunnel, useCRMDeals, useCRMGroups, useCRMGroupMembers, useCRMDealMutations, CRMDeal, CRMFunnel } from "@/hooks/use-crm";
+import { useCRMFunnels, useCRMFunnel, useCRMDeals, useCRMGroups, useCRMGroupMembers, useCRMDealMutations, useCRMDeal, CRMDeal, CRMFunnel } from "@/hooks/use-crm";
 import { Plus, Settings, Loader2, Filter, User, Users, ArrowUpDown, CalendarIcon, X, LayoutGrid, List, Trophy, XCircle, Pause } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { parseISO, format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
@@ -19,12 +19,25 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
+import { useSearchParams } from "react-router-dom";
 
 export default function CRMNegociacoes() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<CRMDeal | null>(null);
   const [dealDetailOpen, setDealDetailOpen] = useState(false);
+
+  // Open deal from URL param
+  const dealIdFromUrl = searchParams.get("deal");
+  const { data: dealFromUrl } = useCRMDeal(dealIdFromUrl);
+  useEffect(() => {
+    if (dealFromUrl && dealIdFromUrl) {
+      setSelectedDeal(dealFromUrl as any);
+      setDealDetailOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [dealFromUrl, dealIdFromUrl]);
   const [newDealOpen, setNewDealOpen] = useState(false);
   const [funnelEditorOpen, setFunnelEditorOpen] = useState(false);
   const [editingFunnel, setEditingFunnel] = useState<CRMFunnel | null>(null);

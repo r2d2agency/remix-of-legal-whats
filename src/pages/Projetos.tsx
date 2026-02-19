@@ -26,6 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUpload } from "@/hooks/use-upload";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { resolveMediaUrl } from "@/lib/media";
+import { useNavigate } from "react-router-dom";
 import {
   useProjectStages, useProjects, useProjectMutations, useProjectStageMutations,
   useProjectAttachments, useProjectNotes, useProjectTasks, useProjectTemplates,
@@ -494,8 +495,14 @@ function ProjectCard({ project, stages, onOpen, onMove }: {
           </Badge>
         </div>
 
-        {project.deal_title && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        {project.deal_title && project.deal_id && (
+          <div
+            className="flex items-center gap-1 text-xs text-primary cursor-pointer hover:underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.location.href = `/crm/negociacoes?deal=${project.deal_id}`;
+            }}
+          >
             <ExternalLink className="h-3 w-3" />
             <span className="truncate">{project.deal_title}</span>
           </div>
@@ -576,12 +583,14 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
   const [viewMode, setViewMode] = useState<"list" | "gantt">("list");
   const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; name: string }>>([]);
 
+  const navigate = useNavigate();
+
   // Load org members for responsible selector
   useEffect(() => {
     if (user?.organization_id) {
       getMembers(user.organization_id).then((m: any[]) => setOrgMembers(m));
     }
-  });
+  }, [user?.organization_id]);
 
   const handleAddNote = () => {
     if (!noteText.trim()) return;
@@ -668,8 +677,15 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
             <DialogTitle className="text-lg">{project.title}</DialogTitle>
           </div>
           <div className="flex items-center gap-2 pt-1">
-            {project.deal_title && (
-              <Badge variant="outline" className="text-xs">
+            {project.deal_title && project.deal_id && (
+              <Badge
+                variant="outline"
+                className="text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => {
+                  onOpenChange(false);
+                  navigate(`/crm/negociacoes?deal=${project.deal_id}`);
+                }}
+              >
                 <ExternalLink className="h-3 w-3 mr-1" />
                 {project.deal_title}
               </Badge>
