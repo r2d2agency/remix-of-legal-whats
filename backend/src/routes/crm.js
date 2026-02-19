@@ -279,8 +279,21 @@ router.get('/funnels', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    // Admins/owners/managers see all funnels
-    if (canManage(org.role)) {
+    // Check if user is a designer (projetista) — they see all funnels
+    let isDesignerUser = false;
+    try {
+      const designerCheck = await query(
+        `SELECT 1 FROM crm_user_group_members gm
+         JOIN crm_user_groups g ON g.id = gm.group_id
+         WHERE gm.user_id = $1 AND g.organization_id = $2 AND LOWER(g.name) LIKE '%projeto%'
+         LIMIT 1`,
+        [req.userId, org.organization_id]
+      );
+      isDesignerUser = designerCheck.rows.length > 0;
+    } catch (_) {}
+
+    // Admins/owners/managers/designers see all funnels
+    if (canManage(org.role) || isDesignerUser) {
       const result = await query(
         `SELECT f.*, 
           (SELECT COUNT(*) FROM crm_deals WHERE funnel_id = f.id AND status = 'open') as open_deals,
@@ -749,12 +762,25 @@ router.get('/funnels/:funnelId/deals', async (req, res) => {
     const supervisorGroupIds = userGroups.filter(g => g.is_supervisor).map(g => g.group_id);
     const memberGroupIds = userGroups.map(g => g.group_id);
 
+    // Check if user is a "projetista" (designer) — they see all deals across all groups
+    let isDesignerUser = false;
+    try {
+      const designerCheck = await query(
+        `SELECT 1 FROM crm_user_group_members gm
+         JOIN crm_user_groups g ON g.id = gm.group_id
+         WHERE gm.user_id = $1 AND g.organization_id = $2 AND LOWER(g.name) LIKE '%projeto%'
+         LIMIT 1`,
+        [req.userId, org.organization_id]
+      );
+      isDesignerUser = designerCheck.rows.length > 0;
+    } catch (_) {}
+
     // Build visibility filter based on role
     let visibilityFilter = '';
     const params = [req.params.funnelId, org.organization_id];
     
-    if (canManage(org.role)) {
-      // Admins see all
+    if (canManage(org.role) || isDesignerUser) {
+      // Admins and designers see all
       visibilityFilter = '';
     } else if (supervisorGroupIds.length > 0) {
       // Supervisors see their group's deals + their own

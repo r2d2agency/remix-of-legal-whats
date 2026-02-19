@@ -20,6 +20,28 @@ function isMissing(e) {
 
 const canManage = (role) => ['owner', 'admin', 'manager'].includes(role);
 
+// Check if user belongs to a group with "projeto" in the name
+async function isDesigner(userId, orgId) {
+  try {
+    const r = await query(
+      `SELECT 1 FROM crm_user_group_members gm
+       JOIN crm_user_groups g ON g.id = gm.group_id
+       WHERE gm.user_id = $1 AND g.organization_id = $2 AND LOWER(g.name) LIKE '%projeto%'
+       LIMIT 1`,
+      [userId, orgId]
+    );
+    return r.rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+// Permission: can edit projects (admin/manager/designer)
+async function canEditProject(userId, org) {
+  if (canManage(org.role)) return true;
+  return isDesigner(userId, org.organization_id);
+}
+
 // ========================
 // STAGES (Kanban columns)
 // ========================
@@ -368,11 +390,12 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Update project
+// Update project (admin/manager/designer only)
 router.patch('/:id', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No org' });
+    if (!(await canEditProject(req.userId, org))) return res.status(403).json({ error: 'Forbidden' });
     const { title, description, stage_id, assigned_to, priority, due_date, position } = req.body;
     const r = await query(
       `UPDATE projects SET 
@@ -389,11 +412,12 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// Move project (stage change)
+// Move project (admin/manager/designer only)
 router.post('/:id/move', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No org' });
+    if (!(await canEditProject(req.userId, org))) return res.status(403).json({ error: 'Forbidden' });
     const { stage_id, position } = req.body;
     const r = await query(
       `UPDATE projects SET stage_id = $1, position = COALESCE($2, position), updated_at = NOW()
@@ -406,7 +430,7 @@ router.post('/:id/move', async (req, res) => {
   }
 });
 
-// Delete project
+// Delete project (admin/manager only)
 router.delete('/:id', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
@@ -527,6 +551,8 @@ router.get('/:id/tasks', async (req, res) => {
 
 router.post('/:id/tasks', async (req, res) => {
   try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !(await canEditProject(req.userId, org))) return res.status(403).json({ error: 'Forbidden' });
     const { title, description, start_date, end_date, duration_days, depends_on, assigned_to } = req.body;
     const posR = await query(
       `SELECT COALESCE(MAX(position), -1) + 1 as pos FROM project_tasks WHERE project_id = $1`,
