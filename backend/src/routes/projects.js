@@ -111,6 +111,145 @@ router.post('/stages/reorder', async (req, res) => {
 });
 
 // ========================
+// TEMPLATES (must be before /:id to avoid conflict)
+// ========================
+
+router.get('/templates', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No org' });
+    const r = await query(
+      `SELECT pt.*, 
+        (SELECT COUNT(*) FROM project_template_tasks ptt WHERE ptt.template_id = pt.id) as task_count
+       FROM project_templates pt WHERE pt.organization_id = $1 ORDER BY pt.name ASC`,
+      [org.organization_id]
+    );
+    res.json(r.rows);
+  } catch (e) {
+    if (isMissing(e)) return res.json([]);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/templates', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) return res.status(403).json({ error: 'Forbidden' });
+    const { name, description, tasks } = req.body;
+    const r = await query(
+      `INSERT INTO project_templates (organization_id, name, description, created_by)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [org.organization_id, name, description, req.userId]
+    );
+    const template = r.rows[0];
+    if (tasks?.length) {
+      for (let i = 0; i < tasks.length; i++) {
+        const t = tasks[i];
+        await query(
+          `INSERT INTO project_template_tasks (template_id, title, description, position, duration_days, depends_on_position)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [template.id, t.title, t.description || null, i, t.duration_days || 1, t.depends_on_position ?? null]
+        );
+      }
+    }
+    res.json(template);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.patch('/templates/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) return res.status(403).json({ error: 'Forbidden' });
+    const { name, description, tasks } = req.body;
+    await query(
+      `UPDATE project_templates SET name = COALESCE($1, name), description = COALESCE($2, description)
+       WHERE id = $3 AND organization_id = $4`,
+      [name, description, req.params.id, org.organization_id]
+    );
+    if (tasks) {
+      await query(`DELETE FROM project_template_tasks WHERE template_id = $1`, [req.params.id]);
+      for (let i = 0; i < tasks.length; i++) {
+        const t = tasks[i];
+        await query(
+          `INSERT INTO project_template_tasks (template_id, title, description, position, duration_days, depends_on_position)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [req.params.id, t.title, t.description || null, i, t.duration_days || 1, t.depends_on_position ?? null]
+        );
+      }
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/templates/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) return res.status(403).json({ error: 'Forbidden' });
+    await query(`DELETE FROM project_templates WHERE id = $1 AND organization_id = $2`, [req.params.id, org.organization_id]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/templates/:id/tasks', async (req, res) => {
+  try {
+    const r = await query(
+      `SELECT * FROM project_template_tasks WHERE template_id = $1 ORDER BY position ASC`,
+      [req.params.id]
+    );
+    res.json(r.rows);
+  } catch (e) {
+    if (isMissing(e)) return res.json([]);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Check if user is in a "projects" group (must be before /:id)
+router.get('/check-designer', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.json({ isDesigner: false });
+    const r = await query(
+      `SELECT 1 FROM crm_user_group_members gm
+       JOIN crm_user_groups g ON g.id = gm.group_id
+       WHERE gm.user_id = $1 AND g.organization_id = $2 AND LOWER(g.name) LIKE '%projeto%'
+       LIMIT 1`,
+      [req.userId, org.organization_id]
+    );
+    res.json({ isDesigner: r.rows.length > 0 });
+  } catch (e) {
+    res.json({ isDesigner: false });
+  }
+});
+
+// Get projects by deal (must be before /:id)
+router.get('/by-deal/:dealId', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No org' });
+    const r = await query(
+      `SELECT p.*, ps.name as stage_name, ps.color as stage_color,
+        (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id = p.id) as total_tasks,
+        (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id = p.id AND pt.status = 'completed') as completed_tasks
+       FROM projects p
+       LEFT JOIN project_stages ps ON p.stage_id = ps.id
+       WHERE p.deal_id = $1 AND p.organization_id = $2
+       ORDER BY p.created_at DESC`,
+      [req.params.dealId, org.organization_id]
+    );
+    res.json(r.rows);
+  } catch (e) {
+    if (isMissing(e)) return res.json([]);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========================
 // PROJECTS
 // ========================
 
@@ -279,28 +418,6 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Get projects by deal
-router.get('/by-deal/:dealId', async (req, res) => {
-  try {
-    const org = await getUserOrg(req.userId);
-    if (!org) return res.status(403).json({ error: 'No org' });
-    const r = await query(
-      `SELECT p.*, ps.name as stage_name, ps.color as stage_color,
-        (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id = p.id) as total_tasks,
-        (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project_id = p.id AND pt.status = 'completed') as completed_tasks
-       FROM projects p
-       LEFT JOIN project_stages ps ON p.stage_id = ps.id
-       WHERE p.deal_id = $1 AND p.organization_id = $2
-       ORDER BY p.created_at DESC`,
-      [req.params.dealId, org.organization_id]
-    );
-    res.json(r.rows);
-  } catch (e) {
-    if (isMissing(e)) return res.json([]);
-    res.status(500).json({ error: e.message });
-  }
-});
-
 // ========================
 // ATTACHMENTS
 // ========================
@@ -370,7 +487,6 @@ router.post('/:id/notes', async (req, res) => {
        VALUES ($1, $2, $3, $4) RETURNING *`,
       [req.params.id, req.userId, content, parent_id || null]
     );
-    // Fetch with user name
     const full = await query(
       `SELECT pn.*, u.name as user_name FROM project_notes pn LEFT JOIN users u ON pn.user_id = u.id WHERE pn.id = $1`,
       [r.rows[0].id]
@@ -452,124 +568,6 @@ router.delete('/tasks/:taskId', async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
-  }
-});
-
-// ========================
-// TEMPLATES
-// ========================
-
-router.get('/templates', async (req, res) => {
-  try {
-    const org = await getUserOrg(req.userId);
-    if (!org) return res.status(403).json({ error: 'No org' });
-    const r = await query(
-      `SELECT pt.*, 
-        (SELECT COUNT(*) FROM project_template_tasks ptt WHERE ptt.template_id = pt.id) as task_count
-       FROM project_templates pt WHERE pt.organization_id = $1 ORDER BY pt.name ASC`,
-      [org.organization_id]
-    );
-    res.json(r.rows);
-  } catch (e) {
-    if (isMissing(e)) return res.json([]);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-router.post('/templates', async (req, res) => {
-  try {
-    const org = await getUserOrg(req.userId);
-    if (!org || !canManage(org.role)) return res.status(403).json({ error: 'Forbidden' });
-    const { name, description, tasks } = req.body;
-    const r = await query(
-      `INSERT INTO project_templates (organization_id, name, description, created_by)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [org.organization_id, name, description, req.userId]
-    );
-    const template = r.rows[0];
-    if (tasks?.length) {
-      for (let i = 0; i < tasks.length; i++) {
-        const t = tasks[i];
-        await query(
-          `INSERT INTO project_template_tasks (template_id, title, description, position, duration_days, depends_on_position)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [template.id, t.title, t.description || null, i, t.duration_days || 1, t.depends_on_position ?? null]
-        );
-      }
-    }
-    res.json(template);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-router.patch('/templates/:id', async (req, res) => {
-  try {
-    const org = await getUserOrg(req.userId);
-    if (!org || !canManage(org.role)) return res.status(403).json({ error: 'Forbidden' });
-    const { name, description, tasks } = req.body;
-    await query(
-      `UPDATE project_templates SET name = COALESCE($1, name), description = COALESCE($2, description)
-       WHERE id = $3 AND organization_id = $4`,
-      [name, description, req.params.id, org.organization_id]
-    );
-    if (tasks) {
-      await query(`DELETE FROM project_template_tasks WHERE template_id = $1`, [req.params.id]);
-      for (let i = 0; i < tasks.length; i++) {
-        const t = tasks[i];
-        await query(
-          `INSERT INTO project_template_tasks (template_id, title, description, position, duration_days, depends_on_position)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [req.params.id, t.title, t.description || null, i, t.duration_days || 1, t.depends_on_position ?? null]
-        );
-      }
-    }
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-router.delete('/templates/:id', async (req, res) => {
-  try {
-    const org = await getUserOrg(req.userId);
-    if (!org || !canManage(org.role)) return res.status(403).json({ error: 'Forbidden' });
-    await query(`DELETE FROM project_templates WHERE id = $1 AND organization_id = $2`, [req.params.id, org.organization_id]);
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Get template tasks
-router.get('/templates/:id/tasks', async (req, res) => {
-  try {
-    const r = await query(
-      `SELECT * FROM project_template_tasks WHERE template_id = $1 ORDER BY position ASC`,
-      [req.params.id]
-    );
-    res.json(r.rows);
-  } catch (e) {
-    if (isMissing(e)) return res.json([]);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Check if user is in a "projects" group
-router.get('/check-designer', async (req, res) => {
-  try {
-    const org = await getUserOrg(req.userId);
-    if (!org) return res.json({ isDesigner: false });
-    const r = await query(
-      `SELECT 1 FROM crm_user_group_members gm
-       JOIN crm_user_groups g ON g.id = gm.group_id
-       WHERE gm.user_id = $1 AND g.organization_id = $2 AND LOWER(g.name) LIKE '%projeto%'
-       LIMIT 1`,
-      [req.userId, org.organization_id]
-    );
-    res.json({ isDesigner: r.rows.length > 0 });
-  } catch (e) {
-    res.json({ isDesigner: false });
   }
 });
 
