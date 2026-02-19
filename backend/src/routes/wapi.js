@@ -99,8 +99,21 @@ function extFromMime(mime) {
     'video/mp4': 'mp4',
     'video/webm': 'webm',
     'application/pdf': 'pdf',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/msword': 'doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/vnd.ms-powerpoint': 'ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'text/plain': 'txt',
+    'text/csv': 'csv',
+    'application/csv': 'csv',
+    'application/zip': 'zip',
+    'application/x-zip-compressed': 'zip',
+    'application/x-rar-compressed': 'rar',
+    'application/octet-stream': null,
   };
-  return map[m] || null;
+  return map[m] !== undefined ? map[m] : null;
 }
 
 function extFromUrl(u) {
@@ -213,6 +226,22 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
           if (b[0] === 0x4f && b[1] === 0x67 && b[2] === 0x67 && b[3] === 0x53) return 'ogg';
           // MP4/QuickTime: ....ftyp
           if (b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) return 'mp4';
+          // ZIP-based (xlsx, docx, pptx, zip) - PK\x03\x04
+          if (b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04) {
+            // These are all ZIP-based; rely on mime/hintedMime to distinguish
+            const h = (hintedMime || mime || '').toLowerCase();
+            if (h.includes('spreadsheetml') || h.includes('ms-excel')) return 'xlsx';
+            if (h.includes('wordprocessingml') || h.includes('msword')) return 'docx';
+            if (h.includes('presentationml') || h.includes('powerpoint') || h.includes('ms-powerpoint')) return 'pptx';
+            return 'zip';
+          }
+          // MS Compound (old .xls, .doc, .ppt) - D0 CF 11 E0
+          if (b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0) {
+            const h = (hintedMime || mime || '').toLowerCase();
+            if (h.includes('excel') || h.includes('ms-excel')) return 'xls';
+            if (h.includes('powerpoint') || h.includes('ms-powerpoint')) return 'ppt';
+            return 'doc';
+          }
 
           return null;
         };
@@ -227,6 +256,16 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
             pdf: 'application/pdf',
             ogg: 'audio/ogg',
             mp4: 'video/mp4',
+            xls: 'application/vnd.ms-excel',
+            xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            doc: 'application/msword',
+            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ppt: 'application/vnd.ms-powerpoint',
+            pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            csv: 'text/csv',
+            txt: 'text/plain',
+            zip: 'application/zip',
+            rar: 'application/x-rar-compressed',
           };
           return map[ext] || null;
         };
@@ -325,6 +364,10 @@ function sniffExtFromBuffer(buf) {
   if (buf[0] === 0x4f && buf[1] === 0x67 && buf[2] === 0x67 && buf[3] === 0x53) return 'ogg';
   // MP4/QuickTime: ....ftyp
   if (buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) return 'mp4';
+  // ZIP-based (xlsx, docx, pptx, zip) - PK\x03\x04
+  if (buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04) return 'zip';
+  // MS Compound (old .xls, .doc, .ppt) - D0 CF 11 E0
+  if (buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0) return 'doc';
 
   return null;
 }
