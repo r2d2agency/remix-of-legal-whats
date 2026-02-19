@@ -16,17 +16,17 @@
     --popover: 0 0% 100%;
     --popover-foreground: 240 30% 10%;
 
-    --primary: 250 90% 55%;
+    --primary: 210 100% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 20% 90%;
-    --secondary-foreground: 240 25% 20%;
+    --secondary: 210 20% 90%;
+    --secondary-foreground: 210 25% 20%;
 
-    --muted: 240 15% 92%;
-    --muted-foreground: 240 15% 35%;
+    --muted: 210 15% 92%;
+    --muted-foreground: 210 15% 35%;
 
-    --accent: 250 70% 92%;
-    --accent-foreground: 250 90% 45%;
+    --accent: 210 70% 92%;
+    --accent-foreground: 210 100% 40%;
 
     --destructive: 0 84% 55%;
     --destructive-foreground: 0 0% 100%;
@@ -37,40 +37,40 @@
     --warning: 38 92% 45%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 240 20% 75%;
-    --input: 240 20% 78%;
-    --ring: 250 90% 55%;
+    --border: 210 20% 75%;
+    --input: 210 20% 78%;
+    --ring: 210 100% 50%;
 
     --radius: 0.75rem;
 
     /* Chat specific - Light mode */
     --chat-bg: 240 20% 94%;
     --chat-pattern: hsl(240 25% 80% / 0.7);
-    --message-sent: 250 90% 55%;
+    --message-sent: 210 100% 50%;
     --message-sent-foreground: 0 0% 100%;
     --message-received: 0 0% 100%;
-    --message-received-foreground: 240 30% 10%;
+    --message-received-foreground: 210 30% 10%;
 
     /* Modern tokens - Light mode */
-    --neon-blue: 250 90% 55%;
-    --neon-glow: 260 100% 65%;
-    --gradient-primary: linear-gradient(135deg, hsl(230 100% 55%), hsl(270 100% 55%));
-    --gradient-hero: linear-gradient(135deg, hsl(230 100% 50%) 0%, hsl(270 80% 45%) 100%);
+    --neon-blue: 210 100% 50%;
+    --neon-glow: 200 100% 60%;
+    --gradient-primary: linear-gradient(135deg, hsl(200 100% 50%), hsl(220 100% 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(200 100% 45%) 0%, hsl(220 90% 50%) 100%);
     --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(240 15% 97%) 100%);
     --shadow-card: 0 2px 12px -2px hsl(240 25% 10% / 0.12), 0 1px 4px hsl(240 25% 10% / 0.06);
     --shadow-elevated: 0 8px 30px -8px hsl(240 25% 10% / 0.2);
-    --shadow-neon: 0 0 20px hsl(250 100% 60% / 0.3);
+    --shadow-neon: 0 0 20px hsl(210 100% 50% / 0.3);
     --glass-bg: hsl(0 0% 100% / 0.95);
     --glass-border: hsl(240 20% 75% / 0.9);
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 240 25% 20%;
-    --sidebar-primary: 250 90% 55%;
+    --sidebar-primary: 210 100% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 250 70% 92%;
-    --sidebar-accent-foreground: 250 90% 45%;
-    --sidebar-border: 240 20% 85%;
-    --sidebar-ring: 250 90% 55%;
+    --sidebar-accent: 210 70% 92%;
+    --sidebar-accent-foreground: 210 100% 40%;
+    --sidebar-border: 210 20% 85%;
+    --sidebar-ring: 210 100% 50%;
   }
 
   .dark {
@@ -84,17 +84,17 @@
     --popover: 240 20% 8%;
     --popover-foreground: 240 10% 95%;
 
-    --primary: 250 100% 65%;
+    --primary: 210 100% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 18% 16%;
-    --secondary-foreground: 240 10% 85%;
+    --secondary: 210 18% 16%;
+    --secondary-foreground: 210 10% 85%;
 
-    --muted: 240 18% 14%;
-    --muted-foreground: 240 10% 55%;
+    --muted: 210 18% 14%;
+    --muted-foreground: 210 10% 55%;
 
-    --accent: 260 60% 20%;
-    --accent-foreground: 260 100% 75%;
+    --accent: 210 60% 20%;
+    --accent-foreground: 210 100% 70%;
 
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
@@ -105,38 +105,38 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 240 18% 18%;
-    --input: 240 18% 18%;
-    --ring: 250 100% 65%;
+    --border: 210 18% 18%;
+    --input: 210 18% 18%;
+    --ring: 210 100% 60%;
 
     /* Chat specific - Dark mode */
     --chat-bg: 240 20% 8%;
     --chat-pattern: hsl(240 18% 12% / 0.5);
-    --message-sent: 250 100% 65%;
+    --message-sent: 210 100% 60%;
     --message-sent-foreground: 0 0% 100%;
-    --message-received: 240 18% 16%;
-    --message-received-foreground: 240 10% 95%;
+    --message-received: 210 18% 16%;
+    --message-received-foreground: 210 10% 95%;
 
-    /* Neon blue-purple tokens - Dark mode */
-    --neon-blue: 250 100% 65%;
-    --neon-glow: 270 100% 70%;
-    --gradient-primary: linear-gradient(135deg, hsl(230 100% 60%), hsl(270 100% 60%));
-    --gradient-hero: linear-gradient(135deg, hsl(230 100% 55%) 0%, hsl(270 80% 45%) 100%);
+    /* Neon blue tokens - Dark mode */
+    --neon-blue: 210 100% 60%;
+    --neon-glow: 200 100% 65%;
+    --gradient-primary: linear-gradient(135deg, hsl(200 100% 55%), hsl(220 100% 60%));
+    --gradient-hero: linear-gradient(135deg, hsl(200 100% 50%) 0%, hsl(220 90% 50%) 100%);
     --gradient-card: linear-gradient(180deg, hsl(240 20% 10%) 0%, hsl(240 20% 8%) 100%);
     --shadow-card: 0 4px 24px -4px hsl(0 0% 0% / 0.4);
     --shadow-elevated: 0 12px 40px -12px hsl(0 0% 0% / 0.6);
-    --shadow-neon: 0 0 30px hsl(250 100% 65% / 0.4);
+    --shadow-neon: 0 0 30px hsl(210 100% 60% / 0.4);
     --glass-bg: hsl(240 20% 10% / 0.85);
     --glass-border: hsl(240 18% 22% / 0.6);
 
     --sidebar-background: 240 20% 8%;
     --sidebar-foreground: 240 10% 90%;
-    --sidebar-primary: 250 100% 65%;
+    --sidebar-primary: 210 100% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 260 60% 20%;
-    --sidebar-accent-foreground: 260 100% 75%;
-    --sidebar-border: 240 18% 16%;
-    --sidebar-ring: 250 100% 65%;
+    --sidebar-accent: 210 60% 20%;
+    --sidebar-accent-foreground: 210 100% 70%;
+    --sidebar-border: 210 18% 16%;
+    --sidebar-ring: 210 100% 60%;
   }
 }
 
