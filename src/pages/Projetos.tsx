@@ -17,7 +17,7 @@ import {
   Plus, Search, Settings, FolderKanban, Trash2, GripVertical, Edit,
   FileText, MessageSquare, CheckSquare, Paperclip, Upload, Loader2, X,
   Calendar, User, ArrowRight, ExternalLink, Clock, Send, Reply, LayoutTemplate,
-  BarChart3
+  BarChart3, ChevronDown, ChevronUp as ChevronUpIcon
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -561,6 +561,112 @@ function ProjectCard({ project, stages, onOpen, onMove }: {
 }
 
 // ========================
+// Task Checklist Item (editable)
+// ========================
+function TaskChecklistItem({ task, projectId, isCompleted, orgMembers, taskMut }: {
+  task: ProjectTask;
+  projectId: string;
+  isCompleted: boolean;
+  orgMembers: Array<{ user_id: string; name: string }>;
+  taskMut: ReturnType<typeof useProjectTaskMutations>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [assignedTo, setAssignedTo] = useState(task.assigned_to || "");
+  const [startDate, setStartDate] = useState(task.start_date ? format(new Date(task.start_date), "yyyy-MM-dd") : "");
+  const [endDate, setEndDate] = useState(task.end_date ? format(new Date(task.end_date), "yyyy-MM-dd") : "");
+
+  const handleSave = () => {
+    taskMut.update.mutate({
+      taskId: task.id,
+      projectId,
+      assigned_to: assignedTo || null,
+      start_date: startDate || null,
+      end_date: endDate || null,
+    });
+    toast.success("Tarefa atualizada!");
+    setExpanded(false);
+  };
+
+  return (
+    <div className={cn("rounded-lg border transition-colors", isCompleted && "bg-muted/30")}>
+      <div className="flex items-center gap-3 p-2.5 hover:bg-muted/50">
+        <div
+          className={cn(
+            "h-5 w-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors cursor-pointer",
+            isCompleted ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"
+          )}
+          onClick={() => taskMut.update.mutate({
+            taskId: task.id,
+            projectId,
+            status: isCompleted ? 'pending' : 'completed'
+          })}
+        >
+          {isCompleted && <CheckSquare className="h-3 w-3" />}
+        </div>
+        <div
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <p className={cn("text-sm", isCompleted && "line-through text-muted-foreground")}>{task.title}</p>
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            {task.assigned_to_name && <span>{task.assigned_to_name}</span>}
+            {task.end_date && <span>• {format(new Date(task.end_date), "dd/MM")}</span>}
+          </div>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0 text-destructive opacity-50 hover:opacity-100"
+          onClick={() => taskMut.remove.mutate({ taskId: task.id, projectId })}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+      {expanded && (
+        <div className="px-3 pb-3 pt-1 border-t space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs">Responsável</Label>
+              <Select value={assignedTo} onValueChange={setAssignedTo}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Selecionar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {orgMembers.map(m => (
+                    <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Data Início</Label>
+              <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 text-xs" />
+            </div>
+            <div>
+              <Label className="text-xs">Data Fim</Label>
+              <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 text-xs" />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" className="h-7 text-xs" onClick={handleSave}>
+              Salvar
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ========================
 // Project Detail Dialog
 // ========================
 function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
@@ -1002,42 +1108,14 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                   {tasks.map(task => {
                     const isCompleted = task.status === 'completed';
                     return (
-                      <div
+                      <TaskChecklistItem
                         key={task.id}
-                        className={cn(
-                          "flex items-center gap-3 p-2.5 rounded-lg border transition-colors hover:bg-muted/50",
-                          isCompleted && "bg-muted/30"
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "h-5 w-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors cursor-pointer",
-                            isCompleted ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"
-                          )}
-                          onClick={() => taskMut.update.mutate({
-                            taskId: task.id,
-                            projectId: project.id,
-                            status: isCompleted ? 'pending' : 'completed'
-                          })}
-                        >
-                          {isCompleted && <CheckSquare className="h-3 w-3" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={cn("text-sm", isCompleted && "line-through text-muted-foreground")}>{task.title}</p>
-                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                            {task.assigned_to_name && <span>{task.assigned_to_name}</span>}
-                            {task.end_date && <span>• {format(new Date(task.end_date), "dd/MM")}</span>}
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-destructive"
-                          onClick={() => taskMut.remove.mutate({ taskId: task.id, projectId: project.id })}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
+                        task={task}
+                        projectId={project.id}
+                        isCompleted={isCompleted}
+                        orgMembers={orgMembers}
+                        taskMut={taskMut}
+                      />
                     );
                   })}
                   {tasks.length === 0 && templates.length === 0 && (
