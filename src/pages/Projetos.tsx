@@ -932,20 +932,20 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                       <div
                         key={task.id}
                         className={cn(
-                          "flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors hover:bg-muted/50",
+                          "flex items-center gap-3 p-2.5 rounded-lg border transition-colors hover:bg-muted/50",
                           isCompleted && "bg-muted/30"
                         )}
-                        onClick={() => taskMut.update.mutate({
-                          taskId: task.id,
-                          projectId: project.id,
-                          status: isCompleted ? 'pending' : 'completed'
-                        })}
                       >
                         <div
                           className={cn(
-                            "h-5 w-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors",
+                            "h-5 w-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors cursor-pointer",
                             isCompleted ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"
                           )}
+                          onClick={() => taskMut.update.mutate({
+                            taskId: task.id,
+                            projectId: project.id,
+                            status: isCompleted ? 'pending' : 'completed'
+                          })}
                         >
                           {isCompleted && <CheckSquare className="h-3 w-3" />}
                         </div>
@@ -956,12 +956,38 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                             {task.end_date && <span>• {format(new Date(task.end_date), "dd/MM")}</span>}
                           </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-destructive"
+                          onClick={() => taskMut.remove.mutate({ taskId: task.id, projectId: project.id })}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                       </div>
                     );
                   })}
                   {tasks.length === 0 && templates.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-4">Nenhuma tarefa ainda</p>
                   )}
+
+                  {/* Quick add task */}
+                  <div className="flex gap-2 pt-2">
+                    <Input
+                      value={newTaskTitle}
+                      onChange={e => setNewTaskTitle(e.target.value)}
+                      placeholder="Adicionar tarefa..."
+                      className="flex-1 h-8 text-sm"
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newTaskTitle.trim()) {
+                          handleAddTask();
+                        }
+                      }}
+                    />
+                    <Button size="sm" className="h-8" onClick={handleAddTask} disabled={!newTaskTitle.trim()}>
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </TabsContent>
