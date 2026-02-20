@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { api } from "@/lib/api";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,6 +114,7 @@ export default function Projetos() {
 
   const handleSaveTemplate = () => {
     if (!templateName.trim()) return toast.error("Nome obrigatório");
+    const validTasks = templateTasks.filter(t => t.title.trim());
     const onSuccess = () => {
       setShowTemplateEditor(false);
       setEditingTemplate(null);
@@ -120,10 +122,11 @@ export default function Projetos() {
       setTemplateDesc("");
       setTemplateTasks([]);
     };
+    const onError = () => toast.error("Erro ao salvar template. Verifique se o módulo de projetos está ativo no plano.");
     if (editingTemplate?.id) {
-      templateMut.update.mutate({ id: editingTemplate.id, name: templateName, description: templateDesc, tasks: templateTasks }, { onSuccess });
+      templateMut.update.mutate({ id: editingTemplate.id, name: templateName, description: templateDesc, tasks: validTasks }, { onSuccess, onError });
     } else {
-      templateMut.create.mutate({ name: templateName, description: templateDesc, tasks: templateTasks }, { onSuccess, onError: () => toast.error("Erro ao criar template. Verifique se o módulo de projetos está ativo no plano.") });
+      templateMut.create.mutate({ name: templateName, description: templateDesc, tasks: validTasks }, { onSuccess, onError });
     }
   };
 
@@ -389,11 +392,16 @@ export default function Projetos() {
                       <p className="text-sm font-medium">{t.name}</p>
                       <p className="text-xs text-muted-foreground">{t.task_count} tarefas</p>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={async () => {
                       setEditingTemplate(t);
                       setTemplateName(t.name);
                       setTemplateDesc(t.description || "");
-                      setTemplateTasks([]);
+                      try {
+                        const tasks = await api<Array<{ title: string; duration_days: number }>>(`/api/projects/templates/${t.id}/tasks`, { auth: true });
+                        setTemplateTasks(tasks.map(tk => ({ title: tk.title, duration_days: tk.duration_days || 1 })));
+                      } catch {
+                        setTemplateTasks([]);
+                      }
                     }}>
                       <Edit className="h-3 w-3" />
                     </Button>
