@@ -126,6 +126,7 @@ export default function Organizacoes() {
     crm: true,
     group_secretary: false,
     ghost: false,
+    projects: false,
   });
   const [savingModules, setSavingModules] = useState(false);
 
@@ -200,6 +201,7 @@ export default function Organizacoes() {
         crm: modules.crm ?? true,
         group_secretary: modules.group_secretary ?? false,
         ghost: modules.ghost ?? false,
+        projects: modules.projects ?? false,
       });
     } catch (error) {
       console.error('Error loading modules:', error);
@@ -1075,6 +1077,21 @@ export default function Organizacoes() {
                           <Switch
                             checked={modulesEnabled.ghost}
                             onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, ghost: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
+                        {/* Projects Module */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div>
+                            <p className="text-sm font-medium">Projetos</p>
+                            <p className="text-xs text-muted-foreground">
+                              Gestão de projetos vinculados a negociações do CRM
+                            </p>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.projects}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, projects: checked }))}
                             disabled={!canManageOrg}
                           />
                         </div>
