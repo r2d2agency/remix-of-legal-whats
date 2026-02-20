@@ -93,6 +93,7 @@ DO $$ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ai_summary BOOLEAN DEFAULT true;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_group_secretary BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ghost BOOLEAN DEFAULT false;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_projects BOOLEAN DEFAULT false;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_phone VARCHAR(50);
 EXCEPTION
     WHEN duplicate_column THEN null;
@@ -3012,6 +3013,19 @@ CREATE TABLE IF NOT EXISTS project_tasks (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_project_tasks_proj ON project_tasks(project_id);
+
+CREATE TABLE IF NOT EXISTS project_note_notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    project_id UUID NOT NULL,
+    note_id UUID NOT NULL,
+    project_title TEXT,
+    sender_name TEXT,
+    content_preview TEXT,
+    read BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_project_note_notifs_user ON project_note_notifications(user_id, read);
 `;
 
 // Migration steps in order of execution

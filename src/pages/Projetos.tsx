@@ -113,16 +113,18 @@ export default function Projetos() {
 
   const handleSaveTemplate = () => {
     if (!templateName.trim()) return toast.error("Nome obrigatório");
+    const onSuccess = () => {
+      setShowTemplateEditor(false);
+      setEditingTemplate(null);
+      setTemplateName("");
+      setTemplateDesc("");
+      setTemplateTasks([]);
+    };
     if (editingTemplate) {
-      templateMut.update.mutate({ id: editingTemplate.id, name: templateName, description: templateDesc, tasks: templateTasks });
+      templateMut.update.mutate({ id: editingTemplate.id, name: templateName, description: templateDesc, tasks: templateTasks }, { onSuccess });
     } else {
-      templateMut.create.mutate({ name: templateName, description: templateDesc, tasks: templateTasks });
+      templateMut.create.mutate({ name: templateName, description: templateDesc, tasks: templateTasks }, { onSuccess, onError: () => toast.error("Erro ao criar template. Verifique se o módulo de projetos está ativo no plano.") });
     }
-    setShowTemplateEditor(false);
-    setEditingTemplate(null);
-    setTemplateName("");
-    setTemplateDesc("");
-    setTemplateTasks([]);
   };
 
   return (
