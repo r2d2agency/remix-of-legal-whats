@@ -120,7 +120,7 @@ export default function Projetos() {
       setTemplateDesc("");
       setTemplateTasks([]);
     };
-    if (editingTemplate) {
+    if (editingTemplate?.id) {
       templateMut.update.mutate({ id: editingTemplate.id, name: templateName, description: templateDesc, tasks: templateTasks }, { onSuccess });
     } else {
       templateMut.create.mutate({ name: templateName, description: templateDesc, tasks: templateTasks }, { onSuccess, onError: () => toast.error("Erro ao criar template. Verifique se o módulo de projetos está ativo no plano.") });
