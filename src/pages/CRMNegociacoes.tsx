@@ -216,69 +216,77 @@ export default function CRMNegociacoes() {
     <MainLayout>
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex flex-col gap-4 p-4 border-b">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold">Negociações</h1>
-              
-              {/* Funnel Selector */}
-              <Select 
-                value={currentFunnelId || ""} 
-                onValueChange={(val) => setSelectedFunnelId(val)}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Selecione um funil" />
-                </SelectTrigger>
-                <SelectContent>
-                  {funnels?.map((funnel) => (
-                    <SelectItem key={funnel.id} value={funnel.id}>
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: funnel.color }} 
-                        />
-                        {funnel.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {canManage && currentFunnel && (
-                <Button variant="ghost" size="icon" onClick={handleEditFunnel}>
-                  <Settings className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+        <div className="flex flex-col gap-3 p-3 lg:p-4 border-b">
+          {/* Top row: title + main actions */}
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-lg lg:text-2xl font-bold shrink-0">Negociações</h1>
 
             <div className="flex items-center gap-2">
-              {/* View Toggle */}
+              {/* View Toggle - icons only on mobile */}
               <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as "kanban" | "pipeline")}>
                 <ToggleGroupItem value="kanban" aria-label="Kanban" className="gap-1">
                   <LayoutGrid className="h-4 w-4" />
-                  <span className="hidden sm:inline">Kanban</span>
+                  <span className="hidden lg:inline">Kanban</span>
                 </ToggleGroupItem>
                 <ToggleGroupItem value="pipeline" aria-label="Pipeline" className="gap-1">
                   <List className="h-4 w-4" />
-                  <span className="hidden sm:inline">Pipeline</span>
+                  <span className="hidden lg:inline">Pipeline</span>
                 </ToggleGroupItem>
               </ToggleGroup>
 
               {canManage && (
-                <Button variant="outline" onClick={handleNewFunnel}>
+                <Button variant="outline" size="sm" onClick={handleNewFunnel} className="hidden lg:flex">
                   <Plus className="h-4 w-4 mr-2" />
                   Novo Funil
                 </Button>
               )}
-              <Button onClick={() => setNewDealOpen(true)} disabled={!currentFunnelId}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Negociação
+              <Button size="sm" onClick={() => setNewDealOpen(true)} disabled={!currentFunnelId}>
+                <Plus className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Nova Negociação</span>
+                <span className="sm:hidden">Novo</span>
               </Button>
             </div>
           </div>
 
-          {/* Filters Row */}
-          <div className="flex items-center gap-4">
+          {/* Second row: funnel selector */}
+          <div className="flex items-center gap-2">
+            <Select 
+              value={currentFunnelId || ""} 
+              onValueChange={(val) => setSelectedFunnelId(val)}
+            >
+              <SelectTrigger className="w-full lg:w-[200px]">
+                <SelectValue placeholder="Selecione um funil" />
+              </SelectTrigger>
+              <SelectContent>
+                {funnels?.map((funnel) => (
+                  <SelectItem key={funnel.id} value={funnel.id}>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: funnel.color }} 
+                      />
+                      {funnel.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {canManage && currentFunnel && (
+              <Button variant="ghost" size="icon" onClick={handleEditFunnel}>
+                <Settings className="h-4 w-4" />
+              </Button>
+            )}
+
+            {canManage && (
+              <Button variant="outline" size="icon" onClick={handleNewFunnel} className="lg:hidden">
+                <Plus className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          {/* Filters Row - scrollable on mobile */}
+          <div className="flex items-center gap-3 overflow-x-auto pb-1">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Filter className="h-4 w-4" />
               <span>Filtros:</span>
