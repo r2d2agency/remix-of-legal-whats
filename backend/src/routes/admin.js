@@ -5,6 +5,13 @@ import bcrypt from 'bcryptjs';
 
 const router = Router();
 
+// Ensure has_projects column exists on plans table
+(async () => {
+  try {
+    await query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_projects BOOLEAN DEFAULT false`);
+  } catch (_) {}
+})();
+
 // Public endpoint to get branding settings (no auth required)
 // NOTE: Must be defined before router.use(authenticate)
 router.get('/branding', async (req, res) => {
