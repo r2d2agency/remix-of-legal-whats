@@ -421,11 +421,12 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create project
+// Create project (admin/manager/designer only)
 router.post('/', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No org' });
+    if (!(await canEditProject(req.userId, org))) return res.status(403).json({ error: 'Forbidden' });
     const { title, description, deal_id, assigned_to, priority, due_date, template_id } = req.body;
 
     // Get first stage as default
@@ -596,6 +597,8 @@ router.get('/:id/attachments', async (req, res) => {
 
 router.post('/:id/attachments', async (req, res) => {
   try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !(await canEditProject(req.userId, org))) return res.status(403).json({ error: 'Forbidden' });
     const { name, url, mimetype, size } = req.body;
     const r = await query(
       `INSERT INTO project_attachments (project_id, name, url, mimetype, size, uploaded_by)
@@ -610,6 +613,8 @@ router.post('/:id/attachments', async (req, res) => {
 
 router.delete('/attachments/:attId', async (req, res) => {
   try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !(await canEditProject(req.userId, org))) return res.status(403).json({ error: 'Forbidden' });
     await query(`DELETE FROM project_attachments WHERE id = $1`, [req.params.attId]);
     res.json({ success: true });
   } catch (e) {
@@ -733,6 +738,8 @@ router.post('/:id/tasks', async (req, res) => {
 
 router.patch('/tasks/:taskId', async (req, res) => {
   try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !(await canEditProject(req.userId, org))) return res.status(403).json({ error: 'Forbidden' });
     const { title, description, status, start_date, end_date, duration_days, depends_on, assigned_to, position } = req.body;
     const r = await query(
       `UPDATE project_tasks SET 
@@ -752,6 +759,8 @@ router.patch('/tasks/:taskId', async (req, res) => {
 
 router.delete('/tasks/:taskId', async (req, res) => {
   try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !(await canEditProject(req.userId, org))) return res.status(403).json({ error: 'Forbidden' });
     await query(`DELETE FROM project_tasks WHERE id = $1`, [req.params.taskId]);
     res.json({ success: true });
   } catch (e) {
