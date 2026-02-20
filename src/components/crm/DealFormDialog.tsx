@@ -9,7 +9,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CRMFunnel, useCRMDealMutations, useCRMCompanies, useCRMFunnel, useCRMGroups } from "@/hooks/use-crm";
 import { Slider } from "@/components/ui/slider";
-import { Building2, User, Plus } from "lucide-react";
+import { Building2, User } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 interface DealFormDialogProps {
   funnel: CRMFunnel | null;
@@ -17,7 +20,17 @@ interface DealFormDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+function useMyGroups() {
+  return useQuery({
+    queryKey: ["crm-my-groups"],
+    queryFn: () => api<{ id: string; name: string; is_supervisor: boolean }[]>("/api/crm/groups/me"),
+  });
+}
+
 export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogProps) {
+  const { user } = useAuth();
+  const canManage = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
+
   const [title, setTitle] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [stageId, setStageId] = useState("");
@@ -27,7 +40,6 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
   const [description, setDescription] = useState("");
   const [groupId, setGroupId] = useState("");
   
-  // Contact mode (when no company)
   const [mode, setMode] = useState<"company" | "contact">("company");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -35,11 +47,18 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
   const { data: companies } = useCRMCompanies();
   const { data: funnelData } = useCRMFunnel(funnel?.id || null);
   const { data: groups } = useCRMGroups();
+  const { data: myGroups } = useMyGroups();
   const { createDeal } = useCRMDealMutations();
+
+  // Auto-fill group for non-managers
+  useEffect(() => {
+    if (!canManage && myGroups?.length && !groupId) {
+      setGroupId(myGroups[0].id);
+    }
+  }, [canManage, myGroups, groupId]);
 
   useEffect(() => {
     if (open && funnelData?.stages?.length) {
-      // Set first non-final stage as default
       const firstStage = funnelData.stages.find((s) => !s.is_final);
       if (firstStage?.id) {
         setStageId(firstStage.id);
@@ -49,8 +68,6 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
 
   const handleSave = () => {
     if (!funnel || !title.trim() || !stageId) return;
-    
-    // Require either company or contact
     if (mode === "company" && !companyId) return;
     if (mode === "contact" && (!contactName.trim() || !contactPhone.trim())) return;
 
@@ -64,12 +81,10 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
       expected_close_date: expectedCloseDate || undefined,
       description,
       group_id: groupId || undefined,
-      // For contact-only mode, we'll pass contact info
       contact_name: mode === "contact" ? contactName : undefined,
       contact_phone: mode === "contact" ? contactPhone : undefined,
     } as any);
 
-    // Reset form
     resetForm();
     onOpenChange(false);
   };
@@ -93,6 +108,11 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
     if (mode === "contact") return !!contactName.trim() && !!contactPhone.trim();
     return false;
   };
+
+  // Derive group name for display
+  const userGroupName = !canManage && myGroups?.length
+    ? myGroups.map(g => g.name).join(", ")
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -208,22 +228,30 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Grupo</Label>
-              <Select value={groupId || "none"} onValueChange={(val) => setGroupId(val === "none" ? "" : val)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um grupo (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {groups?.map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Group: managers can select, vendedores see auto-filled read-only */}
+            {canManage ? (
+              <div className="space-y-2">
+                <Label>Grupo</Label>
+                <Select value={groupId || "none"} onValueChange={(val) => setGroupId(val === "none" ? "" : val)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um grupo (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {groups?.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : userGroupName ? (
+              <div className="space-y-2">
+                <Label>Grupo</Label>
+                <Input value={userGroupName} disabled className="bg-muted" />
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label>Descrição</Label>

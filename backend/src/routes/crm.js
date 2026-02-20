@@ -68,6 +68,24 @@ async function getUserGroupIds(userId) {
 // USER GROUPS
 // ============================================
 
+// Get current user's groups
+router.get('/groups/me', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT g.id, g.name, g.description, m.is_supervisor
+       FROM crm_user_group_members m
+       JOIN crm_user_groups g ON g.id = m.group_id
+       WHERE m.user_id = $1
+       ORDER BY g.name`,
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching my groups:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // List groups
 router.get('/groups', async (req, res) => {
   try {
