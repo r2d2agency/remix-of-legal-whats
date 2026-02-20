@@ -32,6 +32,7 @@ import { LeadScoreDetail, LeadScoreBadge } from "./LeadScoreBadge";
 import { PredictiveAnalyticsCard } from "./PredictiveAnalytics";
 import { useProjectsByDeal, useProjectMutations, useProjectTemplates, Project } from "@/hooks/use-projects";
 import { FolderKanban } from "lucide-react";
+import { DealProjectCard } from "./DealProjectCard";
 
 interface ChatContact {
   id: string;
@@ -1298,36 +1299,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                 {dealProjects && dealProjects.length > 0 ? (
                   <div className="space-y-3">
                     {dealProjects.map((project: Project) => (
-                      <Card
-                        key={project.id}
-                        className="p-4 cursor-pointer hover:bg-accent/50 transition-colors"
-                        onClick={() => navigate(`/projetos?project=${project.id}`)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <FolderKanban className="h-5 w-5 text-primary" />
-                            <div>
-                              <p className="font-medium">{project.title}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {project.stage_name || "Sem etapa"} • {project.completed_tasks}/{project.total_tasks} tarefas
-                              </p>
-                            </div>
-                          </div>
-                          {project.stage_color && (
-                            <Badge style={{ backgroundColor: project.stage_color, color: "#fff" }}>
-                              {project.stage_name}
-                            </Badge>
-                          )}
-                        </div>
-                        {project.total_tasks > 0 && (
-                          <div className="mt-2 w-full bg-muted rounded-full h-1.5">
-                            <div
-                              className="bg-primary h-1.5 rounded-full transition-all"
-                              style={{ width: `${(project.completed_tasks / project.total_tasks) * 100}%` }}
-                            />
-                          </div>
-                        )}
-                      </Card>
+                      <DealProjectCard key={project.id} project={project} />
                     ))}
                   </div>
                 ) : !showNewProject && (
