@@ -5,7 +5,7 @@ import { query } from '../db.js';
 const router = Router();
 router.use(authenticate);
 
-// Ensure notification table exists
+// Ensure required tables exist
 (async () => {
   try {
     await query(`CREATE TABLE IF NOT EXISTS project_note_notifications (
@@ -19,7 +19,83 @@ router.use(authenticate);
       read BOOLEAN DEFAULT false,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
-  } catch (_) {}
+    await query(`CREATE TABLE IF NOT EXISTS project_stages (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      position INTEGER DEFAULT 0,
+      color VARCHAR(50) DEFAULT '#6366f1',
+      is_final BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await query(`CREATE TABLE IF NOT EXISTS project_templates (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      created_by UUID,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await query(`CREATE TABLE IF NOT EXISTS project_template_tasks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      template_id UUID REFERENCES project_templates(id) ON DELETE CASCADE NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      position INTEGER DEFAULT 0,
+      duration_days INTEGER DEFAULT 1,
+      depends_on_position INTEGER,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await query(`CREATE TABLE IF NOT EXISTS projects (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL,
+      deal_id UUID,
+      stage_id UUID,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      requested_by UUID,
+      assigned_to UUID,
+      priority VARCHAR(20) DEFAULT 'medium',
+      due_date TIMESTAMPTZ,
+      position INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await query(`CREATE TABLE IF NOT EXISTS project_tasks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      status VARCHAR(20) DEFAULT 'pending',
+      position INTEGER DEFAULT 0,
+      start_date TIMESTAMPTZ,
+      end_date TIMESTAMPTZ,
+      duration_days INTEGER DEFAULT 1,
+      depends_on UUID,
+      assigned_to UUID,
+      completed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await query(`CREATE TABLE IF NOT EXISTS project_notes (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+      user_id UUID,
+      content TEXT NOT NULL,
+      parent_id UUID,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await query(`CREATE TABLE IF NOT EXISTS project_attachments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+      name VARCHAR(255),
+      url TEXT NOT NULL,
+      mimetype VARCHAR(100),
+      size INTEGER,
+      uploaded_by UUID,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+  } catch (_) { console.error('Projects table init error:', _); }
 })();
 
 // Helper
