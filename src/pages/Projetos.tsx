@@ -592,6 +592,10 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
   const [desc, setDesc] = useState(project.description || "");
   const [viewMode, setViewMode] = useState<"list" | "gantt">("list");
   const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; name: string }>>([]);
+  const [showTemplateConfig, setShowTemplateConfig] = useState(false);
+  const [templateConfigId, setTemplateConfigId] = useState("");
+  const [templateStartDate, setTemplateStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [templateAssignedTo, setTemplateAssignedTo] = useState(project.assigned_to || "");
 
   const navigate = useNavigate();
 
@@ -642,7 +646,14 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
   };
 
   const handleApplyTemplate = (templateId: string) => {
-    taskMut.applyTemplate.mutate({ projectId: project.id, template_id: templateId });
+    taskMut.applyTemplate.mutate({
+      projectId: project.id,
+      template_id: templateId,
+      assigned_to: templateAssignedTo || undefined,
+      start_date: templateStartDate || undefined,
+    }, {
+      onSuccess: () => setShowTemplateConfig(false),
+    });
   };
 
   const handleSaveDesc = () => {
@@ -822,7 +833,7 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
             {/* Tasks */}
             <TabsContent value="tasks" className="mt-0 space-y-3">
               {/* Template selector when no tasks */}
-              {tasks.length === 0 && templates.length > 0 && (
+              {tasks.length === 0 && templates.length > 0 && !showTemplateConfig && (
                 <Card className="border-dashed">
                   <CardContent className="p-4 text-center space-y-3">
                     <LayoutTemplate className="h-8 w-8 mx-auto text-muted-foreground" />
@@ -833,14 +844,68 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                           key={t.id}
                           variant="outline"
                           size="sm"
-                          onClick={() => handleApplyTemplate(t.id)}
-                          disabled={taskMut.applyTemplate.isPending}
+                          onClick={() => {
+                            setTemplateConfigId(t.id);
+                            setTemplateStartDate(format(new Date(), "yyyy-MM-dd"));
+                            setTemplateAssignedTo(project.assigned_to || "");
+                            setShowTemplateConfig(true);
+                          }}
                         >
                           <LayoutTemplate className="h-3 w-3 mr-1" />
                           {t.name} ({t.task_count} tarefas)
                         </Button>
                       ))}
                     </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Template config panel */}
+              {showTemplateConfig && (
+                <Card className="border-primary/30 bg-primary/5">
+                  <CardContent className="p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold flex items-center gap-2">
+                        <LayoutTemplate className="h-4 w-4 text-primary" />
+                        Configurar Template
+                      </h4>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setShowTemplateConfig(false)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Data de Início</Label>
+                        <Input
+                          type="date"
+                          value={templateStartDate}
+                          onChange={e => setTemplateStartDate(e.target.value)}
+                          className="h-9"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Responsável</Label>
+                        <Select value={templateAssignedTo} onValueChange={setTemplateAssignedTo}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Selecionar..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {orgMembers.map(m => (
+                              <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => handleApplyTemplate(templateConfigId)}
+                      disabled={taskMut.applyTemplate.isPending}
+                    >
+                      {taskMut.applyTemplate.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckSquare className="h-4 w-4 mr-1" />}
+                      Aplicar Template
+                    </Button>
                   </CardContent>
                 </Card>
               )}

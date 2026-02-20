@@ -321,8 +321,8 @@ export function useProjectTaskMutations() {
   });
 
   const applyTemplate = useMutation({
-    mutationFn: ({ projectId, template_id }: { projectId: string; template_id: string }) =>
-      api(`/api/projects/${projectId}/apply-template`, { method: "POST", body: { template_id }, auth: true }),
+    mutationFn: ({ projectId, template_id, assigned_to, start_date }: { projectId: string; template_id: string; assigned_to?: string; start_date?: string }) =>
+      api(`/api/projects/${projectId}/apply-template`, { method: "POST", body: { template_id, assigned_to, start_date }, auth: true }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["project-tasks", vars.projectId] });
       qc.invalidateQueries({ queryKey: ["projects"] });

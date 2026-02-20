@@ -528,7 +528,7 @@ router.post('/:id/apply-template', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
     if (!org || !(await canEditProject(req.userId, org))) return res.status(403).json({ error: 'Forbidden' });
-    const { template_id } = req.body;
+    const { template_id, assigned_to, start_date } = req.body;
     if (!template_id) return res.status(400).json({ error: 'template_id required' });
     const tmplTasks = await query(
       `SELECT * FROM project_template_tasks WHERE template_id = $1 ORDER BY position ASC`,
@@ -537,14 +537,18 @@ router.post('/:id/apply-template', async (req, res) => {
     const taskIdMap = {};
     const maxPosR = await query(`SELECT COALESCE(MAX(position), -1) + 1 as pos FROM project_tasks WHERE project_id = $1`, [req.params.id]);
     let basePos = maxPosR.rows[0].pos;
+    let cumulativeDays = 0;
     for (const t of tmplTasks.rows) {
-      const startDate = new Date();
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + (t.duration_days || 1));
+      const baseDate = start_date ? new Date(start_date) : new Date();
+      const startD = new Date(baseDate);
+      startD.setDate(startD.getDate() + cumulativeDays);
+      const endD = new Date(startD);
+      endD.setDate(endD.getDate() + (t.duration_days || 1));
+      cumulativeDays += (t.duration_days || 1);
       const tr = await query(
-        `INSERT INTO project_tasks (project_id, title, description, position, duration_days, start_date, end_date)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [req.params.id, t.title, t.description, basePos + t.position, t.duration_days, startDate, endDate]
+        `INSERT INTO project_tasks (project_id, title, description, position, duration_days, start_date, end_date, assigned_to)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [req.params.id, t.title, t.description, basePos + t.position, t.duration_days, startD, endD, assigned_to || null]
       );
       taskIdMap[t.position] = tr.rows[0].id;
     }
