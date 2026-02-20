@@ -142,8 +142,8 @@ export default function Projetos() {
             </h1>
             <p className="text-sm text-muted-foreground">{projects.length} projeto(s)</p>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 min-w-[150px] sm:w-64 sm:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar projetos..."
@@ -153,15 +153,15 @@ export default function Projetos() {
               />
             </div>
             <Button onClick={() => setShowCreateProject(true)} size="sm">
-              <Plus className="h-4 w-4 mr-1" /> Novo Projeto
+              <Plus className="h-4 w-4 mr-1" /> <span className="hidden sm:inline">Novo Projeto</span><span className="sm:hidden">Novo</span>
             </Button>
             {isAdmin && (
               <>
                 <Button variant="outline" size="sm" onClick={() => setShowStageEditor(true)}>
-                  <Settings className="h-4 w-4 mr-1" /> Etapas
+                  <Settings className="h-4 w-4 sm:mr-1" /> <span className="hidden sm:inline">Etapas</span>
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => { setShowTemplateEditor(true); setEditingTemplate(null); setTemplateName(""); setTemplateDesc(""); setTemplateTasks([]); }}>
-                  <LayoutTemplate className="h-4 w-4 mr-1" /> Templates
+                  <LayoutTemplate className="h-4 w-4 sm:mr-1" /> <span className="hidden sm:inline">Templates</span>
                 </Button>
               </>
             )}
@@ -187,13 +187,13 @@ export default function Projetos() {
             </CardContent>
           </Card>
         ) : (
-          <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "60vh" }}>
+          <div className="flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory" style={{ minHeight: "60vh" }}>
             {stages.map(stage => {
               const stageProjects = projectsByStage[stage.id] || [];
               return (
                 <div
                   key={stage.id}
-                  className="flex-shrink-0 w-80 bg-muted/30 rounded-xl border border-border"
+                  className="flex-shrink-0 w-[85vw] sm:w-72 lg:w-80 bg-muted/30 rounded-xl border border-border snap-start"
                 >
                   <div
                     className="flex items-center justify-between px-4 py-3 rounded-t-xl border-b border-border"
@@ -691,13 +691,13 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl w-[95vw] sm:w-full max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <FolderKanban className="h-5 w-5 text-primary" />
             <DialogTitle className="text-lg">{project.title}</DialogTitle>
           </div>
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             {project.deal_title && project.deal_id && (
               <Badge
                 variant="outline"
@@ -712,7 +712,7 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
               </Badge>
             )}
             <Select value={project.stage_id || ""} onValueChange={v => onMove(project.id, v)}>
-              <SelectTrigger className="h-7 w-40 text-xs">
+              <SelectTrigger className="h-7 w-32 sm:w-40 text-xs">
                 <SelectValue placeholder="Mover etapa" />
               </SelectTrigger>
               <SelectContent>
@@ -727,17 +727,17 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
               </SelectContent>
             </Select>
             {project.requested_by_name && (
-              <span className="text-xs text-muted-foreground">Solicitado por: {project.requested_by_name}</span>
+              <span className="text-xs text-muted-foreground hidden sm:inline">Solicitado por: {project.requested_by_name}</span>
             )}
           </div>
         </DialogHeader>
 
         <Tabs defaultValue="details" className="flex-1 overflow-hidden flex flex-col">
-          <TabsList className="w-full justify-start">
-            <TabsTrigger value="details"><FileText className="h-3.5 w-3.5 mr-1" /> Detalhes</TabsTrigger>
-            <TabsTrigger value="notes"><MessageSquare className="h-3.5 w-3.5 mr-1" /> Notas ({notes.length})</TabsTrigger>
-            <TabsTrigger value="tasks"><CheckSquare className="h-3.5 w-3.5 mr-1" /> Tarefas ({tasks.length})</TabsTrigger>
-            <TabsTrigger value="attachments"><Paperclip className="h-3.5 w-3.5 mr-1" /> Arquivos ({attachments.length})</TabsTrigger>
+          <TabsList className="w-full justify-start overflow-x-auto">
+            <TabsTrigger value="details" className="text-xs sm:text-sm"><FileText className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Detalhes</span></TabsTrigger>
+            <TabsTrigger value="notes" className="text-xs sm:text-sm"><MessageSquare className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Notas</span> ({notes.length})</TabsTrigger>
+            <TabsTrigger value="tasks" className="text-xs sm:text-sm"><CheckSquare className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Tarefas</span> ({tasks.length})</TabsTrigger>
+            <TabsTrigger value="attachments" className="text-xs sm:text-sm"><Paperclip className="h-3.5 w-3.5 sm:mr-1" /> <span className="hidden sm:inline">Arquivos</span> ({attachments.length})</TabsTrigger>
           </TabsList>
 
           <ScrollArea className="flex-1 mt-3">
@@ -761,7 +761,7 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <Label className="text-xs text-muted-foreground">Prioridade</Label>
                   <p className="text-sm font-medium capitalize">{project.priority}</p>
@@ -873,7 +873,7 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                         <X className="h-3 w-3" />
                       </Button>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <Label className="text-xs">Data de Início</Label>
                         <Input
