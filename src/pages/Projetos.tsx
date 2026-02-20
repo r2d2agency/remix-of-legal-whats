@@ -32,7 +32,7 @@ import {
   useProjectStages, useProjects, useProjectMutations, useProjectStageMutations,
   useProjectAttachments, useProjectNotes, useProjectTasks, useProjectTemplates,
   useProjectTemplateTasks, useProjectNoteMutations, useProjectAttachmentMutations,
-  useProjectTaskMutations, useProjectTemplateMutations,
+  useProjectTaskMutations, useProjectTemplateMutations, useIsDesigner,
   Project, ProjectStage, ProjectTask, ProjectNote, ProjectTemplate
 } from "@/hooks/use-projects";
 
@@ -41,6 +41,7 @@ export default function Projetos() {
   const { data: stages = [], isLoading: loadingStages } = useProjectStages();
   const { data: projects = [], isLoading: loadingProjects } = useProjects();
   const { data: templates = [] } = useProjectTemplates();
+  const { data: designerCheck } = useIsDesigner();
   const projectMut = useProjectMutations();
   const stageMut = useProjectStageMutations();
   const templateMut = useProjectTemplateMutations();
@@ -68,6 +69,8 @@ export default function Projetos() {
   const [templateTasks, setTemplateTasks] = useState<Array<{ title: string; duration_days: number }>>([]);
 
   const isAdmin = ['owner', 'admin', 'manager'].includes(user?.role || '');
+  const isDesignerUser = designerCheck?.isDesigner || false;
+  const canEdit = isAdmin || isDesignerUser;
 
   // Group projects by stage
   const projectsByStage = useMemo(() => {
@@ -152,9 +155,11 @@ export default function Projetos() {
                 className="pl-9"
               />
             </div>
-            <Button onClick={() => setShowCreateProject(true)} size="sm">
-              <Plus className="h-4 w-4 mr-1" /> <span className="hidden sm:inline">Novo Projeto</span><span className="sm:hidden">Novo</span>
-            </Button>
+            {canEdit && (
+              <Button onClick={() => setShowCreateProject(true)} size="sm">
+                <Plus className="h-4 w-4 mr-1" /> <span className="hidden sm:inline">Novo Projeto</span><span className="sm:hidden">Novo</span>
+              </Button>
+            )}
             {isAdmin && (
               <>
                 <Button variant="outline" size="sm" onClick={() => setShowStageEditor(true)}>
@@ -211,6 +216,7 @@ export default function Projetos() {
                           key={project.id}
                           project={project}
                           stages={stages}
+                          canEdit={canEdit}
                           onOpen={() => setSelectedProject(project)}
                           onMove={handleMoveProject}
                         />
@@ -471,6 +477,7 @@ export default function Projetos() {
           open={!!selectedProject}
           onOpenChange={(o) => { if (!o) setSelectedProject(null); }}
           stages={stages}
+          canEdit={canEdit}
           onMove={handleMoveProject}
         />
       )}
@@ -481,9 +488,10 @@ export default function Projetos() {
 // ========================
 // Project Card
 // ========================
-function ProjectCard({ project, stages, onOpen, onMove }: {
+function ProjectCard({ project, stages, canEdit, onOpen, onMove }: {
   project: Project;
   stages: ProjectStage[];
+  canEdit: boolean;
   onOpen: () => void;
   onMove: (projectId: string, stageId: string) => void;
 }) {
@@ -540,8 +548,8 @@ function ProjectCard({ project, stages, onOpen, onMove }: {
           </span>
         </div>
 
-        {/* Quick stage move */}
-        <div className="flex gap-1 pt-1" onClick={e => e.stopPropagation()}>
+        {/* Quick stage move - only for editors */}
+        {canEdit && <div className="flex gap-1 pt-1" onClick={e => e.stopPropagation()}>
           {stages.filter(s => s.id !== project.stage_id).slice(0, 3).map(s => (
             <Tooltip key={s.id} delayDuration={0}>
               <TooltipTrigger asChild>
@@ -554,7 +562,7 @@ function ProjectCard({ project, stages, onOpen, onMove }: {
               <TooltipContent side="bottom" className="text-xs">{s.name}</TooltipContent>
             </Tooltip>
           ))}
-        </div>
+        </div>}
       </CardContent>
     </Card>
   );
@@ -563,12 +571,13 @@ function ProjectCard({ project, stages, onOpen, onMove }: {
 // ========================
 // Task Checklist Item (editable)
 // ========================
-function TaskChecklistItem({ task, projectId, isCompleted, orgMembers, taskMut }: {
+function TaskChecklistItem({ task, projectId, isCompleted, orgMembers, taskMut, canEdit }: {
   task: ProjectTask;
   projectId: string;
   isCompleted: boolean;
   orgMembers: Array<{ user_id: string; name: string }>;
   taskMut: ReturnType<typeof useProjectTaskMutations>;
+  canEdit: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [assignedTo, setAssignedTo] = useState(task.assigned_to || "");
@@ -592,10 +601,11 @@ function TaskChecklistItem({ task, projectId, isCompleted, orgMembers, taskMut }
       <div className="flex items-center gap-3 p-2.5 hover:bg-muted/50">
         <div
           className={cn(
-            "h-5 w-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors cursor-pointer",
-            isCompleted ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"
+            "h-5 w-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors",
+            isCompleted ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground",
+            canEdit && "cursor-pointer"
           )}
-          onClick={() => taskMut.update.mutate({
+          onClick={() => canEdit && taskMut.update.mutate({
             taskId: task.id,
             projectId,
             status: isCompleted ? 'pending' : 'completed'
@@ -613,24 +623,28 @@ function TaskChecklistItem({ task, projectId, isCompleted, orgMembers, taskMut }
             {task.end_date && <span>• {format(new Date(task.end_date), "dd/MM")}</span>}
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0 text-destructive opacity-50 hover:opacity-100"
-          onClick={() => taskMut.remove.mutate({ taskId: task.id, projectId })}
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
+        {canEdit && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 text-destructive opacity-50 hover:opacity-100"
+              onClick={() => taskMut.remove.mutate({ taskId: task.id, projectId })}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </>
+        )}
       </div>
-      {expanded && (
+      {expanded && canEdit && (
         <div className="px-3 pb-3 pt-1 border-t space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
@@ -669,11 +683,12 @@ function TaskChecklistItem({ task, projectId, isCompleted, orgMembers, taskMut }
 // ========================
 // Project Detail Dialog
 // ========================
-function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
+function ProjectDetailDialog({ project, open, onOpenChange, stages, canEdit, onMove }: {
   project: Project;
   open: boolean;
   onOpenChange: (o: boolean) => void;
   stages: ProjectStage[];
+  canEdit: boolean;
   onMove: (projectId: string, stageId: string) => void;
 }) {
   const { user } = useAuth();
@@ -817,21 +832,27 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                 {project.deal_title}
               </Badge>
             )}
-            <Select value={project.stage_id || ""} onValueChange={v => onMove(project.id, v)}>
-              <SelectTrigger className="h-7 w-32 sm:w-40 text-xs">
-                <SelectValue placeholder="Mover etapa" />
-              </SelectTrigger>
-              <SelectContent>
-                {stages.map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                      {s.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {canEdit ? (
+              <Select value={project.stage_id || ""} onValueChange={v => onMove(project.id, v)}>
+                <SelectTrigger className="h-7 w-32 sm:w-40 text-xs">
+                  <SelectValue placeholder="Mover etapa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stages.map(s => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                        {s.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge variant="outline" className="text-xs">
+                {project.stage_name || "Sem etapa"}
+              </Badge>
+            )}
             {project.requested_by_name && (
               <span className="text-xs text-muted-foreground hidden sm:inline">Solicitado por: {project.requested_by_name}</span>
             )}
@@ -852,9 +873,11 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <Label className="text-sm font-semibold">Descrição</Label>
-                  <Button variant="ghost" size="sm" onClick={() => setEditingDesc(!editingDesc)}>
-                    <Edit className="h-3 w-3 mr-1" /> {editingDesc ? "Cancelar" : "Editar"}
-                  </Button>
+                  {canEdit && (
+                    <Button variant="ghost" size="sm" onClick={() => setEditingDesc(!editingDesc)}>
+                      <Edit className="h-3 w-3 mr-1" /> {editingDesc ? "Cancelar" : "Editar"}
+                    </Button>
+                  )}
                 </div>
                 {editingDesc ? (
                   <div className="space-y-2">
@@ -939,7 +962,7 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
             {/* Tasks */}
             <TabsContent value="tasks" className="mt-0 space-y-3">
               {/* Template selector when no tasks */}
-              {tasks.length === 0 && templates.length > 0 && !showTemplateConfig && (
+              {canEdit && tasks.length === 0 && templates.length > 0 && !showTemplateConfig && (
                 <Card className="border-dashed">
                   <CardContent className="p-4 text-center space-y-3">
                     <LayoutTemplate className="h-8 w-8 mx-auto text-muted-foreground" />
@@ -1115,6 +1138,7 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                         isCompleted={isCompleted}
                         orgMembers={orgMembers}
                         taskMut={taskMut}
+                        canEdit={canEdit}
                       />
                     );
                   })}
@@ -1122,36 +1146,40 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                     <p className="text-sm text-muted-foreground text-center py-4">Nenhuma tarefa ainda</p>
                   )}
 
-                  {/* Quick add task */}
-                  <div className="flex gap-2 pt-2">
-                    <Input
-                      value={newTaskTitle}
-                      onChange={e => setNewTaskTitle(e.target.value)}
-                      placeholder="Adicionar tarefa..."
-                      className="flex-1 h-8 text-sm"
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && newTaskTitle.trim()) {
-                          handleAddTask();
-                        }
-                      }}
-                    />
-                    <Button size="sm" className="h-8" onClick={handleAddTask} disabled={!newTaskTitle.trim()}>
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                  {/* Quick add task - only for editors */}
+                  {canEdit && (
+                    <div className="flex gap-2 pt-2">
+                      <Input
+                        value={newTaskTitle}
+                        onChange={e => setNewTaskTitle(e.target.value)}
+                        placeholder="Adicionar tarefa..."
+                        className="flex-1 h-8 text-sm"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && newTaskTitle.trim()) {
+                            handleAddTask();
+                          }
+                        }}
+                      />
+                      <Button size="sm" className="h-8" onClick={handleAddTask} disabled={!newTaskTitle.trim()}>
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </TabsContent>
 
             {/* Attachments */}
             <TabsContent value="attachments" className="mt-0 space-y-3">
-              <div>
-                <input type="file" id="proj-file-upload" className="hidden" onChange={handleUpload} />
-                <Button variant="outline" size="sm" onClick={() => document.getElementById("proj-file-upload")?.click()} disabled={isUploading}>
-                  {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />}
-                  Anexar Arquivo
-                </Button>
-              </div>
+              {canEdit && (
+                <div>
+                  <input type="file" id="proj-file-upload" className="hidden" onChange={handleUpload} />
+                  <Button variant="outline" size="sm" onClick={() => document.getElementById("proj-file-upload")?.click()} disabled={isUploading}>
+                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />}
+                    Anexar Arquivo
+                  </Button>
+                </div>
+              )}
               <div className="space-y-2">
                 {attachments.map(att => (
                   <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg border">
@@ -1160,9 +1188,11 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                       <a href={resolveMediaUrl(att.url)} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:underline truncate block">{att.name}</a>
                       <p className="text-xs text-muted-foreground">{att.uploaded_by_name} · {format(new Date(att.created_at), "dd/MM HH:mm", { locale: ptBR })}</p>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => attMut.remove.mutate({ attId: att.id, projectId: project.id })}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    {canEdit && (
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => attMut.remove.mutate({ attId: att.id, projectId: project.id })}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 ))}
                 {attachments.length === 0 && (
