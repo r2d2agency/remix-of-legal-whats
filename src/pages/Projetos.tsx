@@ -844,7 +844,7 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                       size="sm"
                       onClick={() => setViewMode("list")}
                     >
-                      <CheckSquare className="h-3.5 w-3.5 mr-1" /> Lista
+                      <CheckSquare className="h-3.5 w-3.5 mr-1" /> Checklist
                     </Button>
                     <Button
                       variant={viewMode === "gantt" ? "default" : "outline"}
@@ -854,58 +854,13 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                       <BarChart3 className="h-3.5 w-3.5 mr-1" /> Gantt
                     </Button>
                   </div>
-                  {templates.length > 0 && (
-                    <Select onValueChange={handleApplyTemplate}>
-                      <SelectTrigger className="h-7 w-auto text-xs">
-                        <SelectValue placeholder="+ Template" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templates.map(t => (
-                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {tasks.filter(t => t.status === 'completed').length}/{tasks.length} concluídas
+                    </span>
+                  </div>
                 </div>
               )}
-
-              {/* Add task form */}
-              <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
-                <div className="flex gap-2">
-                  <Input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder="Nova tarefa..." className="flex-1" />
-                  <Button size="sm" onClick={handleAddTask} disabled={!newTaskTitle.trim()}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Select value={newTaskAssignedTo} onValueChange={setNewTaskAssignedTo}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Responsável" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sem responsável</SelectItem>
-                      {orgMembers.map(m => (
-                        <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="date"
-                    value={newTaskEndDate}
-                    onChange={e => setNewTaskEndDate(e.target.value)}
-                    className="h-8 text-xs"
-                    placeholder="Data final"
-                  />
-                  <Input
-                    type="number"
-                    value={newTaskDuration}
-                    onChange={e => setNewTaskDuration(parseInt(e.target.value) || 1)}
-                    className="h-8 text-xs"
-                    min={1}
-                    placeholder="Dias"
-                  />
-                </div>
-              </div>
 
               {/* Gantt View */}
               {viewMode === "gantt" && tasks.length > 0 && (
@@ -966,41 +921,39 @@ function ProjectDetailDialog({ project, open, onOpenChange, stages, onMove }: {
                 </div>
               )}
 
-              {/* List View */}
+              {/* Checklist View */}
               {viewMode === "list" && (
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {tasks.map(task => {
                     const isCompleted = task.status === 'completed';
                     return (
-                      <div key={task.id} className={cn("flex items-center gap-3 p-3 rounded-lg border transition-colors", isCompleted && "opacity-60")}>
-                        <button
-                          onClick={() => taskMut.update.mutate({
-                            taskId: task.id,
-                            projectId: project.id,
-                            status: isCompleted ? 'pending' : 'completed'
-                          })}
+                      <div
+                        key={task.id}
+                        className={cn(
+                          "flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors hover:bg-muted/50",
+                          isCompleted && "bg-muted/30"
+                        )}
+                        onClick={() => taskMut.update.mutate({
+                          taskId: task.id,
+                          projectId: project.id,
+                          status: isCompleted ? 'pending' : 'completed'
+                        })}
+                      >
+                        <div
                           className={cn(
-                            "h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
+                            "h-5 w-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors",
                             isCompleted ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"
                           )}
                         >
                           {isCompleted && <CheckSquare className="h-3 w-3" />}
-                        </button>
-                        <div className="flex-1">
-                          <p className={cn("text-sm font-medium", isCompleted && "line-through")}>{task.title}</p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            <span>{task.duration_days} dia(s)</span>
-                            {task.assigned_to_name && <><User className="h-3 w-3 ml-2" /><span>{task.assigned_to_name}</span></>}
-                            {task.end_date && <><Calendar className="h-3 w-3 ml-2" /><span>{format(new Date(task.end_date), "dd/MM/yyyy")}</span></>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={cn("text-sm", isCompleted && "line-through text-muted-foreground")}>{task.title}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            {task.assigned_to_name && <span>{task.assigned_to_name}</span>}
+                            {task.end_date && <span>• {format(new Date(task.end_date), "dd/MM")}</span>}
                           </div>
                         </div>
-                        <Badge variant={isCompleted ? "default" : task.status === 'in_progress' ? "secondary" : "outline"} className="text-[10px]">
-                          {isCompleted ? "Concluída" : task.status === 'in_progress' ? "Em andamento" : "Pendente"}
-                        </Badge>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => taskMut.remove.mutate({ taskId: task.id, projectId: project.id })}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
                       </div>
                     );
                   })}
