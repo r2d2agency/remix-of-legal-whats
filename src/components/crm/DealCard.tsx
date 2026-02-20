@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CRMDeal } from "@/hooks/use-crm";
 import { cn } from "@/lib/utils";
-import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake, TrendingUp, TrendingDown, Activity } from "lucide-react";
+import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake, TrendingUp, TrendingDown, Activity, FolderKanban } from "lucide-react";
 import { differenceInHours, parseISO } from "date-fns";
 import { analyzeDeal } from "./PredictiveAnalytics";
 
@@ -31,6 +31,10 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
     // Scheduled WhatsApp messages count
     const scheduledMessagesCount = Number(deal.scheduled_messages) || 0;
     const hasScheduledMessages = scheduledMessagesCount > 0;
+
+    // Projects count
+    const projectCount = Number(deal.project_count) || 0;
+    const hasProjects = projectCount > 0;
 
     // Calculate predictive insights
     const predictiveInsights = useMemo(() => {
@@ -240,6 +244,18 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
           </div>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {/* Projects linked */}
+            {hasProjects && (
+              <Badge 
+                variant="secondary" 
+                className="text-[10px] px-1.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 flex items-center gap-0.5"
+                title={`${projectCount} projeto(s) vinculado(s)`}
+              >
+                <FolderKanban className="h-3 w-3" />
+                <span>{projectCount}</span>
+              </Badge>
+            )}
+
             {/* Scheduled WhatsApp messages - highlighted */}
             {hasScheduledMessages && !isWon && !isLost && (
               <Badge 

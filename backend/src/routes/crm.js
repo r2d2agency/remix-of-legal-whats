@@ -814,6 +814,7 @@ router.get('/funnels/:funnelId/deals', async (req, res) => {
                    LIKE '%' || regexp_replace(conv.contact_phone, '\\D', '', 'g') || '%'
            )
         ) as scheduled_messages,
+        (SELECT COUNT(*) FROM projects WHERE deal_id = d.id) as project_count,
         (SELECT json_agg(json_build_object('id', dc.contact_id, 'name', cnt.name, 'phone', cnt.phone, 'is_primary', dc.is_primary))
          FROM crm_deal_contacts dc
          JOIN contacts cnt ON cnt.id = dc.contact_id

@@ -96,6 +96,7 @@ export interface CRMDeal {
   pending_tasks: number;
   upcoming_meetings?: number;
   scheduled_messages?: number;
+  project_count?: number;
   contacts?: CRMDealContact[];
   last_activity_at: string;
   last_opened_at: string;
