@@ -136,8 +136,8 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
       onDragCancel={handleDragCancel}
       measuring={measuringConfig}
     >
-      <ScrollArea className="w-full">
-        <div className="flex gap-4 p-4 min-w-max">
+      <ScrollArea className="w-full" role="region" aria-label="Quadro Kanban de negociações">
+        <div className="flex gap-4 p-4 min-w-max" role="list" aria-label="Etapas do funil">
           {stages.map((stage) => {
             const deals = dealsByStage[stage.id!] || [];
             const stageValue = deals.reduce((sum, d) => sum + Number(d.value || 0), 0);

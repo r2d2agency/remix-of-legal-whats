@@ -124,6 +124,8 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         ref={ref}
         style={cardStyle}
         onClick={onClick}
+        role="article"
+        aria-label={`Negociação: ${deal.title}, ${formatCurrency(deal.value)}${isWon ? ', ganho' : isLost ? ', perdido' : isPaused ? ', pausado' : ''}`}
         className={cn(
           "p-3 cursor-grab active:cursor-grabbing",
           "transition-all duration-200 ease-out",
@@ -292,8 +294,8 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
             )}
 
             {/* Inactivity warning - hide for closed deals */}
-            {isInactive && !isWon && !isLost && !isPaused && (
-              <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+             {isInactive && !isWon && !isLost && !isPaused && (
+              <AlertTriangle className="h-3.5 w-3.5 text-destructive" aria-label="Negociação inativa" />
             )}
 
             {/* Time indicator */}
