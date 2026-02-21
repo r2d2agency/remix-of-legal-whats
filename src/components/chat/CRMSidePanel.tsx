@@ -27,7 +27,6 @@ import {
   MapPin,
   DollarSign,
   Calendar,
-  CheckSquare,
   Plus,
   ExternalLink,
   Trophy,
@@ -41,20 +40,6 @@ import {
   ClipboardList,
   ArrowLeft,
   RefreshCw,
-  Bot,
-  Sparkles,
-  Zap,
-  MessageSquare,
-  Send,
-  Copy,
-  Brain,
-  FolderKanban,
-  Clock,
-  Circle,
-  CheckCircle2,
-  Upload,
-  Paperclip,
-  Reply,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -71,30 +56,17 @@ import {
 } from "@/hooks/use-crm";
 import { useChat, ConversationNote } from "@/hooks/use-chat";
 import { toast } from "sonner";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
-import { api } from "@/lib/api";
-import { useAIAgents, AIAgent } from "@/hooks/use-ai-agents";
 import { TaskDialog } from "@/components/crm/TaskDialog";
 import { MeetingScheduleDialog } from "./MeetingScheduleDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialog";
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  useProjects,
-  useProjectStages,
-  useProjectTemplates,
-  useProjectMutations,
-  useProjectNotes,
-  useProjectNoteMutations,
-  useProjectAttachmentMutations,
-  Project,
-  ProjectNote,
-} from "@/hooks/use-projects";
-import { useUpload } from "@/hooks/use-upload";
-import { resolveMediaUrl } from "@/lib/media";
+import { CRMAIAgentsSection } from "./CRMAIAgentsSection";
+import { CRMProjectsSection } from "./CRMProjectsSection";
 
 interface CRMSidePanelProps {
   conversationId: string;
