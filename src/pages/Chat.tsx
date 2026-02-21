@@ -12,7 +12,7 @@ import { chatEvents } from "@/lib/chat-events";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Users, Bell, RefreshCw } from "lucide-react";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
@@ -874,6 +874,7 @@ const Chat = () => {
           {isMobile && selectedConversation && modulesEnabled.crm && (
             <Sheet open={crmPanelOpen} onOpenChange={setCrmPanelOpen}>
               <SheetContent side="right" className="w-full max-w-sm p-0 [&>button]:hidden">
+                <SheetTitle className="sr-only">Painel CRM</SheetTitle>
                 <CRMSidePanel
                   conversationId={selectedConversation.id}
                   contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
