@@ -43,7 +43,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBranding } from "@/hooks/use-branding";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface NavItem {
@@ -458,6 +458,7 @@ export function Sidebar() {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-72 p-0 bg-card border-border z-[70]">
+            <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
             <SidebarContentComponent
               isExpanded={true}
               isSuperadmin={isSuperadmin}
