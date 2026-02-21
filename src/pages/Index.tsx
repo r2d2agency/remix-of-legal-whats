@@ -23,6 +23,9 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useChat } from "@/hooks/use-chat";
 import { useAuth } from "@/contexts/AuthContext";
+import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import { Button } from "@/components/ui/button";
+import { Rocket } from "lucide-react";
 
 interface DashboardStats {
   totalContacts: number;
@@ -73,6 +76,7 @@ const Index = () => {
     messagesWeek: 0,
   });
   const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -158,6 +162,10 @@ const Index = () => {
             <Activity className="h-3 w-3 text-success animate-pulse" />
             {connections.filter(c => c.status === 'connected').length} conexão(ões) ativa(s)
           </Badge>
+          <Button variant="outline" size="sm" className="gap-2 ml-2" onClick={() => setShowOnboarding(true)}>
+            <Rocket className="h-4 w-4" />
+            <span className="hidden sm:inline">Onboarding</span>
+          </Button>
         </div>
 
         {/* Connection */}
@@ -369,6 +377,7 @@ const Index = () => {
           )}
         </DashboardWidget>
       </div>
+      <OnboardingWizard open={showOnboarding} onClose={() => setShowOnboarding(false)} />
     </MainLayout>
   );
 };
