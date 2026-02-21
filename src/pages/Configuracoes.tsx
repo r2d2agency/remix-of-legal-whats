@@ -19,6 +19,7 @@ import { EmailTemplatesPanel } from "@/components/email/EmailTemplatesPanel";
 import { FeaturesDocumentation } from "@/components/admin/FeaturesDocumentation";
 import { AIConfigPanel } from "@/components/settings/AIConfigPanel";
 import { WorkSchedulePanel } from "@/components/settings/WorkSchedulePanel";
+import { PushNotificationSettings } from "@/components/settings/PushNotificationSettings";
 
 const Configuracoes = () => {
   const { user } = useAuth();
@@ -398,69 +399,8 @@ const Configuracoes = () => {
                 </CardContent>
               </Card>
 
-              {/* Push Notifications */}
-              <Card className="animate-fade-in shadow-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BellRing className="h-5 w-5 text-primary" />
-                    Notificações Push
-                  </CardTitle>
-                  <CardDescription>
-                    Receba notificações mesmo com o navegador minimizado
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {isPushSupported ? (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <Label>Status das permissões</Label>
-                          <p className="text-sm text-muted-foreground">
-                            {pushPermission === 'granted' && "✅ Notificações ativadas"}
-                            {pushPermission === 'denied' && "❌ Notificações bloqueadas"}
-                            {pushPermission === 'default' && "⏳ Aguardando autorização"}
-                          </p>
-                        </div>
-                        {pushPermission !== 'granted' && (
-                          <Button
-                            onClick={handleRequestPush}
-                            variant={pushPermission === 'denied' ? 'outline' : 'default'}
-                            disabled={pushPermission === 'denied'}
-                          >
-                            <Bell className="h-4 w-4 mr-2" />
-                            {pushPermission === 'denied' ? 'Bloqueado' : 'Ativar'}
-                          </Button>
-                        )}
-                      </div>
-
-                      {pushPermission === 'granted' && (
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <Label>Mostrar notificações push</Label>
-                            <p className="text-sm text-muted-foreground">
-                              Alertas visuais no sistema
-                            </p>
-                          </div>
-                          <Switch
-                            checked={notifSettings.pushEnabled}
-                            onCheckedChange={(checked) => updateNotifSettings({ pushEnabled: checked })}
-                          />
-                        </div>
-                      )}
-
-                      {pushPermission === 'denied' && (
-                        <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-                          As notificações foram bloqueadas. Para ativá-las, acesse as configurações do seu navegador.
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-                      Seu navegador não suporta notificações push.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              {/* Web Push Notifications */}
+              <PushNotificationSettings />
 
               {/* PWA Install */}
               <Card className="animate-fade-in shadow-card">

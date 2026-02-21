@@ -80,7 +80,8 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         // IMPORTANT: do not let the service worker hijack OAuth callbacks or API navigation
         // otherwise the browser can load the SPA (and show 404) instead of hitting the backend.
-        navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//, /^\/auth$/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//, /^\/auth$/, /^\/~oauth/],
+        importScripts: ['/push-sw.js'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
         runtimeCaching: [
