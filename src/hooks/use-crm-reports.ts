@@ -33,15 +33,37 @@ export interface OwnerSalesData {
   userId: string;
   userName: string;
   wonCount: number;
+  lostCount: number;
   wonValue: number;
+  lostValue: number;
+  openValue: number;
   totalDeals: number;
+  avgTicket: number;
+}
+
+export interface GroupSalesData {
+  groupId: string;
+  groupName: string;
+  open: number;
+  won: number;
+  lost: number;
+  openValue: number;
+  wonValue: number;
+  lostValue: number;
+  totalDeals: number;
+  avgTicket: number;
 }
 
 export interface SalesReportData {
   timeline: SalesTimelineData[];
   summary: SalesSummary;
+  newLeads: number;
+  avgTicket: number;
+  avgCycleDays: number;
+  totalPipeline: number;
   byFunnel: FunnelSalesData[];
   byOwner: OwnerSalesData[];
+  byGroup: GroupSalesData[];
 }
 
 export interface ConversionStageData {
@@ -59,12 +81,16 @@ export function useCRMSalesReport(params: {
   endDate?: string;
   funnelId?: string;
   groupBy?: 'day' | 'week' | 'month';
+  groupId?: string;
+  ownerId?: string;
 }) {
   const searchParams = new URLSearchParams();
   if (params.startDate) searchParams.append('start_date', params.startDate);
   if (params.endDate) searchParams.append('end_date', params.endDate);
   if (params.funnelId) searchParams.append('funnel_id', params.funnelId);
   if (params.groupBy) searchParams.append('group_by', params.groupBy);
+  if (params.groupId) searchParams.append('group_id', params.groupId);
+  if (params.ownerId) searchParams.append('owner_id', params.ownerId);
 
   return useQuery({
     queryKey: ["crm-sales-report", params],

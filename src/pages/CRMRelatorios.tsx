@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ import {
   useWinLossAnalysis,
   usePipelineVelocity,
 } from "@/hooks/use-crm-reports";
-import { useCRMFunnels } from "@/hooks/use-crm";
+import { useCRMFunnels, useCRMGroups } from "@/hooks/use-crm";
 import {
   CalendarIcon,
   TrendingUp,
@@ -46,6 +46,10 @@ import {
   BarChart3,
   PieChartIcon,
   Activity,
+  UserPlus,
+  Clock,
+  Wallet,
+  UsersRound,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -80,16 +84,21 @@ export default function CRMRelatorios() {
     to: new Date(),
   });
   const [selectedFunnel, setSelectedFunnel] = useState<string>("all");
+  const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [selectedOwner, setSelectedOwner] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<"day" | "week" | "month">("day");
   const [activeTab, setActiveTab] = useState("overview");
 
   const { data: funnels } = useCRMFunnels();
+  const { data: groups } = useCRMGroups();
 
   const { data: salesData, isLoading } = useCRMSalesReport({
     startDate: dateRange?.from?.toISOString().split("T")[0],
     endDate: dateRange?.to?.toISOString().split("T")[0],
     funnelId: selectedFunnel !== "all" ? selectedFunnel : undefined,
     groupBy,
+    groupId: selectedGroup !== "all" ? selectedGroup : undefined,
+    ownerId: selectedOwner !== "all" ? selectedOwner : undefined,
   });
 
   const { data: conversionData } = useCRMConversionReport({
@@ -98,7 +107,6 @@ export default function CRMRelatorios() {
     endDate: dateRange?.to?.toISOString().split("T")[0],
   });
 
-  // Trend data
   const { data: winLossData } = useWinLossAnalysis({
     startDate: dateRange?.from?.toISOString().split("T")[0],
     endDate: dateRange?.to?.toISOString().split("T")[0],
@@ -116,6 +124,11 @@ export default function CRMRelatorios() {
     });
   };
 
+  // Extract unique owners from byOwner for the filter
+  const ownerOptions = useMemo(() => {
+    return salesData?.byOwner || [];
+  }, [salesData?.byOwner]);
+
   const summary = salesData?.summary || {
     open: { count: 0, value: 0 },
     won: { count: 0, value: 0 },
@@ -124,7 +137,6 @@ export default function CRMRelatorios() {
     totalValue: 0,
   };
 
-  // Pie chart data
   const pieData = [
     { name: "Em aberto", value: summary.open.count, color: STATUS_COLORS.open },
     { name: "Ganhas", value: summary.won.count, color: STATUS_COLORS.won },
@@ -194,7 +206,7 @@ export default function CRMRelatorios() {
 
             {/* Funnel Filter */}
             <Select value={selectedFunnel} onValueChange={setSelectedFunnel}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Todos os funis" />
               </SelectTrigger>
               <SelectContent>
@@ -207,9 +219,43 @@ export default function CRMRelatorios() {
               </SelectContent>
             </Select>
 
+            {/* Group Filter */}
+            {groups && groups.length > 0 && (
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Todos os grupos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os grupos</SelectItem>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id!}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Owner Filter */}
+            {ownerOptions.length > 0 && (
+              <Select value={selectedOwner} onValueChange={setSelectedOwner}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Todos os usuários" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os usuários</SelectItem>
+                  {ownerOptions.map((o) => (
+                    <SelectItem key={o.userId} value={o.userId}>
+                      {o.userName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             {/* Group By */}
             <Select value={groupBy} onValueChange={(v) => setGroupBy(v as typeof groupBy)}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[130px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -227,73 +273,88 @@ export default function CRMRelatorios() {
           </div>
         ) : (
           <>
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total em Aberto</p>
-                      <p className="text-2xl font-bold">{summary.open.count}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatCurrency(summary.open.value)}
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Activity className="h-6 w-6 text-primary" />
-                    </div>
+            {/* KPI Cards - Row 1: Volume */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+              <Card className="col-span-1">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <UserPlus className="h-4 w-4 text-primary" />
+                    <p className="text-xs text-muted-foreground">Leads Novos</p>
                   </div>
+                  <p className="text-xl font-bold">{salesData?.newLeads || 0}</p>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Negociações Ganhas</p>
-                      <p className="text-2xl font-bold text-green-600">{summary.won.count}</p>
-                      <p className="text-sm text-green-600">
-                        {formatCurrency(summary.won.value)}
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                      <TrendingUp className="h-6 w-6 text-green-600" />
-                    </div>
+              <Card className="col-span-1">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Activity className="h-4 w-4 text-blue-500" />
+                    <p className="text-xs text-muted-foreground">Em Aberto</p>
                   </div>
+                  <p className="text-xl font-bold">{summary.open.count}</p>
+                  <p className="text-xs text-muted-foreground">{formatCurrency(summary.open.value)}</p>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Negociações Perdidas</p>
-                      <p className="text-2xl font-bold text-red-600">{summary.lost.count}</p>
-                      <p className="text-sm text-red-600">
-                        {formatCurrency(summary.lost.value)}
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
-                      <TrendingDown className="h-6 w-6 text-red-600" />
-                    </div>
+              <Card className="col-span-1">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                    <p className="text-xs text-muted-foreground">Ganhas</p>
                   </div>
+                  <p className="text-xl font-bold text-green-600">{summary.won.count}</p>
+                  <p className="text-xs text-green-600">{formatCurrency(summary.won.value)}</p>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Taxa de Conversão</p>
-                      <p className="text-2xl font-bold">{summary.winRate}%</p>
-                      <p className="text-sm text-muted-foreground">
-                        de fechamento
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
-                      <Target className="h-6 w-6 text-amber-600" />
-                    </div>
+              <Card className="col-span-1">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingDown className="h-4 w-4 text-red-500" />
+                    <p className="text-xs text-muted-foreground">Perdidas</p>
                   </div>
+                  <p className="text-xl font-bold text-red-600">{summary.lost.count}</p>
+                  <p className="text-xs text-red-600">{formatCurrency(summary.lost.value)}</p>
+                </CardContent>
+              </Card>
+
+              <Card className="col-span-1">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Target className="h-4 w-4 text-amber-500" />
+                    <p className="text-xs text-muted-foreground">Conversão</p>
+                  </div>
+                  <p className="text-xl font-bold">{summary.winRate}%</p>
+                </CardContent>
+              </Card>
+
+              <Card className="col-span-1">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <DollarSign className="h-4 w-4 text-emerald-500" />
+                    <p className="text-xs text-muted-foreground">Ticket Médio</p>
+                  </div>
+                  <p className="text-xl font-bold">{formatCurrency(salesData?.avgTicket || 0)}</p>
+                </CardContent>
+              </Card>
+
+              <Card className="col-span-1">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Clock className="h-4 w-4 text-orange-500" />
+                    <p className="text-xs text-muted-foreground">Ciclo Médio</p>
+                  </div>
+                  <p className="text-xl font-bold">{salesData?.avgCycleDays || 0}d</p>
+                </CardContent>
+              </Card>
+
+              <Card className="col-span-1">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Wallet className="h-4 w-4 text-violet-500" />
+                    <p className="text-xs text-muted-foreground">Pipeline Total</p>
+                  </div>
+                  <p className="text-xl font-bold">{formatCurrency(salesData?.totalPipeline || 0)}</p>
                 </CardContent>
               </Card>
             </div>
@@ -305,17 +366,21 @@ export default function CRMRelatorios() {
                   <BarChart3 className="h-4 w-4" />
                   Visão Geral
                 </TabsTrigger>
-                <TabsTrigger value="trends" className="gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  Tendências
-                </TabsTrigger>
-                <TabsTrigger value="funnels" className="gap-2">
-                  <PieChartIcon className="h-4 w-4" />
-                  Por Funil
-                </TabsTrigger>
                 <TabsTrigger value="team" className="gap-2">
                   <Users className="h-4 w-4" />
                   Equipe
+                </TabsTrigger>
+                <TabsTrigger value="groups" className="gap-2">
+                  <UsersRound className="h-4 w-4" />
+                  Grupos
+                </TabsTrigger>
+                <TabsTrigger value="funnels" className="gap-2">
+                  <PieChartIcon className="h-4 w-4" />
+                  Funil
+                </TabsTrigger>
+                <TabsTrigger value="trends" className="gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Tendências
                 </TabsTrigger>
               </TabsList>
 
@@ -355,24 +420,9 @@ export default function CRMRelatorios() {
                               }}
                             />
                             <Legend />
-                            <Bar
-                              dataKey="won"
-                              name="Ganhas"
-                              fill={STATUS_COLORS.won}
-                              radius={[4, 4, 0, 0]}
-                            />
-                            <Bar
-                              dataKey="lost"
-                              name="Perdidas"
-                              fill={STATUS_COLORS.lost}
-                              radius={[4, 4, 0, 0]}
-                            />
-                            <Bar
-                              dataKey="open"
-                              name="Em aberto"
-                              fill={STATUS_COLORS.open}
-                              radius={[4, 4, 0, 0]}
-                            />
+                            <Bar dataKey="won" name="Ganhas" fill={STATUS_COLORS.won} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="lost" name="Perdidas" fill={STATUS_COLORS.lost} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="open" name="Em aberto" fill={STATUS_COLORS.open} radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       ) : (
@@ -428,10 +478,7 @@ export default function CRMRelatorios() {
                         {pieData.map((item) => (
                           <div key={item.name} className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: item.color }}
-                              />
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                               <span className="text-sm">{item.name}</span>
                             </div>
                             <span className="font-medium">{item.value}</span>
@@ -464,10 +511,7 @@ export default function CRMRelatorios() {
                               return v;
                             }}
                           />
-                          <YAxis
-                            tick={{ fontSize: 12 }}
-                            tickFormatter={(v) => formatCurrency(v)}
-                          />
+                          <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatCurrency(v)} />
                           <Tooltip
                             contentStyle={{
                               backgroundColor: "hsl(var(--card))",
@@ -477,22 +521,8 @@ export default function CRMRelatorios() {
                             formatter={(value: number) => formatCurrency(value)}
                           />
                           <Legend />
-                          <Line
-                            type="monotone"
-                            dataKey="wonValue"
-                            name="Valor Ganho"
-                            stroke={STATUS_COLORS.won}
-                            strokeWidth={2}
-                            dot={{ r: 4 }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="lostValue"
-                            name="Valor Perdido"
-                            stroke={STATUS_COLORS.lost}
-                            strokeWidth={2}
-                            dot={{ r: 4 }}
-                          />
+                          <Line type="monotone" dataKey="wonValue" name="Valor Ganho" stroke={STATUS_COLORS.won} strokeWidth={2} dot={{ r: 4 }} />
+                          <Line type="monotone" dataKey="lostValue" name="Valor Perdido" stroke={STATUS_COLORS.lost} strokeWidth={2} dot={{ r: 4 }} />
                         </LineChart>
                       </ResponsiveContainer>
                     ) : (
@@ -504,10 +534,185 @@ export default function CRMRelatorios() {
                 </Card>
               </TabsContent>
 
+              {/* Team Tab */}
+              <TabsContent value="team" className="mt-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Desempenho por Vendedor</CardTitle>
+                    <CardDescription>Ranking completo com todos os indicadores</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {salesData?.byOwner && salesData.byOwner.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[50px]">#</TableHead>
+                              <TableHead>Vendedor</TableHead>
+                              <TableHead className="text-center">Total</TableHead>
+                              <TableHead className="text-center text-green-600">Ganhas</TableHead>
+                              <TableHead className="text-center text-red-600">Perdidas</TableHead>
+                              <TableHead className="text-center">Conversão</TableHead>
+                              <TableHead className="text-right text-green-600">Valor Ganho</TableHead>
+                              <TableHead className="text-right text-red-600">Valor Perdido</TableHead>
+                              <TableHead className="text-right">Em Aberto</TableHead>
+                              <TableHead className="text-right">Ticket Médio</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {salesData.byOwner.map((owner, index) => {
+                              const winRate = owner.totalDeals > 0
+                                ? (owner.wonCount / owner.totalDeals) * 100
+                                : 0;
+                              return (
+                                <TableRow key={owner.userId}>
+                                  <TableCell>
+                                    <Badge
+                                      variant={index < 3 ? "default" : "secondary"}
+                                      className={cn(
+                                        index === 0 && "bg-yellow-500",
+                                        index === 1 && "bg-gray-400",
+                                        index === 2 && "bg-amber-600"
+                                      )}
+                                    >
+                                      {index + 1}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="font-medium">{owner.userName}</TableCell>
+                                  <TableCell className="text-center">{owner.totalDeals}</TableCell>
+                                  <TableCell className="text-center text-green-600 font-medium">{owner.wonCount}</TableCell>
+                                  <TableCell className="text-center text-red-600">{owner.lostCount}</TableCell>
+                                  <TableCell className="text-center">
+                                    <Badge variant="outline" className={cn(
+                                      winRate >= 50 && "border-green-500 text-green-600",
+                                      winRate < 30 && "border-red-500 text-red-600"
+                                    )}>
+                                      {winRate.toFixed(0)}%
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium text-green-600">
+                                    {formatCurrency(owner.wonValue)}
+                                  </TableCell>
+                                  <TableCell className="text-right text-red-600">
+                                    {formatCurrency(owner.lostValue)}
+                                  </TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {formatCurrency(owner.openValue)}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {formatCurrency(owner.avgTicket)}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+                        Nenhum vendedor com negociações no período
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Groups Tab */}
+              <TabsContent value="groups" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <UsersRound className="h-5 w-5 text-primary" />
+                      Desempenho por Grupo CRM
+                    </CardTitle>
+                    <CardDescription>Comparativo de performance entre os grupos</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {salesData?.byGroup && salesData.byGroup.length > 0 ? (
+                      <div className="space-y-6">
+                        {/* Group comparison chart */}
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart data={salesData.byGroup}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                            <XAxis dataKey="groupName" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "hsl(var(--card))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "8px",
+                              }}
+                            />
+                            <Legend />
+                            <Bar dataKey="won" name="Ganhas" fill={STATUS_COLORS.won} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="lost" name="Perdidas" fill={STATUS_COLORS.lost} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="open" name="Em aberto" fill={STATUS_COLORS.open} radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+
+                        {/* Group details table */}
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Grupo</TableHead>
+                                <TableHead className="text-center">Total</TableHead>
+                                <TableHead className="text-center text-green-600">Ganhas</TableHead>
+                                <TableHead className="text-center text-red-600">Perdidas</TableHead>
+                                <TableHead className="text-center">Em Aberto</TableHead>
+                                <TableHead className="text-center">Conversão</TableHead>
+                                <TableHead className="text-right text-green-600">Valor Ganho</TableHead>
+                                <TableHead className="text-right">Valor Aberto</TableHead>
+                                <TableHead className="text-right">Ticket Médio</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {salesData.byGroup.map((group) => {
+                                const closed = group.won + group.lost;
+                                const winRate = closed > 0 ? (group.won / closed) * 100 : 0;
+                                return (
+                                  <TableRow key={group.groupId}>
+                                    <TableCell className="font-medium">{group.groupName}</TableCell>
+                                    <TableCell className="text-center">{group.totalDeals}</TableCell>
+                                    <TableCell className="text-center text-green-600 font-medium">{group.won}</TableCell>
+                                    <TableCell className="text-center text-red-600">{group.lost}</TableCell>
+                                    <TableCell className="text-center">{group.open}</TableCell>
+                                    <TableCell className="text-center">
+                                      <Badge variant="outline" className={cn(
+                                        winRate >= 50 && "border-green-500 text-green-600",
+                                        winRate < 30 && "border-red-500 text-red-600"
+                                      )}>
+                                        {winRate.toFixed(0)}%
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium text-green-600">
+                                      {formatCurrency(group.wonValue)}
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">
+                                      {formatCurrency(group.openValue)}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {formatCurrency(group.avgTicket)}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+                        Nenhum grupo CRM com negociações no período
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
               {/* Funnels Tab */}
               <TabsContent value="funnels" className="mt-6 space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* By Funnel */}
                   <Card>
                     <CardHeader>
                       <CardTitle>Desempenho por Funil</CardTitle>
@@ -523,31 +728,18 @@ export default function CRMRelatorios() {
                               <div key={funnel.funnelId} className="space-y-2">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
-                                    <div
-                                      className="w-3 h-3 rounded-full"
-                                      style={{ backgroundColor: funnel.funnelColor }}
-                                    />
+                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: funnel.funnelColor }} />
                                     <span className="font-medium">{funnel.funnelName}</span>
                                   </div>
-                                  <div className="text-right">
-                                    <span className="text-green-600 font-medium">
-                                      {formatCurrency(funnel.wonValue)}
-                                    </span>
-                                  </div>
+                                  <span className="text-green-600 font-medium">{formatCurrency(funnel.wonValue)}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <Progress value={wonPercent} className="h-2 flex-1" />
-                                  <span className="text-sm text-muted-foreground w-12 text-right">
-                                    {wonPercent.toFixed(0)}%
-                                  </span>
+                                  <span className="text-sm text-muted-foreground w-12 text-right">{wonPercent.toFixed(0)}%</span>
                                 </div>
                                 <div className="flex gap-4 text-sm text-muted-foreground">
-                                  <span>
-                                    <span className="text-green-600">{funnel.won}</span> ganhas
-                                  </span>
-                                  <span>
-                                    <span className="text-red-600">{funnel.lost}</span> perdidas
-                                  </span>
+                                  <span><span className="text-green-600">{funnel.won}</span> ganhas</span>
+                                  <span><span className="text-red-600">{funnel.lost}</span> perdidas</span>
                                   <span>{funnel.open} em aberto</span>
                                 </div>
                               </div>
@@ -562,7 +754,6 @@ export default function CRMRelatorios() {
                     </CardContent>
                   </Card>
 
-                  {/* Conversion Funnel */}
                   <Card>
                     <CardHeader>
                       <CardTitle>Funil de Conversão</CardTitle>
@@ -575,7 +766,7 @@ export default function CRMRelatorios() {
                     <CardContent>
                       {conversionData && conversionData.length > 0 ? (
                         <div className="space-y-3">
-                          {conversionData.map((stage, index) => {
+                          {conversionData.map((stage) => {
                             const maxCount = Math.max(...conversionData.map((s) => s.dealCount));
                             const width = maxCount > 0 ? (stage.dealCount / maxCount) * 100 : 0;
                             return (
@@ -592,9 +783,7 @@ export default function CRMRelatorios() {
                                     borderLeft: `4px solid ${stage.stageColor}`,
                                   }}
                                 >
-                                  <span className="text-xs text-muted-foreground">
-                                    {formatCurrency(stage.totalValue)}
-                                  </span>
+                                  <span className="text-xs text-muted-foreground">{formatCurrency(stage.totalValue)}</span>
                                 </div>
                               </div>
                             );
@@ -602,79 +791,12 @@ export default function CRMRelatorios() {
                         </div>
                       ) : (
                         <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-                          {selectedFunnel === "all"
-                            ? "Selecione um funil específico"
-                            : "Nenhum dado disponível"}
+                          {selectedFunnel === "all" ? "Selecione um funil específico" : "Nenhum dado disponível"}
                         </div>
                       )}
                     </CardContent>
                   </Card>
                 </div>
-              </TabsContent>
-
-              {/* Team Tab */}
-              <TabsContent value="team" className="mt-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Top Vendedores</CardTitle>
-                    <CardDescription>Ranking por valor de negociações ganhas</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {salesData?.byOwner && salesData.byOwner.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[50px]">#</TableHead>
-                            <TableHead>Vendedor</TableHead>
-                            <TableHead className="text-center">Ganhas</TableHead>
-                            <TableHead className="text-center">Total</TableHead>
-                            <TableHead className="text-center">Taxa</TableHead>
-                            <TableHead className="text-right">Valor Ganho</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {salesData.byOwner.map((owner, index) => {
-                            const winRate =
-                              owner.totalDeals > 0
-                                ? (owner.wonCount / owner.totalDeals) * 100
-                                : 0;
-                            return (
-                              <TableRow key={owner.userId}>
-                                <TableCell>
-                                  <Badge
-                                    variant={index < 3 ? "default" : "secondary"}
-                                    className={cn(
-                                      index === 0 && "bg-yellow-500",
-                                      index === 1 && "bg-gray-400",
-                                      index === 2 && "bg-amber-600"
-                                    )}
-                                  >
-                                    {index + 1}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="font-medium">{owner.userName}</TableCell>
-                                <TableCell className="text-center text-green-600">
-                                  {owner.wonCount}
-                                </TableCell>
-                                <TableCell className="text-center">{owner.totalDeals}</TableCell>
-                                <TableCell className="text-center">
-                                  <Badge variant="outline">{winRate.toFixed(0)}%</Badge>
-                                </TableCell>
-                                <TableCell className="text-right font-medium text-green-600">
-                                  {formatCurrency(owner.wonValue)}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    ) : (
-                      <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-                        Nenhum vendedor com negociações no período
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
               </TabsContent>
 
               {/* Trends Tab */}
@@ -687,9 +809,7 @@ export default function CRMRelatorios() {
                         <TrendingUp className="h-5 w-5 text-green-500" />
                         Tendência de Ganhos vs Perdas
                       </CardTitle>
-                      <CardDescription>
-                        Evolução mensal do desempenho de vendas
-                      </CardDescription>
+                      <CardDescription>Evolução mensal do desempenho de vendas</CardDescription>
                     </CardHeader>
                     <CardContent>
                       {winLossData?.trend && winLossData.trend.length > 0 ? (
@@ -706,12 +826,7 @@ export default function CRMRelatorios() {
                               }}
                             />
                             <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-                            <YAxis
-                              yAxisId="right"
-                              orientation="right"
-                              tick={{ fontSize: 12 }}
-                              tickFormatter={(v) => formatCurrency(v)}
-                            />
+                            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} tickFormatter={(v) => formatCurrency(v)} />
                             <Tooltip
                               contentStyle={{
                                 backgroundColor: "hsl(var(--card))",
@@ -724,29 +839,9 @@ export default function CRMRelatorios() {
                               }}
                             />
                             <Legend />
-                            <Bar
-                              yAxisId="left"
-                              dataKey="won_count"
-                              name="Negociações Ganhas"
-                              fill={STATUS_COLORS.won}
-                              radius={[4, 4, 0, 0]}
-                            />
-                            <Bar
-                              yAxisId="left"
-                              dataKey="lost_count"
-                              name="Negociações Perdidas"
-                              fill={STATUS_COLORS.lost}
-                              radius={[4, 4, 0, 0]}
-                            />
-                            <Line
-                              yAxisId="right"
-                              type="monotone"
-                              dataKey="won_value"
-                              name="Valor Ganho"
-                              stroke="#10b981"
-                              strokeWidth={3}
-                              dot={{ r: 5, fill: "#10b981" }}
-                            />
+                            <Bar yAxisId="left" dataKey="won_count" name="Negociações Ganhas" fill={STATUS_COLORS.won} radius={[4, 4, 0, 0]} />
+                            <Bar yAxisId="left" dataKey="lost_count" name="Negociações Perdidas" fill={STATUS_COLORS.lost} radius={[4, 4, 0, 0]} />
+                            <Line yAxisId="right" type="monotone" dataKey="won_value" name="Valor Ganho" stroke="#10b981" strokeWidth={3} dot={{ r: 5, fill: "#10b981" }} />
                           </ComposedChart>
                         </ResponsiveContainer>
                       ) : (
@@ -801,14 +896,7 @@ export default function CRMRelatorios() {
                               formatter={(value: number) => [`${value}%`, "Taxa de Conversão"]}
                             />
                             <ReferenceLine y={50} stroke="#f59e0b" strokeDasharray="5 5" label={{ value: "Meta 50%", fontSize: 10, fill: "#f59e0b" }} />
-                            <Area
-                              type="monotone"
-                              dataKey="winRate"
-                              stroke="#10b981"
-                              strokeWidth={2}
-                              fillOpacity={1}
-                              fill="url(#winRateGradient)"
-                            />
+                            <Area type="monotone" dataKey="winRate" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#winRateGradient)" />
                           </AreaChart>
                         </ResponsiveContainer>
                       ) : (
@@ -837,7 +925,6 @@ export default function CRMRelatorios() {
                             </div>
                             <p className="text-sm text-muted-foreground">por dia</p>
                           </div>
-
                           <div className="grid grid-cols-2 gap-4">
                             <div className="text-center p-3 bg-muted/50 rounded-lg">
                               <div className="text-lg font-semibold">{velocityData.metrics.open_deals}</div>
@@ -856,7 +943,6 @@ export default function CRMRelatorios() {
                               <p className="text-xs text-muted-foreground">Ciclo Médio</p>
                             </div>
                           </div>
-
                           <div className="text-center p-4 bg-green-500/10 rounded-lg border border-green-500/20">
                             <div className="text-2xl font-bold text-green-600">{velocityData.metrics.win_rate}%</div>
                             <p className="text-sm text-muted-foreground">Taxa de Conversão</p>
@@ -875,9 +961,7 @@ export default function CRMRelatorios() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Tempo Médio por Etapa</CardTitle>
-                    <CardDescription>
-                      Quanto tempo as negociações permanecem em cada etapa do funil
-                    </CardDescription>
+                    <CardDescription>Quanto tempo as negociações permanecem em cada etapa do funil</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {velocityData?.stage_time && velocityData.stage_time.length > 0 ? (
@@ -885,12 +969,7 @@ export default function CRMRelatorios() {
                         <BarChart data={velocityData.stage_time} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={(v) => `${v}d`} />
-                          <YAxis
-                            type="category"
-                            dataKey="stage_name"
-                            tick={{ fontSize: 12 }}
-                            width={120}
-                          />
+                          <YAxis type="category" dataKey="stage_name" tick={{ fontSize: 12 }} width={120} />
                           <Tooltip
                             contentStyle={{
                               backgroundColor: "hsl(var(--card))",
@@ -899,11 +978,7 @@ export default function CRMRelatorios() {
                             }}
                             formatter={(value: number) => [`${value} dias`, "Tempo médio"]}
                           />
-                          <Bar
-                            dataKey="avg_days_in_stage"
-                            fill="hsl(var(--primary))"
-                            radius={[0, 4, 4, 0]}
-                          />
+                          <Bar dataKey="avg_days_in_stage" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
@@ -921,9 +996,7 @@ export default function CRMRelatorios() {
                       <TrendingDown className="h-5 w-5 text-red-500" />
                       Motivos de Perda
                     </CardTitle>
-                    <CardDescription>
-                      Análise dos principais motivos de negociações perdidas
-                    </CardDescription>
+                    <CardDescription>Análise dos principais motivos de negociações perdidas</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {winLossData?.loss_reasons && winLossData.loss_reasons.length > 0 ? (
@@ -941,10 +1014,7 @@ export default function CRMRelatorios() {
                               nameKey="reason"
                             >
                               {winLossData.loss_reasons.map((_, index) => (
-                                <Cell
-                                  key={`cell-${index}`}
-                                  fill={`hsl(${(index * 45) % 360}, 70%, 50%)`}
-                                />
+                                <Cell key={`cell-${index}`} fill={`hsl(${(index * 45) % 360}, 70%, 50%)`} />
                               ))}
                             </Pie>
                             <Tooltip
@@ -960,17 +1030,12 @@ export default function CRMRelatorios() {
                           {winLossData.loss_reasons.map((reason, index) => (
                             <div key={reason.reason} className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <div
-                                  className="w-3 h-3 rounded-full"
-                                  style={{ backgroundColor: `hsl(${(index * 45) % 360}, 70%, 50%)` }}
-                                />
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `hsl(${(index * 45) % 360}, 70%, 50%)` }} />
                                 <span className="text-sm">{reason.reason || "Não especificado"}</span>
                               </div>
                               <div className="text-right">
                                 <span className="font-medium">{reason.count}</span>
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  ({formatCurrency(reason.lost_value)})
-                                </span>
+                                <span className="text-xs text-muted-foreground ml-2">({formatCurrency(reason.lost_value)})</span>
                               </div>
                             </div>
                           ))}

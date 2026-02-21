@@ -2117,7 +2117,7 @@ router.get('/reports/sales', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { start_date, end_date, funnel_id, group_by = 'day' } = req.query;
+    const { start_date, end_date, funnel_id, group_by = 'day', group_id, owner_id } = req.query;
     
     // Default to last 30 days
     const endDate = end_date || new Date().toISOString().split('T')[0];
@@ -2132,11 +2132,26 @@ router.get('/reports/sales', async (req, res) => {
     }
 
     let funnelFilter = '';
+    let groupFilter = '';
+    let ownerFilter = '';
     const params = [org.organization_id, startDate, endDate];
+    let paramIndex = 4;
     if (funnel_id && funnel_id !== 'all') {
-      funnelFilter = ' AND d.funnel_id = $4';
+      funnelFilter = ` AND d.funnel_id = $${paramIndex}`;
       params.push(funnel_id);
+      paramIndex++;
     }
+    if (group_id && group_id !== 'all') {
+      groupFilter = ` AND d.group_id = $${paramIndex}`;
+      params.push(group_id);
+      paramIndex++;
+    }
+    if (owner_id && owner_id !== 'all') {
+      ownerFilter = ` AND d.owner_id = $${paramIndex}`;
+      params.push(owner_id);
+      paramIndex++;
+    }
+    const extraFilters = funnelFilter + groupFilter + ownerFilter;
 
     // Timeline data
     const timelineResult = await query(
@@ -2152,7 +2167,7 @@ router.get('/reports/sales', async (req, res) => {
        WHERE d.organization_id = $1
          AND d.created_at >= $2::date
          AND d.created_at <= ($3::date + interval '1 day')
-         ${funnelFilter}
+         ${extraFilters}
        GROUP BY period
        ORDER BY period`,
       params
@@ -2169,7 +2184,7 @@ router.get('/reports/sales', async (req, res) => {
        WHERE d.organization_id = $1
          AND d.created_at >= $2::date
          AND d.created_at <= ($3::date + interval '1 day')
-         ${funnelFilter}
+         ${extraFilters}
        GROUP BY d.status`,
       params
     );
@@ -2200,19 +2215,68 @@ router.get('/reports/sales', async (req, res) => {
          u.id as user_id,
          u.name as user_name,
          COUNT(*) FILTER (WHERE d.status = 'won') as won_count,
+         COUNT(*) FILTER (WHERE d.status = 'lost') as lost_count,
          COALESCE(SUM(d.value) FILTER (WHERE d.status = 'won'), 0) as won_value,
-         COUNT(*) as total_deals
+         COALESCE(SUM(d.value) FILTER (WHERE d.status = 'lost'), 0) as lost_value,
+         COALESCE(SUM(d.value) FILTER (WHERE d.status = 'open'), 0) as open_value,
+         COUNT(*) as total_deals,
+         COALESCE(AVG(d.value) FILTER (WHERE d.status = 'won'), 0) as avg_ticket
        FROM crm_deals d
        JOIN users u ON u.id = d.owner_id
        WHERE d.organization_id = $1
          AND d.created_at >= $2::date
          AND d.created_at <= ($3::date + interval '1 day')
-         ${funnelFilter}
+         ${extraFilters}
        GROUP BY u.id, u.name
        ORDER BY won_value DESC
-       LIMIT 10`,
+       LIMIT 20`,
       params
     );
+
+    // By CRM group
+    let byGroupResult = { rows: [] };
+    try {
+      byGroupResult = await query(
+        `SELECT 
+           g.id as group_id,
+           g.name as group_name,
+           COUNT(*) FILTER (WHERE d.status = 'open') as open_count,
+           COUNT(*) FILTER (WHERE d.status = 'won') as won_count,
+           COUNT(*) FILTER (WHERE d.status = 'lost') as lost_count,
+           COALESCE(SUM(d.value) FILTER (WHERE d.status = 'open'), 0) as open_value,
+           COALESCE(SUM(d.value) FILTER (WHERE d.status = 'won'), 0) as won_value,
+           COALESCE(SUM(d.value) FILTER (WHERE d.status = 'lost'), 0) as lost_value,
+           COUNT(*) as total_deals,
+           COALESCE(AVG(d.value) FILTER (WHERE d.status = 'won'), 0) as avg_ticket
+         FROM crm_user_groups g
+         LEFT JOIN crm_deals d ON d.group_id = g.id
+           AND d.created_at >= $2::date
+           AND d.created_at <= ($3::date + interval '1 day')
+         WHERE g.organization_id = $1
+         GROUP BY g.id, g.name
+         ORDER BY won_value DESC`,
+        [org.organization_id, startDate, endDate]
+      );
+    } catch (e) {
+      // Ignore if table doesn't exist
+    }
+
+    // Extra KPIs: new leads count (deals created in period), avg ticket, avg cycle
+    const extraKpis = await query(
+      `SELECT 
+         COUNT(*) as new_leads,
+         COALESCE(AVG(d.value) FILTER (WHERE d.status = 'won'), 0) as avg_ticket,
+         COALESCE(AVG(EXTRACT(EPOCH FROM (${closedAtSql('d')} - d.created_at)) / 86400) FILTER (WHERE d.status = 'won' AND ${closedAtSql('d')} IS NOT NULL), 0) as avg_cycle_days,
+         COALESCE(SUM(d.value), 0) as total_pipeline
+       FROM crm_deals d
+       WHERE d.organization_id = $1
+         AND d.created_at >= $2::date
+         AND d.created_at <= ($3::date + interval '1 day')
+         ${extraFilters}`,
+      params
+    );
+
+    const kpis = extraKpis.rows[0] || {};
 
     // Win rate calculation
     const summary = {
@@ -2248,6 +2312,10 @@ router.get('/reports/sales', async (req, res) => {
         winRate: parseFloat(winRate.toFixed(1)),
         totalValue: summary.open.value + summary.won.value + summary.lost.value,
       },
+      newLeads: parseInt(kpis.new_leads || 0),
+      avgTicket: parseFloat(kpis.avg_ticket || 0),
+      avgCycleDays: Math.round(parseFloat(kpis.avg_cycle_days || 0)),
+      totalPipeline: parseFloat(kpis.total_pipeline || 0),
       byFunnel: byFunnelResult.rows.map(row => ({
         funnelId: row.funnel_id,
         funnelName: row.funnel_name,
@@ -2261,8 +2329,24 @@ router.get('/reports/sales', async (req, res) => {
         userId: row.user_id,
         userName: row.user_name,
         wonCount: parseInt(row.won_count),
+        lostCount: parseInt(row.lost_count || 0),
         wonValue: parseFloat(row.won_value),
+        lostValue: parseFloat(row.lost_value || 0),
+        openValue: parseFloat(row.open_value || 0),
         totalDeals: parseInt(row.total_deals),
+        avgTicket: parseFloat(row.avg_ticket || 0),
+      })),
+      byGroup: byGroupResult.rows.map(row => ({
+        groupId: row.group_id,
+        groupName: row.group_name,
+        open: parseInt(row.open_count || 0),
+        won: parseInt(row.won_count || 0),
+        lost: parseInt(row.lost_count || 0),
+        openValue: parseFloat(row.open_value || 0),
+        wonValue: parseFloat(row.won_value || 0),
+        lostValue: parseFloat(row.lost_value || 0),
+        totalDeals: parseInt(row.total_deals || 0),
+        avgTicket: parseFloat(row.avg_ticket || 0),
       })),
     });
   } catch (error) {
