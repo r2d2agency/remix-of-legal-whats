@@ -5,8 +5,6 @@ import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { NewConversationDialog } from "@/components/chat/NewConversationDialog";
 import { CRMSidePanel } from "@/components/chat/CRMSidePanel";
-import { ProjectSidePanel } from "@/components/chat/ProjectSidePanel";
-import { useIsDesigner } from "@/hooks/use-projects";
 import { useChat, Conversation, ChatMessage, ConversationTag, TeamMember } from "@/hooks/use-chat";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -30,8 +28,6 @@ const Chat = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const { modulesEnabled } = useAuth();
-  const { data: designerData } = useIsDesigner();
-  const isDesignerUser = designerData?.isDesigner ?? false;
   const {
     loading,
     getConversations,
@@ -858,22 +854,12 @@ const Chat = () => {
               onDepartmentChange={() => loadConversations()}
               isMobile={isMobile}
               onMobileBack={handleMobileBack}
-              onOpenCRM={modulesEnabled.crm || (modulesEnabled.projects && isDesignerUser) ? () => setCrmPanelOpen(true) : undefined}
+              onOpenCRM={modulesEnabled.crm ? () => setCrmPanelOpen(true) : undefined}
             />
           )}
 
           {/* Side Panel - Desktop */}
-          {!isMobile && selectedConversation && (modulesEnabled.projects && isDesignerUser) && (
-            <ProjectSidePanel
-              conversationId={selectedConversation.id}
-              contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
-              contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
-              isOpen={crmPanelOpen}
-              onToggle={() => setCrmPanelOpen(!crmPanelOpen)}
-            />
-          )}
-
-          {!isMobile && selectedConversation && modulesEnabled.crm && !(modulesEnabled.projects && isDesignerUser) && (
+          {!isMobile && selectedConversation && modulesEnabled.crm && (
             <CRMSidePanel
               conversationId={selectedConversation.id}
               contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
@@ -885,21 +871,7 @@ const Chat = () => {
           )}
 
           {/* Side Panel - Mobile Sheet */}
-          {isMobile && selectedConversation && (modulesEnabled.projects && isDesignerUser) && (
-            <Sheet open={crmPanelOpen} onOpenChange={setCrmPanelOpen}>
-              <SheetContent side="right" className="w-full max-w-sm p-0 [&>button]:hidden">
-                <ProjectSidePanel
-                  conversationId={selectedConversation.id}
-                  contactPhone={selectedConversation.remote_jid?.replace('@s.whatsapp.net', '').replace('@g.us', '') || null}
-                  contactName={selectedConversation.contact_name || selectedConversation.group_name || null}
-                  isOpen={true}
-                  onToggle={() => setCrmPanelOpen(false)}
-                />
-              </SheetContent>
-            </Sheet>
-          )}
-
-          {isMobile && selectedConversation && modulesEnabled.crm && !(modulesEnabled.projects && isDesignerUser) && (
+          {isMobile && selectedConversation && modulesEnabled.crm && (
             <Sheet open={crmPanelOpen} onOpenChange={setCrmPanelOpen}>
               <SheetContent side="right" className="w-full max-w-sm p-0 [&>button]:hidden">
                 <CRMSidePanel
