@@ -3,9 +3,18 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { AttendanceChart } from "@/components/dashboard/AttendanceChart";
+import { DashboardWidget } from "@/components/dashboard/DashboardWidget";
+import { MetricRing } from "@/components/dashboard/MetricRing";
+import { QuickActionsGrid } from "@/components/dashboard/QuickActionsGrid";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, MessageSquare, Send, CheckCircle2, Loader2, Play, Clock, Calendar as CalendarIcon, Pause, MessageCircle, CheckCheck, Hourglass, Headphones, Megaphone } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { 
+  Users, MessageSquare, Send, CheckCircle2, Loader2, Play, Clock, 
+  Calendar as CalendarIcon, Pause, MessageCircle, CheckCheck, 
+  Hourglass, Headphones, Megaphone, TrendingUp, Activity, 
+  Zap, BarChart3
+} from "lucide-react";
 import { useContacts } from "@/hooks/use-contacts";
 import { useMessages } from "@/hooks/use-messages";
 import { useCampaigns, Campaign } from "@/hooks/use-campaigns";
@@ -13,6 +22,7 @@ import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useChat } from "@/hooks/use-chat";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface DashboardStats {
   totalContacts: number;
@@ -26,6 +36,8 @@ interface DashboardStats {
   conversationsAttending: number;
   conversationsFinished: number;
   totalUsers: number;
+  messagesToday: number;
+  messagesWeek: number;
 }
 
 const statusConfig = {
@@ -42,6 +54,7 @@ const Index = () => {
   const { getCampaigns } = useCampaigns();
   const { connections, hasConnectedConnection, isLoading: connectionLoading } = useConnectionStatus({ intervalSeconds: 30 });
   const { getChatStats } = useChat();
+  const { modulesEnabled } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
@@ -56,6 +69,8 @@ const Index = () => {
     conversationsAttending: 0,
     conversationsFinished: 0,
     totalUsers: 0,
+    messagesToday: 0,
+    messagesWeek: 0,
   });
   const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
 
@@ -80,7 +95,6 @@ const Index = () => {
         ? await api<Array<{ id: string }>>(`/api/organizations/${orgId}/members`).catch(() => [])
         : [];
 
-      // Calculate stats
       const totalContacts = listsData.reduce((sum, list) => sum + Number(list.contact_count || 0), 0);
       const totalMessages = messagesData.length;
       const activeCampaigns = campaignsData.filter(c => c.status === 'running').length;
@@ -102,11 +116,11 @@ const Index = () => {
         conversationsAttending: attendanceCounts.attending,
         conversationsFinished: attendanceCounts.finished,
         totalUsers: members.length,
+        messagesToday: chatStats?.messages_today ?? 0,
+        messagesWeek: chatStats?.messages_week ?? 0,
       });
 
-      // Recent campaigns (last 5)
       setRecentCampaigns(campaignsData.slice(0, 5));
-
     } catch (err) {
       console.error('Error loading dashboard:', err);
     } finally {
@@ -114,13 +128,13 @@ const Index = () => {
     }
   };
 
-  // Get first connection for display
   const firstConnection = connections[0];
   const connectionStatus = firstConnection?.status === 'connected' ? 'connected' : 'disconnected';
   const connectionName = firstConnection?.name || "Nenhuma conexão";
   const connectionPhone = firstConnection?.phoneNumber;
 
-  // NOTE: connection status polling runs continuously; don't block the whole dashboard while it refreshes.
+  const totalAttendance = stats.conversationsWaiting + stats.conversationsAttending + stats.conversationsFinished;
+
   if (loading) {
     return (
       <MainLayout>
@@ -133,88 +147,148 @@ const Index = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-8 min-w-0 overflow-hidden">
+      <div className="space-y-6 min-w-0 overflow-hidden">
         {/* Header */}
-        <div className="animate-slide-up">
-          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="mt-1 text-muted-foreground">
-            Visão geral do seu sistema
-          </p>
+        <div className="flex items-center justify-between animate-slide-up">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+            <p className="text-sm text-muted-foreground">Visão geral do seu sistema</p>
+          </div>
+          <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-xs">
+            <Activity className="h-3 w-3 text-success animate-pulse" />
+            {connections.filter(c => c.status === 'connected').length} conexão(ões) ativa(s)
+          </Badge>
         </div>
 
-        {/* Connection Status */}
+        {/* Connection */}
         <ConnectionStatus
           status={connectionStatus}
           instanceName={connectionName}
           phoneNumber={connectionPhone}
         />
 
-        {/* General Stats */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <StatsCard
-            title="WhatsApps Conectados"
-            value={`${connections.filter(c => c.status === 'connected').length}/${connections.length}`}
-            description={connectionLoading ? "Atualizando status..." : (hasConnectedConnection ? "Conectado" : "Sem conexão")}
-            icon={<Users className="h-6 w-6 text-primary" />}
-          />
-          <StatsCard
-            title="Total de Contatos"
-            value={stats.totalContacts.toLocaleString('pt-BR')}
-            description="Em todas as listas"
-            icon={<Users className="h-6 w-6 text-primary" />}
-          />
-          <StatsCard
-            title="Templates de Mensagem"
-            value={stats.totalMessages.toString()}
-            description="Mensagens criadas"
-            icon={<MessageSquare className="h-6 w-6 text-primary" />}
-          />
-          <StatsCard
-            title="Usuários"
-            value={stats.totalUsers.toLocaleString('pt-BR')}
-            description="Membros da organização"
-            icon={<Users className="h-6 w-6 text-primary" />}
-          />
+        {/* KPI Row - Compact */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="border-border/50 bg-gradient-to-br from-card to-primary/5">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium">Conexões</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {connections.filter(c => c.status === 'connected').length}/{connections.length}
+                  </p>
+                </div>
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Zap className="h-5 w-5 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50 bg-gradient-to-br from-card to-accent/30">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium">Contatos</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.totalContacts.toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="p-2 rounded-lg bg-accent">
+                  <Users className="h-5 w-5 text-accent-foreground" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium">Templates</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.totalMessages}</p>
+                </div>
+                <div className="p-2 rounded-lg bg-secondary">
+                  <MessageSquare className="h-5 w-5 text-secondary-foreground" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] text-muted-foreground font-medium">Usuários</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.totalUsers}</p>
+                </div>
+                <div className="p-2 rounded-lg bg-muted">
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* === ATENDIMENTO SECTION === */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/10">
-              <Headphones className="h-5 w-5 text-blue-500" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">Atendimento</h2>
-              <p className="text-sm text-muted-foreground">Métricas de conversas e suporte</p>
-            </div>
-          </div>
+        {/* Main Grid - 2 columns */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          
+          {/* Left Column - Attendance */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Attendance visual summary */}
+            <DashboardWidget
+              title="Atendimento"
+              description="Status das conversas em tempo real"
+              icon={<Headphones className="h-4 w-4 text-primary" />}
+            >
+              <div className="flex items-center justify-around py-2">
+                <MetricRing
+                  value={stats.conversationsWaiting}
+                  max={Math.max(totalAttendance, 1)}
+                  label="Aguardando"
+                  color="hsl(var(--warning))"
+                />
+                <MetricRing
+                  value={stats.conversationsAttending}
+                  max={Math.max(totalAttendance, 1)}
+                  label="Atendendo"
+                  color="hsl(var(--primary))"
+                />
+                <MetricRing
+                  value={stats.conversationsFinished}
+                  max={Math.max(totalAttendance, 1)}
+                  label="Finalizados"
+                  color="hsl(var(--success))"
+                />
+                <div className="hidden md:flex flex-col items-center gap-1">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-foreground">{stats.messagesToday}</p>
+                    <p className="text-xs text-muted-foreground">Msgs Hoje</p>
+                  </div>
+                  <div className="text-center mt-2">
+                    <p className="text-lg font-semibold text-foreground">{stats.messagesWeek}</p>
+                    <p className="text-[10px] text-muted-foreground">Semana</p>
+                  </div>
+                </div>
+              </div>
+              {totalAttendance > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Distribuição</span>
+                    <span>{totalAttendance} total</span>
+                  </div>
+                  <div className="flex h-2 rounded-full overflow-hidden bg-muted">
+                    <div className="bg-warning transition-all" style={{ width: `${(stats.conversationsWaiting / totalAttendance) * 100}%` }} />
+                    <div className="bg-primary transition-all" style={{ width: `${(stats.conversationsAttending / totalAttendance) * 100}%` }} />
+                    <div className="bg-success transition-all" style={{ width: `${(stats.conversationsFinished / totalAttendance) * 100}%` }} />
+                  </div>
+                  <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-warning" /> Aguardando</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Atendendo</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-success" /> Finalizados</span>
+                  </div>
+                </div>
+              )}
+            </DashboardWidget>
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Stats cards */}
-            <div className="grid gap-4 lg:col-span-1">
-              <StatsCard
-                title="Aguardando"
-                value={stats.conversationsWaiting.toLocaleString('pt-BR')}
-                description="Na fila de espera"
-                icon={<Hourglass className="h-6 w-6 text-amber-500" />}
-              />
-              <StatsCard
-                title="Atendendo"
-                value={stats.conversationsAttending.toLocaleString('pt-BR')}
-                description="Em atendimento ativo"
-                icon={<MessageCircle className="h-6 w-6 text-blue-500" />}
-              />
-              <StatsCard
-                title="Finalizados"
-                value={stats.conversationsFinished.toLocaleString('pt-BR')}
-                description="Atendimentos concluídos"
-                icon={<CheckCheck className="h-6 w-6 text-green-500" />}
-              />
-            </div>
-
-            {/* Chart */}
+            {/* Attendance Chart */}
             <AttendanceChart 
-              className="lg:col-span-2 animate-fade-in" 
+              className="animate-fade-in" 
               connections={connections}
               currentCounts={{
                 waiting: stats.conversationsWaiting,
@@ -223,128 +297,77 @@ const Index = () => {
               }}
             />
           </div>
-        </div>
 
-        {/* === DISPAROS SECTION === */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
-              <Megaphone className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">Disparos</h2>
-              <p className="text-sm text-muted-foreground">Campanhas e envio em massa</p>
-            </div>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            <StatsCard
-              title="Campanhas Ativas"
-              value={stats.activeCampaigns.toString()}
-              description={`${stats.scheduledCampaigns} agendadas`}
-              icon={<Play className="h-6 w-6 text-green-500" />}
-            />
-            <StatsCard
-              title="Mensagens Enviadas"
-              value={stats.sentMessages.toLocaleString('pt-BR')}
-              description="Total de envios"
-              icon={<CheckCircle2 className="h-6 w-6 text-primary" />}
-            />
-            <StatsCard
-              title="Campanhas"
-              value={`${stats.activeCampaigns + stats.scheduledCampaigns}`}
-              description="Ativas + agendadas"
-              icon={<Send className="h-6 w-6 text-primary" />}
-            />
-          </div>
-
-          {/* Recent Campaigns & Quick Actions */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Recent Campaigns */}
-            <Card className="animate-fade-in shadow-card">
-              <CardHeader>
-                <CardTitle>Campanhas Recentes</CardTitle>
-                <CardDescription>Últimas campanhas criadas</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {recentCampaigns.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Send className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                    <p className="text-sm">Nenhuma campanha ainda</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {recentCampaigns.map((campaign) => {
-                      const config = statusConfig[campaign.status] || statusConfig.pending;
-                      const StatusIcon = config.icon;
-                      return (
-                        <div
-                          key={campaign.id}
-                          className="flex items-center justify-between rounded-lg border border-border p-3"
-                        >
-                          <div>
-                            <p className="font-medium text-foreground">{campaign.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {campaign.list_name || "Lista"} • {campaign.sent_count} enviadas
-                            </p>
-                          </div>
-                          <Badge className={cn(config.bgColor, config.color, "border-0")}>
-                            <StatusIcon className="h-3 w-3 mr-1" />
-                            {config.label}
-                          </Badge>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
+          {/* Right Column */}
+          <div className="space-y-4">
             {/* Quick Actions */}
-            <Card className="rounded-xl bg-card p-6 shadow-card border border-border animate-fade-in">
-              <CardHeader className="p-0 pb-6">
-                <CardTitle>Ações Rápidas</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <a
-                    href="/contatos"
-                    className="flex flex-col items-center gap-3 rounded-lg border border-border p-6 transition-all duration-200 hover:border-primary hover:bg-accent"
-                  >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent">
-                      <Users className="h-6 w-6 text-primary" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">
-                      Importar Contatos
-                    </span>
-                  </a>
-                  <a
-                    href="/mensagens"
-                    className="flex flex-col items-center gap-3 rounded-lg border border-border p-6 transition-all duration-200 hover:border-primary hover:bg-accent"
-                  >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent">
-                      <MessageSquare className="h-6 w-6 text-primary" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">
-                      Criar Mensagem
-                    </span>
-                  </a>
-                  <a
-                    href="/campanhas"
-                    className="flex flex-col items-center gap-3 rounded-lg border border-border p-6 transition-all duration-200 hover:border-primary hover:bg-accent sm:col-span-2"
-                  >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent">
-                      <Send className="h-6 w-6 text-primary" />
-                    </div>
-                    <span className="text-sm font-medium text-foreground">
-                      Nova Campanha
-                    </span>
-                  </a>
+            <DashboardWidget
+              title="Ações Rápidas"
+              icon={<Zap className="h-4 w-4 text-primary" />}
+            >
+              <QuickActionsGrid />
+            </DashboardWidget>
+
+            {/* Campaigns Summary */}
+            <DashboardWidget
+              title="Disparos"
+              description={`${stats.activeCampaigns} ativas • ${stats.scheduledCampaigns} agendadas`}
+              icon={<Megaphone className="h-4 w-4 text-primary" />}
+            >
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-success/10 p-3 text-center">
+                    <p className="text-xl font-bold text-success">{stats.activeCampaigns}</p>
+                    <p className="text-[10px] text-muted-foreground">Ativas</p>
+                  </div>
+                  <div className="rounded-lg bg-muted p-3 text-center">
+                    <p className="text-xl font-bold text-foreground">{stats.sentMessages.toLocaleString('pt-BR')}</p>
+                    <p className="text-[10px] text-muted-foreground">Enviadas</p>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </DashboardWidget>
           </div>
         </div>
+
+        {/* Recent Campaigns - Full Width */}
+        <DashboardWidget
+          title="Campanhas Recentes"
+          description="Últimas campanhas criadas"
+          icon={<BarChart3 className="h-4 w-4 text-primary" />}
+        >
+          {recentCampaigns.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Send className="h-10 w-10 mx-auto mb-3 opacity-50" />
+              <p className="text-sm">Nenhuma campanha ainda</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {recentCampaigns.map((campaign) => {
+                const config = statusConfig[campaign.status] || statusConfig.pending;
+                const StatusIcon = config.icon;
+                return (
+                  <div key={campaign.id} className="flex items-center justify-between rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("flex items-center justify-center w-8 h-8 rounded-lg", config.bgColor)}>
+                        <StatusIcon className={cn("h-4 w-4", config.color)} />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm text-foreground">{campaign.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {campaign.list_name || "Lista"} • {campaign.sent_count} enviadas
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className={cn(config.bgColor, config.color, "border-0 text-xs")}>
+                      {config.label}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DashboardWidget>
       </div>
     </MainLayout>
   );

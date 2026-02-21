@@ -40,6 +40,18 @@ import {
   ClipboardList,
   ArrowLeft,
   RefreshCw,
+  CheckSquare,
+  FolderKanban,
+  Clock,
+  Reply,
+  Send,
+  Upload,
+  Bot,
+  Brain,
+  Sparkles,
+  MessageSquare,
+  Copy,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -56,7 +68,7 @@ import {
 } from "@/hooks/use-crm";
 import { useChat, ConversationNote } from "@/hooks/use-chat";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { TaskDialog } from "@/components/crm/TaskDialog";
@@ -67,6 +79,10 @@ import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { CRMAIAgentsSection } from "./CRMAIAgentsSection";
 import { CRMProjectsSection } from "./CRMProjectsSection";
+import { useAIAgents, AIAgent } from "@/hooks/use-ai-agents";
+import { useProjects, useProjectStages, useProjectTemplates, useProjectMutations, useProjectNoteMutations, useProjectAttachmentMutations, useProjectNotes } from "@/hooks/use-projects";
+import { useUpload } from "@/hooks/use-upload";
+import { api } from "@/lib/api";
 
 interface CRMSidePanelProps {
   conversationId: string;
