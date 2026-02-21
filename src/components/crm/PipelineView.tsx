@@ -48,10 +48,10 @@ export function PipelineView({ stages, dealsByStage, onDealClick, onStatusChange
   };
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-4 space-y-2">
+    <ScrollArea className="h-full" role="region" aria-label="Lista de negociações">
+      <div className="p-4 space-y-2" role="list">
         {/* Header */}
-        <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b">
+        <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b" role="row" aria-hidden="true">
           <div className="col-span-3">Título</div>
           <div className="col-span-2">Empresa</div>
           <div className="col-span-2">Etapa</div>
@@ -69,6 +69,8 @@ export function PipelineView({ stages, dealsByStage, onDealClick, onStatusChange
           return (
             <Card
               key={deal.id}
+              role="listitem"
+              aria-label={`${deal.title}, ${formatCurrency(deal.value)}, etapa ${deal.stageName}`}
               onClick={() => onDealClick(deal)}
               className={cn(
                 "grid grid-cols-12 gap-4 px-4 py-3 cursor-pointer hover:shadow-md transition-all items-center",

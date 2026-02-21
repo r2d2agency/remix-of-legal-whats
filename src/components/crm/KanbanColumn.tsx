@@ -78,7 +78,7 @@ function SortableDealItem({
     >
       {/* Drop indicator line above */}
       {showDropIndicator && (
-        <div className="absolute -top-1 left-0 right-0 h-1 bg-primary rounded-full animate-pulse z-20" />
+        <div className="absolute -top-1 left-0 right-0 h-1 bg-primary rounded-full animate-pulse z-20" aria-hidden="true" />
       )}
       
       <DealCard
@@ -171,6 +171,8 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
+      role="listitem"
+      aria-label={`Etapa ${stage.name}, ${deals.length} negociações, total ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalValue)}`}
       className={cn(
         "flex flex-col w-[300px] min-w-[300px] bg-muted/50 rounded-lg border",
         "transition-all duration-300 ease-out",
@@ -196,7 +198,7 @@ export function KanbanColumn({
 
       {/* Cards */}
       <ScrollArea className="flex-1 max-h-[calc(100vh-280px)]">
-        <div className="p-2 space-y-2">
+        <div className="p-2 space-y-2" role="list" aria-label={`Negociações em ${stage.name}`}>
           {/* Drop indicator when hovering over empty column */}
           {isDraggingOverColumn && deals.length === 0 && !hasActiveItem && (
             <div 
