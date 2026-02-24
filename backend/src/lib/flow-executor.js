@@ -214,7 +214,7 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start',
           message: `Nó não encontrado: ${currentNodeId}`,
           step: processedNodes + 1,
         });
-        break;
+        return { success: false, error: `Nó não encontrado: ${currentNodeId}` };
       }
 
       processedNodes++;
@@ -298,6 +298,21 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start',
       });
       
       console.log(`Flow executor: Moving to next node: ${currentNodeId}`);
+    }
+
+    if (processedNodes >= maxNodes && currentNodeId) {
+      addExecutionLog(conversationId, {
+        type: 'error',
+        flowId,
+        nodeId: currentNodeId,
+        step: processedNodes,
+        message: `Execução interrompida: limite de ${maxNodes} nós atingido`,
+      });
+      return { success: false, error: `Execução interrompida: limite de ${maxNodes} nós atingido` };
+    }
+
+    if (processedNodes === 0) {
+      return { success: false, error: 'Fluxo não processou nenhum nó executável' };
     }
 
     // Mark session as complete
@@ -960,7 +975,7 @@ async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables
           step: processedNodes + 1,
           resumed: true,
         });
-        break;
+        return { success: false, error: `Nó não encontrado: ${currentNodeId}` };
       }
 
       processedNodes++;
@@ -981,17 +996,18 @@ async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables
       // Process the node
       const result = await processNode(node, connection, conversation.contact_phone, variables, conversationId);
 
-      if (!result.success && result.error) {
-        console.error('Flow executor: Node processing failed:', result.error);
+      if (!result.success) {
+        console.error('Flow executor: Node processing failed:', result.error || 'Erro desconhecido');
         addExecutionLog(conversationId, {
           type: 'error',
           flowId,
           nodeId: node.node_id,
           nodeType: node.node_type,
           step: processedNodes,
-          message: `Erro: ${result.error}`,
+          message: `Erro no nó: ${result.error || 'Erro desconhecido'}`,
           resumed: true,
         });
+        return { success: false, error: result.error || `Falha ao executar nó ${node.node_id}` };
       }
 
       // If node requires user input, stop here
@@ -1045,6 +1061,22 @@ async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables
       });
       
       console.log(`Flow executor: Moving to next node: ${currentNodeId}`);
+    }
+
+    if (processedNodes >= maxNodes && currentNodeId) {
+      addExecutionLog(conversationId, {
+        type: 'error',
+        flowId,
+        nodeId: currentNodeId,
+        step: processedNodes,
+        message: `Execução retomada interrompida: limite de ${maxNodes} nós atingido`,
+        resumed: true,
+      });
+      return { success: false, error: `Execução interrompida: limite de ${maxNodes} nós atingido` };
+    }
+
+    if (processedNodes === 0) {
+      return { success: false, error: 'Fluxo retomado sem nós executáveis' };
     }
 
     // Mark session as complete
