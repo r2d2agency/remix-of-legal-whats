@@ -46,7 +46,7 @@ async function generateSummaryWithAI(messages, provider, model, apiKey) {
   
   // Format messages for analysis
   const conversationText = messages.map(m => {
-    const sender = m.direction === 'incoming' ? 'Cliente' : 'Atendente';
+    const sender = m.from_me ? 'Atendente' : 'Cliente';
     const time = new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     return `[${time}] ${sender}: ${m.content || '[mídia]'}`;
   }).join('\n');
@@ -203,7 +203,7 @@ router.post('/:conversationId/generate', async (req, res) => {
 
     // Get conversation messages (limit to last 100 for performance)
     const messagesResult = await query(`
-      SELECT content, direction, message_type, created_at
+      SELECT content, from_me, message_type, created_at
       FROM chat_messages
       WHERE conversation_id = $1
       ORDER BY created_at ASC
