@@ -98,14 +98,6 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
     ],
   },
   {
-    title: "Projetos",
-    icon: FolderKanban,
-    moduleKey: 'projects',
-    items: [
-      { name: "Kanban", href: "/projetos", icon: FolderKanban },
-    ],
-  },
-  {
     title: "Disparos",
     icon: Send,
     moduleKey: 'campaigns',
