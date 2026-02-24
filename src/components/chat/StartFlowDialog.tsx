@@ -59,18 +59,26 @@ export function StartFlowDialog({
     setStarting(flow.id);
     
     try {
-      await api(`/api/flows/conversation/${conversationId}/start`, {
-        method: 'POST',
-        body: { flow_id: flow.id },
-        auth: true,
-      });
+      const result = await api<{ success: boolean; execution?: { success: boolean; error?: string; nodesProcessed?: number } }>(
+        `/api/flows/conversation/${conversationId}/start`,
+        {
+          method: 'POST',
+          body: { flow_id: flow.id },
+          auth: true,
+        }
+      );
       
-      toast.success(`Fluxo "${flow.name}" iniciado!`);
+      if (result.execution?.nodesProcessed) {
+        toast.success(`Fluxo "${flow.name}" iniciado! (${result.execution.nodesProcessed} nós processados)`);
+      } else {
+        toast.success(`Fluxo "${flow.name}" iniciado!`);
+      }
       onFlowStarted?.();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error starting flow:", error);
-      toast.error("Erro ao iniciar fluxo");
+      const errorMsg = error?.message || error?.toString() || "Erro ao iniciar fluxo";
+      toast.error(errorMsg);
     }
     
     setStarting(null);

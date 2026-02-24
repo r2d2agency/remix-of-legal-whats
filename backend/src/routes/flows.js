@@ -546,7 +546,10 @@ router.post('/conversation/:conversationId/start', async (req, res) => {
     
     if (!execResult.success) {
       console.error('Flow execution error:', execResult.error);
-      // Still return success since the session was created, but log the error
+      return res.status(500).json({ 
+        error: `Erro ao executar fluxo: ${execResult.error || 'Erro desconhecido'}`,
+        execution: execResult
+      });
     }
 
     res.json({ 
