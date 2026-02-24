@@ -234,16 +234,17 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start',
       // Process the node based on its type
       const result = await processNode(node, connection, conversation.contact_phone, variables, conversationId);
 
-      if (!result.success && result.error) {
-        console.error('Flow executor: Node processing failed:', result.error);
+      if (!result.success) {
+        console.error('Flow executor: Node processing failed:', result.error || 'Erro desconhecido');
         addExecutionLog(conversationId, {
           type: 'error',
           flowId,
           nodeId: node.node_id,
           nodeType: node.node_type,
           step: processedNodes,
-          message: `Erro no nó: ${result.error}`,
+          message: `Erro no nó: ${result.error || 'Erro desconhecido'}`,
         });
+        return { success: false, error: result.error || `Falha ao executar nó ${node.node_id}` };
       }
 
       // If node requires user input, stop here and wait
@@ -414,6 +415,12 @@ async function processMessageNode(content, connection, phone, variables, convers
   console.log(`Flow executor: processMessageNode - mediaType: ${mediaType}`, JSON.stringify(content).substring(0, 300));
 
   try {
+    const ensureSent = (result, nodeType) => {
+      if (!result?.success) {
+        throw new Error(result?.error || `Falha ao enviar mensagem no nó ${nodeType}`);
+      }
+    };
+
     if (mediaType === 'gallery' && content.gallery_images?.length > 0) {
       // Send gallery images sequentially with proper delay
       console.log(`Flow executor: Sending gallery with ${content.gallery_images.length} images`);
@@ -423,6 +430,7 @@ async function processMessageNode(content, connection, phone, variables, convers
         
         console.log(`Flow executor: Sending gallery image ${i + 1}: ${img.url?.substring(0, 50)}`);
         const result = await whatsappProvider.sendMessage(connection, phone, caption, 'image', img.url);
+        ensureSent(result, 'gallery');
         
         // Save to database
         await saveSentMessage(conversationId, caption || null, 'image', img.url, result?.messageId);
@@ -436,21 +444,25 @@ async function processMessageNode(content, connection, phone, variables, convers
       const caption = content.caption ? replaceVariables(content.caption, variables) : '';
       console.log(`Flow executor: Sending image: ${content.media_url?.substring(0, 50)}`);
       const result = await whatsappProvider.sendMessage(connection, phone, caption, 'image', content.media_url);
+      ensureSent(result, 'image');
       await saveSentMessage(conversationId, caption || null, 'image', content.media_url, result?.messageId);
     } else if (mediaType === 'video' && content.media_url) {
       const caption = content.caption ? replaceVariables(content.caption, variables) : '';
       console.log(`Flow executor: Sending video: ${content.media_url?.substring(0, 50)}`);
       const result = await whatsappProvider.sendMessage(connection, phone, caption, 'video', content.media_url);
+      ensureSent(result, 'video');
       await saveSentMessage(conversationId, caption || null, 'video', content.media_url, result?.messageId);
     } else if (mediaType === 'audio' && content.media_url) {
       console.log(`Flow executor: Sending audio: ${content.media_url?.substring(0, 50)}`);
       const result = await whatsappProvider.sendMessage(connection, phone, '', 'audio', content.media_url);
+      ensureSent(result, 'audio');
       await saveSentMessage(conversationId, null, 'audio', content.media_url, result?.messageId);
     } else if (content.message || content.text) {
       // Text message
       const text = replaceVariables(content.message || content.text, variables);
       console.log(`Flow executor: Sending text: ${text?.substring(0, 50)}`);
       const result = await whatsappProvider.sendMessage(connection, phone, text, 'text');
+      ensureSent(result, 'text');
       await saveSentMessage(conversationId, text, 'text', null, result?.messageId);
     } else {
       console.log('Flow executor: processMessageNode - no content to send');
@@ -482,6 +494,9 @@ async function processMenuNode(content, connection, phone, variables, conversati
   }
 
   const result = await whatsappProvider.sendMessage(connection, phone, menuText, 'text');
+  if (!result?.success) {
+    throw new Error(result?.error || 'Falha ao enviar menu');
+  }
   await saveSentMessage(conversationId, menuText, 'text', null, result?.messageId);
 }
 
@@ -502,6 +517,9 @@ async function processInputNode(content, connection, phone, variables, conversat
   promptText = replaceVariables(promptText, variables);
 
   const result = await whatsappProvider.sendMessage(connection, phone, promptText, 'text');
+  if (!result?.success) {
+    throw new Error(result?.error || 'Falha ao enviar prompt de input');
+  }
   await saveSentMessage(conversationId, promptText, 'text', null, result?.messageId);
 }
 
@@ -619,7 +637,10 @@ async function processActionNode(content, connection, phone, variables) {
         if (content.external_phone && content.external_message) {
           const msg = replaceVariables(content.external_message, variables);
           const targetPhone = replaceVariables(content.external_phone, variables);
-          await whatsappProvider.sendMessage(connection, targetPhone, msg, 'text');
+          const sendResult = await whatsappProvider.sendMessage(connection, targetPhone, msg, 'text');
+          if (!sendResult?.success) {
+            throw new Error(sendResult?.error || 'Falha ao enviar notificação externa');
+          }
         }
         break;
     }
