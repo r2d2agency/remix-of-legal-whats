@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,25 +52,28 @@ export function TransferDialog({ open, onOpenChange, conversation, team, onTrans
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [agentsError, setAgentsError] = useState("");
 
-  const handleOpen = (isOpen: boolean) => {
-    if (isOpen) {
+  useEffect(() => {
+    if (open) {
       setTransferMode('human');
+      setTransferTo("");
+      setTransferToAgent("");
+      setTransferNote("");
       setAgentsError("");
       setLoadingAgents(true);
       api<Array<{ id: string; name: string; is_active: boolean }>>('/api/ai-agents', { auth: true })
         .then(data => {
+          console.log('[TransferDialog] Agentes carregados:', data);
           const active = (data || []).filter(a => a.is_active);
           setTransferAgents(active);
           if (active.length === 0) setAgentsError("Nenhum agente IA ativo encontrado");
         })
         .catch((err) => {
-          console.error('Erro ao carregar agentes:', err);
+          console.error('[TransferDialog] Erro ao carregar agentes:', err);
           setAgentsError(err.message || "Erro ao carregar agentes IA");
         })
         .finally(() => setLoadingAgents(false));
     }
-    onOpenChange(isOpen);
-  };
+  }, [open]);
 
   const handleTransfer = async () => {
     if (transferMode === 'ai') {
@@ -102,7 +105,7 @@ export function TransferDialog({ open, onOpenChange, conversation, team, onTrans
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Transferir Atendimento</DialogTitle>
