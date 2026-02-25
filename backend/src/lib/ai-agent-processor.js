@@ -210,7 +210,14 @@ async function processMessageInternal({
     let userMessageForAI = null; // Will be a string or multimodal content array
 
     if (messageType === 'audio') {
-      if (mediaUrl) {
+      const capabilities = Array.isArray(agent.capabilities) ? agent.capabilities : [];
+      const canTranscribe = capabilities.includes('transcribe_audio');
+
+      if (!canTranscribe) {
+        // Agent doesn't have audio capability - ask for text
+        userMessageForHistory = messageContent || '[Mensagem de áudio recebida]';
+        userMessageForAI = messageContent || '[O cliente enviou uma mensagem de áudio. Você não tem a capacidade de ouvir áudios. Peça educadamente para o cliente enviar a mensagem como texto.]';
+      } else if (mediaUrl) {
         // Transcribe audio using the agent's own AI config
         try {
           const transcript = await transcribeAudio(mediaUrl, mediaMimetype, aiConfig);

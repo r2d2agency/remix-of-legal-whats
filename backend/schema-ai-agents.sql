@@ -33,15 +33,22 @@ DO $$ BEGIN
     'generate_content',      -- Gerar emails/mensagens
     'summarize_history',     -- Resumir histórico
     'qualify_leads',         -- Qualificar leads
-    'call_agent'             -- Chamar outro agente para consulta
+    'call_agent',            -- Chamar outro agente para consulta
+    'transcribe_audio'       -- Transcrever e entender áudios
   );
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
 
--- Migration: Add 'call_agent' to existing enum if needed
+-- Migration: Add new values to existing enum if needed
 DO $$ BEGIN
   ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'call_agent';
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'transcribe_audio';
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
