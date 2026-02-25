@@ -55,18 +55,41 @@ interface PredictiveInsights {
   healthScore: number;
 }
 
+// Check if we have enough real data to make predictions
+function hasEnoughData(deal: DealData, conversation?: ConversationData): { sufficient: boolean; reasons: string[] } {
+  const missing: string[] = [];
+  let dataPoints = 0;
+
+  if (deal.last_activity_at) dataPoints++;
+  else missing.push('Sem registro de atividades');
+
+  if (deal.messages_count && deal.messages_count > 0) dataPoints++;
+  else missing.push('Sem conversas vinculadas');
+
+  if (conversation?.last_message_at) dataPoints++;
+
+  if (deal.meetings_scheduled && deal.meetings_scheduled > 0) dataPoints++;
+
+  if (deal.tasks_pending !== undefined) dataPoints++;
+
+  return { sufficient: dataPoints >= 2, reasons: missing };
+}
+
 // Analyze deal patterns to predict close probability
 function calculateCloseProbability(deal: DealData, avgDaysToClose?: number): number {
-  let score = 50; // Base score
+  let score = 30; // Lower base when no data
+  let hasSignals = false;
   
   // Stage progress (0-30 points)
   if (deal.stage_position && deal.total_stages) {
     const stageProgress = deal.stage_position / deal.total_stages;
     score += stageProgress * 30;
+    hasSignals = true;
   }
   
   // Recent activity (0-20 points)
   if (deal.last_activity_at) {
+    hasSignals = true;
     const daysSinceActivity = (Date.now() - new Date(deal.last_activity_at).getTime()) / (1000 * 60 * 60 * 24);
     if (daysSinceActivity < 1) score += 20;
     else if (daysSinceActivity < 3) score += 15;
@@ -76,15 +99,16 @@ function calculateCloseProbability(deal: DealData, avgDaysToClose?: number): num
   }
   
   // Engagement signals (0-15 points)
-  if (deal.messages_count) {
+  if (deal.messages_count && deal.messages_count > 0) {
+    hasSignals = true;
     if (deal.messages_count > 20) score += 15;
     else if (deal.messages_count > 10) score += 10;
     else if (deal.messages_count > 5) score += 5;
   }
   
   // Tasks and meetings (0-15 points)
-  if (deal.meetings_scheduled && deal.meetings_scheduled > 0) score += 10;
-  if (deal.tasks_pending === 0) score += 5; // All tasks completed
+  if (deal.meetings_scheduled && deal.meetings_scheduled > 0) { score += 10; hasSignals = true; }
+  if (deal.tasks_pending === 0 && hasSignals) score += 5;
   
   // Deal age vs average (−10 to +10)
   if (avgDaysToClose) {
@@ -92,6 +116,9 @@ function calculateCloseProbability(deal: DealData, avgDaysToClose?: number): num
     if (dealAge < avgDaysToClose * 0.5) score += 10;
     else if (dealAge > avgDaysToClose * 1.5) score -= 10;
   }
+  
+  // If no real signals, return 0 to indicate insufficient data
+  if (!hasSignals) return 0;
   
   return Math.min(Math.max(score, 5), 95);
 }
@@ -168,15 +195,9 @@ function calculateChurnRisk(deal: DealData, conversation?: ConversationData): {
 
 // Calculate best times to contact based on response patterns
 function calculateBestContactTimes(conversation?: ConversationData): { hour: number; day: string; score: number }[] {
-  // Default optimal times based on general patterns if no data
-  const defaultTimes = [
-    { hour: 10, day: 'Terça', score: 85 },
-    { hour: 14, day: 'Quarta', score: 82 },
-    { hour: 11, day: 'Quinta', score: 78 },
-  ];
-  
+  // Return empty if no real data — don't fabricate times
   if (!conversation?.response_hours || conversation.response_hours.length < 5) {
-    return defaultTimes;
+    return [];
   }
   
   // Count frequency of response hours
@@ -286,6 +307,11 @@ export function PredictiveAnalyticsCard({
     [deal, conversation, avgDaysToClose]
   );
   
+  const dataCheck = useMemo(
+    () => hasEnoughData(deal, conversation),
+    [deal, conversation]
+  );
+  
   const churnColors = {
     low: 'text-green-600 bg-green-100 dark:bg-green-900/30',
     medium: 'text-amber-600 bg-amber-100 dark:bg-amber-900/30',
@@ -299,9 +325,22 @@ export function PredictiveAnalyticsCard({
   };
   
   if (compact) {
+    if (!dataCheck.sufficient) {
+      return (
+        <div className={cn("space-y-2", className)}>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Activity className="h-3 w-3" />
+            <span>Dados insuficientes para análise</span>
+          </div>
+          <ul className="text-[10px] text-muted-foreground/70 space-y-0.5 ml-4">
+            {dataCheck.reasons.map((r, i) => <li key={i} className="list-disc">{r}</li>)}
+          </ul>
+        </div>
+      );
+    }
+
     return (
       <div className={cn("space-y-2", className)}>
-        {/* Close Probability */}
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground flex items-center gap-1">
             <Target className="h-3 w-3" />
@@ -312,8 +351,6 @@ export function PredictiveAnalyticsCard({
             <span className="text-xs font-medium w-8">{insights.closeProbability}%</span>
           </div>
         </div>
-        
-        {/* Churn Risk */}
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground flex items-center gap-1">
             <AlertTriangle className="h-3 w-3" />
@@ -323,8 +360,6 @@ export function PredictiveAnalyticsCard({
             {churnLabels[insights.churnRisk]}
           </Badge>
         </div>
-        
-        {/* Best Contact Time */}
         {insights.bestContactTimes[0] && (
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -353,97 +388,114 @@ export function PredictiveAnalyticsCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Health Score */}
-        <div className="text-center p-4 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border">
-          <div className="text-3xl font-bold text-primary mb-1">
-            {insights.healthScore}
-          </div>
-          <div className="text-xs text-muted-foreground">Health Score</div>
-        </div>
-        
-        {/* Close Probability */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-green-500" />
-              Probabilidade de Fechamento
-            </span>
-            <span className="font-bold">{insights.closeProbability}%</span>
-          </div>
-          <Progress value={insights.closeProbability} className="h-2" />
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Previsão: {insights.closeTimeframe}</span>
-            {insights.closeProbability >= 70 ? (
-              <span className="flex items-center gap-1 text-green-600">
-                <TrendingUp className="h-3 w-3" />
-                Alta chance
-              </span>
-            ) : insights.closeProbability <= 30 ? (
-              <span className="flex items-center gap-1 text-red-600">
-                <TrendingDown className="h-3 w-3" />
-                Precisa atenção
-              </span>
-            ) : null}
-          </div>
-        </div>
-        
-        {/* Churn Risk */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Risco de Churn
-            </span>
-            <Badge className={churnColors[insights.churnRisk]}>
-              {churnLabels[insights.churnRisk]}
-            </Badge>
-          </div>
-          {insights.churnReasons.length > 0 && (
-            <ul className="text-xs text-muted-foreground space-y-1 ml-6">
-              {insights.churnReasons.map((reason, idx) => (
-                <li key={idx} className="list-disc">{reason}</li>
-              ))}
+        {!dataCheck.sufficient ? (
+          <div className="text-center py-6 space-y-3">
+            <Activity className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Dados insuficientes</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">Precisa de mais interações para gerar análises confiáveis</p>
+            </div>
+            <ul className="text-xs text-muted-foreground/60 space-y-1">
+              {dataCheck.reasons.map((r, i) => <li key={i}>• {r}</li>)}
             </ul>
-          )}
-        </div>
-        
-        {/* Best Contact Times */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm">
-            <Phone className="h-4 w-4 text-blue-500" />
-            <span>Melhores Horários para Contato</span>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {insights.bestContactTimes.map((time, idx) => (
-              <div 
-                key={idx}
-                className={cn(
-                  "text-center p-2 rounded-lg border",
-                  idx === 0 ? "bg-primary/10 border-primary/30" : "bg-muted/50"
-                )}
-              >
-                <div className="text-lg font-bold">{time.hour}h</div>
-                <div className="text-[10px] text-muted-foreground">{time.day}</div>
+        ) : (
+          <>
+            {/* Health Score */}
+            <div className="text-center p-4 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border">
+              <div className="text-3xl font-bold text-primary mb-1">
+                {insights.healthScore}
               </div>
-            ))}
-          </div>
-        </div>
-        
-        {/* Next Actions */}
-        {insights.nextActions.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm">
-              <Zap className="h-4 w-4 text-purple-500" />
-              <span>Próximas Ações Recomendadas</span>
+              <div className="text-xs text-muted-foreground">Health Score</div>
             </div>
-            <div className="space-y-1">
-              {insights.nextActions.map((action, idx) => (
-                <div key={idx} className="text-xs p-2 rounded bg-muted/50 border-l-2 border-primary/50">
-                  {action}
+            
+            {/* Close Probability */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <Target className="h-4 w-4 text-green-500" />
+                  Probabilidade de Fechamento
+                </span>
+                <span className="font-bold">{insights.closeProbability}%</span>
+              </div>
+              <Progress value={insights.closeProbability} className="h-2" />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Previsão: {insights.closeTimeframe}</span>
+                {insights.closeProbability >= 70 ? (
+                  <span className="flex items-center gap-1 text-green-600">
+                    <TrendingUp className="h-3 w-3" />
+                    Alta chance
+                  </span>
+                ) : insights.closeProbability <= 30 ? (
+                  <span className="flex items-center gap-1 text-red-600">
+                    <TrendingDown className="h-3 w-3" />
+                    Precisa atenção
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            
+            {/* Churn Risk */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Risco de Churn
+                </span>
+                <Badge className={churnColors[insights.churnRisk]}>
+                  {churnLabels[insights.churnRisk]}
+                </Badge>
+              </div>
+              {insights.churnReasons.length > 0 && (
+                <ul className="text-xs text-muted-foreground space-y-1 ml-6">
+                  {insights.churnReasons.map((reason, idx) => (
+                    <li key={idx} className="list-disc">{reason}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            
+            {/* Best Contact Times - only show if we have real data */}
+            {insights.bestContactTimes.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="h-4 w-4 text-blue-500" />
+                  <span>Melhores Horários para Contato</span>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {insights.bestContactTimes.map((time, idx) => (
+                    <div 
+                      key={idx}
+                      className={cn(
+                        "text-center p-2 rounded-lg border",
+                        idx === 0 ? "bg-primary/10 border-primary/30" : "bg-muted/50"
+                      )}
+                    >
+                      <div className="text-lg font-bold">{time.hour}h</div>
+                      <div className="text-[10px] text-muted-foreground">{time.day}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+        
+            {/* Next Actions */}
+            {insights.nextActions.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <Zap className="h-4 w-4 text-purple-500" />
+                  <span>Próximas Ações Recomendadas</span>
+                </div>
+                <div className="space-y-1">
+                  {insights.nextActions.map((action, idx) => (
+                    <div key={idx} className="text-xs p-2 rounded bg-muted/50 border-l-2 border-primary/50">
+                      {action}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -462,6 +514,24 @@ export function PredictiveBadge({ deal, conversation, className }: PredictiveBad
     () => analyzeDeal(deal, conversation),
     [deal, conversation]
   );
+  
+  const dataCheck = useMemo(
+    () => hasEnoughData(deal, conversation),
+    [deal, conversation]
+  );
+  
+  if (!dataCheck.sufficient) {
+    return (
+      <Badge 
+        variant="outline" 
+        className={cn("text-[10px] h-5 gap-1 bg-muted/50 text-muted-foreground", className)}
+        title="Dados insuficientes para análise preditiva"
+      >
+        <Activity className="h-3 w-3" />
+        —
+      </Badge>
+    );
+  }
   
   const getColor = () => {
     if (insights.healthScore >= 70) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
