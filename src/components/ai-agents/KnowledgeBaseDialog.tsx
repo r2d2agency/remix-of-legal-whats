@@ -87,11 +87,39 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
 
   const { uploadFile, isUploading, progress, resetProgress } = useUpload();
 
+  // Load sources on open
   useEffect(() => {
     if (open && agent) {
       loadSources();
     }
   }, [open, agent]);
+
+  // Auto-poll while any source is pending/processing
+  useEffect(() => {
+    if (!open || !agent) return;
+    const hasProcessing = sources.some(s => s.status === 'pending' || s.status === 'processing');
+    if (!hasProcessing) return;
+
+    const interval = setInterval(async () => {
+      const data = await getKnowledgeSources(agent.id);
+      setSources(data);
+      // Check if any just completed or failed
+      const stillProcessing = data.some(s => s.status === 'pending' || s.status === 'processing');
+      const newlyFailed = data.filter(s => s.status === 'failed' && s.error_message);
+      const newlyCompleted = data.filter(s => s.status === 'completed');
+      
+      if (!stillProcessing) {
+        if (newlyFailed.length > 0) {
+          toast.error(`Falha ao processar: ${newlyFailed[0].error_message}`);
+        }
+        if (newlyCompleted.length > 0) {
+          toast.success(`${newlyCompleted.length} fonte(s) processada(s) com sucesso`);
+        }
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [open, agent, sources]);
 
   const loadSources = async () => {
     if (!agent) return;
