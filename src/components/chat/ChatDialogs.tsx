@@ -49,13 +49,25 @@ export function TransferDialog({ open, onOpenChange, conversation, team, onTrans
   const [transferAgents, setTransferAgents] = useState<Array<{ id: string; name: string; is_active: boolean }>>([]);
   const [transferToAgent, setTransferToAgent] = useState("");
   const [transferringToAI, setTransferringToAI] = useState(false);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [agentsError, setAgentsError] = useState("");
 
   const handleOpen = (isOpen: boolean) => {
     if (isOpen) {
       setTransferMode('human');
+      setAgentsError("");
+      setLoadingAgents(true);
       api<Array<{ id: string; name: string; is_active: boolean }>>('/api/ai-agents', { auth: true })
-        .then(data => setTransferAgents((data || []).filter(a => a.is_active)))
-        .catch(() => {});
+        .then(data => {
+          const active = (data || []).filter(a => a.is_active);
+          setTransferAgents(active);
+          if (active.length === 0) setAgentsError("Nenhum agente IA ativo encontrado");
+        })
+        .catch((err) => {
+          console.error('Erro ao carregar agentes:', err);
+          setAgentsError(err.message || "Erro ao carregar agentes IA");
+        })
+        .finally(() => setLoadingAgents(false));
     }
     onOpenChange(isOpen);
   };
@@ -120,17 +132,25 @@ export function TransferDialog({ open, onOpenChange, conversation, team, onTrans
             </>
           ) : (
             <>
-              <Select value={transferToAgent} onValueChange={setTransferToAgent}>
-                <SelectTrigger><SelectValue placeholder="Selecione um agente IA" /></SelectTrigger>
-                <SelectContent>
-                  {transferAgents.map(agent => (
-                    <SelectItem key={agent.id} value={agent.id}>
-                      <div className="flex items-center gap-2"><Bot className="h-3.5 w-3.5 text-primary" />{agent.name}</div>
-                    </SelectItem>
-                  ))}
-                  {transferAgents.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">Nenhum agente IA ativo</div>}
-                </SelectContent>
-              </Select>
+              {loadingAgents ? (
+                <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Carregando agentes...</span>
+                </div>
+              ) : agentsError && transferAgents.length === 0 ? (
+                <div className="text-sm text-destructive text-center py-4">{agentsError}</div>
+              ) : (
+                <Select value={transferToAgent} onValueChange={setTransferToAgent}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um agente IA" /></SelectTrigger>
+                  <SelectContent>
+                    {transferAgents.map(agent => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        <div className="flex items-center gap-2"><Bot className="h-3.5 w-3.5 text-primary" />{agent.name}</div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <p className="text-xs text-muted-foreground">O agente de IA assumirá o atendimento e responderá automaticamente ao contato.</p>
             </>
           )}
