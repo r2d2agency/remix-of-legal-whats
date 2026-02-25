@@ -63,6 +63,7 @@ export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 export type AgentCapability = 
   | 'respond_messages'
   | 'read_files'
+  | 'analyze_images'
   | 'schedule_meetings'
   | 'google_calendar'
   | 'manage_tasks'
@@ -224,6 +225,19 @@ export interface PromptTemplate {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AIAgentRealtimeLog {
+  ts: string;
+  level: 'info' | 'warn' | 'error';
+  event: string;
+  sessionId?: string;
+  agentId?: string;
+  messageType?: string;
+  provider?: string;
+  model?: string;
+  toolName?: string;
+  [key: string]: unknown;
 }
 
 export const useAIAgents = () => {
@@ -535,6 +549,16 @@ export const useAIAgents = () => {
     }
   }, []);
 
+  const getRealtimeLogs = useCallback(async (limit = 100): Promise<AIAgentRealtimeLog[]> => {
+    try {
+      const params = new URLSearchParams({ limit: String(limit) });
+      const data = await api<{ logs: AIAgentRealtimeLog[] }>(`/api/ai-agents/debug/logs?${params.toString()}`, { auth: true });
+      return Array.isArray(data?.logs) ? data.logs : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -561,5 +585,7 @@ export const useAIAgents = () => {
     getAIModels,
     getPromptTemplates,
     createPromptTemplate,
+    // Diagnóstico em tempo real
+    getRealtimeLogs,
   };
 };

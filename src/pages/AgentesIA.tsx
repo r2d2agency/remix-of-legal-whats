@@ -9,9 +9,9 @@ import { Input } from '@/components/ui/input';
 import { 
   Bot, Plus, Search, Settings, Database, Zap, 
   MessageSquare, BarChart3, Trash2, Copy, MoreVertical,
-  Brain, Globe, FileText, Sparkles, Loader2, Play
+  Brain, Globe, FileText, Sparkles, Loader2, Play, Activity
 } from 'lucide-react';
-import { useAIAgents, AIAgent } from '@/hooks/use-ai-agents';
+import { useAIAgents, AIAgent, AIAgentRealtimeLog } from '@/hooks/use-ai-agents';
 import { toast } from 'sonner';
 import { AgentEditorDialog } from '@/components/ai-agents/AgentEditorDialog';
 import { AgentStatsDialog } from '@/components/ai-agents/AgentStatsDialog';
@@ -52,8 +52,10 @@ export default function AgentesIA() {
   const [testChatAgent, setTestChatAgent] = useState<AIAgent | null>(null);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(true);
+  const [realtimeLogs, setRealtimeLogs] = useState<AIAgentRealtimeLog[]>([]);
+  const [loadingRealtimeLogs, setLoadingRealtimeLogs] = useState(false);
 
-  const { getAgents, toggleAgent, deleteAgent, loading } = useAIAgents();
+  const { getAgents, toggleAgent, deleteAgent, getRealtimeLogs, loading } = useAIAgents();
 
   // Check superadmin access
   useEffect(() => {
@@ -100,6 +102,32 @@ export default function AgentesIA() {
       loadAgents();
     }
   }, [isSuperadmin]);
+
+  useEffect(() => {
+    if (!isSuperadmin) return;
+
+    let active = true;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const loadRealtime = async () => {
+      if (!active) return;
+      setLoadingRealtimeLogs(true);
+      try {
+        const logs = await getRealtimeLogs(120);
+        if (active) setRealtimeLogs(logs);
+      } finally {
+        if (active) setLoadingRealtimeLogs(false);
+      }
+    };
+
+    loadRealtime();
+    intervalId = setInterval(loadRealtime, 3000);
+
+    return () => {
+      active = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isSuperadmin, getRealtimeLogs]);
 
   const handleToggle = async (agent: AIAgent) => {
     const result = await toggleAgent(agent.id);
@@ -151,6 +179,8 @@ export default function AgentesIA() {
     const labels: Record<string, string> = {
       respond_messages: 'Responder',
       read_files: 'Ler Arquivos',
+      analyze_images: 'Analisar Imagens',
+      transcribe_audio: 'Ouvir Áudios',
       schedule_meetings: 'Agendar',
       google_calendar: 'Google Calendar',
       manage_tasks: 'Tarefas',
@@ -267,6 +297,52 @@ export default function AgentesIA() {
             className="pl-10"
           />
         </div>
+
+        {/* Painel de logs em tempo real */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                Logs em tempo real da IA
+              </span>
+              <Badge variant="outline">Atualiza a cada 3s</Badge>
+            </CardTitle>
+            <CardDescription>
+              Eventos de transcrição, RAG e tool calls.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="max-h-64 overflow-y-auto rounded-md border bg-muted/20">
+              {loadingRealtimeLogs && realtimeLogs.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">Carregando logs...</div>
+              ) : realtimeLogs.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">Sem eventos recentes.</div>
+              ) : (
+                <div className="divide-y">
+                  {realtimeLogs.slice(0, 40).map((log, idx) => (
+                    <div key={`${log.ts}-${idx}`} className="p-3 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge variant={log.level === 'error' ? 'destructive' : 'secondary'} className="text-[10px]">
+                          {log.level}
+                        </Badge>
+                        <span className="text-muted-foreground">{new Date(log.ts).toLocaleTimeString('pt-BR')}</span>
+                      </div>
+                      <p className="font-medium mt-1 break-all">{log.event}</p>
+                      {(log.toolName || log.messageType || log.provider) && (
+                        <p className="text-muted-foreground mt-1 break-all">
+                          {log.provider ? `provider=${log.provider} ` : ''}
+                          {log.messageType ? `tipo=${log.messageType} ` : ''}
+                          {log.toolName ? `tool=${log.toolName}` : ''}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Agents Grid */}
         {loading && agents.length === 0 ? (

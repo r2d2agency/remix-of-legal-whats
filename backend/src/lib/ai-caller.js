@@ -59,11 +59,23 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
 
     // Execute tool calls
     for (const toolCall of result.toolCalls) {
+      logInfo('ai_caller.tool_call_executing', {
+        provider: config.provider,
+        model: config.model,
+        toolName: toolCall.name,
+      });
+
       const toolResult = await toolExecutor(toolCall.name, toolCall.arguments);
       toolCallsExecuted.push({
         name: toolCall.name,
         arguments: toolCall.arguments,
         result: toolResult,
+      });
+
+      logInfo('ai_caller.tool_call_executed', {
+        provider: config.provider,
+        model: config.model,
+        toolName: toolCall.name,
       });
 
       // Add tool call and result to messages for next iteration
