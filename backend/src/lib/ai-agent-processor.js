@@ -530,33 +530,56 @@ async function handleHandoff(session, agent, connection, contactPhone, reason) {
 
 // ==================== SEND MESSAGE ====================
 
-async function sendAgentMessage(connection, contactPhone, text, sessionId) {
-  try {
-    const result = await whatsappProvider.sendMessage(connection, contactPhone, text, 'text', null);
+async function sendAgentMessage(connection, contactPhone, text, sessionId, maxRetries = 3) {
+  let lastError = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await whatsappProvider.sendMessage(connection, contactPhone, text, 'text', null);
 
-    if (result.success) {
-      // Save outgoing message to chat_messages so it appears in the chat
-      const conversationResult = await query(
-        `SELECT id FROM conversations WHERE connection_id = $1 AND contact_phone = $2 LIMIT 1`,
-        [connection.id, contactPhone]
-      );
-      
-      if (conversationResult.rows[0]) {
-        await query(
-          `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, from_me, status, timestamp)
-           VALUES ($1, $2, $3, 'text', true, 'sent', NOW())`,
-          [conversationResult.rows[0].id, result.messageId || `ai-agent-${Date.now()}`, text]
+      if (result.success) {
+        // Save outgoing message to chat_messages so it appears in the chat
+        const conversationResult = await query(
+          `SELECT id FROM conversations WHERE connection_id = $1 AND contact_phone = $2 LIMIT 1`,
+          [connection.id, contactPhone]
         );
+        
+        if (conversationResult.rows[0]) {
+          await query(
+            `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, from_me, status, timestamp)
+             VALUES ($1, $2, $3, 'text', true, 'sent', NOW())`,
+            [conversationResult.rows[0].id, result.messageId || `ai-agent-${Date.now()}`, text]
+          );
+        }
+        return result;
       }
-    } else {
-      logError('ai_agent_processor.send_failed', new Error(result.error || 'Send failed'));
-    }
 
-    return result;
-  } catch (error) {
-    logError('ai_agent_processor.send_error', error);
-    return { success: false, error: error.message };
+      lastError = result.error || 'Send failed';
+      
+      // Only retry on network-level errors, not API rejections
+      if (result.error && (result.error.includes('fetch failed') || result.error.includes('ECONNREFUSED') || result.error.includes('ETIMEDOUT'))) {
+        logInfo('ai_agent_processor.send_retry', { attempt, maxRetries, error: result.error });
+        await sleep(attempt * 2000); // 2s, 4s, 6s backoff
+        continue;
+      }
+      
+      // Non-retryable error
+      logError('ai_agent_processor.send_failed', new Error(lastError));
+      return result;
+    } catch (error) {
+      lastError = error.message;
+      if (attempt < maxRetries && (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED'))) {
+        logInfo('ai_agent_processor.send_retry_exception', { attempt, maxRetries, error: error.message });
+        await sleep(attempt * 2000);
+        continue;
+      }
+      logError('ai_agent_processor.send_error', error);
+      return { success: false, error: error.message };
+    }
   }
+
+  logError('ai_agent_processor.send_exhausted', new Error(lastError || 'Max retries reached'));
+  return { success: false, error: lastError || 'Max retries reached' };
 }
 
 // ==================== SYSTEM PROMPT ====================
