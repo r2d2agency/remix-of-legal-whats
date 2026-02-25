@@ -110,8 +110,8 @@ async function callOpenAI(config, messages, options) {
   const body = {
     model: config.model || 'gpt-4o-mini',
     messages,
-    temperature: options.temperature,
-    max_tokens: options.maxTokens,
+    temperature: typeof options.temperature === 'number' ? options.temperature : parseFloat(options.temperature) || 0.7,
+    max_tokens: typeof options.maxTokens === 'number' ? options.maxTokens : parseInt(options.maxTokens, 10) || 1000,
   };
 
   if (options.tools) {
