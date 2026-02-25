@@ -15,6 +15,16 @@ import { logInfo, logError } from '../logger.js';
 import { searchKnowledge } from './knowledge-processor.js';
 import * as whatsappProvider from './whatsapp-provider.js';
 
+// ==================== MESSAGE BATCHING ====================
+// Collects multiple messages from same contact within a window before processing
+
+const MESSAGE_BATCH_DELAY_MS = 5000; // Wait 5 seconds to collect messages
+const pendingBatches = new Map(); // conversationId -> { messages[], timer, params }
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // ==================== MAIN ENTRY POINT ====================
 
 /**
@@ -38,6 +48,60 @@ export async function processIncomingWithAgent({
   mediaUrl,
   mediaMimetype,
   mediaFilename,
+}) {
+  // For text messages, batch multiple messages within a window
+  if (messageType === 'text' && messageContent) {
+    return new Promise((resolve) => {
+      const existing = pendingBatches.get(conversationId);
+      
+      if (existing) {
+        // Add message to existing batch
+        existing.messages.push(messageContent);
+        clearTimeout(existing.timer);
+        existing.timer = setTimeout(async () => {
+          pendingBatches.delete(conversationId);
+          const mergedContent = existing.messages.join('\n');
+          const result = await processMessageInternal({
+            connection, conversationId, contactPhone, contactName,
+            messageContent: mergedContent, messageType: 'text',
+            mediaUrl: null, mediaMimetype: null, mediaFilename: null,
+          });
+          // Resolve all pending promises
+          existing.resolvers.forEach(r => r(result));
+          resolve(result);
+        }, MESSAGE_BATCH_DELAY_MS);
+        existing.resolvers.push(resolve);
+      } else {
+        // Start new batch
+        const batch = {
+          messages: [messageContent],
+          resolvers: [resolve],
+          timer: setTimeout(async () => {
+            pendingBatches.delete(conversationId);
+            const mergedContent = batch.messages.join('\n');
+            const result = await processMessageInternal({
+              connection, conversationId, contactPhone, contactName,
+              messageContent: mergedContent, messageType: 'text',
+              mediaUrl: null, mediaMimetype: null, mediaFilename: null,
+            });
+            batch.resolvers.forEach(r => r(result));
+          }, MESSAGE_BATCH_DELAY_MS),
+        };
+        pendingBatches.set(conversationId, batch);
+      }
+    });
+  }
+
+  // Non-text messages are processed immediately
+  return processMessageInternal({
+    connection, conversationId, contactPhone, contactName,
+    messageContent, messageType, mediaUrl, mediaMimetype, mediaFilename,
+  });
+}
+
+async function processMessageInternal({
+  connection, conversationId, contactPhone, contactName,
+  messageContent, messageType, mediaUrl, mediaMimetype, mediaFilename,
 }) {
   try {
     // Supported message types
@@ -196,15 +260,15 @@ export async function processIncomingWithAgent({
     if (tools.length > 0) {
       const toolExecutor = createToolExecutor(organizationId, userId);
       result = await callAIWithTools(aiConfig, messages, {
-        temperature: agent.temperature || 0.7,
-        maxTokens: agent.max_tokens || 1000,
+        temperature: parseFloat(agent.temperature) || 0.7,
+        maxTokens: parseInt(agent.max_tokens, 10) || 1000,
         tools,
       }, toolExecutor);
       toolCallsExecuted = result.toolCallsExecuted || [];
     } else {
       result = await callAI(aiConfig, messages, {
-        temperature: agent.temperature || 0.7,
-        maxTokens: agent.max_tokens || 1000,
+        temperature: parseFloat(agent.temperature) || 0.7,
+        maxTokens: parseInt(agent.max_tokens, 10) || 1000,
       });
     }
 
@@ -214,7 +278,15 @@ export async function processIncomingWithAgent({
     // 12. Save assistant message
     await saveAgentMessage(session.id, 'assistant', responseText, result.tokensUsed || 0, toolCallsExecuted);
 
-    // 13. Send response via WhatsApp
+    // 13. Send typing indicator + human-like delay, then send response
+    try {
+      await whatsappProvider.sendPresenceComposing(connection, contactPhone);
+      // Human-like delay: 1-3 seconds based on response length
+      const typingDelay = Math.min(3000, Math.max(1000, responseText.length * 15));
+      await sleep(typingDelay);
+    } catch (e) {
+      // Non-critical
+    }
     await sendAgentMessage(connection, contactPhone, responseText, session.id);
 
     // 14. Notify external number if enabled
@@ -537,6 +609,18 @@ async function buildSystemPrompt(agent, organizationId, contactName, userMessage
 
   // Add language instruction
   prompt += `\n\nResponda sempre em ${agent.language || 'pt-BR'}.`;
+
+  // Add human-like WhatsApp communication style
+  prompt += `\n\nIMPORTANTE - Estilo de comunicação:
+- Você está conversando via WhatsApp. Seja natural e humano.
+- Use respostas CURTAS e diretas (1-3 frases por mensagem, como uma pessoa real).
+- Faça perguntas curtas e objetivas, uma de cada vez.
+- Use linguagem informal e conversacional (mas profissional).
+- Evite textos longos, listas extensas ou parágrafos grandes.
+- Não repita informações que já foram ditas.
+- Responda como se fosse uma pessoa digitando no celular.
+- Use emojis com moderação (1-2 por mensagem no máximo).
+- Quando o cliente enviar várias mensagens seguidas, entenda o contexto completo antes de responder.`;
 
   // Add handoff instruction
   const handoffKeywords = parseArray(agent.handoff_keywords, []);

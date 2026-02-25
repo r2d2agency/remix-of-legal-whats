@@ -1328,3 +1328,29 @@ export async function downloadMedia(instanceId, token, messageId) {
 
   return { success: false, error: 'All downloadMedia attempts failed' };
 }
+
+/**
+ * Send typing/composing presence indicator via W-API
+ */
+export async function sendPresenceComposing(instanceId, token, phone) {
+  try {
+    const isGroup = phone.includes('@g.us');
+    const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
+
+    await fetch(`${W_API_BASE_URL}/${instanceId}/chat/send-presence`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        phone: cleanPhone,
+        presence: 'composing',
+        isGroup,
+      }),
+    });
+  } catch (error) {
+    // Non-critical, just log
+    console.error('[W-API] sendPresenceComposing error:', error?.message);
+  }
+}
