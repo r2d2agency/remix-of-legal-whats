@@ -1483,6 +1483,16 @@ export async function checkInactivityTimeouts() {
 // ==================== MEDIA HELPERS ====================
 
 /**
+ * Resolve media URL to an absolute URL fetchable from the backend
+ */
+function resolveMediaUrl(url) {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url) || /^data:/i.test(url)) return url;
+  const base = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+  return url.startsWith('/') ? `${base}${url}` : `${base}/${url}`;
+}
+
+/**
  * Transcribe audio using Lovable AI (Gemini)
  */
 async function transcribeAudio(audioUrl, mimetype) {
@@ -1493,18 +1503,51 @@ async function transcribeAudio(audioUrl, mimetype) {
       return null;
     }
 
+    // Resolve URL to absolute
+    const resolvedUrl = resolveMediaUrl(audioUrl);
+    if (!resolvedUrl) {
+      logError('ai_agent_processor.transcribe_no_url', new Error('No audio URL'));
+      return null;
+    }
+
+    logInfo('ai_agent_processor.transcribe_downloading', { url: resolvedUrl?.slice(0, 120) });
+
     // Download audio to base64
-    const audioResponse = await fetch(audioUrl);
+    const audioResponse = await fetch(resolvedUrl);
     if (!audioResponse.ok) {
-      logError('ai_agent_processor.transcribe_download_failed', new Error(`HTTP ${audioResponse.status}`));
+      logError('ai_agent_processor.transcribe_download_failed', new Error(`HTTP ${audioResponse.status}`), { url: resolvedUrl?.slice(0, 120) });
       return null;
     }
 
     const audioBuffer = await audioResponse.arrayBuffer();
-    const base64Audio = Buffer.from(audioBuffer).toString('base64');
-    const mimeType = mimetype || 'audio/ogg';
+    
+    if (audioBuffer.byteLength < 100) {
+      logError('ai_agent_processor.transcribe_empty_audio', new Error('Audio file too small'));
+      return null;
+    }
 
-    logInfo('ai_agent_processor.transcribe_start', { size: audioBuffer.byteLength, mimetype: mimeType });
+    // Use chunked base64 conversion to avoid stack overflow on large files
+    const bytes = new Uint8Array(audioBuffer);
+    const chunkSize = 8192;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+      for (let j = 0; j < chunk.length; j++) {
+        binary += String.fromCharCode(chunk[j]);
+      }
+    }
+    const base64Audio = btoa(binary);
+
+    const mimeType = mimetype || 'audio/ogg';
+    const audioFormat = mimeType.includes('mp3') ? 'mp3' :
+                        mimeType.includes('wav') ? 'wav' :
+                        mimeType.includes('ogg') ? 'ogg' :
+                        mimeType.includes('webm') ? 'webm' : 'mp3';
+
+    logInfo('ai_agent_processor.transcribe_start', { size: audioBuffer.byteLength, mimetype: mimeType, format: audioFormat });
+
+    // Build data URI for the audio
+    const dataUri = `data:${mimeType};base64,${base64Audio}`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -1517,20 +1560,17 @@ async function transcribeAudio(audioUrl, mimetype) {
         messages: [
           {
             role: 'system',
-            content: 'Você é um transcritor de áudio. Transcreva o áudio com precisão. Retorne APENAS o texto transcrito, sem explicações. Se inaudível, retorne "[Áudio inaudível]".'
+            content: 'Você é um transcritor de áudio profissional. Transcreva o áudio com precisão em português. Retorne APENAS o texto transcrito, sem explicações ou comentários. Se inaudível, retorne "[Áudio inaudível]".'
           },
           {
             role: 'user',
             content: [
-              { type: 'text', text: 'Transcreva este áudio:' },
+              { type: 'text', text: 'Transcreva o seguinte áudio:' },
               {
                 type: 'input_audio',
                 input_audio: {
                   data: base64Audio,
-                  format: mimeType.includes('mp3') ? 'mp3' :
-                          mimeType.includes('wav') ? 'wav' :
-                          mimeType.includes('ogg') ? 'ogg' :
-                          mimeType.includes('webm') ? 'webm' : 'mp3'
+                  format: audioFormat,
                 }
               }
             ]
@@ -1540,14 +1580,51 @@ async function transcribeAudio(audioUrl, mimetype) {
     });
 
     if (!response.ok) {
-      logError('ai_agent_processor.transcribe_ai_error', new Error(`AI error ${response.status}`));
+      const errBody = await response.text().catch(() => '');
+      logError('ai_agent_processor.transcribe_ai_error', new Error(`AI error ${response.status}`), { body: errBody?.slice(0, 300) });
+      
+      // Fallback: try with image_url approach (some gateways support audio as URL)
+      if (response.status >= 400) {
+        logInfo('ai_agent_processor.transcribe_fallback', {});
+        const fallbackResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              {
+                role: 'system',
+                content: 'Você é um transcritor de áudio profissional. Transcreva o áudio com precisão em português. Retorne APENAS o texto transcrito. Se inaudível, retorne "[Áudio inaudível]".'
+              },
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: 'Transcreva este áudio:' },
+                  { type: 'image_url', image_url: { url: dataUri } }
+                ]
+              }
+            ],
+          }),
+        });
+
+        if (fallbackResp.ok) {
+          const fallbackData = await fallbackResp.json();
+          const transcript = fallbackData.choices?.[0]?.message?.content?.trim() || null;
+          logInfo('ai_agent_processor.transcribe_fallback_success', { length: transcript?.length });
+          return transcript;
+        }
+        logError('ai_agent_processor.transcribe_fallback_failed', new Error(`Fallback also failed: ${fallbackResp.status}`));
+      }
       return null;
     }
 
     const data = await response.json();
     const transcript = data.choices?.[0]?.message?.content?.trim() || null;
 
-    logInfo('ai_agent_processor.transcribe_success', { length: transcript?.length });
+    logInfo('ai_agent_processor.transcribe_success', { length: transcript?.length, preview: transcript?.slice(0, 80) });
     return transcript;
   } catch (error) {
     logError('ai_agent_processor.transcribe_error', error);
@@ -1568,9 +1645,10 @@ function buildImageMessage(imageUrl, caption) {
     content.push({ type: 'text', text: 'O cliente enviou esta imagem. Descreva o que você vê e responda adequadamente.' });
   }
 
+  const resolvedUrl = resolveMediaUrl(imageUrl);
   content.push({
     type: 'image_url',
-    image_url: { url: imageUrl },
+    image_url: { url: resolvedUrl || imageUrl },
   });
 
   return content;
@@ -1585,8 +1663,9 @@ async function buildDocumentMessage(mediaUrl, filename, caption, mimetype) {
     const textTypes = ['text/', 'application/json', 'application/xml', 'text/csv'];
     const isTextBased = textTypes.some(t => (mimetype || '').includes(t));
     
-    if (isTextBased && mediaUrl) {
-      const resp = await fetch(mediaUrl);
+    const resolvedDocUrl = resolveMediaUrl(mediaUrl);
+    if (isTextBased && resolvedDocUrl) {
+      const resp = await fetch(resolvedDocUrl);
       if (resp.ok) {
         const textContent = await resp.text();
         const truncated = textContent.substring(0, 3000);
