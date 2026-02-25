@@ -106,10 +106,10 @@ export function NotesPanel({ conversationId, onClose }: NotesPanelProps) {
 
   return (
     <div className={cn(
-      "flex flex-col bg-card",
+      "flex flex-col bg-card overflow-x-hidden",
       isMobile 
         ? "fixed inset-0 z-50 h-full w-full" 
-        : "h-full border-l w-80"
+        : "h-full border-l w-80 shrink-0 min-w-[20rem]"
     )}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
