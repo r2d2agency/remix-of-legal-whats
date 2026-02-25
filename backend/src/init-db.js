@@ -2307,6 +2307,20 @@ DO $$ BEGIN
   ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS notify_external_summary BOOLEAN DEFAULT false;
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 
+-- Takeover timeout, required variables, inactivity timeout for AI agents
+DO $$ BEGIN
+  ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS takeover_timeout_seconds INTEGER DEFAULT 300;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+DO $$ BEGIN
+  ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS required_variables JSONB DEFAULT '[]';
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+DO $$ BEGIN
+  ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS inactivity_timeout_minutes INTEGER DEFAULT 0;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+DO $$ BEGIN
+  ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS inactivity_message TEXT DEFAULT 'Como não recebi sua resposta, vou encerrar nosso atendimento por aqui. Se precisar, é só me chamar novamente! 😊';
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
 -- RAG columns for ai_knowledge_chunks
 ALTER TABLE ai_knowledge_chunks ADD COLUMN IF NOT EXISTS embedding JSONB;
 ALTER TABLE ai_knowledge_chunks ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);

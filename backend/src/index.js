@@ -50,6 +50,7 @@ import { executeNurturing } from './nurturing-scheduler.js';
 import { executeTaskReminders } from './task-reminder-scheduler.js';
 import { executeSecretaryFollowups } from './secretary-followup-scheduler.js';
 import { executeSecretaryDigest } from './secretary-digest-scheduler.js';
+import { checkInactivityTimeouts } from './lib/ai-agent-processor.js';
 import { requestContext } from './request-context.js';
 import { log, logError } from './logger.js';
 
@@ -383,5 +384,15 @@ initDatabase().then((ok) => {
     console.log('⏰ Task reminders started - checks every minute');
     console.log('📌 Secretary follow-up started - checks every 30 minutes');
     console.log('📊 Secretary daily digest started - checks every hour');
+
+    // AI Agent inactivity timeout - checks every minute
+    cron.schedule('* * * * *', async () => {
+      try {
+        await checkInactivityTimeouts();
+      } catch (error) {
+        console.error('🤖 AI inactivity check error:', error.message);
+      }
+    });
+    console.log('🤖 AI agent inactivity checker started - checks every minute');
   });
 });

@@ -109,6 +109,10 @@ export interface AIAgent {
   handoff_message: string;
   handoff_keywords: string[];
   auto_handoff_after_failures: number;
+  takeover_timeout_seconds: number;
+  required_variables: Array<{ name: string; question: string }>;
+  inactivity_timeout_minutes: number;
+  inactivity_message: string;
   default_department_id: string | null;
   default_user_id: string | null;
   lead_scoring_criteria: Record<string, unknown>;
