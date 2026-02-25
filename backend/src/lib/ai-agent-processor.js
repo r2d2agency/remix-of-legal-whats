@@ -208,13 +208,19 @@ async function processMessageInternal({
 
     if (messageType === 'audio' && mediaUrl) {
       // Transcribe audio using Lovable AI
-      const transcript = await transcribeAudio(mediaUrl, mediaMimetype);
-      if (transcript) {
-        userMessageForHistory = `[Áudio transcrito]: ${transcript}`;
-        userMessageForAI = transcript;
-      } else {
-        userMessageForHistory = messageContent || '[Mensagem de áudio recebida - não foi possível transcrever]';
-        userMessageForAI = userMessageForHistory;
+      try {
+        const transcript = await transcribeAudio(mediaUrl, mediaMimetype);
+        if (transcript && transcript !== '[Áudio inaudível]') {
+          userMessageForHistory = `[Áudio transcrito]: ${transcript}`;
+          userMessageForAI = transcript;
+        } else {
+          userMessageForHistory = messageContent || '[Mensagem de áudio recebida]';
+          userMessageForAI = messageContent || '[O cliente enviou uma mensagem de áudio. Informe que você recebeu o áudio e peça para enviar como texto se possível.]';
+        }
+      } catch (err) {
+        logError('ai_agent_processor.transcribe_catch', err);
+        userMessageForHistory = messageContent || '[Mensagem de áudio recebida]';
+        userMessageForAI = messageContent || '[O cliente enviou uma mensagem de áudio que não pôde ser processada. Informe que recebeu e peça para enviar como texto.]';
       }
     } else if (messageType === 'image' && mediaUrl) {
       const caption = messageContent || '';
@@ -230,7 +236,7 @@ async function processMessageInternal({
       userMessageForHistory = messageContent 
         ? `[Documento: ${filename}]: ${messageContent}` 
         : `[Documento recebido: ${filename}]`;
-      userMessageForAI = userMessageForHistory;
+      userMessageForAI = await buildDocumentMessage(mediaUrl, filename, messageContent, mediaMimetype);
     } else if (messageType === 'sticker') {
       userMessageForHistory = '[Sticker recebido]';
       userMessageForAI = '[O cliente enviou um sticker/figurinha. Responda de forma leve e amigável.]';
@@ -1551,7 +1557,7 @@ async function transcribeAudio(audioUrl, mimetype) {
 
 /**
  * Build a multimodal message content array for image messages
- * Compatible with OpenAI vision API format
+ * Compatible with both OpenAI vision API and Gemini (via ai-caller conversion)
  */
 function buildImageMessage(imageUrl, caption) {
   const content = [];
@@ -1568,4 +1574,29 @@ function buildImageMessage(imageUrl, caption) {
   });
 
   return content;
+}
+
+/**
+ * Build multimodal message for document - try to read if possible
+ */
+async function buildDocumentMessage(mediaUrl, filename, caption, mimetype) {
+  try {
+    // For text-based documents, try to download and include content
+    const textTypes = ['text/', 'application/json', 'application/xml', 'text/csv'];
+    const isTextBased = textTypes.some(t => (mimetype || '').includes(t));
+    
+    if (isTextBased && mediaUrl) {
+      const resp = await fetch(mediaUrl);
+      if (resp.ok) {
+        const textContent = await resp.text();
+        const truncated = textContent.substring(0, 3000);
+        return `[Documento recebido: ${filename}]\n\nConteúdo do documento:\n${truncated}${textContent.length > 3000 ? '\n... (conteúdo truncado)' : ''}${caption ? `\n\nLegenda: ${caption}` : ''}`;
+      }
+    }
+    
+    return `[Documento recebido: ${filename}]${caption ? ` - ${caption}` : ''}. Responda reconhecendo o recebimento do documento e pergunte se o cliente precisa de ajuda com algo relacionado.`;
+  } catch (error) {
+    logError('ai_agent_processor.document_read_error', error);
+    return `[Documento recebido: ${filename}]${caption ? ` - ${caption}` : ''}`;
+  }
 }
