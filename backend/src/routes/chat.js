@@ -2970,14 +2970,34 @@ router.post('/conversations/:id/agent-session', authenticate, async (req, res) =
 
     // Return with agent info
     const agentResult = await query(
-      `SELECT name, avatar_url FROM ai_agents WHERE id = $1`,
+      `SELECT name, avatar_url, greeting_message FROM ai_agents WHERE id = $1`,
       [agent_id]
     );
+    const agent = agentResult.rows[0];
+
+    // Send greeting message to contact if configured
+    if (agent?.greeting_message && conv.contact_phone) {
+      try {
+        // Get connection for this conversation
+        const connResult = await query(
+          `SELECT c.* FROM connections c
+           JOIN conversations cv ON cv.connection_id = c.id
+           WHERE cv.id = $1`,
+          [req.params.id]
+        );
+        if (connResult.rows.length > 0) {
+          const greeting = agent.greeting_message.replace(/\{agent_name\}/g, agent.name || 'IA');
+          await whatsappProvider.send(connResult.rows[0], conv.contact_phone, greeting);
+        }
+      } catch (greetErr) {
+        console.error('Erro ao enviar saudação do agente:', greetErr);
+      }
+    }
 
     res.json({
       ...session,
-      agent_name: agentResult.rows[0]?.name,
-      agent_avatar: agentResult.rows[0]?.avatar_url,
+      agent_name: agent?.name,
+      agent_avatar: agent?.avatar_url,
     });
   } catch (error) {
     console.error('Start agent session error:', error);
