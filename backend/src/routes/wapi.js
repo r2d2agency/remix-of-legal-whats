@@ -1333,32 +1333,58 @@ async function handleIncomingMessage(connection, payload) {
     // Use already extracted content from above (before conversation creation)
     // messageType, content, rawMediaUrl, mediaMimetype, waMediaKey are already defined
 
-    // For WhatsApp CDN URLs, the browser can't load them (encrypted .enc). Try to cache eagerly (images only)
+    // Normalize media URL and try to make it locally accessible BEFORE AI processing
     const normalizedMediaUrl = normalizeUploadsUrl(rawMediaUrl);
     let effectiveMediaUrl = normalizedMediaUrl;
     let effectiveMediaMimetype = mediaMimetype || null;
 
-    if (messageType === 'image' && normalizedMediaUrl && isWhatsAppCdnUrl(normalizedMediaUrl)) {
-      const eager = await withTimeout(
-        cacheMedia({
-          messageId,
-          mediaUrl: normalizedMediaUrl,
-          messageType,
-          mediaMimetype: effectiveMediaMimetype,
-          connection,
-          waMediaKey,
-        }),
-        8000,
-        'eager_media_cache_timeout'
-      ).catch((err) => {
-        console.error('[W-API] Eager media cache failed:', err?.message || err);
-        return null;
-      });
+    if (messageType !== 'text') {
+      // 1) If we have an external/encrypted URL, cache eagerly
+      if (effectiveMediaUrl && shouldCacheExternally(effectiveMediaUrl)) {
+        const eager = await withTimeout(
+          cacheMedia({
+            messageId,
+            mediaUrl: effectiveMediaUrl,
+            messageType,
+            mediaMimetype: effectiveMediaMimetype,
+            connection,
+            waMediaKey,
+          }),
+          8000,
+          'eager_incoming_media_cache_timeout'
+        ).catch((err) => {
+          console.error('[W-API] Eager media cache failed:', err?.message || err);
+          return null;
+        });
 
-      if (eager?.publicUrl) {
-        effectiveMediaUrl = eager.publicUrl;
-        effectiveMediaMimetype = eager.mime || effectiveMediaMimetype;
-        console.log('[W-API] Eager cache ok ->', effectiveMediaUrl);
+        if (eager?.publicUrl) {
+          effectiveMediaUrl = eager.publicUrl;
+          effectiveMediaMimetype = eager.mime || effectiveMediaMimetype;
+          console.log('[W-API] Eager cache ok ->', effectiveMediaUrl);
+        }
+      }
+
+      // 2) If we still don't have media URL (common for audio), fetch by messageId
+      if (!effectiveMediaUrl) {
+        const eagerById = await withTimeout(
+          cacheMediaFromWapiDownload({
+            messageId,
+            messageType,
+            mediaMimetype: effectiveMediaMimetype,
+            connection,
+          }),
+          8000,
+          'eager_incoming_media_download_timeout'
+        ).catch((err) => {
+          console.error('[W-API] Eager media download by id failed:', err?.message || err);
+          return null;
+        });
+
+        if (eagerById?.publicUrl) {
+          effectiveMediaUrl = eagerById.publicUrl;
+          effectiveMediaMimetype = eagerById.mime || effectiveMediaMimetype;
+          console.log('[W-API] Eager download by id ok ->', effectiveMediaUrl);
+        }
       }
     }
 
