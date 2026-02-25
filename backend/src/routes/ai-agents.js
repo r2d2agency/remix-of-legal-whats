@@ -550,7 +550,8 @@ router.post('/:id/consult', authenticate, async (req, res) => {
     }
 
     // Build the system prompt for consultation
-    const systemPrompt = `${agent.system_prompt}
+    const agentDesc = agent.description?.trim() ? `\n\n${agent.description.trim()}` : '';
+    const systemPrompt = `${agent.system_prompt}${agentDesc}
 
 Você está sendo consultado por um atendente humano que precisa de sua ajuda durante um atendimento ao cliente.
 Analise o histórico da conversa abaixo e responda à solicitação do atendente.
@@ -1441,6 +1442,9 @@ router.post('/:id/test', authenticate, async (req, res) => {
 
     // Build system prompt
     let systemPrompt = agent.system_prompt || 'Você é um assistente virtual profissional e prestativo.';
+    if (agent.description && agent.description.trim()) {
+      systemPrompt += `\n\n${agent.description.trim()}`;
+    }
     if (knowledgeContext) {
       systemPrompt += `\n\nBase de Conhecimento (use estas informações para responder):\n${knowledgeContext}`;
     }
@@ -1586,8 +1590,8 @@ router.post('/:id/test', authenticate, async (req, res) => {
       };
 
       result = await callAIWithTools(aiConfig, messages, {
-        temperature: agent.temperature || 0.7,
-        maxTokens: agent.max_tokens || 1000,
+        temperature: parseFloat(agent.temperature) || 0.7,
+        maxTokens: parseInt(agent.max_tokens, 10) || 1000,
         tools,
       }, toolExecutor);
 
@@ -1595,8 +1599,8 @@ router.post('/:id/test', authenticate, async (req, res) => {
     } else {
       // Simple call without tools
       result = await callAI(aiConfig, messages, {
-        temperature: agent.temperature || 0.7,
-        maxTokens: agent.max_tokens || 1000,
+        temperature: parseFloat(agent.temperature) || 0.7,
+        maxTokens: parseInt(agent.max_tokens, 10) || 1000,
       });
     }
 
