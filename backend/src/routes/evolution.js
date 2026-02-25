@@ -1991,22 +1991,29 @@ async function handleMessageUpsert(connection, data) {
         }
 
         // Check for active flow sessions first (priority over keywords)
+        let flowHandled = false;
         if (!fromMe && messageType === 'text' && content) {
           console.log('[Evolution] Checking for active flow sessions...');
           const continueResult = await continueActiveFlow(connection, conversationId, content);
           
           if (continueResult?.continued) {
             console.log('[Evolution] Flow continued successfully');
-            return; // Don't check keywords if we continued a flow
+            flowHandled = true;
           }
           
-          // If no active flow, check for keyword-triggered flows
-          console.log('[Evolution] No active flow, checking keywords...');
-          const flowTriggered = await checkAndTriggerFlow(connection, conversationId, content);
-          
-          // If no flow triggered, check AI agent processing
-          if (!flowTriggered) {
-            console.log('[Evolution] No flow triggered, checking AI agent...');
+          if (!flowHandled) {
+            // If no active flow, check for keyword-triggered flows
+            console.log('[Evolution] No active flow, checking keywords...');
+            const flowTriggered = await checkAndTriggerFlow(connection, conversationId, content);
+            if (flowTriggered) flowHandled = true;
+          }
+        }
+
+        // AI agent processing - supports text, audio, image, document, video, sticker
+        if (!fromMe && !flowHandled) {
+          const aiSupportedTypes = ['text', 'image', 'audio', 'video', 'document', 'sticker'];
+          if (aiSupportedTypes.includes(messageType) && (content || mediaUrl)) {
+            console.log('[Evolution] Checking AI agent for message type:', messageType);
             processIncomingWithAgent({
               connection,
               conversationId,
@@ -2019,7 +2026,7 @@ async function handleMessageUpsert(connection, data) {
               mediaFilename: msgContent?.documentMessage?.fileName || null,
             }).then(result => {
               if (result.handled) {
-                console.log('[Evolution] AI Agent handled message, agent:', result.agentId);
+                console.log('[Evolution] AI Agent handled message, agent:', result.agentId, 'type:', messageType);
               }
             }).catch(err => {
               console.error('[Evolution] AI Agent processing error:', err.message);
