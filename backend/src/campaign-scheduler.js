@@ -37,13 +37,13 @@ function replaceVariables(text, contact) {
   if (!text) return text;
   
   return text
-    .replace(/\{\{nome\}\}/gi, contact.name || '')
-    .replace(/\{\{telefone\}\}/gi, contact.phone || '')
-    .replace(/\{\{email\}\}/gi, contact.email || '')
-    .replace(/\{\{empresa\}\}/gi, contact.company || '')
-    .replace(/\{\{cargo\}\}/gi, contact.position || '')
-    .replace(/\{\{observacao\}\}/gi, contact.notes || '')
-    .replace(/\{\{obs\}\}/gi, contact.notes || '');
+    .replace(/\{\{?\s*nome\s*\}?\}/gi, contact.name || '')
+    .replace(/\{\{?\s*telefone\s*\}?\}/gi, contact.phone || '')
+    .replace(/\{\{?\s*email\s*\}?\}/gi, contact.email || '')
+    .replace(/\{\{?\s*empresa\s*\}?\}/gi, contact.company || '')
+    .replace(/\{\{?\s*cargo\s*\}?\}/gi, contact.position || '')
+    .replace(/\{\{?\s*observacao\s*\}?\}/gi, contact.notes || '')
+    .replace(/\{\{?\s*obs\s*\}?\}/gi, contact.notes || '');
 }
 
 // Helper to send message via unified WhatsApp provider
