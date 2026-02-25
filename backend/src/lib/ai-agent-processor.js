@@ -179,8 +179,25 @@ async function processMessageInternal({
       const handoffTriggered = handoffKeywords.some(kw => lowerContent.includes(kw.toLowerCase()));
 
       if (handoffTriggered) {
-        await handleHandoff(session, agent, connection, contactPhone);
-        return { handled: true, agentId: agent.id, response: agent.handoff_message };
+        // Check required variables before handoff
+        const requiredVars = parseRequiredVariables(agent.required_variables);
+        if (requiredVars.length > 0) {
+          const session_vars = session.context_variables || {};
+          const missing = requiredVars.filter(v => !session_vars[v.name]);
+          if (missing.length > 0) {
+            // Don't handoff yet - let AI ask for missing variables
+            logInfo('ai_agent_processor.handoff_blocked_missing_vars', {
+              conversationId, missing: missing.map(v => v.name),
+            });
+            // Continue to AI processing - the prompt will instruct to collect variables
+          } else {
+            await handleHandoff(session, agent, connection, contactPhone);
+            return { handled: true, agentId: agent.id, response: agent.handoff_message };
+          }
+        } else {
+          await handleHandoff(session, agent, connection, contactPhone);
+          return { handled: true, agentId: agent.id, response: agent.handoff_message };
+        }
       }
     }
 
@@ -626,6 +643,19 @@ async function buildSystemPrompt(agent, organizationId, contactName, userMessage
   const handoffKeywords = parseArray(agent.handoff_keywords, []);
   if (handoffKeywords.length > 0) {
     prompt += `\n\nSe o cliente pedir para falar com um humano ou atendente, responda educadamente que irá transferir.`;
+  }
+
+  // Add required variables instructions
+  const requiredVars = parseRequiredVariables(agent.required_variables);
+  if (requiredVars.length > 0) {
+    const varList = requiredVars.map(v => `- "${v.name}": pergunta "${v.question}"`).join('\n');
+    prompt += `\n\nVARIÁVEIS OBRIGATÓRIAS - Você DEVE coletar estas informações durante a conversa de forma natural:
+${varList}
+- Colete uma informação por vez, de forma natural e amigável.
+- Quando o cliente fornecer uma informação, confirme e passe para a próxima.
+- Antes de qualquer transferência para humano, verifique se todas foram coletadas.
+- Se alguma estiver faltando, pergunte antes de transferir.
+- Armazene as respostas internamente para uso posterior.`;
   }
 
   return prompt;
@@ -1275,17 +1305,30 @@ export async function getActiveAgentSession(conversationId) {
 
 /**
  * Pause the AI agent session when a human agent sends a message.
- * The AI will wait `cooldownMinutes` before resuming automatic responses.
+ * Uses the agent's configured takeover_timeout_seconds, or falls back to cooldownSeconds.
  */
-export async function pauseSessionForHumanReply(conversationId, cooldownMinutes = 5) {
-  const pauseUntil = new Date(Date.now() + cooldownMinutes * 60 * 1000);
+export async function pauseSessionForHumanReply(conversationId, cooldownSeconds = 300) {
+  // Try to get the agent's configured takeover timeout
+  const sessionResult = await query(
+    `SELECT s.id, a.takeover_timeout_seconds 
+     FROM ai_agent_sessions s 
+     JOIN ai_agents a ON a.id = s.agent_id 
+     WHERE s.conversation_id = $1 AND s.is_active = true 
+     ORDER BY s.started_at DESC LIMIT 1`,
+    [conversationId]
+  );
+  
+  const agentTimeout = sessionResult.rows[0]?.takeover_timeout_seconds;
+  const timeoutSeconds = agentTimeout ? parseInt(agentTimeout, 10) : cooldownSeconds;
+  
+  const pauseUntil = new Date(Date.now() + timeoutSeconds * 1000);
   const result = await query(
     `UPDATE ai_agent_sessions SET paused_until = $2
      WHERE conversation_id = $1 AND is_active = true RETURNING id`,
     [conversationId, pauseUntil.toISOString()]
   );
   if (result.rows[0]) {
-    logInfo('ai_agent_processor.paused_for_human', { conversationId, paused_until: pauseUntil });
+    logInfo('ai_agent_processor.paused_for_human', { conversationId, paused_until: pauseUntil, timeout_seconds: timeoutSeconds });
   }
   return result.rows[0] || null;
 }
@@ -1330,6 +1373,81 @@ function parseArray(value, defaultValue) {
     }
   }
   return defaultValue;
+}
+
+function parseRequiredVariables(value) {
+  if (Array.isArray(value)) return value.filter(v => v && v.name && v.question);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter(v => v && v.name && v.question) : [];
+    } catch { return []; }
+  }
+  return [];
+}
+
+// ==================== INACTIVITY TIMEOUT ====================
+
+/**
+ * Check all active sessions for inactivity and send closing messages.
+ * Should be called periodically (e.g., every minute via scheduler).
+ */
+export async function checkInactivityTimeouts() {
+  try {
+    const result = await query(
+      `SELECT s.id, s.conversation_id, s.contact_phone, s.agent_id, s.last_interaction_at,
+              a.inactivity_timeout_minutes, a.inactivity_message, a.name as agent_name,
+              c.connection_id
+       FROM ai_agent_sessions s
+       JOIN ai_agents a ON a.id = s.agent_id
+       JOIN conversations c ON c.id = s.conversation_id
+       WHERE s.is_active = true 
+         AND a.inactivity_timeout_minutes > 0
+         AND s.last_interaction_at < NOW() - (a.inactivity_timeout_minutes || ' minutes')::interval
+         AND s.human_takeover = false`
+    );
+
+    for (const session of result.rows) {
+      try {
+        // Get connection for sending
+        const connResult = await query(
+          `SELECT * FROM connections WHERE id = $1`,
+          [session.connection_id]
+        );
+        if (!connResult.rows[0]) continue;
+
+        const connection = connResult.rows[0];
+        const closingMsg = session.inactivity_message || 
+          'Como não recebi sua resposta, vou encerrar nosso atendimento por aqui. Se precisar, é só me chamar novamente! 😊';
+
+        // Send typing + closing message
+        try {
+          await whatsappProvider.sendPresenceComposing(connection, session.contact_phone);
+          await sleep(1500);
+        } catch (_e) { /* non-critical */ }
+
+        await sendAgentMessage(connection, session.contact_phone, closingMsg, session.id);
+        await saveAgentMessage(session.id, 'assistant', closingMsg, 0);
+
+        // End session
+        await endSession(session.id, 'inactivity_timeout');
+
+        logInfo('ai_agent_processor.inactivity_timeout', {
+          sessionId: session.id,
+          agentName: session.agent_name,
+          conversationId: session.conversation_id,
+          minutesSinceLastInteraction: session.inactivity_timeout_minutes,
+        });
+      } catch (err) {
+        logError('ai_agent_processor.inactivity_timeout_error', err);
+      }
+    }
+
+    return result.rows.length;
+  } catch (error) {
+    logError('ai_agent_processor.check_inactivity_error', error);
+    return 0;
+  }
 }
 
 // ==================== MEDIA HELPERS ====================

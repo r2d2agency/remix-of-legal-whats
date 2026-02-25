@@ -84,6 +84,16 @@ CREATE TABLE IF NOT EXISTS ai_agents (
   handoff_keywords TEXT[] DEFAULT ARRAY['humano', 'atendente', 'pessoa'],
   auto_handoff_after_failures INTEGER DEFAULT 3,
   
+  -- Takeover: quando humano responde, pausa IA por X segundos
+  takeover_timeout_seconds INTEGER DEFAULT 300,
+  
+  -- Variáveis obrigatórias que a IA deve coletar antes de transferir
+  required_variables JSONB DEFAULT '[]', -- [{"name":"nome","question":"Qual o seu nome?"}]
+  
+  -- Timeout de inatividade
+  inactivity_timeout_minutes INTEGER DEFAULT 0, -- 0 = desabilitado
+  inactivity_message TEXT DEFAULT 'Como não recebi sua resposta, vou encerrar nosso atendimento por aqui. Se precisar, é só me chamar novamente! 😊',
+  
   -- Vinculações
   default_department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
   default_user_id UUID REFERENCES users(id) ON DELETE SET NULL, -- Para handoff

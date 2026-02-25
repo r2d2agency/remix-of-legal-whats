@@ -1448,7 +1448,7 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     // PAUSE AI AGENT: When a human sends a message, pause the AI
     // so it doesn't respond on top of the human agent
     // ============================================================
-    pauseSessionForHumanReply(id, 5).catch(err => {
+    pauseSessionForHumanReply(id).catch(err => {
       console.error('Error pausing AI agent session:', err.message);
     });
 

@@ -115,6 +115,10 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     handoff_message: 'Vou transferir você para um atendente humano.',
     handoff_keywords: ['humano', 'atendente', 'pessoa'] as string[],
     auto_handoff_after_failures: 3,
+    takeover_timeout_seconds: 300,
+    required_variables: [] as Array<{ name: string; question: string }>,
+    inactivity_timeout_minutes: 0,
+    inactivity_message: 'Como não recebi sua resposta, vou encerrar nosso atendimento por aqui. Se precisar, é só me chamar novamente! 😊',
     call_agent_config: { allow_all: true, allowed_agent_ids: [], rules: [] } as CallAgentConfig,
     notify_external_enabled: false,
     notify_external_phone: '',
@@ -152,6 +156,10 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           handoff_message: agent.handoff_message,
           handoff_keywords: normalizeArray<string>(agent.handoff_keywords, ['humano', 'atendente', 'pessoa']),
           auto_handoff_after_failures: normalizeNumber(agent.auto_handoff_after_failures, 3),
+          takeover_timeout_seconds: normalizeNumber((agent as any).takeover_timeout_seconds, 300),
+          required_variables: Array.isArray((agent as any).required_variables) ? (agent as any).required_variables : [],
+          inactivity_timeout_minutes: normalizeNumber((agent as any).inactivity_timeout_minutes, 0),
+          inactivity_message: (agent as any).inactivity_message || 'Como não recebi sua resposta, vou encerrar nosso atendimento por aqui. Se precisar, é só me chamar novamente! 😊',
           call_agent_config: { ...defaultCallAgentConfig, ...parsedConfig },
           notify_external_enabled: (agent as any).notify_external_enabled || false,
           notify_external_phone: (agent as any).notify_external_phone || '',
@@ -177,6 +185,10 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           handoff_message: 'Vou transferir você para um atendente humano.',
           handoff_keywords: ['humano', 'atendente', 'pessoa'],
           auto_handoff_after_failures: 3,
+          takeover_timeout_seconds: 300,
+          required_variables: [],
+          inactivity_timeout_minutes: 0,
+          inactivity_message: 'Como não recebi sua resposta, vou encerrar nosso atendimento por aqui. Se precisar, é só me chamar novamente! 😊',
           call_agent_config: defaultCallAgentConfig,
           notify_external_enabled: false,
           notify_external_phone: '',
@@ -660,6 +672,121 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                     <p className="text-xs text-muted-foreground">
                       Número de vezes que o agente pode falhar antes de transferir automaticamente
                     </p>
+                  </div>
+
+                  {/* Takeover Timeout */}
+                  <div className="border-t pt-4 space-y-4">
+                    <div className="grid gap-2">
+                      <Label>Takeover (Assumir Controle) - {formData.takeover_timeout_seconds} segundos</Label>
+                      <Slider
+                        value={[formData.takeover_timeout_seconds]}
+                        onValueChange={([value]) => setFormData(prev => ({ ...prev, takeover_timeout_seconds: value }))}
+                        min={30}
+                        max={1800}
+                        step={30}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Quando você responde pelo WhatsApp, o agente pausa por este tempo
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Required Variables */}
+                  <div className="border-t pt-4 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-primary" />
+                      <h4 className="font-medium text-sm">Variáveis Obrigatórias</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Configure quais informações a IA deve coletar obrigatoriamente antes de transferir. Se alguma estiver faltando, a IA perguntará ao cliente antes de transferir.
+                    </p>
+
+                    {formData.required_variables.map((variable, index) => (
+                      <div key={index} className="flex gap-2 items-start p-3 rounded-lg border">
+                        <div className="flex-1 space-y-2">
+                          <Input
+                            placeholder="Nome da variável"
+                            value={variable.name}
+                            onChange={(e) => {
+                              const updated = [...formData.required_variables];
+                              updated[index] = { ...updated[index], name: e.target.value };
+                              setFormData(prev => ({ ...prev, required_variables: updated }));
+                            }}
+                            className="h-8 text-sm"
+                          />
+                          <Input
+                            placeholder="Pergunta para coletar (ex: Qual o seu nome?)"
+                            value={variable.question}
+                            onChange={(e) => {
+                              const updated = [...formData.required_variables];
+                              updated[index] = { ...updated[index], question: e.target.value };
+                              setFormData(prev => ({ ...prev, required_variables: updated }));
+                            }}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              required_variables: prev.required_variables.filter((_, i) => i !== index),
+                            }));
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          required_variables: [...prev.required_variables, { name: '', question: '' }],
+                        }));
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Variável
+                    </Button>
+
+                    <p className="text-xs text-muted-foreground italic">
+                      💡 A IA vai coletar essas informações naturalmente durante a conversa. Antes de transferir, ela verificará se todas foram preenchidas e perguntará as que faltam.
+                    </p>
+                  </div>
+
+                  {/* Inactivity Timeout */}
+                  <div className="border-t pt-4 space-y-4">
+                    <div className="grid gap-2">
+                      <Label>Timeout de Inatividade - {formData.inactivity_timeout_minutes} minutos</Label>
+                      <Slider
+                        value={[formData.inactivity_timeout_minutes]}
+                        onValueChange={([value]) => setFormData(prev => ({ ...prev, inactivity_timeout_minutes: value }))}
+                        min={0}
+                        max={120}
+                        step={5}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Envia uma mensagem de encerramento se o usuário parar de responder. 0 = desabilitado.
+                      </p>
+                    </div>
+
+                    {formData.inactivity_timeout_minutes > 0 && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="inactivity_message">Mensagem de encerramento</Label>
+                        <Textarea
+                          id="inactivity_message"
+                          value={formData.inactivity_message}
+                          onChange={(e) => setFormData(prev => ({ ...prev, inactivity_message: e.target.value }))}
+                          rows={2}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* External Notification */}
