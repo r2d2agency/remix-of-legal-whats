@@ -475,6 +475,11 @@ async function sendAgentMessage(connection, contactPhone, text, sessionId) {
 async function buildSystemPrompt(agent, organizationId, contactName, userMessage, aiConfig) {
   let prompt = agent.system_prompt || 'Você é um assistente virtual profissional e prestativo.';
 
+  // Include agent description as additional context/instructions
+  if (agent.description && agent.description.trim()) {
+    prompt += `\n\n${agent.description.trim()}`;
+  }
+
   // Add personality traits
   const traits = parseArray(agent.personality_traits, []);
   if (traits.length > 0) {
