@@ -579,10 +579,10 @@ export function CRMSidePanel({
 
   return (
     <div className={cn(
-      "relative flex flex-col bg-card",
+      "relative flex flex-col bg-card overflow-x-hidden",
       isMobile 
         ? "w-full h-full" 
-        : "w-80 h-full border-l"
+        : "w-80 min-w-[20rem] shrink-0 h-full border-l"
     )}>
       <ToggleButton />
       
