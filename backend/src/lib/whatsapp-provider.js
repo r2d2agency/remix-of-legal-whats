@@ -295,3 +295,37 @@ export async function checkNumber(connection, phone) {
     return false;
   }
 }
+
+/**
+ * Send typing/composing presence indicator
+ */
+export async function sendPresenceComposing(connection, contactPhone) {
+  const provider = detectProvider(connection);
+
+  if (provider === 'wapi') {
+    return wapiProvider.sendPresenceComposing(connection.instance_id, connection.wapi_token, contactPhone);
+  }
+
+  // Evolution API
+  try {
+    const isGroup = contactPhone.includes('@g.us');
+    const remoteJid = isGroup ? contactPhone : `${contactPhone.replace(/\D/g, '')}@s.whatsapp.net`;
+    
+    await fetch(
+      `${connection.api_url}/chat/presence/${connection.instance_name}`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: connection.api_key,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          remoteJid,
+          presence: 'composing',
+        }),
+      }
+    );
+  } catch (error) {
+    logWarn('whatsapp_provider.presence_error', { error: error.message });
+  }
+}
