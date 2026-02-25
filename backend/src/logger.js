@@ -1,5 +1,8 @@
 import { getRequestContext } from './request-context.js';
 
+const LOG_BUFFER_MAX = 500;
+const runtimeLogBuffer = []; // newest first
+
 function safeJson(obj) {
   try {
     return JSON.stringify(obj);
@@ -7,6 +10,24 @@ function safeJson(obj) {
     // Fallback in case of circular refs
     return JSON.stringify({ ts: new Date().toISOString(), level: 'error', event: 'logger.stringify_failed' });
   }
+}
+
+function pushRuntimeLog(line) {
+  runtimeLogBuffer.unshift(line);
+  if (runtimeLogBuffer.length > LOG_BUFFER_MAX) runtimeLogBuffer.length = LOG_BUFFER_MAX;
+}
+
+export function getRecentLogs({ limit = 100, eventPrefixes = [], level = null } = {}) {
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 100, 1), LOG_BUFFER_MAX);
+  return runtimeLogBuffer
+    .filter((entry) => {
+      const levelOk = !level || entry.level === level;
+      const eventOk = !Array.isArray(eventPrefixes) || eventPrefixes.length === 0
+        ? true
+        : eventPrefixes.some((prefix) => String(entry.event || '').startsWith(prefix));
+      return levelOk && eventOk;
+    })
+    .slice(0, safeLimit);
 }
 
 export function log(level, event, payload = {}) {
@@ -18,6 +39,8 @@ export function log(level, event, payload = {}) {
     ...(ctx || {}),
     ...payload,
   };
+
+  pushRuntimeLog(line);
 
   // Always write structured logs as single-line JSON
   // eslint-disable-next-line no-console

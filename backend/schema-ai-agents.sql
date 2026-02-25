@@ -34,7 +34,8 @@ DO $$ BEGIN
     'summarize_history',     -- Resumir histórico
     'qualify_leads',         -- Qualificar leads
     'call_agent',            -- Chamar outro agente para consulta
-    'transcribe_audio'       -- Transcrever e entender áudios
+    'transcribe_audio',      -- Transcrever e entender áudios
+    'analyze_images'         -- Analisar imagens recebidas
   );
 EXCEPTION
   WHEN duplicate_object THEN null;
@@ -49,6 +50,12 @@ END $$;
 
 DO $$ BEGIN
   ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'transcribe_audio';
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'analyze_images';
 EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;

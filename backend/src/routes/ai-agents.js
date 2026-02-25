@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { query } from '../db.js';
-import { logInfo, logError } from '../logger.js';
+import { logInfo, logError, getRecentLogs } from '../logger.js';
 import { callAI, callAIWithTools } from '../lib/ai-caller.js';
 import { processKnowledgeSource, searchKnowledge } from '../lib/knowledge-processor.js';
 
@@ -47,6 +47,30 @@ router.get('/', authenticate, async (req, res) => {
   } catch (error) {
     logError('ai_agents.list_error', error);
     res.status(500).json({ error: 'Erro ao buscar agentes' });
+  }
+});
+
+// Logs em tempo real do processamento de IA (buffer em memória)
+router.get('/debug/logs', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) {
+      return res.status(403).json({ error: 'Usuário não pertence a uma organização' });
+    }
+
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '100'), 10) || 100, 1), 300);
+    const level = typeof req.query.level === 'string' ? req.query.level : null;
+
+    const logs = getRecentLogs({
+      limit,
+      level,
+      eventPrefixes: ['ai_agent_processor.', 'ai_caller.', 'knowledge_processor.', 'ai_agents.'],
+    });
+
+    res.json({ logs });
+  } catch (error) {
+    logError('ai_agents.debug_logs_error', error);
+    res.status(500).json({ error: 'Erro ao buscar logs de IA' });
   }
 });
 

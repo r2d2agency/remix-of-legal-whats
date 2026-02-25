@@ -206,15 +206,16 @@ async function processMessageInternal({
     const aiConfig = await getAgentAIConfig(agent, organizationId);
 
     // 6. Process media content - build a user message with context
+    const capabilities = parseArray(agent.capabilities, ['respond_messages']);
+    const canTranscribe = capabilities.includes('transcribe_audio');
+    const canAnalyzeImages = capabilities.includes('analyze_images');
+
     let userMessageForHistory = messageContent || '';
     let userMessageForAI = null; // Will be a string or multimodal content array
 
     if (messageType === 'audio') {
-      const capabilities = Array.isArray(agent.capabilities) ? agent.capabilities : [];
-      const canTranscribe = capabilities.includes('transcribe_audio');
-
       if (!canTranscribe) {
-        // Agent doesn't have audio capability - ask for text
+        logInfo('ai_agent_processor.audio_capability_missing', { sessionId: session.id, agentId: agent.id });
         userMessageForHistory = messageContent || '[Mensagem de áudio recebida]';
         userMessageForAI = messageContent || '[O cliente enviou uma mensagem de áudio. Você não tem a capacidade de ouvir áudios. Peça educadamente para o cliente enviar a mensagem como texto.]';
       } else if (mediaUrl) {
@@ -239,10 +240,16 @@ async function processMessageInternal({
         userMessageForAI = messageContent || '[O cliente enviou uma mensagem de áudio mas não foi possível acessar o arquivo. Informe que recebeu e peça para enviar como texto.]';
       }
     } else if (messageType === 'image' && mediaUrl) {
-      const caption = messageContent || '';
-      userMessageForHistory = caption ? `[Imagem com legenda]: ${caption}` : '[Imagem recebida]';
-      // Build multimodal message for AI
-      userMessageForAI = buildImageMessage(mediaUrl, caption);
+      if (!canAnalyzeImages) {
+        logInfo('ai_agent_processor.image_capability_missing', { sessionId: session.id, agentId: agent.id });
+        userMessageForHistory = messageContent || '[Imagem recebida]';
+        userMessageForAI = messageContent || '[O cliente enviou uma imagem, mas você não possui a capacidade de analisar imagens. Peça para descrever em texto o conteúdo da imagem.]';
+      } else {
+        const caption = messageContent || '';
+        userMessageForHistory = caption ? `[Imagem com legenda]: ${caption}` : '[Imagem recebida]';
+        // Build multimodal message for AI
+        userMessageForAI = buildImageMessage(mediaUrl, caption);
+      }
     } else if (messageType === 'video' && mediaUrl) {
       const caption = messageContent || '';
       userMessageForHistory = caption ? `[Vídeo com legenda]: ${caption}` : '[Vídeo recebido]';
@@ -295,7 +302,6 @@ async function processMessageInternal({
     }
 
     // 9. Build tools based on capabilities
-    const capabilities = parseArray(agent.capabilities, ['respond_messages']);
     const tools = await buildToolsForAgent(agent, capabilities, organizationId);
 
     // 10. Get AI config (already loaded above)
@@ -640,6 +646,11 @@ async function buildSystemPrompt(agent, organizationId, contactName, userMessage
         { provider: aiConfig.provider, apiKey: aiConfig.apiKey }, 
         5
       );
+
+      logInfo('ai_agent_processor.rag_results', {
+        agentId: agent.id,
+        resultsCount: ragResults.length,
+      });
 
       if (ragResults.length > 0) {
         const knowledgeContext = ragResults
