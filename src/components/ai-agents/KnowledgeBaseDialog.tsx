@@ -699,6 +699,35 @@ export function KnowledgeBaseDialog({ open, onOpenChange, agent }: KnowledgeBase
               </div>
             )}
 
+            {/* Knowledge Stats Summary */}
+            {sources.length > 0 && (() => {
+              const completed = sources.filter(s => s.status === 'completed');
+              const totalChunks = completed.reduce((sum, s) => sum + (s.chunk_count || 0), 0);
+              const totalTokens = completed.reduce((sum, s) => sum + (s.total_tokens || 0), 0);
+              const totalBytes = completed.reduce((sum, s) => sum + (s.file_size || 0), 0);
+              const totalChars = totalTokens * 4; // rough estimate: 1 token ≈ 4 chars
+              return (
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  <div className="border rounded-lg p-2.5 text-center">
+                    <p className="text-lg font-bold text-primary">{sources.length}</p>
+                    <p className="text-[10px] text-muted-foreground">Fontes</p>
+                  </div>
+                  <div className="border rounded-lg p-2.5 text-center">
+                    <p className="text-lg font-bold text-primary">{totalChunks.toLocaleString()}</p>
+                    <p className="text-[10px] text-muted-foreground">Chunks</p>
+                  </div>
+                  <div className="border rounded-lg p-2.5 text-center">
+                    <p className="text-lg font-bold text-primary">{totalChars >= 1000000 ? `${(totalChars / 1000000).toFixed(1)}M` : totalChars >= 1000 ? `${(totalChars / 1000).toFixed(0)}K` : totalChars}</p>
+                    <p className="text-[10px] text-muted-foreground">Caracteres</p>
+                  </div>
+                  <div className="border rounded-lg p-2.5 text-center">
+                    <p className="text-lg font-bold text-primary">{totalBytes ? formatBytes(totalBytes) : `${totalTokens >= 1000 ? `${(totalTokens / 1000).toFixed(0)}K` : totalTokens} tok`}</p>
+                    <p className="text-[10px] text-muted-foreground">{totalBytes ? 'Tamanho' : 'Tokens'}</p>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Sources List */}
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-muted-foreground">
