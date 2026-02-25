@@ -38,6 +38,7 @@ interface AgentEditorDialogProps {
 
 const ALL_CAPABILITIES: { id: AgentCapability; label: string; description: string }[] = [
   { id: 'respond_messages', label: 'Responder Mensagens', description: 'Responde automaticamente baseado no contexto' },
+  { id: 'transcribe_audio', label: 'Ouvir Áudios', description: 'Transcreve e entende mensagens de áudio/voz' },
   { id: 'read_files', label: 'Ler Arquivos', description: 'Analisa imagens, PDFs enviados pelo cliente' },
   { id: 'schedule_meetings', label: 'Agendar Reuniões', description: 'Integra com calendário para marcar compromissos' },
   { id: 'google_calendar', label: 'Google Calendar', description: 'Gerencia eventos: criar, editar, remover reuniões' },

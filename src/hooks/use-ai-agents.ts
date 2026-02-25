@@ -71,7 +71,8 @@ export type AgentCapability =
   | 'generate_content'
   | 'summarize_history'
   | 'qualify_leads'
-  | 'call_agent';
+  | 'call_agent'
+  | 'transcribe_audio';
 
 export interface CallAgentRule {
   agent_id: string;
