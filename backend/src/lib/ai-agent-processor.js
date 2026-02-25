@@ -207,15 +207,20 @@ async function processMessageInternal({
 
     // 6. Process media content - build a user message with context
     const capabilities = parseArray(agent.capabilities, ['respond_messages']);
-    const canTranscribe = capabilities.includes('transcribe_audio');
-    const canAnalyzeImages = capabilities.includes('analyze_images');
+    // Backward compatibility: before capability split, media handling was bundled under read_files
+    const canTranscribe = capabilities.includes('transcribe_audio') || capabilities.includes('read_files');
+    const canAnalyzeImages = capabilities.includes('analyze_images') || capabilities.includes('read_files');
 
     let userMessageForHistory = messageContent || '';
     let userMessageForAI = null; // Will be a string or multimodal content array
 
     if (messageType === 'audio') {
       if (!canTranscribe) {
-        logInfo('ai_agent_processor.audio_capability_missing', { sessionId: session.id, agentId: agent.id });
+        logInfo('ai_agent_processor.audio_capability_missing', {
+          sessionId: session.id,
+          agentId: agent.id,
+          capabilities,
+        });
         userMessageForHistory = messageContent || '[Mensagem de áudio recebida]';
         userMessageForAI = messageContent || '[O cliente enviou uma mensagem de áudio. Você não tem a capacidade de ouvir áudios. Peça educadamente para o cliente enviar a mensagem como texto.]';
       } else if (mediaUrl) {
@@ -241,7 +246,7 @@ async function processMessageInternal({
       }
     } else if (messageType === 'image' && mediaUrl) {
       if (!canAnalyzeImages) {
-        logInfo('ai_agent_processor.image_capability_missing', { sessionId: session.id, agentId: agent.id });
+        logInfo('ai_agent_processor.image_capability_missing', { sessionId: session.id, agentId: agent.id, capabilities });
         userMessageForHistory = messageContent || '[Imagem recebida]';
         userMessageForAI = messageContent || '[O cliente enviou uma imagem, mas você não possui a capacidade de analisar imagens. Peça para descrever em texto o conteúdo da imagem.]';
       } else {
