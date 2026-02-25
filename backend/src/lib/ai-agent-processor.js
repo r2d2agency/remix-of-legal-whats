@@ -143,6 +143,7 @@ async function processMessageInternal({
 
       // Create a new session
       session = await createSession(agent.id, conversationId, contactPhone, contactName);
+      session._isNewSession = true;
       logInfo('ai_agent_processor.session_created', {
         sessionId: session.id,
         agentId: agent.id,
@@ -306,8 +307,8 @@ async function processMessageInternal({
     }
     await sendAgentMessage(connection, contactPhone, responseText, session.id);
 
-    // 14. Notify external number if enabled
-    if (agent.notify_external_enabled && agent.notify_external_phone) {
+    // 14. Notify external number if enabled (only on first message of session)
+    if (agent.notify_external_enabled && agent.notify_external_phone && session._isNewSession) {
       const summary = agent.notify_external_summary !== false
         ? `📋 *Resumo do Atendimento IA*\n\n👤 *Cliente:* ${contactName || contactPhone}\n📱 *Telefone:* ${contactPhone}\n🤖 *Agente:* ${agent.name}\n\n💬 *Solicitação:* ${typeof userMessageForAI === 'string' ? userMessageForAI : messageContent}\n\n📝 *Resposta do Agente:* ${responseText.substring(0, 500)}`
         : `🔔 *Nova interação*\n\n👤 ${contactName || contactPhone} enviou mensagem para o agente *${agent.name}*.`;
