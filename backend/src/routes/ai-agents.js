@@ -74,7 +74,7 @@ router.get('/:id', authenticate, async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     logError('ai_agents.get_error', error);
-    res.status(500).json({ error: 'Erro ao buscar agente' });
+    res.status(500).json({ error: 'Erro ao buscar agente', details: error.message });
   }
 });
 
@@ -152,7 +152,7 @@ router.post('/', authenticate, async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     logError('ai_agents.create_error', error);
-    res.status(500).json({ error: 'Erro ao criar agente' });
+    res.status(500).json({ error: 'Erro ao criar agente', details: error.message });
   }
 });
 
@@ -223,7 +223,7 @@ router.patch('/:id', authenticate, async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     logError('ai_agents.update_error', error);
-    res.status(500).json({ error: 'Erro ao atualizar agente' });
+    res.status(500).json({ error: 'Erro ao atualizar agente', details: error.message });
   }
 });
 
@@ -353,7 +353,7 @@ router.post('/:id/knowledge', authenticate, async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     logError('ai_agents.knowledge_add_error', error);
-    res.status(500).json({ error: 'Erro ao adicionar fonte de conhecimento' });
+    res.status(500).json({ error: 'Erro ao adicionar fonte de conhecimento', details: error.message });
   }
 });
 
@@ -478,7 +478,7 @@ router.post('/:id/knowledge/search', authenticate, async (req, res) => {
     res.json({ results });
   } catch (error) {
     logError('ai_agents.knowledge_search_error', error);
-    res.status(500).json({ error: 'Erro ao buscar na base de conhecimento' });
+    res.status(500).json({ error: 'Erro ao buscar na base de conhecimento', details: error.message });
   }
 });
 
