@@ -165,15 +165,62 @@ async function callGemini(config, messages, options) {
 
   for (const msg of messages) {
     if (msg.role === 'system') {
-      systemInstruction = msg.content;
+      systemInstruction = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
       continue;
     }
-    if (msg.role === 'tool') continue; // handled in callAIWithTools by appending as user
+    if (msg.role === 'tool') continue;
 
-    contents.push({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }],
-    });
+    // Handle multimodal content (arrays with text + image_url/input_audio)
+    if (Array.isArray(msg.content)) {
+      const parts = [];
+      for (const part of msg.content) {
+        if (part.type === 'text') {
+          parts.push({ text: part.text });
+        } else if (part.type === 'image_url' && part.image_url?.url) {
+          // Convert image URL to inline_data for Gemini
+          const url = part.image_url.url;
+          if (url.startsWith('data:')) {
+            // Already base64 data URI
+            const match = url.match(/^data:([^;]+);base64,(.+)$/);
+            if (match) {
+              parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
+            }
+          } else {
+            // External URL - download and convert to base64
+            try {
+              const imgResp = await fetch(url);
+              if (imgResp.ok) {
+                const imgBuf = await imgResp.arrayBuffer();
+                const b64 = Buffer.from(imgBuf).toString('base64');
+                const contentType = imgResp.headers.get('content-type') || 'image/jpeg';
+                parts.push({ inline_data: { mime_type: contentType, data: b64 } });
+              } else {
+                parts.push({ text: '[Imagem não disponível]' });
+              }
+            } catch {
+              parts.push({ text: '[Erro ao carregar imagem]' });
+            }
+          }
+        } else if (part.type === 'input_audio' && part.input_audio?.data) {
+          parts.push({
+            inline_data: {
+              mime_type: `audio/${part.input_audio.format || 'mp3'}`,
+              data: part.input_audio.data,
+            }
+          });
+        }
+      }
+      if (parts.length === 0) parts.push({ text: '' });
+      contents.push({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts,
+      });
+    } else {
+      contents.push({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content || '' }],
+      });
+    }
   }
 
   const body = {
