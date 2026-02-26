@@ -38,15 +38,17 @@ export interface WhatsAppProviderInterface {
 
 // Detectar automaticamente o provider baseado nos campos disponíveis
 export function detectProvider(connection: WhatsAppConnection): WhatsAppProvider {
-  if (connection.provider) {
-    return connection.provider;
-  }
-  
-  // Se tem instanceId e token (sem apiUrl), é W-API
-  if (connection.instanceId && connection.token && !connection.apiUrl) {
+  const provider = String(connection.provider || "").toLowerCase();
+
+  // Prioriza credenciais concretas da W-API para cobrir registros legados
+  if (connection.instanceId && connection.token) {
     return "wapi";
   }
-  
+
+  if (provider === "wapi" || provider === "evolution") {
+    return provider as WhatsAppProvider;
+  }
+
   // Caso contrário, assume Evolution
   return "evolution";
 }

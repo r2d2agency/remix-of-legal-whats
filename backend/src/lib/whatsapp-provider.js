@@ -8,15 +8,17 @@ import { logError, logInfo, logWarn } from '../logger.js';
  * Detect provider from connection data
  */
 export function detectProvider(connection) {
-  if (connection.provider) {
-    return connection.provider;
-  }
-  
-  // If has instance_id and wapi_token, it's W-API
-  if (connection.instance_id && connection.wapi_token) {
+  const provider = String(connection?.provider || '').toLowerCase();
+
+  // Prioritize concrete W-API credentials to handle legacy rows with stale provider='evolution'
+  if (connection?.instance_id && connection?.wapi_token) {
     return 'wapi';
   }
-  
+
+  if (provider === 'wapi' || provider === 'evolution') {
+    return provider;
+  }
+
   // Default to Evolution
   return 'evolution';
 }

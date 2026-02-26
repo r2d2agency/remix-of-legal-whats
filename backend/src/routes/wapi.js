@@ -576,10 +576,9 @@ async function cacheMediaFromWapiDownload({ messageId, messageType, mediaMimetyp
  * Extract instanceId from multiple possible W-API payload shapes
  */
 function extractInstanceId(payload) {
-  return (
+  const value =
     payload?.instanceId ||
     payload?.instance_id ||
-    payload?.instance ||
     payload?.instance?.id ||
     payload?.instance?.instanceId ||
     payload?.data?.instanceId ||
@@ -587,8 +586,12 @@ function extractInstanceId(payload) {
     payload?.data?.instance?.id ||
     payload?.result?.instanceId ||
     payload?.result?.instance_id ||
-    null
-  );
+    payload?.instance ||
+    null;
+
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return null;
 }
 
 /**
