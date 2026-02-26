@@ -579,15 +579,21 @@ router.get('/:connectionId/status', authenticate, async (req, res) => {
 
     // Use unified provider to check status
     const statusResult = await whatsappProvider.checkStatus(connection);
-    
-    const newStatus = statusResult.status || 'disconnected';
-    const phoneNumber = statusResult.phoneNumber || null;
+
+    const rawStatus = statusResult?.status || 'disconnected';
+    const phoneNumber = statusResult?.phoneNumber || null;
+    const shouldPreserveConnected =
+      connection.status === 'connected' &&
+      rawStatus === 'disconnected' &&
+      Boolean(statusResult?.transient);
+
+    const effectiveStatus = shouldPreserveConnected ? 'connected' : rawStatus;
 
     // Update status in database if changed
-    if (connection.status !== newStatus || connection.phone_number !== phoneNumber) {
+    if (connection.status !== effectiveStatus || connection.phone_number !== phoneNumber) {
       await query(
         'UPDATE connections SET status = $1, phone_number = $2, updated_at = NOW() WHERE id = $3',
-        [newStatus, phoneNumber, connectionId]
+        [effectiveStatus, phoneNumber, connectionId]
       );
     }
 
@@ -595,16 +601,17 @@ router.get('/:connectionId/status', authenticate, async (req, res) => {
       connection_id: connectionId,
       provider,
       duration_ms: Date.now() - startedAt,
-      status: newStatus,
+      status: effectiveStatus,
       has_phone: Boolean(phoneNumber),
       has_error: Boolean(statusResult?.error),
+      transient: Boolean(statusResult?.transient),
     });
 
     res.json({
-      status: newStatus,
+      status: effectiveStatus,
       phoneNumber,
       provider,
-      error: statusResult.error || null,
+      error: statusResult?.error || null,
     });
   } catch (error) {
     // Keep endpoint stable for the UI: return disconnected + error (HTTP 200)
@@ -781,23 +788,27 @@ router.post('/:connectionId/test', authenticate, async (req, res) => {
     // Check if connection is active (prefer live status over stale DB value)
     const provider = whatsappProvider.detectProvider(connection);
     let isConnected = connection.status === 'connected' ||
-      (provider === 'wapi' && connection.instance_id && connection.wapi_token);
+      (provider === 'wapi' && connection.instance_id);
 
     if (!isConnected) {
       try {
         const liveStatus = await whatsappProvider.checkStatus(connection);
-        const newStatus = liveStatus?.status || 'disconnected';
+        const rawStatus = liveStatus?.status || 'disconnected';
         const phoneNumber = liveStatus?.phoneNumber || null;
+        const resolvedStatus =
+          connection.status === 'connected' && rawStatus === 'disconnected' && liveStatus?.transient
+            ? 'connected'
+            : rawStatus;
 
-        if (connection.status !== newStatus || connection.phone_number !== phoneNumber) {
+        if (connection.status !== resolvedStatus || connection.phone_number !== phoneNumber) {
           await query(
             'UPDATE connections SET status = $1, phone_number = $2, updated_at = NOW() WHERE id = $3',
-            [newStatus, phoneNumber, connectionId]
+            [resolvedStatus, phoneNumber, connectionId]
           );
         }
 
-        isConnected = newStatus === 'connected' ||
-          (provider === 'wapi' && connection.instance_id && connection.wapi_token);
+        isConnected = resolvedStatus === 'connected' ||
+          (provider === 'wapi' && connection.instance_id);
       } catch (statusError) {
         console.warn('[Test Message] Live status check failed:', statusError?.message || statusError);
       }

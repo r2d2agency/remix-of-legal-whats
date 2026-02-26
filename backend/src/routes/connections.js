@@ -33,10 +33,10 @@ router.get('/', async (req, res) => {
       const result = await query(
         `SELECT c.*, u.name as created_by_name,
          CASE 
-           WHEN c.provider IS NOT NULL THEN c.provider 
-           WHEN c.instance_id IS NOT NULL AND c.wapi_token IS NOT NULL THEN 'wapi'
-           ELSE 'evolution'
-         END as provider
+            WHEN c.instance_id IS NOT NULL THEN 'wapi'
+            WHEN c.provider IS NOT NULL THEN c.provider 
+            ELSE 'evolution'
+          END as provider
          FROM connections c
          LEFT JOIN users u ON c.user_id = u.id
          WHERE c.id = ANY($1)
@@ -55,10 +55,10 @@ router.get('/', async (req, res) => {
       result = await query(
         `SELECT c.*, u.name as created_by_name,
          CASE 
-           WHEN c.provider IS NOT NULL THEN c.provider 
-           WHEN c.instance_id IS NOT NULL AND c.wapi_token IS NOT NULL THEN 'wapi'
-           ELSE 'evolution'
-         END as provider
+            WHEN c.instance_id IS NOT NULL THEN 'wapi'
+            WHEN c.provider IS NOT NULL THEN c.provider 
+            ELSE 'evolution'
+          END as provider
          FROM connections c
          LEFT JOIN users u ON c.user_id = u.id
          WHERE c.organization_id = $1
@@ -70,10 +70,10 @@ router.get('/', async (req, res) => {
       result = await query(
         `SELECT *,
          CASE 
-           WHEN provider IS NOT NULL THEN provider 
-           WHEN instance_id IS NOT NULL AND wapi_token IS NOT NULL THEN 'wapi'
-           ELSE 'evolution'
-         END as provider
+            WHEN instance_id IS NOT NULL THEN 'wapi'
+            WHEN provider IS NOT NULL THEN provider 
+            ELSE 'evolution'
+          END as provider
          FROM connections WHERE user_id = $1 ORDER BY created_at DESC`,
         [req.userId]
       );
@@ -352,8 +352,8 @@ router.delete('/:id', async (req, res) => {
     const connection = connResult.rows[0];
 
     // Delete W-API instance remotely if applicable
-    const connProvider = connection.provider || (connection.instance_id && connection.wapi_token ? 'wapi' : 'evolution');
-    if (connProvider === 'wapi' && connection.instance_id && connection.wapi_token) {
+    const connProvider = connection.provider || (connection.instance_id ? 'wapi' : 'evolution');
+    if (connProvider === 'wapi' && connection.instance_id) {
       try {
         await wapiProvider.deleteInstance(connection.instance_id, connection.wapi_token);
         console.log('[W-API] Instance deleted remotely:', connection.instance_id);
