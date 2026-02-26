@@ -465,14 +465,24 @@ router.post('/public/:slug/submit', async (req, res) => {
         }
 
         // Create chat_contact for WhatsApp messaging
-        await query(
-          `INSERT INTO chat_contacts (organization_id, phone, name, source)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (organization_id, phone) DO UPDATE SET
-             name = COALESCE(NULLIF(EXCLUDED.name, ''), chat_contacts.name)
-           RETURNING id`,
-          [form.organization_id, phone, name, `form:${form.slug}`]
+        // Find a connection belonging to this organization to link the contact
+        const orgConnResult = await query(
+          `SELECT id FROM connections WHERE organization_id = $1 LIMIT 1`,
+          [form.organization_id]
         );
+        const orgConnectionId = orgConnResult.rows[0]?.id;
+
+        if (orgConnectionId) {
+          await query(
+            `INSERT INTO chat_contacts (connection_id, phone, name, created_at, updated_at)
+             VALUES ($1, $2, $3, NOW(), NOW())
+             ON CONFLICT (connection_id, phone) DO UPDATE SET
+               name = COALESCE(NULLIF(EXCLUDED.name, ''), chat_contacts.name),
+               updated_at = NOW()
+             RETURNING id`,
+            [orgConnectionId, phone, name]
+          );
+        }
 
         // Create notification alert for the form creator
         if (prospectId && form.created_by) {
