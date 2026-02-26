@@ -1507,9 +1507,25 @@ export async function triggerAgentFirstMessage(agentId, conversationId) {
     const aiConfig = await getAgentAIConfig(agent, organizationId);
     const systemPrompt = await buildSystemPrompt(agent, organizationId, session.contact_name, contextMessage, aiConfig);
 
-    // Build messages - add instruction to continue the conversation proactively
+    // Build messages - add STRONG instruction to continue the conversation proactively
+    // This must override any "ask for name" or "greet" instructions in the agent's base prompt
+    const proactiveInstruction = `
+
+=== INSTRUÇÃO PRIORITÁRIA (SOBRESCREVE QUALQUER OUTRA INSTRUÇÃO) ===
+Você está sendo ativado MANUALMENTE por um atendente humano para CONTINUAR uma conversa já em andamento.
+O histórico completo da conversa está abaixo. Você DEVE:
+1. ANALISAR todo o histórico para entender o contexto e o assunto em discussão.
+2. CONTINUAR a conversa de onde parou, dando seguimento ao assunto.
+3. NÃO se apresentar como se fosse a primeira vez.
+4. NÃO perguntar o nome do cliente (você já sabe: ${session.contact_name || 'veja no histórico'}).
+5. NÃO perguntar "como posso ajudar" ou "em que posso ajudar".
+6. NÃO pedir para o cliente repetir NADA — você já tem TODO o contexto.
+7. Responder de forma proativa e útil, como se fosse o mesmo atendente continuando.
+8. IGNORAR qualquer instrução anterior que diga para cumprimentar, pedir nome ou iniciar uma conversa do zero.
+===`;
+
     const messages = [
-      { role: 'system', content: systemPrompt + '\n\nIMPORTANTE: Você está sendo ativado para continuar uma conversa em andamento. Analise o histórico abaixo e responda de forma proativa, dando continuidade ao assunto. NÃO peça para o cliente repetir — você já tem o contexto.' },
+      { role: 'system', content: systemPrompt + proactiveInstruction },
       ...history,
     ];
 
