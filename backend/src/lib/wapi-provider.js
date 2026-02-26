@@ -961,7 +961,6 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
       },
       { retries: 3, baseDelay: 2000, label: 'wapi-sendDocument' }
     );
-    );
 
     const { data, text } = await readJsonResponse(response);
 
