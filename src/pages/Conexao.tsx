@@ -175,7 +175,8 @@ const Conexao = () => {
       setShowCreateDialog(false);
       resetCreateForm();
     } catch (error: any) {
-      toast.error(error.message || 'Erro ao criar conexão');
+      console.error('[Conexao] Create connection error:', error);
+      toast.error(error.message || 'Erro ao criar conexão', { duration: 8000 });
     } finally {
       setCreating(false);
     }

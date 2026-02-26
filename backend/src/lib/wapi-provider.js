@@ -203,8 +203,11 @@ export async function createInstance(token, instanceName) {
 
   try {
     const body = instanceName ? { name: instanceName } : {};
+    const url = `${W_API_BASE_URL}/instance/create`;
+    console.log('[W-API] Creating instance:', url, 'body:', JSON.stringify(body));
+    
     const response = await fetch(
-      `${W_API_BASE_URL}/instance/create`,
+      url,
       {
         method: 'POST',
         headers: getHeaders(token),
@@ -213,11 +216,15 @@ export async function createInstance(token, instanceName) {
       }
     );
 
-    const data = await response.json().catch(() => ({}));
+    const text = await response.text();
+    console.log('[W-API] Create instance response:', response.status, text.slice(0, 1000));
+    
+    let data = {};
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
 
     if (!response.ok) {
-      const errMsg = data?.message || data?.error || `HTTP ${response.status}`;
-      logError('wapi.create_instance_failed', new Error(errMsg), { status: response.status });
+      const errMsg = data?.message || data?.error || data?.detail || `HTTP ${response.status}: ${text.slice(0, 200)}`;
+      logError('wapi.create_instance_failed', new Error(errMsg), { status: response.status, body: text.slice(0, 500) });
       throw new Error(errMsg);
     }
 
