@@ -778,13 +778,35 @@ router.post('/:connectionId/test', authenticate, async (req, res) => {
 
     const connection = connResult.rows[0];
 
-    // Check if connection is active
-    if (connection.status !== 'connected') {
+    // Check if connection is active (prefer live status over stale DB value)
+    const provider = whatsappProvider.detectProvider(connection);
+    let isConnected = connection.status === 'connected' ||
+      (provider === 'wapi' && connection.instance_id && connection.wapi_token);
+
+    if (!isConnected) {
+      try {
+        const liveStatus = await whatsappProvider.checkStatus(connection);
+        const newStatus = liveStatus?.status || 'disconnected';
+        const phoneNumber = liveStatus?.phoneNumber || null;
+
+        if (connection.status !== newStatus || connection.phone_number !== phoneNumber) {
+          await query(
+            'UPDATE connections SET status = $1, phone_number = $2, updated_at = NOW() WHERE id = $3',
+            [newStatus, phoneNumber, connectionId]
+          );
+        }
+
+        isConnected = newStatus === 'connected' ||
+          (provider === 'wapi' && connection.instance_id && connection.wapi_token);
+      } catch (statusError) {
+        console.warn('[Test Message] Live status check failed:', statusError?.message || statusError);
+      }
+    }
+
+    if (!isConnected) {
       return res.status(400).json({ error: 'Conexão não está ativa. Conecte primeiro.' });
     }
 
-    // Detect provider to use correct method
-    const provider = whatsappProvider.detectProvider(connection);
     console.log(`[Test Message] Provider: ${provider}, Connection: ${connectionId}, Phone: ${phone}`);
 
     // Format phone number (remove non-digits)

@@ -2835,9 +2835,10 @@ router.post('/conversations', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Sem acesso a esta conexão' });
     }
 
-    // Check if connection exists and is active
+    // Check if connection exists and is active (prefer live status over stale DB value)
     const connResult = await query(
-      `SELECT id, status, instance_name FROM connections WHERE id = $1`,
+      `SELECT id, status, provider, instance_name, instance_id, wapi_token, api_url, api_key, phone_number
+       FROM connections WHERE id = $1`,
       [connection_id]
     );
 
@@ -2845,7 +2846,32 @@ router.post('/conversations', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
 
-    if (connResult.rows[0].status !== 'connected') {
+    const connection = connResult.rows[0];
+    const provider = whatsappProvider.detectProvider(connection);
+    let isConnected = connection.status === 'connected' ||
+      (provider === 'wapi' && connection.instance_id && connection.wapi_token);
+
+    if (!isConnected) {
+      try {
+        const liveStatus = await whatsappProvider.checkStatus(connection);
+        const newStatus = liveStatus?.status || 'disconnected';
+        const phoneNumber = liveStatus?.phoneNumber || null;
+
+        if (connection.status !== newStatus || connection.phone_number !== phoneNumber) {
+          await query(
+            'UPDATE connections SET status = $1, phone_number = $2, updated_at = NOW() WHERE id = $3',
+            [newStatus, phoneNumber, connection_id]
+          );
+        }
+
+        isConnected = newStatus === 'connected' ||
+          (provider === 'wapi' && connection.instance_id && connection.wapi_token);
+      } catch (statusError) {
+        console.warn('[Chat] Live status check failed:', statusError?.message || statusError);
+      }
+    }
+
+    if (!isConnected) {
       return res.status(400).json({ error: 'Conexão não está ativa' });
     }
 
