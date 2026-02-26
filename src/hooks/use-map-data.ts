@@ -11,6 +11,9 @@ export interface MapLocation {
   lat: number;
   lng: number;
   value?: number;
+  owner_id?: string;
+  owner_name?: string;
+  created_at?: string;
 }
 
 // Brazilian state capitals coordinates
@@ -97,17 +100,50 @@ export function getCoordinates(city?: string, state?: string): { lat: number; ln
   return null;
 }
 
-async function fetchMapData(): Promise<MapLocation[]> {
-  const res = await fetch(`${API_URL}/api/crm/map-data`, {
+export interface MapFilters {
+  owner_id?: string;
+  date_type?: "created" | "activity";
+  date_from?: string;
+  date_to?: string;
+}
+
+async function fetchMapData(filters: MapFilters): Promise<MapLocation[]> {
+  const params = new URLSearchParams();
+  if (filters.owner_id) params.set("owner_id", filters.owner_id);
+  if (filters.date_type) params.set("date_type", filters.date_type);
+  if (filters.date_from) params.set("date_from", filters.date_from);
+  if (filters.date_to) params.set("date_to", filters.date_to);
+  const qs = params.toString();
+  const res = await fetch(`${API_URL}/api/crm/map-data${qs ? `?${qs}` : ""}`, {
     headers: { Authorization: `Bearer ${getAuthToken()}` },
   });
   if (!res.ok) throw new Error("Failed to fetch map data");
   return res.json();
 }
 
-export function useMapData() {
+export function useMapData(filters: MapFilters = {}) {
   return useQuery({
-    queryKey: ["crm-map-data"],
-    queryFn: fetchMapData,
+    queryKey: ["crm-map-data", filters],
+    queryFn: () => fetchMapData(filters),
+  });
+}
+
+export interface MapUser {
+  id: string;
+  name: string;
+}
+
+async function fetchMapUsers(): Promise<MapUser[]> {
+  const res = await fetch(`${API_URL}/api/crm/map-users`, {
+    headers: { Authorization: `Bearer ${getAuthToken()}` },
+  });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export function useMapUsers() {
+  return useQuery({
+    queryKey: ["crm-map-users"],
+    queryFn: fetchMapUsers,
   });
 }

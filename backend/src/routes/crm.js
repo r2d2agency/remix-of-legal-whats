@@ -525,9 +525,12 @@ router.get('/companies', async (req, res) => {
     const { search } = req.query;
     let sql = `SELECT c.*, u.name as created_by_name,
       s.name as segment_name, s.color as segment_color,
+      ow.name as owner_name, g.name as group_name,
       (SELECT COUNT(*) FROM crm_deals WHERE company_id = c.id) as deals_count
       FROM crm_companies c
       LEFT JOIN users u ON u.id = c.created_by
+      LEFT JOIN users ow ON ow.id = c.owner_id
+      LEFT JOIN crm_user_groups g ON g.id = c.group_id
       LEFT JOIN crm_segments s ON s.id = c.segment_id
       WHERE c.organization_id = $1`;
     const params = [org.organization_id];
@@ -574,13 +577,13 @@ router.post('/companies', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id, custom_fields } = req.body;
+    const { name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id, custom_fields, owner_id, group_id } = req.body;
     
     const result = await query(
-      `INSERT INTO crm_companies (organization_id, name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id, custom_fields, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+      `INSERT INTO crm_companies (organization_id, name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id, custom_fields, owner_id, group_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [org.organization_id, name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id || null,
-       custom_fields ? JSON.stringify(custom_fields) : '{}', req.userId]
+       custom_fields ? JSON.stringify(custom_fields) : '{}', owner_id || null, group_id || null, req.userId]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -595,16 +598,16 @@ router.put('/companies/:id', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
-    const { name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id, custom_fields } = req.body;
+    const { name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id, custom_fields, owner_id, group_id } = req.body;
     
     const result = await query(
       `UPDATE crm_companies SET 
         name = $1, cnpj = $2, email = $3, phone = $4, website = $5, 
         address = $6, city = $7, state = $8, zip_code = $9, notes = $10, 
-        segment_id = $11, custom_fields = $12, updated_at = NOW()
-       WHERE id = $13 AND organization_id = $14 RETURNING *`,
+        segment_id = $11, custom_fields = $12, owner_id = $13, group_id = $14, updated_at = NOW()
+       WHERE id = $15 AND organization_id = $16 RETURNING *`,
       [name, cnpj, email, phone, website, address, city, state, zip_code, notes, segment_id || null,
-       custom_fields ? JSON.stringify(custom_fields) : '{}', req.params.id, org.organization_id]
+       custom_fields ? JSON.stringify(custom_fields) : '{}', owner_id || null, group_id || null, req.params.id, org.organization_id]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -2879,97 +2882,58 @@ router.get('/map-data', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
+    const { owner_id, date_type, date_from, date_to } = req.query;
     const locations = [];
 
     // State capitals for approximate positioning
     const STATE_CAPITALS = {
-      AC: { lat: -9.9753, lng: -67.8243 },
-      AL: { lat: -9.6499, lng: -35.7089 },
-      AM: { lat: -3.1190, lng: -60.0217 },
-      AP: { lat: 0.0356, lng: -51.0705 },
-      BA: { lat: -12.9714, lng: -38.5014 },
-      CE: { lat: -3.7172, lng: -38.5433 },
-      DF: { lat: -15.8267, lng: -47.9218 },
-      ES: { lat: -20.3155, lng: -40.3128 },
-      GO: { lat: -16.6864, lng: -49.2643 },
-      MA: { lat: -2.5387, lng: -44.2826 },
-      MG: { lat: -19.9167, lng: -43.9345 },
-      MS: { lat: -20.4697, lng: -54.6201 },
-      MT: { lat: -15.5989, lng: -56.0949 },
-      PA: { lat: -1.4558, lng: -48.4902 },
-      PB: { lat: -7.1195, lng: -34.8450 },
-      PE: { lat: -8.0476, lng: -34.8770 },
-      PI: { lat: -5.0892, lng: -42.8019 },
-      PR: { lat: -25.4195, lng: -49.2646 },
-      RJ: { lat: -22.9068, lng: -43.1729 },
-      RN: { lat: -5.7945, lng: -35.2110 },
-      RO: { lat: -8.7612, lng: -63.9039 },
-      RR: { lat: 2.8235, lng: -60.6758 },
-      RS: { lat: -30.0346, lng: -51.2177 },
-      SC: { lat: -27.5954, lng: -48.5480 },
-      SE: { lat: -10.9472, lng: -37.0731 },
-      SP: { lat: -23.5505, lng: -46.6333 },
+      AC: { lat: -9.9753, lng: -67.8243 }, AL: { lat: -9.6499, lng: -35.7089 },
+      AM: { lat: -3.1190, lng: -60.0217 }, AP: { lat: 0.0356, lng: -51.0705 },
+      BA: { lat: -12.9714, lng: -38.5014 }, CE: { lat: -3.7172, lng: -38.5433 },
+      DF: { lat: -15.8267, lng: -47.9218 }, ES: { lat: -20.3155, lng: -40.3128 },
+      GO: { lat: -16.6864, lng: -49.2643 }, MA: { lat: -2.5387, lng: -44.2826 },
+      MG: { lat: -19.9167, lng: -43.9345 }, MS: { lat: -20.4697, lng: -54.6201 },
+      MT: { lat: -15.5989, lng: -56.0949 }, PA: { lat: -1.4558, lng: -48.4902 },
+      PB: { lat: -7.1195, lng: -34.8450 }, PE: { lat: -8.0476, lng: -34.8770 },
+      PI: { lat: -5.0892, lng: -42.8019 }, PR: { lat: -25.4195, lng: -49.2646 },
+      RJ: { lat: -22.9068, lng: -43.1729 }, RN: { lat: -5.7945, lng: -35.2110 },
+      RO: { lat: -8.7612, lng: -63.9039 }, RR: { lat: 2.8235, lng: -60.6758 },
+      RS: { lat: -30.0346, lng: -51.2177 }, SC: { lat: -27.5954, lng: -48.5480 },
+      SE: { lat: -10.9472, lng: -37.0731 }, SP: { lat: -23.5505, lng: -46.6333 },
       TO: { lat: -10.1689, lng: -48.3317 },
     };
 
-    // Common city coordinates
     const CITY_COORDS = {
-      'são paulo': { lat: -23.5505, lng: -46.6333 },
-      'sao paulo': { lat: -23.5505, lng: -46.6333 },
-      'rio de janeiro': { lat: -22.9068, lng: -43.1729 },
-      'belo horizonte': { lat: -19.9167, lng: -43.9345 },
-      'brasília': { lat: -15.8267, lng: -47.9218 },
-      'brasilia': { lat: -15.8267, lng: -47.9218 },
-      'salvador': { lat: -12.9714, lng: -38.5014 },
-      'fortaleza': { lat: -3.7172, lng: -38.5433 },
-      'curitiba': { lat: -25.4195, lng: -49.2646 },
-      'recife': { lat: -8.0476, lng: -34.8770 },
-      'porto alegre': { lat: -30.0346, lng: -51.2177 },
-      'manaus': { lat: -3.1190, lng: -60.0217 },
-      'belém': { lat: -1.4558, lng: -48.4902 },
-      'belem': { lat: -1.4558, lng: -48.4902 },
-      'goiânia': { lat: -16.6864, lng: -49.2643 },
-      'goiania': { lat: -16.6864, lng: -49.2643 },
-      'guarulhos': { lat: -23.4543, lng: -46.5337 },
-      'campinas': { lat: -22.9099, lng: -47.0626 },
-      'florianópolis': { lat: -27.5954, lng: -48.5480 },
-      'florianopolis': { lat: -27.5954, lng: -48.5480 },
-      'natal': { lat: -5.7945, lng: -35.2110 },
-      'joão pessoa': { lat: -7.1195, lng: -34.8450 },
-      'joao pessoa': { lat: -7.1195, lng: -34.8450 },
-      'vitória': { lat: -20.3155, lng: -40.3128 },
-      'vitoria': { lat: -20.3155, lng: -40.3128 },
-      'cuiabá': { lat: -15.5989, lng: -56.0949 },
-      'cuiaba': { lat: -15.5989, lng: -56.0949 },
-      'campo grande': { lat: -20.4697, lng: -54.6201 },
-      'são luís': { lat: -2.5387, lng: -44.2826 },
-      'sao luis': { lat: -2.5387, lng: -44.2826 },
-      'maceió': { lat: -9.6499, lng: -35.7089 },
-      'maceio': { lat: -9.6499, lng: -35.7089 },
-      'teresina': { lat: -5.0892, lng: -42.8019 },
-      'aracaju': { lat: -10.9472, lng: -37.0731 },
-      'londrina': { lat: -23.3103, lng: -51.1628 },
-      'uberlândia': { lat: -18.9113, lng: -48.2622 },
-      'uberlandia': { lat: -18.9113, lng: -48.2622 },
-      'sorocaba': { lat: -23.5015, lng: -47.4526 },
-      'ribeirão preto': { lat: -21.1775, lng: -47.8103 },
-      'ribeirao preto': { lat: -21.1775, lng: -47.8103 },
-      'contagem': { lat: -19.9318, lng: -44.0539 },
-      'niterói': { lat: -22.8838, lng: -43.1038 },
-      'niteroi': { lat: -22.8838, lng: -43.1038 },
-      'joinville': { lat: -26.3045, lng: -48.8487 },
+      'são paulo': { lat: -23.5505, lng: -46.6333 }, 'sao paulo': { lat: -23.5505, lng: -46.6333 },
+      'rio de janeiro': { lat: -22.9068, lng: -43.1729 }, 'belo horizonte': { lat: -19.9167, lng: -43.9345 },
+      'brasília': { lat: -15.8267, lng: -47.9218 }, 'brasilia': { lat: -15.8267, lng: -47.9218 },
+      'salvador': { lat: -12.9714, lng: -38.5014 }, 'fortaleza': { lat: -3.7172, lng: -38.5433 },
+      'curitiba': { lat: -25.4195, lng: -49.2646 }, 'recife': { lat: -8.0476, lng: -34.8770 },
+      'porto alegre': { lat: -30.0346, lng: -51.2177 }, 'manaus': { lat: -3.1190, lng: -60.0217 },
+      'belém': { lat: -1.4558, lng: -48.4902 }, 'belem': { lat: -1.4558, lng: -48.4902 },
+      'goiânia': { lat: -16.6864, lng: -49.2643 }, 'goiania': { lat: -16.6864, lng: -49.2643 },
+      'guarulhos': { lat: -23.4543, lng: -46.5337 }, 'campinas': { lat: -22.9099, lng: -47.0626 },
+      'florianópolis': { lat: -27.5954, lng: -48.5480 }, 'florianopolis': { lat: -27.5954, lng: -48.5480 },
+      'natal': { lat: -5.7945, lng: -35.2110 }, 'joão pessoa': { lat: -7.1195, lng: -34.8450 },
+      'joao pessoa': { lat: -7.1195, lng: -34.8450 }, 'vitória': { lat: -20.3155, lng: -40.3128 },
+      'vitoria': { lat: -20.3155, lng: -40.3128 }, 'cuiabá': { lat: -15.5989, lng: -56.0949 },
+      'cuiaba': { lat: -15.5989, lng: -56.0949 }, 'campo grande': { lat: -20.4697, lng: -54.6201 },
+      'são luís': { lat: -2.5387, lng: -44.2826 }, 'sao luis': { lat: -2.5387, lng: -44.2826 },
+      'maceió': { lat: -9.6499, lng: -35.7089 }, 'maceio': { lat: -9.6499, lng: -35.7089 },
+      'teresina': { lat: -5.0892, lng: -42.8019 }, 'aracaju': { lat: -10.9472, lng: -37.0731 },
+      'londrina': { lat: -23.3103, lng: -51.1628 }, 'uberlândia': { lat: -18.9113, lng: -48.2622 },
+      'uberlandia': { lat: -18.9113, lng: -48.2622 }, 'sorocaba': { lat: -23.5015, lng: -47.4526 },
+      'ribeirão preto': { lat: -21.1775, lng: -47.8103 }, 'ribeirao preto': { lat: -21.1775, lng: -47.8103 },
+      'contagem': { lat: -19.9318, lng: -44.0539 }, 'niterói': { lat: -22.8838, lng: -43.1038 },
+      'niteroi': { lat: -22.8838, lng: -43.1038 }, 'joinville': { lat: -26.3045, lng: -48.8487 },
       'santos': { lat: -23.9619, lng: -46.3342 },
-      'são josé dos campos': { lat: -23.1896, lng: -45.8841 },
-      'sao jose dos campos': { lat: -23.1896, lng: -45.8841 },
+      'são josé dos campos': { lat: -23.1896, lng: -45.8841 }, 'sao jose dos campos': { lat: -23.1896, lng: -45.8841 },
       'osasco': { lat: -23.5329, lng: -46.7917 },
-      'santo andré': { lat: -23.6737, lng: -46.5432 },
-      'santo andre': { lat: -23.6737, lng: -46.5432 },
-      'são bernardo do campo': { lat: -23.7117, lng: -46.5653 },
-      'sao bernardo do campo': { lat: -23.7117, lng: -46.5653 },
+      'santo andré': { lat: -23.6737, lng: -46.5432 }, 'santo andre': { lat: -23.6737, lng: -46.5432 },
+      'são bernardo do campo': { lat: -23.7117, lng: -46.5653 }, 'sao bernardo do campo': { lat: -23.7117, lng: -46.5653 },
     };
 
     const getCoords = (city, state) => {
-      // Try city first
       if (city) {
         const cityLower = city.toLowerCase().trim();
         if (CITY_COORDS[cityLower]) {
@@ -2978,7 +2942,6 @@ router.get('/map-data', async (req, res) => {
           return { lat: cap.lat + offset(), lng: cap.lng + offset() };
         }
       }
-      // Fallback to state capital
       if (state && STATE_CAPITALS[state.toUpperCase()]) {
         const cap = STATE_CAPITALS[state.toUpperCase()];
         const offset = () => (Math.random() - 0.5) * 0.1;
@@ -2987,103 +2950,145 @@ router.get('/map-data', async (req, res) => {
       return null;
     };
 
-    // Get deals with contact/company info
+    // Helper to build date filter SQL
+    const buildDateFilter = (alias, paramIndex) => {
+      let sql = '';
+      const params = [];
+      if (date_from || date_to) {
+        const dateCol = date_type === 'activity' ? `${alias}.last_activity_at` : `${alias}.created_at`;
+        if (date_from) {
+          sql += ` AND ${dateCol} >= $${paramIndex}`;
+          params.push(date_from);
+          paramIndex++;
+        }
+        if (date_to) {
+          sql += ` AND ${dateCol} <= $${paramIndex}`;
+          params.push(date_to + 'T23:59:59Z');
+          paramIndex++;
+        }
+      }
+      return { sql, params, nextIndex: paramIndex };
+    };
+
+    // Get deals
     try {
-      const dealsResult = await query(
-        `SELECT d.id, d.title, d.value,
-                c.phone, c.city, c.state,
-                co.city as company_city, co.state as company_state
-         FROM crm_deals d
-         LEFT JOIN contacts c ON d.contact_id = c.id
-         LEFT JOIN crm_companies co ON d.company_id = co.id
-         WHERE d.organization_id = $1 AND d.status = 'active'`,
-        [org.organization_id]
-      );
+      let dealSql = `SELECT d.id, d.title, d.value, d.owner_id, d.created_at,
+              ow.name as owner_name,
+              c.phone, c.city, c.state,
+              co.city as company_city, co.state as company_state
+       FROM crm_deals d
+       LEFT JOIN contacts c ON d.contact_id = c.id
+       LEFT JOIN crm_companies co ON d.company_id = co.id
+       LEFT JOIN users ow ON ow.id = d.owner_id
+       WHERE d.organization_id = $1`;
+      const dealParams = [org.organization_id];
+      let pi = 2;
+      if (owner_id) {
+        dealSql += ` AND d.owner_id = $${pi}`;
+        dealParams.push(owner_id);
+        pi++;
+      }
+      const df = buildDateFilter('d', pi);
+      dealSql += df.sql;
+      dealParams.push(...df.params);
+
+      const dealsResult = await query(dealSql, dealParams);
       for (const deal of dealsResult.rows) {
         const city = deal.city || deal.company_city;
         const state = deal.state || deal.company_state;
         const coords = getCoords(city, state);
         if (coords) {
           locations.push({
-            id: deal.id,
-            type: 'deal',
-            name: deal.title,
-            phone: deal.phone,
-            city,
-            state,
-            lat: coords.lat,
-            lng: coords.lng,
-            value: deal.value,
+            id: deal.id, type: 'deal', name: deal.title, phone: deal.phone,
+            city, state, lat: coords.lat, lng: coords.lng, value: deal.value,
+            owner_id: deal.owner_id, owner_name: deal.owner_name, created_at: deal.created_at,
           });
         }
       }
     } catch (e) {
-      // Ignore if table/columns don't exist yet
-      if (e.code !== '42P01' && e.code !== '42703') {
-        console.error('Error fetching deals for map:', e.message);
-      }
+      if (e.code !== '42P01' && e.code !== '42703') console.error('Error fetching deals for map:', e.message);
     }
 
-    // Get prospects with city/state
+    // Get prospects
     try {
-      const prospectsResult = await query(
-        `SELECT id, name, phone, city, state FROM crm_prospects WHERE organization_id = $1 AND converted_at IS NULL`,
-        [org.organization_id]
-      );
+      let prospSql = `SELECT id, name, phone, city, state, created_at FROM crm_prospects WHERE organization_id = $1 AND converted_at IS NULL`;
+      const prospParams = [org.organization_id];
+      let pi = 2;
+      // Prospects don't have owner_id typically, skip owner filter for them
+      const df = buildDateFilter('crm_prospects', pi);
+      // Use inline alias workaround
+      if (date_from || date_to) {
+        const dateCol = date_type === 'activity' ? 'created_at' : 'created_at';
+        if (date_from) { prospSql += ` AND ${dateCol} >= $${pi}`; prospParams.push(date_from); pi++; }
+        if (date_to) { prospSql += ` AND ${dateCol} <= $${pi}`; prospParams.push(date_to + 'T23:59:59Z'); pi++; }
+      }
+
+      const prospectsResult = await query(prospSql, prospParams);
       for (const p of prospectsResult.rows) {
         const coords = getCoords(p.city, p.state);
         if (coords) {
           locations.push({
-            id: p.id,
-            type: 'prospect',
-            name: p.name,
-            phone: p.phone,
-            city: p.city,
-            state: p.state,
-            lat: coords.lat,
-            lng: coords.lng,
+            id: p.id, type: 'prospect', name: p.name, phone: p.phone,
+            city: p.city, state: p.state, lat: coords.lat, lng: coords.lng,
+            created_at: p.created_at,
           });
         }
       }
     } catch (e) {
-      // Ignore if table/columns don't exist yet
-      if (e.code !== '42P01' && e.code !== '42703') {
-        console.error('Error fetching prospects for map:', e.message);
-      }
+      if (e.code !== '42P01' && e.code !== '42703') console.error('Error fetching prospects for map:', e.message);
     }
 
-    // Get companies with location
+    // Get companies
     try {
-      const companiesResult = await query(
-        `SELECT id, name, phone, city, state FROM crm_companies WHERE organization_id = $1`,
-        [org.organization_id]
-      );
+      let compSql = `SELECT c.id, c.name, c.phone, c.city, c.state, c.owner_id, c.created_at, ow.name as owner_name
+       FROM crm_companies c LEFT JOIN users ow ON ow.id = c.owner_id WHERE c.organization_id = $1`;
+      const compParams = [org.organization_id];
+      let pi = 2;
+      if (owner_id) {
+        compSql += ` AND c.owner_id = $${pi}`;
+        compParams.push(owner_id);
+        pi++;
+      }
+      if (date_from) { compSql += ` AND c.created_at >= $${pi}`; compParams.push(date_from); pi++; }
+      if (date_to) { compSql += ` AND c.created_at <= $${pi}`; compParams.push(date_to + 'T23:59:59Z'); pi++; }
+
+      const companiesResult = await query(compSql, compParams);
       for (const company of companiesResult.rows) {
         const coords = getCoords(company.city, company.state);
         if (coords) {
           locations.push({
-            id: company.id,
-            type: 'company',
-            name: company.name,
-            phone: company.phone,
-            city: company.city,
-            state: company.state,
-            lat: coords.lat,
-            lng: coords.lng,
+            id: company.id, type: 'company', name: company.name, phone: company.phone,
+            city: company.city, state: company.state, lat: coords.lat, lng: coords.lng,
+            owner_id: company.owner_id, owner_name: company.owner_name, created_at: company.created_at,
           });
         }
       }
     } catch (e) {
-      // Ignore if table/columns don't exist yet
-      if (e.code !== '42P01' && e.code !== '42703') {
-        console.error('Error fetching companies for map:', e.message);
-      }
+      if (e.code !== '42P01' && e.code !== '42703') console.error('Error fetching companies for map:', e.message);
     }
 
     res.json(locations);
   } catch (error) {
     console.error('Error fetching map data:', error);
-    // Return empty array instead of error to avoid breaking the UI
+    res.json([]);
+  }
+});
+
+// Get users for map filter
+router.get('/map-users', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const result = await query(
+      `SELECT u.id, u.name FROM users u
+       INNER JOIN organization_members om ON om.user_id = u.id
+       WHERE om.organization_id = $1 ORDER BY u.name`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching map users:', error);
     res.json([]);
   }
 });

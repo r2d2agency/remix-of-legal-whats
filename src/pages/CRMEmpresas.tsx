@@ -103,13 +103,14 @@ export default function CRMEmpresas() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="max-w-[250px]">Empresa</TableHead>
-                    <TableHead>Segmento</TableHead>
-                    <TableHead>CNPJ</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Negociações</TableHead>
-                    <TableHead>Criado em</TableHead>
-                    <TableHead className="w-[60px] sticky right-0 bg-background"></TableHead>
+                     <TableHead className="max-w-[250px]">Empresa</TableHead>
+                     <TableHead>Segmento</TableHead>
+                     <TableHead>Responsável</TableHead>
+                     <TableHead>CNPJ</TableHead>
+                     <TableHead>Contato</TableHead>
+                     <TableHead>Negociações</TableHead>
+                     <TableHead>Criado em</TableHead>
+                     <TableHead className="w-[60px] sticky right-0 bg-background"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -148,6 +149,13 @@ export default function CRMEmpresas() {
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {company.owner_name ? (
+                          <span className="text-sm font-medium">{company.owner_name}</span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
                         )}
                       </TableCell>
                       <TableCell>
