@@ -52,6 +52,7 @@ import {
   SearchCode,
   Users,
   Building2,
+  Smartphone,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -142,6 +143,7 @@ export function ConversationList({
   filters,
   onFiltersChange,
   isAdmin = false,
+  connections,
   onNewConversation,
   onAcceptConversation,
   onReleaseConversation,
@@ -500,6 +502,33 @@ export function ConversationList({
             </SelectContent>
           </Select>
 
+          {/* Connection filter */}
+          {connections && connections.length > 1 && (
+            <Select
+              value={filters.connection}
+              onValueChange={(v) => onFiltersChange({ ...filters, connection: v })}
+            >
+              <SelectTrigger className="flex-1 h-8 text-xs min-w-[80px] max-w-[100px]">
+                <Smartphone className="h-3 w-3 mr-1" />
+                <SelectValue placeholder="Conexão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas conexões</SelectItem>
+                {connections.map(conn => (
+                  <SelectItem key={conn.id} value={conn.id}>
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "w-2 h-2 rounded-full",
+                        conn.status === 'connected' ? "bg-green-500" : "bg-red-400"
+                      )} />
+                      {conn.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           {/* Department filter - show if there are any departments */}
           {allDepartments.length > 0 && (
             <Select
@@ -679,8 +708,14 @@ export function ConversationList({
 
                     {/* Connection name, Assigned user, and Unread count */}
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      {/* Connection name */}
-                      {conv.connection_name && (
+                      {/* Connection name - prominent when multiple connections */}
+                      {conv.connection_name && connections && connections.length > 1 && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5 border-primary/30 text-primary">
+                          <Smartphone className="h-2.5 w-2.5" />
+                          {conv.connection_name}
+                        </Badge>
+                      )}
+                      {conv.connection_name && (!connections || connections.length <= 1) && (
                         <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded truncate max-w-[70px]">
                           {conv.connection_name}
                         </span>
