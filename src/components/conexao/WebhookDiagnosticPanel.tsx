@@ -135,6 +135,15 @@ interface WapiSendAttempt {
   preview?: string;
 }
 
+interface EndpointDiscoveryEntry {
+  at: string;
+  instanceId: string | null;
+  label: string;
+  attempts: Array<{ url: string; method: string; status: number; error?: string }>;
+  resolvedUrl: string | null;
+  success: boolean;
+}
+
 interface Props {
   connection: Connection;
   onClose?: () => void;
@@ -160,6 +169,8 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const [wapiEventsLoading, setWapiEventsLoading] = useState(false);
   const [wapiSendAttempts, setWapiSendAttempts] = useState<WapiSendAttempt[]>([]);
   const [wapiSendAttemptsLoading, setWapiSendAttemptsLoading] = useState(false);
+  const [endpointDiscovery, setEndpointDiscovery] = useState<EndpointDiscoveryEntry[]>([]);
+  const [endpointDiscoveryLoading, setEndpointDiscoveryLoading] = useState(false);
 
   const fetchDiagnostic = useCallback(async () => {
     setLoading(true);
@@ -259,6 +270,30 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     }
   }, [connection.id, isWapi]);
 
+  const fetchEndpointDiscovery = useCallback(async () => {
+    if (!isWapi) return;
+
+    setEndpointDiscoveryLoading(true);
+    try {
+      const result = await api<{ attempts: EndpointDiscoveryEntry[] }>(`/api/wapi/${connection.id}/endpoint-discovery?limit=200`);
+      setEndpointDiscovery(result.attempts || []);
+    } catch (error: any) {
+      console.error('Error fetching endpoint discovery:', error);
+    } finally {
+      setEndpointDiscoveryLoading(false);
+    }
+  }, [connection.id, isWapi]);
+
+  const handleClearEndpointDiscovery = async () => {
+    try {
+      await api(`/api/wapi/${connection.id}/endpoint-discovery`, { method: 'DELETE' });
+      setEndpointDiscovery([]);
+      toast.success('Logs de descoberta limpos');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao limpar logs de descoberta');
+    }
+  };
+
   const fetchWapiSendAttempts = useCallback(async () => {
     if (!isWapi) return;
 
@@ -340,10 +375,11 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     if (isWapi) {
       fetchWapiEvents();
       fetchWapiSendAttempts();
+      fetchEndpointDiscovery();
     } else {
       fetchEvents();
     }
-  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, isWapi]);
+  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, isWapi]);
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
@@ -351,13 +387,14 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
       if (isWapi) {
         fetchWapiEvents();
         fetchWapiSendAttempts();
+        fetchEndpointDiscovery();
       } else {
         fetchEvents();
       }
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, isWapi]);
+  }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, isWapi]);
 
   if (loading) {
     return (
@@ -555,9 +592,10 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="webhooks" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
                 <TabsTrigger value="envios">Envios</TabsTrigger>
+                <TabsTrigger value="descoberta">Descoberta</TabsTrigger>
               </TabsList>
 
               <TabsContent value="webhooks" className="mt-4">
@@ -637,6 +675,101 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
                               {a.preview}
                             </pre>
                           ) : null}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="descoberta" className="mt-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="text-xs text-muted-foreground">
+                    {endpointDiscovery.length
+                      ? `${endpointDiscovery.length} operação(ões) · Última: ${new Date(endpointDiscovery[0].at).toLocaleString()}`
+                      : 'Nenhuma descoberta registrada ainda. Execute uma sincronização para ver logs.'}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={fetchEndpointDiscovery} disabled={endpointDiscoveryLoading}>
+                      <RefreshCw className={`h-4 w-4 mr-2 ${endpointDiscoveryLoading ? 'animate-spin' : ''}`} />
+                      Atualizar
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={handleClearEndpointDiscovery}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Limpar
+                    </Button>
+                  </div>
+                </div>
+
+                <ScrollArea className="h-[400px] rounded-md border border-border">
+                  <div className="p-3 space-y-4">
+                    {endpointDiscovery.length === 0 ? (
+                      <div className="text-sm text-muted-foreground">
+                        Nenhuma tentativa de descoberta de endpoint registrada ainda.
+                        <br />
+                        Execute "Sincronizar Contatos" ou "Sincronizar Conversas" para gerar logs aqui.
+                      </div>
+                    ) : (
+                      endpointDiscovery.map((entry, i) => (
+                        <div key={i} className="rounded-md border border-border p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant={entry.success ? 'default' : 'destructive'} className={entry.success ? 'bg-green-600' : ''}>
+                                {entry.success ? '✓ Resolvido' : '✗ Falhou'}
+                              </Badge>
+                              <Badge variant="outline" className="font-mono text-xs">
+                                {entry.label}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground">{new Date(entry.at).toLocaleString()}</div>
+                          </div>
+
+                          {entry.resolvedUrl && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
+                              <span className="text-muted-foreground">Endpoint aceito:</span>
+                              <code className="bg-muted px-1 py-0.5 rounded truncate text-xs font-mono">
+                                {entry.resolvedUrl}
+                              </code>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0"
+                                onClick={() => copyToClipboard(entry.resolvedUrl!)}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium text-muted-foreground">
+                              Tentativas ({entry.attempts.length}):
+                            </div>
+                            <div className="bg-muted/30 rounded p-2 space-y-1">
+                              {entry.attempts.map((attempt, j) => (
+                                <div key={j} className="flex items-center gap-2 text-xs font-mono">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] px-1 py-0 ${
+                                      attempt.status >= 200 && attempt.status < 300
+                                        ? 'border-green-500 text-green-600'
+                                        : attempt.status === 0
+                                          ? 'border-yellow-500 text-yellow-600'
+                                          : 'border-destructive text-destructive'
+                                    }`}
+                                  >
+                                    {attempt.status || 'ERR'}
+                                  </Badge>
+                                  <span className="text-muted-foreground">{attempt.method}</span>
+                                  <span className="truncate">{attempt.url}</span>
+                                  {attempt.error && (
+                                    <span className="text-destructive flex-shrink-0">({attempt.error})</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       ))
                     )}

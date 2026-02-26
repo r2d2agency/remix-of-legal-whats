@@ -12,12 +12,47 @@ const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_UR
 const SEND_ATTEMPTS_MAX = 200;
 const sendAttempts = []; // { at, instanceId, phone, messageType, success, status, error, preview }
 
+// In-memory endpoint discovery attempts buffer (for diagnostics only)
+const ENDPOINT_DISCOVERY_MAX = 300;
+const endpointDiscoveryAttempts = []; // { at, instanceId, label, attempts: [{url, method, status, error?}], resolvedUrl?, success }
+
 function recordSendAttempt(attempt) {
   try {
     sendAttempts.unshift(attempt);
     if (sendAttempts.length > SEND_ATTEMPTS_MAX) sendAttempts.length = SEND_ATTEMPTS_MAX;
   } catch {
     // no-op
+  }
+}
+
+function recordEndpointDiscovery({ instanceId, label, attempts, resolvedUrl, success }) {
+  try {
+    endpointDiscoveryAttempts.unshift({
+      at: new Date().toISOString(),
+      instanceId: instanceId || null,
+      label,
+      attempts: attempts || [],
+      resolvedUrl: resolvedUrl || null,
+      success: Boolean(success),
+    });
+    if (endpointDiscoveryAttempts.length > ENDPOINT_DISCOVERY_MAX) endpointDiscoveryAttempts.length = ENDPOINT_DISCOVERY_MAX;
+  } catch {
+    // no-op
+  }
+}
+
+export function getEndpointDiscoveryAttempts({ instanceId, limit = 200 } = {}) {
+  const filtered = instanceId ? endpointDiscoveryAttempts.filter((a) => a.instanceId === instanceId) : endpointDiscoveryAttempts;
+  return filtered.slice(0, Math.max(1, Math.min(300, Number(limit) || 200)));
+}
+
+export function clearEndpointDiscoveryAttempts(instanceId) {
+  if (!instanceId) {
+    endpointDiscoveryAttempts.length = 0;
+    return;
+  }
+  for (let i = endpointDiscoveryAttempts.length - 1; i >= 0; i--) {
+    if (endpointDiscoveryAttempts[i]?.instanceId === instanceId) endpointDiscoveryAttempts.splice(i, 1);
   }
 }
 
@@ -1217,7 +1252,7 @@ export async function getGroups(instanceId, token) {
 /**
  * Internal helper: try multiple endpoint/method combinations and return first successful payload
  */
-async function requestWithEndpointFallback(token, candidates, label) {
+async function requestWithEndpointFallback(token, candidates, label, instanceId) {
   const attempts = [];
 
   for (const candidate of candidates) {
@@ -1242,11 +1277,13 @@ async function requestWithEndpointFallback(token, candidates, label) {
       attempts.push({ url, method, status: response.status });
 
       if (response.ok) {
+        recordEndpointDiscovery({ instanceId, label, attempts, resolvedUrl: url, success: true });
         return { success: true, data, attempts };
       }
 
       // Token/auth error: fail fast
       if (response.status === 401 || response.status === 403) {
+        recordEndpointDiscovery({ instanceId, label, attempts, resolvedUrl: null, success: false });
         return {
           success: false,
           error: data?.message || data?.error || `Falha de autenticação (${response.status})`,
@@ -1260,6 +1297,7 @@ async function requestWithEndpointFallback(token, candidates, label) {
     }
   }
 
+  recordEndpointDiscovery({ instanceId, label, attempts, resolvedUrl: null, success: false });
   return {
     success: false,
     error: `Nenhum endpoint válido para ${label}`,
@@ -1311,7 +1349,7 @@ export async function getChats(instanceId, token) {
       { url: `${W_API_BASE_URL}/chat/chats`, method: 'POST', body: { instanceId } },
     ];
 
-    const result = await requestWithEndpointFallback(token, candidates, 'getChats');
+    const result = await requestWithEndpointFallback(token, candidates, 'getChats', instanceId);
     if (!result.success) {
       return { success: false, error: result.error, chats: [] };
     }
@@ -1383,7 +1421,7 @@ export async function fetchContacts(instanceId, token) {
         { url: `${W_API_BASE_URL}/contacts`, method: 'POST', body: { instanceId } },
       ];
 
-      const result = await requestWithEndpointFallback(token, candidates, `fetchContacts.page_${page}`);
+      const result = await requestWithEndpointFallback(token, candidates, `fetchContacts.page_${page}`, instanceId);
 
       if (!result.success) {
         if (page === 1) {
@@ -1456,7 +1494,7 @@ export async function getChatMessages(instanceId, token, chatId) {
       { url: `${W_API_BASE_URL}/chat/messages`, method: 'POST', body: { instanceId, chatId } },
     ];
 
-    const result = await requestWithEndpointFallback(token, candidates, 'getChatMessages');
+    const result = await requestWithEndpointFallback(token, candidates, 'getChatMessages', instanceId);
     if (!result.success) {
       return { success: false, error: result.error, messages: [] };
     }

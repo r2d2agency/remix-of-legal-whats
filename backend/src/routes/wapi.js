@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
-import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats, getGroupInfo as wapiGetGroupInfo, getGroups as wapiGetGroups, fetchContacts as wapiFetchContacts, getChatMessages as wapiGetChatMessages, getProfilePicture as wapiGetProfilePicture, checkNumbersBulk as wapiCheckNumbersBulk } from '../lib/wapi-provider.js';
+import { getSendAttempts, clearSendAttempts, getEndpointDiscoveryAttempts, clearEndpointDiscoveryAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats, getGroupInfo as wapiGetGroupInfo, getGroups as wapiGetGroups, fetchContacts as wapiFetchContacts, getChatMessages as wapiGetChatMessages, getProfilePicture as wapiGetProfilePicture, checkNumbersBulk as wapiCheckNumbersBulk } from '../lib/wapi-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { pauseNurturingOnReply } from './nurturing.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
@@ -1126,9 +1126,39 @@ router.delete('/:connectionId/send-attempts', authenticate, async (req, res) => 
   }
 });
 
-/**
- * Sync group name from W-API for a specific conversation
- */
+// Diagnostics: view/clear endpoint discovery attempts
+router.get('/:connectionId/endpoint-discovery', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const limit = Math.max(1, Math.min(300, Number(req.query.limit) || 200));
+
+    const connection = await getAccessibleConnection(connectionId, req.userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+
+    const attempts = getEndpointDiscoveryAttempts({ instanceId: connection.instance_id, limit });
+    res.json({ attempts });
+  } catch (error) {
+    console.error('[W-API] endpoint-discovery GET error:', error);
+    res.status(500).json({ error: 'Erro ao buscar tentativas de descoberta' });
+  }
+});
+
+router.delete('/:connectionId/endpoint-discovery', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    const connection = await getAccessibleConnection(connectionId, req.userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+
+    clearEndpointDiscoveryAttempts(connection.instance_id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[W-API] endpoint-discovery DELETE error:', error);
+    res.status(500).json({ error: 'Erro ao limpar tentativas de descoberta' });
+  }
+});
+
+
 router.post('/:connectionId/sync-group-name/:conversationId', authenticate, async (req, res) => {
   try {
     const { connectionId, conversationId } = req.params;
