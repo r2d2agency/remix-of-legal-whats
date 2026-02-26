@@ -36,9 +36,10 @@ interface AIAgentBannerProps {
   conversationId: string;
   isGroup?: boolean;
   className?: string;
+  onSessionChange?: (session: AgentSession | null) => void;
 }
 
-export function AIAgentBanner({ conversationId, isGroup, className }: AIAgentBannerProps) {
+export function AIAgentBanner({ conversationId, isGroup, className, onSessionChange }: AIAgentBannerProps) {
   const [session, setSession] = useState<AgentSession | null>(null);
   const [agents, setAgents] = useState<SimpleAgent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,10 +52,11 @@ export function AIAgentBanner({ conversationId, isGroup, className }: AIAgentBan
         `/api/chat/conversations/${conversationId}/agent-session`
       );
       setSession(data);
+      onSessionChange?.(data);
     } catch {
       // silently fail
     }
-  }, [conversationId]);
+  }, [conversationId, onSessionChange]);
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -79,6 +81,7 @@ export function AIAgentBanner({ conversationId, isGroup, className }: AIAgentBan
         { method: 'POST', body: { agent_id: agentId } }
       );
       setSession(data);
+      onSessionChange?.(data);
       setShowAgentSelect(false);
       toast.success('Agente IA ativado para esta conversa');
     } catch (err: any) {
@@ -95,6 +98,7 @@ export function AIAgentBanner({ conversationId, isGroup, className }: AIAgentBan
         method: 'DELETE',
       });
       setSession(null);
+      onSessionChange?.(null);
       toast.success('Agente IA desativado');
     } catch (err: any) {
       toast.error(err.message || 'Erro ao desativar agente');

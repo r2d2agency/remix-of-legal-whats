@@ -191,6 +191,7 @@ export function ChatArea({
   const [showCallDialog, setShowCallDialog] = useState(false);
   const [savingCall, setSavingCall] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [aiAgentActive, setAiAgentActive] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -379,6 +380,10 @@ export function ChatArea({
   // Send message
   const handleSend = async () => {
     if (!messageText.trim() || sending) return;
+    if (aiAgentActive) {
+      toast.warning('A IA está ativa nesta conversa. Clique em "Assumir" no banner acima para assumir o controle antes de enviar.');
+      return;
+    }
     let text = messageText.trim();
     if (signMessages && user?.name) text = `*${user.name}*\n${text}`;
     const quotedId = replyingTo?.id;
@@ -803,7 +808,7 @@ export function ChatArea({
       </div>
 
       {/* AI Agent Banner */}
-      {!conversation.is_group && <AIAgentBanner conversationId={conversation.id} isGroup={conversation.is_group} />}
+      {!conversation.is_group && <AIAgentBanner conversationId={conversation.id} isGroup={conversation.is_group} onSessionChange={(s) => setAiAgentActive(!!(s && !s.human_takeover))} />}
 
       {/* Mobile Quick Actions */}
       {isMobile && (
