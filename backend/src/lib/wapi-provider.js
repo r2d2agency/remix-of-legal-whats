@@ -647,6 +647,7 @@ export async function deleteMessage(instanceId, token, messageId, phone) {
   }
 }
 
+/**
  * Send image message
  */
 export async function sendImage(instanceId, token, phone, imageUrl, caption = '') {
