@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, MessageSquare, Check } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Users, Download, Pencil, UserCheck, MessageSquare, Check } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
@@ -43,11 +43,9 @@ const Conexao = () => {
   const [creating, setCreating] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newConnectionName, setNewConnectionName] = useState("");
-  const [newConnectionProvider, setNewConnectionProvider] = useState<'evolution' | 'wapi'>('evolution');
+  const [newConnectionProvider] = useState<'wapi'>('wapi');
   const [newConnectionInstanceId, setNewConnectionInstanceId] = useState("");
   const [newConnectionWapiToken, setNewConnectionWapiToken] = useState("");
-  const [newConnectionApiUrl, setNewConnectionApiUrl] = useState("");
-  const [newConnectionApiKey, setNewConnectionApiKey] = useState("");
   const [planLimits, setPlanLimits] = useState<PlanLimits | null>(null);
   
   // QR Code state
@@ -126,11 +124,8 @@ const Conexao = () => {
 
   const resetCreateForm = () => {
     setNewConnectionName('');
-    setNewConnectionProvider('evolution');
     setNewConnectionInstanceId('');
     setNewConnectionWapiToken('');
-    setNewConnectionApiUrl('');
-    setNewConnectionApiKey('');
   };
 
   const handleCreateConnection = async () => {
@@ -143,33 +138,18 @@ const Conexao = () => {
     try {
       let result: Connection & { qrCode?: string };
 
-      if (newConnectionProvider === 'wapi') {
-        // Create W-API connection - instance is auto-created using org token
-        result = await api<Connection>('/api/connections', {
-          method: 'POST',
-          body: {
-            provider: 'wapi',
-            name: newConnectionName,
-          },
-        });
-        toast.success('Conexão criada! Instância W-API gerada automaticamente.');
-        // Auto-open QR code dialog
-        setSelectedConnection(result);
-        handleGetQRCode(result);
-      } else {
-        // Create Evolution API connection
-        result = await api<Connection & { qrCode?: string }>('/api/evolution/create', {
-          method: 'POST',
-          body: { name: newConnectionName },
-        });
-        
-        if (result.qrCode) {
-          setSelectedConnection(result);
-          setQrCode(result.qrCode);
-          setQrCodeDialog(true);
-        }
-        toast.success('Conexão criada! Escaneie o QR Code.');
-      }
+      // Create W-API connection - instance is auto-created using org token
+      result = await api<Connection>('/api/connections', {
+        method: 'POST',
+        body: {
+          provider: 'wapi',
+          name: newConnectionName,
+        },
+      });
+      toast.success('Conexão criada! Instância W-API gerada automaticamente.');
+      // Auto-open QR code dialog
+      setSelectedConnection(result);
+      handleGetQRCode(result);
 
       setConnections(prev => [...prev, result]);
       setShowCreateDialog(false);
@@ -658,42 +638,10 @@ const handleGetQRCode = async (connection: Connection) => {
               <DialogHeader>
                 <DialogTitle>Nova Conexão WhatsApp</DialogTitle>
                 <DialogDescription>
-                  Escolha o provedor e configure sua conexão.
+                  A instância W-API será criada automaticamente.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                {/* Provider Selection */}
-                <div className="space-y-2">
-                  <Label>Provedor</Label>
-                  <Select 
-                    value={newConnectionProvider} 
-                    onValueChange={(value: 'evolution' | 'wapi') => setNewConnectionProvider(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o provedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="evolution">
-                        <div className="flex items-center gap-2">
-                          <Radio className="h-4 w-4" />
-                          <span>Evolution API</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="wapi">
-                        <div className="flex items-center gap-2">
-                          <Radio className="h-4 w-4" />
-                          <span>W-API</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    {newConnectionProvider === 'evolution' 
-                      ? 'Evolution API: Gera QR Code para conexão' 
-                      : 'W-API: Informe seu Token. A instância será criada automaticamente.'}
-                  </p>
-                </div>
-
                 {/* Connection Name */}
                 <div className="space-y-2">
                   <Label>Nome da Conexão</Label>
@@ -704,14 +652,11 @@ const handleGetQRCode = async (connection: Connection) => {
                   />
                 </div>
 
-                {/* W-API specific info */}
-                {newConnectionProvider === 'wapi' && (
-                  <div className="rounded-lg border border-dashed p-3 bg-muted/30">
-                    <p className="text-xs text-muted-foreground">
-                      💡 A instância será criada automaticamente usando o token W-API configurado nas <strong>Configurações da Organização</strong>.
-                    </p>
-                  </div>
-                )}
+                <div className="rounded-lg border border-dashed p-3 bg-muted/30">
+                  <p className="text-xs text-muted-foreground">
+                    💡 A instância será criada automaticamente usando o token W-API configurado nas <strong>Configurações da Organização</strong>.
+                  </p>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setShowCreateDialog(false); resetCreateForm(); }}>
