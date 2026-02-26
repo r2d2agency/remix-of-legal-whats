@@ -64,6 +64,7 @@ interface ExcelImportDialogProps {
   onOpenChange: (open: boolean) => void;
   onImport: (contacts: { name: string; phone: string; is_whatsapp?: boolean | null; customFields?: Record<string, string> }[]) => Promise<void>;
   validateWhatsApp?: (phone: string) => Promise<boolean>;
+  validateWhatsAppBulk?: (phones: string[]) => Promise<{ phone: string; exists: boolean }[]>;
   customFields?: string[];
 }
 
@@ -72,6 +73,7 @@ export function ExcelImportDialog({
   onOpenChange,
   onImport,
   validateWhatsApp,
+  validateWhatsAppBulk,
   customFields = [],
 }: ExcelImportDialogProps) {
   const [step, setStep] = useState<"upload" | "mapping" | "preview">("upload");
@@ -256,7 +258,7 @@ export function ExcelImportDialog({
   };
 
   const validateAllContacts = async () => {
-    if (!validateWhatsApp) return;
+    if (!validateWhatsApp && !validateWhatsAppBulk) return;
 
     setIsValidatingAll(true);
     setValidationProgress(0);
@@ -269,6 +271,58 @@ export function ExcelImportDialog({
     );
 
     const selectedContacts = contacts.filter((c) => c.selected);
+
+    // Use bulk validation if available (much faster)
+    if (validateWhatsAppBulk) {
+      const phones = selectedContacts.map((c) => normalizePhone(c.phone));
+      
+      // Mark all as validating
+      setContacts((prev) =>
+        prev.map((c) => c.selected ? { ...c, isValidating: true } : c)
+      );
+
+      try {
+        // Process in batches of 50 for progress updates
+        const BATCH_SIZE = 50;
+        let processed = 0;
+
+        for (let i = 0; i < phones.length; i += BATCH_SIZE) {
+          const batchPhones = phones.slice(i, i + BATCH_SIZE);
+          const results = await validateWhatsAppBulk(batchPhones);
+
+          const resultMap = new Map(results.map((r) => [r.phone, r.exists]));
+
+          setContacts((prev) =>
+            prev.map((c) => {
+              const cleanPhone = normalizePhone(c.phone);
+              if (resultMap.has(cleanPhone)) {
+                return { ...c, phone: cleanPhone, isValidWhatsApp: resultMap.get(cleanPhone)!, isValidating: false };
+              }
+              return c;
+            })
+          );
+
+          processed += batchPhones.length;
+          setValidationProgress((processed / phones.length) * 100);
+          
+          // Small delay between batches
+          if (i + BATCH_SIZE < phones.length) {
+            await new Promise((r) => setTimeout(r, 100));
+          }
+        }
+      } catch (error) {
+        console.error("Bulk validation error:", error);
+        // Mark remaining as not validating
+        setContacts((prev) =>
+          prev.map((c) => ({ ...c, isValidating: false }))
+        );
+      }
+
+      setIsValidatingAll(false);
+      return;
+    }
+
+    // Fallback: individual validation
     let validated = 0;
 
     for (const contact of selectedContacts) {
@@ -281,7 +335,7 @@ export function ExcelImportDialog({
       );
 
       try {
-        const isValid = await validateWhatsApp(normalizedPhone);
+        const isValid = await validateWhatsApp!(normalizedPhone);
         setContacts((prev) =>
           prev.map((c) =>
             c.id === contact.id
@@ -518,7 +572,7 @@ export function ExcelImportDialog({
                   </Badge>
                 )}
                 <div className="flex-1" />
-                {validateWhatsApp && (
+                {(validateWhatsApp || validateWhatsAppBulk) && (
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                       <Checkbox

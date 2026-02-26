@@ -71,6 +71,19 @@ const Contatos = () => {
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [editingContact, setEditingContact] = useState<string | null>(null);
   const [validatingContact, setValidatingContact] = useState<string | null>(null);
+  const [wapiConnectionId, setWapiConnectionId] = useState<string | null>(null);
+
+  // Find a connected W-API connection for bulk validation
+  useEffect(() => {
+    const findWapiConnection = async () => {
+      try {
+        const connections = await api<{ id: string; provider?: string; instance_id?: string; status: string }[]>('/api/connections');
+        const wapi = connections.find(c => (c.provider === 'wapi' || !!c.instance_id) && c.status === 'connected');
+        if (wapi) setWapiConnectionId(wapi.id);
+      } catch { /* ignore */ }
+    };
+    findWapiConnection();
+  }, []);
 
   // Load lists on mount
   useEffect(() => {
@@ -293,6 +306,15 @@ const Contatos = () => {
       throw new Error("Evolution API não configurada");
     }
     return evolutionApi.checkWhatsAppNumber(config, phone);
+  };
+
+  const validateWhatsAppBulk = async (phones: string[]): Promise<{ phone: string; exists: boolean }[]> => {
+    if (!wapiConnectionId) throw new Error("Nenhuma conexão W-API disponível");
+    const result = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(
+      `/api/wapi/${wapiConnectionId}/validate-numbers`,
+      { method: 'POST', body: { phones } }
+    );
+    return result.results;
   };
 
   const filteredContacts = contacts.filter(
@@ -557,6 +579,7 @@ const Contatos = () => {
           onOpenChange={setIsImportOpen}
           onImport={handleImportContacts}
           validateWhatsApp={validateWhatsAppNumber}
+          validateWhatsAppBulk={wapiConnectionId ? validateWhatsAppBulk : undefined}
         />
 
         {/* Add Contact Dialog */}
