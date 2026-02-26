@@ -368,71 +368,39 @@ export async function checkStatus(instanceId, token) {
   const encodedInstanceId = encodeURIComponent(instanceId || '');
   const startedAt = Date.now();
 
-  // Quick validation
   if (!instanceId || !token) {
     return { status: 'disconnected', error: 'Instance ID ou Token não configurado' };
   }
 
   try {
-    const response = await fetch(
-      `${W_API_BASE_URL}/instance/status-instance?instanceId=${encodedInstanceId}`,
-      { 
-        headers: getHeaders(token),
-        signal: AbortSignal.timeout(10000), // 10s timeout
-      }
-    );
+    const candidates = [
+      { url: `${W_API_BASE_URL}/instance/status-instance?instanceId=${encodedInstanceId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/instance/status?instanceId=${encodedInstanceId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/instance/connection-state?instanceId=${encodedInstanceId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/instance/status`, method: 'POST', body: { instanceId } },
+    ];
 
-    const responseText = await response.text();
-    const durationMs = Date.now() - startedAt;
+    const result = await requestWithEndpointFallback(token, candidates, 'checkStatus', instanceId);
 
-    // Only log if slow or error
-    if (durationMs > 3000 || !response.ok) {
-      logInfo('wapi.status_check', {
-        instance_id: instanceId,
-        status_code: response.status,
-        duration_ms: durationMs,
-        ok: response.ok,
-      });
-    }
-
-    if (!response.ok) {
-      let errMsg = `HTTP ${response.status}`;
-      try {
-        const errData = JSON.parse(responseText);
-        errMsg = errData?.message || errData?.error || errMsg;
-      } catch {
-        // ignore
-      }
-
+    if (!result.success) {
       logWarn('wapi.status_check_non_ok', {
         instance_id: instanceId,
-        status_code: response.status,
-        error: errMsg,
+        error: result.error,
+        duration_ms: Date.now() - startedAt,
       });
-      return { status: 'disconnected', error: errMsg };
+      return { status: 'disconnected', error: result.error || 'Falha ao verificar status' };
     }
 
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      logError('wapi.status_check_parse_failed', new Error('Invalid JSON response'), {
-        instance_id: instanceId,
-        status_code: response.status,
-        body_preview: String(responseText || '').slice(0, 500),
-      });
-      return { status: 'disconnected', error: 'Invalid JSON response' };
-    }
+    const data = result.data || {};
 
-    // Remove verbose logging for successful parses
-
-    const candidates = [
+    const candidatesData = [
       data,
       data?.data,
       data?.result,
       data?.instance,
       data?.data?.instance,
       data?.result?.instance,
+      data?.connection,
     ].filter(Boolean);
 
     const normalize = (v) => (typeof v === 'string' ? v.toLowerCase() : v);
@@ -452,7 +420,7 @@ export async function checkStatus(instanceId, token) {
       );
     };
 
-    const isConnected = candidates.some(looksConnected);
+    const isConnected = candidatesData.some(looksConnected);
 
     const pickPhone = (obj) =>
       obj?.phoneNumber ||
@@ -464,8 +432,17 @@ export async function checkStatus(instanceId, token) {
       null;
 
     let phoneNumber = null;
-    for (const c of candidates) {
+    for (const c of candidatesData) {
       phoneNumber = pickPhone(c) || phoneNumber;
+    }
+
+    const durationMs = Date.now() - startedAt;
+    if (durationMs > 3000) {
+      logInfo('wapi.status_check', {
+        instance_id: instanceId,
+        duration_ms: durationMs,
+        connected: isConnected,
+      });
     }
 
     if (isConnected) {

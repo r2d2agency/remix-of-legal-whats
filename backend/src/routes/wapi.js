@@ -573,6 +573,25 @@ async function cacheMediaFromWapiDownload({ messageId, messageType, mediaMimetyp
 }
 
 /**
+ * Extract instanceId from multiple possible W-API payload shapes
+ */
+function extractInstanceId(payload) {
+  return (
+    payload?.instanceId ||
+    payload?.instance_id ||
+    payload?.instance ||
+    payload?.instance?.id ||
+    payload?.instance?.instanceId ||
+    payload?.data?.instanceId ||
+    payload?.data?.instance_id ||
+    payload?.data?.instance?.id ||
+    payload?.result?.instanceId ||
+    payload?.result?.instance_id ||
+    null
+  );
+}
+
+/**
  * W-API Webhook handler
  * Receives messages from W-API instances
  * 
@@ -586,8 +605,7 @@ router.post('/webhook', async (req, res) => {
 
     // W-API sends different payload structures depending on event type
     // Common fields: instanceId, phone, message, messageId, etc.
-
-    const instanceId = payload.instanceId || payload.instance_id || payload.instance;
+    const instanceId = extractInstanceId(payload);
 
     if (!instanceId) {
       console.log('[W-API Webhook] No instanceId in payload');
@@ -654,7 +672,7 @@ router.post('/webhook', async (req, res) => {
 router.post('/:connectionId/sync-contacts', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.userId;
 
     const connection = await getAccessibleConnection(connectionId, userId);
     if (!connection) {
@@ -743,7 +761,7 @@ router.post('/:connectionId/sync-contacts', authenticate, async (req, res) => {
 router.post('/:connectionId/sync-conversations/prepare', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.userId;
     const connection = await getAccessibleConnection(connectionId, userId);
     if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
     if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
@@ -775,7 +793,7 @@ router.post('/:connectionId/sync-conversations/prepare', authenticate, async (re
 router.post('/:connectionId/sync-conversations/batch', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.userId;
     const { sync_id, offset = 0, limit = 10 } = req.body;
 
     const connection = await getAccessibleConnection(connectionId, userId);
@@ -873,7 +891,7 @@ router.post('/:connectionId/sync-conversations/batch', authenticate, async (req,
 router.post('/:connectionId/sync-conversations', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.userId;
     const connection = await getAccessibleConnection(connectionId, userId);
     if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
     if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
@@ -951,7 +969,7 @@ router.post('/:connectionId/sync-conversations', authenticate, async (req, res) 
 router.post('/:connectionId/sync-profile-pictures', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.userId;
     const connection = await getAccessibleConnection(connectionId, userId);
     if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
     if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
@@ -990,7 +1008,7 @@ router.post('/:connectionId/sync-profile-pictures', authenticate, async (req, re
 router.post('/:connectionId/validate-numbers', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.userId;
     const { phones } = req.body;
 
     const connection = await getAccessibleConnection(connectionId, userId);
@@ -1016,7 +1034,7 @@ router.post('/:connectionId/validate-numbers', authenticate, async (req, res) =>
 router.post('/:connectionId/validate-all-contacts', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const userId = req.user?.id;
+    const userId = req.userId;
     const connection = await getAccessibleConnection(connectionId, userId);
     if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
     if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
@@ -1302,39 +1320,51 @@ router.post('/:connectionId/sync-all-groups', authenticate, async (req, res) => 
  * - webhookConnected / webhookDisconnected: connection status
  */
 function detectEventType(payload) {
-  const event = payload.event;
+  const rawEvent = payload?.event || payload?.type || payload?.webhookType || '';
+  const event = String(rawEvent).trim().toLowerCase();
 
-  // W-API specific event types
-  // webhookReceived can be fromMe=true when sent from the phone directly
-  if (event === 'webhookReceived') {
-    // Check if it's actually a message we sent from the phone
-    if (payload.fromMe === true || payload.isFromMe === true) {
+  const isTrue = (v) => v === true || v === 'true' || v === 1 || v === '1';
+  const isFalse = (v) => v === false || v === 'false' || v === 0 || v === '0';
+
+  // W-API specific event types (and common aliases)
+  if (['webhookreceived', 'received', 'message_received', 'incoming_message'].includes(event)) {
+    if (isTrue(payload.fromMe) || isTrue(payload.isFromMe) || isTrue(payload.from_me) || isTrue(payload.fromApi)) {
       return 'message_sent';
     }
     return 'message_received';
   }
-  if (event === 'webhookDelivery') return 'message_sent';
-  if (event === 'webhookStatus') return 'status_update';
-  if (event === 'webhookConnected' || event === 'webhookDisconnected') return 'connection_update';
+
+  if (['webhookdelivery', 'delivery', 'message_delivery', 'message_sent'].includes(event)) {
+    return 'message_sent';
+  }
+
+  if (['webhookstatus', 'message_status', 'status', 'message.ack'].includes(event)) {
+    return 'status_update';
+  }
+
+  if (['webhookconnected', 'webhookdisconnected', 'connection.update', 'connection_update'].includes(event)) {
+    return 'connection_update';
+  }
 
   // Legacy/fallback: Evolution-style events
   if (event === 'message' || event === 'messages.upsert') {
-    if (payload.fromMe === false || payload.isFromMe === false) return 'message_received';
+    if (isFalse(payload.fromMe) || isFalse(payload.isFromMe) || isFalse(payload.from_me)) return 'message_received';
     return 'message_sent';
   }
 
   // Check by presence of message fields (msgContent is W-API specific)
   if (payload.msgContent || payload.message || payload.text || payload.body) {
-    if (payload.fromMe === true || payload.isFromMe === true || payload.fromApi === true) return 'message_sent';
+    if (isTrue(payload.fromMe) || isTrue(payload.isFromMe) || isTrue(payload.from_me) || isTrue(payload.fromApi)) {
+      return 'message_sent';
+    }
     return 'message_received';
   }
 
   // Status update (legacy ack)
-  if (event === 'message.ack' || payload.ack !== undefined) return 'status_update';
+  if (payload.ack !== undefined) return 'status_update';
 
   // Connection status (be strict: avoid treating delivery status as connection)
   if (
-    event === 'connection.update' ||
     payload.connected !== undefined ||
     payload.status === 'connected' ||
     payload.status === 'disconnected' ||
