@@ -1286,7 +1286,10 @@ const handleGetQRCode = async (connection: Connection) => {
             if (!open) setDiagnosticConnection(null);
           }}
         >
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle>Diagnóstico do Webhook</DialogTitle>
+            </DialogHeader>
             {diagnosticConnection && (
               <WebhookDiagnosticPanel 
                 connection={diagnosticConnection} 
