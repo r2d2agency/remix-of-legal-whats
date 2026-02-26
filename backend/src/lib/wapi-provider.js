@@ -5,7 +5,7 @@ import { logError, logInfo, logWarn } from '../logger.js';
 import http from 'http';
 import https from 'https';
 
-const W_API_BASE_URL = 'https://api.w-api.app/v1';
+const W_API_BASE_URL = (process.env.W_API_BASE_URL || 'https://api.w-api.app/v1').replace(/\/$/, '');
 const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || '';
 
 // In-memory send attempts buffer (for diagnostics only; not persisted)
@@ -201,73 +201,103 @@ export async function configureWebhooks(instanceId, token) {
 export async function createInstance(token, instanceName) {
   logInfo('wapi.create_instance_started', { instance_name: instanceName || null });
 
-  const body = instanceName ? { name: instanceName } : {};
-  const fallbackBaseUrl = W_API_BASE_URL.replace(/\/v1\/?$/, '');
-  const createUrls = Array.from(new Set([
+  const bodyCandidates = [
+    instanceName ? { name: instanceName } : {},
+    instanceName ? { instanceName } : {},
+    instanceName ? { instance_name: instanceName } : {},
+  ];
+
+  const baseWithoutVersion = W_API_BASE_URL.replace(/\/v1\/?$/, '');
+  const urlCandidates = Array.from(new Set([
     `${W_API_BASE_URL}/instance/create`,
-    `${fallbackBaseUrl}/instance/create`,
+    `${baseWithoutVersion}/instance/create`,
+    `${W_API_BASE_URL}/instances`,
+    `${baseWithoutVersion}/api/v1/instances`,
+    `${baseWithoutVersion}/v1/instances`,
   ]));
+
+  const tryExtractInstance = (data) => {
+    const candidates = [
+      data,
+      data?.data,
+      data?.result,
+      data?.instance,
+      data?.data?.instance,
+      data?.result?.instance,
+    ].filter(Boolean);
+
+    for (const c of candidates) {
+      const instanceId = c?.instanceId || c?.instance_id || c?.id || c?.uuid || null;
+      const instanceToken = c?.token || c?.accessToken || c?.access_token || null;
+      if (instanceId) {
+        return { instanceId, token: instanceToken || token };
+      }
+    }
+
+    return null;
+  };
 
   let lastError = null;
 
-  for (const url of createUrls) {
-    try {
-      console.log('[W-API] Creating instance:', url, 'body:', JSON.stringify(body));
+  for (const url of urlCandidates) {
+    for (const body of bodyCandidates) {
+      try {
+        console.log('[W-API] Creating instance attempt:', url, 'body:', JSON.stringify(body));
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: getHeaders(token),
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30000),
-      });
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: getHeaders(token),
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(30000),
+        });
 
-      const text = await response.text();
-      console.log('[W-API] Create instance response:', response.status, text.slice(0, 1000));
+        const text = await response.text();
+        let data = {};
+        try { data = JSON.parse(text); } catch { data = { raw: text }; }
 
-      let data = {};
-      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+        if (!response.ok) {
+          const errMsg = data?.message || data?.error || data?.detail || `HTTP ${response.status}: ${text.slice(0, 200)}`;
 
-      if (!response.ok) {
-        const errMsg = data?.message || data?.error || data?.detail || `HTTP ${response.status}: ${text.slice(0, 200)}`;
+          // endpoint/método inválido: tenta próxima combinação
+          if (response.status === 404 || response.status === 405) {
+            logWarn('wapi.create_instance_endpoint_miss', { url, status: response.status });
+            lastError = new Error(errMsg);
+            continue;
+          }
 
-        // Se esta rota não existe, tenta próxima variação de URL
-        if (response.status === 404) {
-          logWarn('wapi.create_instance_endpoint_not_found', { url, status: response.status });
-          lastError = new Error(errMsg);
+          // token inválido: falha imediata
+          if (response.status === 401 || response.status === 403) {
+            throw new Error('Token W-API inválido ou sem permissão para criar instâncias');
+          }
+
+          // outros erros de negócio retornam já para o usuário
+          throw new Error(errMsg);
+        }
+
+        const extracted = tryExtractInstance(data);
+        if (!extracted?.instanceId) {
+          const message = `W-API respondeu 200, mas sem instanceId (endpoint: ${url})`;
+          logWarn('wapi.create_instance_no_id_in_success', { url, body_preview: text.slice(0, 500) });
+          lastError = new Error(message);
           continue;
         }
 
-        logError('wapi.create_instance_failed', new Error(errMsg), {
-          status: response.status,
-          url,
-          body: text.slice(0, 500),
-        });
-        throw new Error(errMsg);
+        logInfo('wapi.create_instance_success', { instance_id: extracted.instanceId, url });
+        return {
+          instanceId: extracted.instanceId,
+          token: extracted.token,
+          raw: data,
+        };
+      } catch (error) {
+        if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+          throw new Error('Timeout ao criar instância W-API');
+        }
+        lastError = error;
       }
-
-      const instanceId = data?.instanceId || data?.instance_id || data?.id || null;
-      const instanceToken = data?.token || data?.accessToken || data?.access_token || null;
-
-      if (!instanceId) {
-        logError('wapi.create_instance_no_id', new Error('No instanceId in response'), { body: JSON.stringify(data).slice(0, 500), url });
-        throw new Error('W-API não retornou um Instance ID válido');
-      }
-
-      logInfo('wapi.create_instance_success', { instance_id: instanceId, url });
-      return {
-        instanceId,
-        token: instanceToken || token,
-        raw: data,
-      };
-    } catch (error) {
-      if (error.name === 'TimeoutError' || error.name === 'AbortError') {
-        throw new Error('Timeout ao criar instância W-API');
-      }
-      lastError = error;
     }
   }
 
-  throw lastError || new Error('Falha ao criar instância W-API');
+  throw lastError || new Error('Falha ao criar instância W-API: endpoint de criação não encontrado');
 }
 
 /**
