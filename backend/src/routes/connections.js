@@ -101,8 +101,8 @@ router.post('/', async (req, res) => {
 
     // Validate based on provider
     if (provider === 'wapi') {
-      if (!instance_id || !wapi_token) {
-        return res.status(400).json({ error: 'Instance ID e Token são obrigatórios para W-API' });
+      if (!wapi_token) {
+        return res.status(400).json({ error: 'Token é obrigatório para W-API' });
       }
     } else {
       if (!api_url || !api_key || !instance_name) {
@@ -111,6 +111,22 @@ router.post('/', async (req, res) => {
     }
 
     const org = await getUserOrganization(req.userId);
+
+    let finalInstanceId = instance_id || null;
+    let finalToken = wapi_token || null;
+
+    // Auto-create W-API instance if no instance_id provided
+    if (provider === 'wapi' && !instance_id) {
+      try {
+        const created = await wapiProvider.createInstance(wapi_token);
+        finalInstanceId = created.instanceId;
+        finalToken = created.token || wapi_token;
+        console.log('[W-API] Auto-created instance:', finalInstanceId);
+      } catch (createError) {
+        console.error('[W-API] Failed to create instance:', createError);
+        return res.status(400).json({ error: `Erro ao criar instância W-API: ${createError.message}` });
+      }
+    }
 
     const result = await query(
       `INSERT INTO connections (user_id, organization_id, provider, api_url, api_key, instance_name, instance_id, wapi_token, name)
@@ -122,18 +138,18 @@ router.post('/', async (req, res) => {
         api_url || null, 
         api_key || null, 
         instance_name || null,
-        instance_id || null,
-        wapi_token || null,
-        name || instance_name || instance_id
+        finalInstanceId,
+        finalToken,
+        name || instance_name || finalInstanceId
       ]
     );
 
     const connection = result.rows[0];
 
     // Auto-configure webhooks for W-API connections
-    if (provider === 'wapi') {
+    if (provider === 'wapi' && finalInstanceId) {
       try {
-        const webhookResult = await wapiProvider.configureWebhooks(instance_id, wapi_token);
+        const webhookResult = await wapiProvider.configureWebhooks(finalInstanceId, finalToken);
         console.log('[W-API] Webhook configuration result:', webhookResult);
         connection.webhooks_configured = webhookResult.success;
         connection.webhooks_count = webhookResult.configured;
