@@ -24,9 +24,12 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Bot, Brain, MessageSquare, Settings, Zap, Shield,
-  Sparkles, X, Plus, Save, Loader2, Phone, BellRing
+  Sparkles, X, Plus, Save, Loader2, Phone, BellRing, CalendarDays
 } from 'lucide-react';
 import { useAIAgents, AIAgent, AgentCapability, AIModels, CallAgentConfig, CallAgentRule } from '@/hooks/use-ai-agents';
+import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { toast } from 'sonner';
 
 interface AgentEditorDialogProps {
@@ -97,6 +100,13 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
   const [models, setModels] = useState<AIModels>({ openai: [], gemini: [] });
   const [handoffKeyword, setHandoffKeyword] = useState('');
   const [availableAgents, setAvailableAgents] = useState<AIAgent[]>([]);
+  const { user } = useAuth();
+
+  const { data: orgMembers } = useQuery({
+    queryKey: ['org-members', user?.organization_id],
+    queryFn: () => api<Array<{ user_id: string; name: string; email: string; role: string }>>(`/api/organizations/${user?.organization_id}/members`),
+    enabled: !!user?.organization_id,
+  });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -125,6 +135,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     notify_external_enabled: false,
     notify_external_phone: '',
     notify_external_summary: true,
+    default_user_id: '' as string,
   });
 
   const { createAgent, updateAgent, getAIModels, getAgents } = useAIAgents();
@@ -166,6 +177,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           notify_external_enabled: (agent as any).notify_external_enabled || false,
           notify_external_phone: (agent as any).notify_external_phone || '',
           notify_external_summary: (agent as any).notify_external_summary !== false,
+          default_user_id: (agent as any).default_user_id || '',
         });
       } else {
         setFormData({
@@ -195,6 +207,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           notify_external_enabled: false,
           notify_external_phone: '',
           notify_external_summary: true,
+          default_user_id: '',
         });
       }
     }
@@ -545,6 +558,39 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                     </div>
                   ))}
                 </div>
+
+                {/* Schedule User Selector - shown when schedule_meetings or google_calendar is enabled */}
+                {(formData.capabilities.includes('schedule_meetings') || formData.capabilities.includes('google_calendar')) && (
+                  <div className="mt-4 space-y-3 border-t pt-4">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-primary" />
+                      <h4 className="font-medium text-sm">Responsável da Agenda</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Selecione o usuário cuja agenda a IA irá consultar e onde serão criados os compromissos. Funciona independente do Google Calendar estar conectado.
+                    </p>
+                    <Select
+                      value={formData.default_user_id || ''}
+                      onValueChange={(v) => setFormData(prev => ({ ...prev, default_user_id: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o responsável..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(orgMembers || []).map((m) => (
+                          <SelectItem key={m.user_id} value={m.user_id}>
+                            {m.name} ({m.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!formData.default_user_id && (
+                      <p className="text-xs text-amber-500">
+                        ⚠️ Sem responsável definido, a IA usará o criador do agente como padrão.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Call Agent Configuration */}
                 {formData.capabilities.includes('call_agent') && (
