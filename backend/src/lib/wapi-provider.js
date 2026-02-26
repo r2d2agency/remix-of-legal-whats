@@ -1215,6 +1215,82 @@ export async function getGroups(instanceId, token) {
 }
 
 /**
+ * Internal helper: try multiple endpoint/method combinations and return first successful payload
+ */
+async function requestWithEndpointFallback(token, candidates, label) {
+  const attempts = [];
+
+  for (const candidate of candidates) {
+    const { url, method = 'GET', body } = candidate;
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: getHeaders(token),
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(30000),
+      });
+
+      const text = await response.text().catch(() => '');
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { raw: text };
+      }
+
+      attempts.push({ url, method, status: response.status });
+
+      if (response.ok) {
+        return { success: true, data, attempts };
+      }
+
+      // Token/auth error: fail fast
+      if (response.status === 401 || response.status === 403) {
+        return {
+          success: false,
+          error: data?.message || data?.error || `Falha de autenticação (${response.status})`,
+          attempts,
+        };
+      }
+
+      // For 404/405 keep trying next candidates; same for other non-ok while discovering
+    } catch (error) {
+      attempts.push({ url, method, status: 0, error: error.message });
+    }
+  }
+
+  return {
+    success: false,
+    error: `Nenhum endpoint válido para ${label}`,
+    attempts,
+  };
+}
+
+function pickArray(data, keys = []) {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== 'object') return [];
+
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) return data[key];
+  }
+
+  if (data.data && typeof data.data === 'object') {
+    for (const key of keys) {
+      if (Array.isArray(data.data?.[key])) return data.data[key];
+    }
+  }
+
+  if (data.result && typeof data.result === 'object') {
+    for (const key of keys) {
+      if (Array.isArray(data.result?.[key])) return data.result[key];
+    }
+  }
+
+  return [];
+}
+
+/**
  * Get all chats from W-API (includes contacts with chat history)
  * Returns an array of chat objects with phone and name
  */
@@ -1222,65 +1298,30 @@ export async function getChats(instanceId, token) {
   const encodedInstanceId = encodeURIComponent(instanceId || '');
 
   try {
-    // W-API uses /chat/get-chats endpoint
-    const response = await fetch(
-      `${W_API_BASE_URL}/chat/get-chats?instanceId=${encodedInstanceId}`,
-      {
-        method: 'GET',
-        headers: getHeaders(token),
-      }
-    );
+    const candidates = [
+      { url: `${W_API_BASE_URL}/chat/get-chats?instanceId=${encodedInstanceId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/chat/get-chats?instanceId=${encodedInstanceId}`, method: 'POST', body: {} },
+      { url: `${W_API_BASE_URL}/chat/get-chats`, method: 'POST', body: { instanceId } },
+      { url: `${W_API_BASE_URL}/chat/chats?instanceId=${encodedInstanceId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/chat/chats`, method: 'POST', body: { instanceId } },
+    ];
 
-    const responseText = await response.text();
-    console.log(
-      `[W-API] getChats for ${instanceId}: HTTP ${response.status}, Body length:`,
-      responseText.length
-    );
-
-    if (!response.ok) {
-      let errMsg = `HTTP ${response.status}`;
-      try {
-        const errData = JSON.parse(responseText);
-        errMsg = errData?.message || errData?.error || errMsg;
-      } catch {
-        // ignore
-      }
-      return { success: false, error: errMsg, chats: [] };
+    const result = await requestWithEndpointFallback(token, candidates, 'getChats');
+    if (!result.success) {
+      return { success: false, error: result.error, chats: [] };
     }
 
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      return { success: false, error: 'Invalid JSON response', chats: [] };
-    }
-
-    // W-API response can be in different formats
-    // data might be an array directly, or { data: [...] }, or { result: [...] }, or { chats: [...] }
-    const chatsArray = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.data)
-        ? data.data
-        : Array.isArray(data?.result)
-          ? data.result
-          : Array.isArray(data?.chats)
-            ? data.chats
-            : [];
-
+    const chatsArray = pickArray(result.data, ['data', 'result', 'chats', 'contacts']);
     console.log(`[W-API] Found ${chatsArray.length} chats`);
 
-    // Parse and normalize the chats
     const contacts = [];
     for (const chat of chatsArray) {
-      // Skip groups
       const jid = chat.jid || chat.id || chat.remoteJid || chat.from || chat.phone || '';
-      if (jid.includes('@g.us')) continue;
+      if (typeof jid !== 'string' || jid.includes('@g.us')) continue;
 
-      // Extract phone number from JID
-      let phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
+      const phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
       if (!phone) continue;
 
-      // Get name (various possible fields)
       const name =
         chat.name ||
         chat.pushName ||
@@ -1292,7 +1333,6 @@ export async function getChats(instanceId, token) {
         chat.contact?.pushName ||
         '';
 
-      // Get profile picture if available
       const profilePicture =
         chat.profilePicture ||
         chat.profilePictureUrl ||
@@ -1301,21 +1341,11 @@ export async function getChats(instanceId, token) {
         chat.contact?.profilePictureUrl ||
         null;
 
-      contacts.push({
-        phone,
-        name: name || phone,
-        jid,
-        profilePicture,
-      });
+      contacts.push({ phone, name: name || phone, jid, profilePicture });
     }
 
     console.log(`[W-API] Parsed ${contacts.length} individual contacts from chats`);
-
-    return {
-      success: true,
-      contacts,
-      total: contacts.length,
-    };
+    return { success: true, contacts, total: contacts.length };
   } catch (error) {
     console.error('[W-API] getChats error:', error);
     return { success: false, error: error.message, chats: [] };
@@ -1323,53 +1353,34 @@ export async function getChats(instanceId, token) {
 }
 
 /**
- * Fetch contacts from W-API using /contact/get-contacts endpoint
+ * Fetch contacts from W-API endpoint
  * Returns actual phone contacts (not just chats)
  */
 export async function fetchContacts(instanceId, token) {
   const encodedInstanceId = encodeURIComponent(instanceId || '');
 
   try {
-    const response = await fetch(
-      `${W_API_BASE_URL}/contact/get-contacts?instanceId=${encodedInstanceId}`,
-      {
-        method: 'GET',
-        headers: getHeaders(token),
-        signal: AbortSignal.timeout(30000),
-      }
-    );
+    const candidates = [
+      { url: `${W_API_BASE_URL}/contact/get-contacts?instanceId=${encodedInstanceId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/contact/get-contacts?instanceId=${encodedInstanceId}`, method: 'POST', body: {} },
+      { url: `${W_API_BASE_URL}/contact/get-contacts`, method: 'POST', body: { instanceId } },
+      { url: `${W_API_BASE_URL}/contacts?instanceId=${encodedInstanceId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/contacts`, method: 'POST', body: { instanceId } },
+    ];
 
-    const responseText = await response.text();
-    console.log(`[W-API] fetchContacts for ${instanceId}: HTTP ${response.status}, Body length: ${responseText.length}`);
-
-    if (!response.ok) {
-      let errMsg = `HTTP ${response.status}`;
-      try {
-        const errData = JSON.parse(responseText);
-        errMsg = errData?.message || errData?.error || errMsg;
-      } catch { /* ignore */ }
-      return { success: false, error: errMsg, contacts: [] };
+    const result = await requestWithEndpointFallback(token, candidates, 'fetchContacts');
+    if (!result.success) {
+      return { success: false, error: result.error, contacts: [] };
     }
 
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      return { success: false, error: 'Invalid JSON response', contacts: [] };
-    }
-
-    const rawContacts = Array.isArray(data) ? data
-      : Array.isArray(data?.data) ? data.data
-      : Array.isArray(data?.result) ? data.result
-      : Array.isArray(data?.contacts) ? data.contacts
-      : [];
-
+    const rawContacts = pickArray(result.data, ['data', 'result', 'contacts', 'chats']);
     const contacts = [];
+
     for (const c of rawContacts) {
       const jid = c.jid || c.id || c.remoteJid || c.phone || '';
-      if (jid.includes('@g.us') || jid.includes('@broadcast')) continue;
+      if (typeof jid !== 'string' || jid.includes('@g.us') || jid.includes('@broadcast')) continue;
 
-      let phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
+      const phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
       if (!phone) continue;
 
       const name = c.name || c.pushName || c.notify || c.verifiedName || c.formattedName || c.displayName || c.contact?.name || '';
@@ -1388,36 +1399,26 @@ export async function fetchContacts(instanceId, token) {
 
 /**
  * Fetch a single chat's messages (for conversation sync)
- * GET /chat/get-chat?instanceId=XXX&chatId=YYY
  */
 export async function getChatMessages(instanceId, token, chatId) {
   const encodedInstanceId = encodeURIComponent(instanceId || '');
   const encodedChatId = encodeURIComponent(chatId || '');
 
   try {
-    const response = await fetch(
-      `${W_API_BASE_URL}/chat/get-chat?instanceId=${encodedInstanceId}&chatId=${encodedChatId}`,
-      {
-        method: 'GET',
-        headers: getHeaders(token),
-        signal: AbortSignal.timeout(30000),
-      }
-    );
+    const candidates = [
+      { url: `${W_API_BASE_URL}/chat/get-chat?instanceId=${encodedInstanceId}&chatId=${encodedChatId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/chat/get-chat?instanceId=${encodedInstanceId}`, method: 'POST', body: { chatId } },
+      { url: `${W_API_BASE_URL}/chat/get-chat`, method: 'POST', body: { instanceId, chatId } },
+      { url: `${W_API_BASE_URL}/chat/messages?instanceId=${encodedInstanceId}&chatId=${encodedChatId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/chat/messages`, method: 'POST', body: { instanceId, chatId } },
+    ];
 
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      return { success: false, error: `HTTP ${response.status}`, messages: [] };
+    const result = await requestWithEndpointFallback(token, candidates, 'getChatMessages');
+    if (!result.success) {
+      return { success: false, error: result.error, messages: [] };
     }
 
-    const data = await response.json().catch(() => ({}));
-
-    // Response may contain messages in various shapes
-    const messages = Array.isArray(data) ? data
-      : Array.isArray(data?.data) ? data.data
-      : Array.isArray(data?.messages) ? data.messages
-      : Array.isArray(data?.result) ? data.result
-      : [];
-
+    const messages = pickArray(result.data, ['messages', 'data', 'result', 'items']);
     return { success: true, messages };
   } catch (error) {
     console.error(`[W-API] getChatMessages error for ${chatId}:`, error);
