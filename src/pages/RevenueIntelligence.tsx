@@ -74,8 +74,18 @@ export default function RevenueIntelligence() {
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
   const formatMonth = (monthStr: string) => {
-    const date = new Date(monthStr + "-01");
-    return format(date, "MMM/yy", { locale: ptBR });
+    try {
+      if (!monthStr || typeof monthStr !== 'string') return String(monthStr || '');
+      const parts = monthStr.split('-');
+      if (parts.length < 2) return monthStr;
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const date = new Date(year, month, 1);
+      if (isNaN(date.getTime())) return monthStr;
+      return format(date, "MMM/yy", { locale: ptBR });
+    } catch {
+      return String(monthStr || '');
+    }
   };
 
   return (
