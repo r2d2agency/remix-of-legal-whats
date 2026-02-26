@@ -372,27 +372,123 @@ export async function checkStatus(instanceId, token) {
     return { status: 'disconnected', error: 'Instance ID ou Token não configurado' };
   }
 
+  const primaryUrl = `${W_API_BASE_URL}/instance/status-instance?instanceId=${encodedInstanceId}`;
+
   try {
-    const candidates = [
-      { url: `${W_API_BASE_URL}/instance/status-instance?instanceId=${encodedInstanceId}`, method: 'GET' },
+    // 1) Tenta endpoint principal com retry para intermitência de rede
+    const primaryResponse = await fetchWithRetry(
+      primaryUrl,
+      {
+        method: 'GET',
+        headers: getHeaders(token),
+      },
+      {
+        label: 'wapi.check_status_primary',
+        retries: 1,
+        baseDelay: 300,
+        maxDelay: 1200,
+        timeout: 8000,
+      }
+    );
+
+    // 2) Se não for 404, processa direto (evita fallback ruidoso)
+    if (primaryResponse.status !== 404) {
+      const responseText = await primaryResponse.text().catch(() => '');
+
+      if (!primaryResponse.ok) {
+        let errMsg = `HTTP ${primaryResponse.status}`;
+        try {
+          const errData = responseText ? JSON.parse(responseText) : {};
+          errMsg = errData?.message || errData?.error || errMsg;
+        } catch {
+          // ignore parse errors
+        }
+
+        logWarn('wapi.status_check_non_ok', {
+          instance_id: instanceId,
+          status_code: primaryResponse.status,
+          error: errMsg,
+          duration_ms: Date.now() - startedAt,
+        });
+        return { status: 'disconnected', error: errMsg };
+      }
+
+      let data = {};
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        data = {};
+      }
+
+      const candidatesData = [
+        data,
+        data?.data,
+        data?.result,
+        data?.instance,
+        data?.data?.instance,
+        data?.result?.instance,
+        data?.connection,
+      ].filter(Boolean);
+
+      const normalize = (v) => (typeof v === 'string' ? v.toLowerCase() : v);
+      const looksConnected = (obj) => {
+        if (!obj) return false;
+        if (obj.connected === true || obj.isConnected === true) return true;
+        const status = normalize(obj.status);
+        const state = normalize(obj.state);
+        return (
+          status === 'connected' ||
+          status === 'open' ||
+          status === 'online' ||
+          state === 'open' ||
+          state === 'connected' ||
+          state === 'online'
+        );
+      };
+
+      const isConnected = candidatesData.some(looksConnected);
+
+      const pickPhone = (obj) =>
+        obj?.phoneNumber ||
+        obj?.phone ||
+        obj?.number ||
+        obj?.wid?.split?.('@')?.[0] ||
+        obj?.me?.id?.split?.('@')?.[0] ||
+        obj?.me?.user ||
+        null;
+
+      let phoneNumber = null;
+      for (const c of candidatesData) {
+        phoneNumber = pickPhone(c) || phoneNumber;
+      }
+
+      if (Date.now() - startedAt > 3000) {
+        logInfo('wapi.status_check', {
+          instance_id: instanceId,
+          connected: isConnected,
+          duration_ms: Date.now() - startedAt,
+          endpoint: 'status-instance',
+        });
+      }
+
+      return isConnected
+        ? { status: 'connected', phoneNumber }
+        : { status: 'disconnected', phoneNumber: phoneNumber || undefined };
+    }
+
+    // 3) Só usa fallback quando realmente parece mudança de contrato (404)
+    const fallbackCandidates = [
       { url: `${W_API_BASE_URL}/instance/status?instanceId=${encodedInstanceId}`, method: 'GET' },
       { url: `${W_API_BASE_URL}/instance/connection-state?instanceId=${encodedInstanceId}`, method: 'GET' },
       { url: `${W_API_BASE_URL}/instance/status`, method: 'POST', body: { instanceId } },
     ];
 
-    const result = await requestWithEndpointFallback(token, candidates, 'checkStatus', instanceId);
-
+    const result = await requestWithEndpointFallback(token, fallbackCandidates, 'checkStatus', instanceId);
     if (!result.success) {
-      logWarn('wapi.status_check_non_ok', {
-        instance_id: instanceId,
-        error: result.error,
-        duration_ms: Date.now() - startedAt,
-      });
       return { status: 'disconnected', error: result.error || 'Falha ao verificar status' };
     }
 
     const data = result.data || {};
-
     const candidatesData = [
       data,
       data?.data,
@@ -404,7 +500,6 @@ export async function checkStatus(instanceId, token) {
     ].filter(Boolean);
 
     const normalize = (v) => (typeof v === 'string' ? v.toLowerCase() : v);
-
     const looksConnected = (obj) => {
       if (!obj) return false;
       if (obj.connected === true || obj.isConnected === true) return true;
@@ -436,24 +531,14 @@ export async function checkStatus(instanceId, token) {
       phoneNumber = pickPhone(c) || phoneNumber;
     }
 
-    const durationMs = Date.now() - startedAt;
-    if (durationMs > 3000) {
-      logInfo('wapi.status_check', {
-        instance_id: instanceId,
-        duration_ms: durationMs,
-        connected: isConnected,
-      });
-    }
-
-    if (isConnected) {
-      return { status: 'connected', phoneNumber };
-    }
-
-    return { status: 'disconnected', phoneNumber: phoneNumber || undefined };
+    return isConnected
+      ? { status: 'connected', phoneNumber }
+      : { status: 'disconnected', phoneNumber: phoneNumber || undefined };
   } catch (error) {
     logError('wapi.status_check_exception', error, {
       instance_id: instanceId,
       duration_ms: Date.now() - startedAt,
+      endpoint: 'status-instance',
     });
     return { status: 'disconnected', error: error.message };
   }
