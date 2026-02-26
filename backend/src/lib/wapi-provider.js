@@ -78,7 +78,8 @@ async function readJsonResponse(response) {
   try {
     return { data: JSON.parse(text), text };
   } catch {
-    throw new Error('Invalid JSON response');
+    // Keep raw text to avoid hard-failing when provider returns non-JSON payloads
+    return { data: { raw: text }, text };
   }
 }
 
@@ -674,35 +675,52 @@ export async function sendText(instanceId, token, phone, message) {
   const at = new Date().toISOString();
 
   try {
-    const response = await fetchWithRetry(
-      `${W_API_BASE_URL}/message/send-text?instanceId=${instanceId}`,
+    const encodedInstanceId = encodeURIComponent(instanceId || '');
+    const candidates = [
       {
+        url: `${W_API_BASE_URL}/message/send-text?instanceId=${encodedInstanceId}`,
         method: 'POST',
-        headers: getHeaders(token),
-        body: JSON.stringify({
-          phone: cleanPhone,
-          message: message,
-        }),
+        body: { phone: cleanPhone, message },
       },
-      { retries: 2, baseDelay: 1000, timeout: 10000, label: 'wapi-sendText' }
-    );
+      {
+        url: `${W_API_BASE_URL}/message/send-text?instanceId=${encodedInstanceId}`,
+        method: 'POST',
+        body: { phone: cleanPhone, text: message },
+      },
+      {
+        url: `${W_API_BASE_URL}/message/send-text`,
+        method: 'POST',
+        body: { instanceId, phone: cleanPhone, message },
+      },
+      {
+        url: `${W_API_BASE_URL}/message/sendText?instanceId=${encodedInstanceId}`,
+        method: 'POST',
+        body: { phone: cleanPhone, message },
+      },
+      {
+        url: `${W_API_BASE_URL}/message/sendText`,
+        method: 'POST',
+        body: { instanceId, phone: cleanPhone, message },
+      },
+    ];
 
-    const { data, text } = await readJsonResponse(response);
+    const result = await requestWithEndpointFallback(token, candidates, 'sendText', instanceId);
 
-    if (!response.ok) {
-      const errorMsg = data?.message || data?.error || 'Failed to send message';
+    if (!result.success) {
       recordSendAttempt({
         at,
         instanceId,
         phone: cleanPhone,
         messageType: 'text',
         success: false,
-        status: response.status,
-        error: errorMsg,
-        preview: text.slice(0, 800),
+        status: 0,
+        error: result.error || 'Failed to send message',
+        preview: JSON.stringify(result.attempts || []).slice(0, 800),
       });
-      return { success: false, error: errorMsg };
+      return { success: false, error: result.error || 'Failed to send message' };
     }
+
+    const data = result.data || {};
 
     recordSendAttempt({
       at,
@@ -710,13 +728,13 @@ export async function sendText(instanceId, token, phone, message) {
       phone: cleanPhone,
       messageType: 'text',
       success: true,
-      status: response.status,
-      preview: text.slice(0, 800),
+      status: 200,
+      preview: JSON.stringify(data).slice(0, 800),
     });
 
     return {
       success: true,
-      messageId: data.messageId || data.id || data.key?.id,
+      messageId: data.messageId || data.id || data.key?.id || data?.data?.id || data?.result?.id,
     };
   } catch (error) {
     recordSendAttempt({
@@ -814,12 +832,12 @@ export async function sendImage(instanceId, token, phone, imageUrl, caption = ''
       { retries: 2, baseDelay: 1000, timeout: 10000, label: 'wapi-sendImage' }
     );
 
-    const data = await response.json();
+    const { data } = await readJsonResponse(response);
 
     if (!response.ok) {
       return {
         success: false,
-        error: data.message || data.error || 'Failed to send image',
+        error: data.message || data.error || data.raw || 'Failed to send image',
       };
     }
 
@@ -854,12 +872,12 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
       { retries: 2, baseDelay: 1000, timeout: 10000, label: 'wapi-sendAudio' }
     );
 
-    const data = await response.json();
+    const { data } = await readJsonResponse(response);
 
     if (!response.ok) {
       return {
         success: false,
-        error: data.message || data.error || 'Failed to send audio',
+        error: data.message || data.error || data.raw || 'Failed to send audio',
       };
     }
 
@@ -895,12 +913,12 @@ export async function sendVideo(instanceId, token, phone, videoUrl, caption = ''
       { retries: 2, baseDelay: 1000, timeout: 10000, label: 'wapi-sendVideo' }
     );
 
-    const data = await response.json();
+    const { data } = await readJsonResponse(response);
 
     if (!response.ok) {
       return {
         success: false,
-        error: data.message || data.error || 'Failed to send video',
+        error: data.message || data.error || data.raw || 'Failed to send video',
       };
     }
 
