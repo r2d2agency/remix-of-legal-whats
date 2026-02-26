@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
-import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats, getGroupInfo as wapiGetGroupInfo, getGroups as wapiGetGroups, fetchContacts as wapiFetchContacts, getChatMessages as wapiGetChatMessages } from '../lib/wapi-provider.js';
+import { getSendAttempts, clearSendAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats, getGroupInfo as wapiGetGroupInfo, getGroups as wapiGetGroups, fetchContacts as wapiFetchContacts, getChatMessages as wapiGetChatMessages, getProfilePicture as wapiGetProfilePicture, checkNumbersBulk as wapiCheckNumbersBulk } from '../lib/wapi-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { pauseNurturingOnReply } from './nurturing.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
@@ -943,6 +943,111 @@ router.post('/:connectionId/sync-conversations', authenticate, async (req, res) 
     res.json({ success: true, conversations_created: conversationsCreated, conversations_updated: conversationsUpdated, messages_imported: messagesImported, messages_skipped: messagesSkipped, errors });
   } catch (error) {
     console.error('[W-API] Conversation sync error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== Profile Picture ====================
+router.post('/:connectionId/sync-profile-pictures', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const userId = req.user?.id;
+    const connection = await getAccessibleConnection(connectionId, userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+    if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
+
+    // Get all contacts for this connection that don't have a profile picture
+    const contactsResult = await query(
+      `SELECT id, phone FROM contacts WHERE organization_id = (SELECT organization_id FROM connections WHERE id = $1) AND (profile_picture_url IS NULL OR profile_picture_url = '') LIMIT 100`,
+      [connectionId]
+    );
+
+    let updated = 0;
+    let errors = 0;
+
+    for (const contact of contactsResult.rows) {
+      try {
+        const result = await wapiGetProfilePicture(connection.instance_id, connection.wapi_token, contact.phone);
+        if (result.success && result.url) {
+          await query('UPDATE contacts SET profile_picture_url = $1, updated_at = NOW() WHERE id = $2', [result.url, contact.id]);
+          updated++;
+        }
+      } catch {
+        errors++;
+      }
+      // Small delay to avoid rate limiting
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    res.json({ success: true, total: contactsResult.rows.length, updated, errors });
+  } catch (error) {
+    console.error('[W-API] sync-profile-pictures error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== Bulk Number Validation ====================
+router.post('/:connectionId/validate-numbers', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const userId = req.user?.id;
+    const { phones } = req.body;
+
+    const connection = await getAccessibleConnection(connectionId, userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+    if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
+
+    if (!Array.isArray(phones) || phones.length === 0) {
+      return res.status(400).json({ error: 'Forneça uma lista de telefones' });
+    }
+
+    // Limit to 500 numbers per request
+    const limitedPhones = phones.slice(0, 500);
+
+    const result = await wapiCheckNumbersBulk(connection.instance_id, connection.wapi_token, limitedPhones);
+    res.json(result);
+  } catch (error) {
+    console.error('[W-API] validate-numbers error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Validate all contacts in the database for this connection
+router.post('/:connectionId/validate-all-contacts', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const userId = req.user?.id;
+    const connection = await getAccessibleConnection(connectionId, userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+    if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
+
+    // Get all contacts for this org that haven't been validated
+    const contactsResult = await query(
+      `SELECT id, phone FROM contacts WHERE organization_id = (SELECT organization_id FROM connections WHERE id = $1) AND (whatsapp_valid IS NULL) LIMIT 500`,
+      [connectionId]
+    );
+
+    const phones = contactsResult.rows.map(c => c.phone);
+    if (phones.length === 0) {
+      return res.json({ success: true, total: 0, valid: 0, invalid: 0, message: 'Todos os contatos já foram validados' });
+    }
+
+    const result = await wapiCheckNumbersBulk(connection.instance_id, connection.wapi_token, phones);
+
+    // Update contacts in DB
+    let valid = 0, invalid = 0;
+    for (const r of result.results) {
+      const contact = contactsResult.rows.find(c => c.phone.replace(/\D/g, '') === r.phone);
+      if (contact) {
+        await query('UPDATE contacts SET whatsapp_valid = $1, updated_at = NOW() WHERE id = $2', [r.exists, contact.id]);
+        if (r.exists) valid++;
+        else invalid++;
+      }
+    }
+
+    res.json({ success: true, total: phones.length, valid, invalid });
+  } catch (error) {
+    console.error('[W-API] validate-all-contacts error:', error);
     res.status(500).json({ error: error.message });
   }
 });

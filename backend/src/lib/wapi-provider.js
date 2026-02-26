@@ -1354,6 +1354,225 @@ export async function getChatMessages(instanceId, token, chatId) {
   }
 }
 
+// ==================== Advanced Message Types ====================
+
+/**
+ * Send sticker message
+ */
+export async function sendSticker(instanceId, token, phone, stickerUrl) {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/send-sticker?instanceId=${instanceId}`,
+      { method: 'POST', headers: getHeaders(token), body: JSON.stringify({ phone: cleanPhone, sticker: stickerUrl }) }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.message || data?.error || 'Failed to send sticker' };
+    return { success: true, messageId: data.messageId || data.id || data.key?.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send GIF message
+ */
+export async function sendGif(instanceId, token, phone, gifUrl, caption = '') {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/send-gif?instanceId=${instanceId}`,
+      { method: 'POST', headers: getHeaders(token), body: JSON.stringify({ phone: cleanPhone, gif: gifUrl, caption }) }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.message || data?.error || 'Failed to send GIF' };
+    return { success: true, messageId: data.messageId || data.id || data.key?.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send PTV (video note / circle video) message
+ */
+export async function sendPtv(instanceId, token, phone, videoUrl) {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/send-ptv?instanceId=${instanceId}`,
+      { method: 'POST', headers: getHeaders(token), body: JSON.stringify({ phone: cleanPhone, ptv: videoUrl }) }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.message || data?.error || 'Failed to send PTV' };
+    return { success: true, messageId: data.messageId || data.id || data.key?.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send location message
+ */
+export async function sendLocation(instanceId, token, phone, latitude, longitude, name = '', address = '') {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/send-location?instanceId=${instanceId}`,
+      { method: 'POST', headers: getHeaders(token), body: JSON.stringify({ phone: cleanPhone, lat: latitude, lng: longitude, name, address }) }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.message || data?.error || 'Failed to send location' };
+    return { success: true, messageId: data.messageId || data.id || data.key?.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send contact card (vCard)
+ */
+export async function sendContact(instanceId, token, phone, contactName, contactPhone) {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/send-contact?instanceId=${instanceId}`,
+      { method: 'POST', headers: getHeaders(token), body: JSON.stringify({ phone: cleanPhone, contactName, contactPhone: contactPhone.replace(/\D/g, '') }) }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.message || data?.error || 'Failed to send contact' };
+    return { success: true, messageId: data.messageId || data.id || data.key?.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send poll message
+ */
+export async function sendPoll(instanceId, token, phone, question, options) {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/send-poll?instanceId=${instanceId}`,
+      { method: 'POST', headers: getHeaders(token), body: JSON.stringify({ phone: cleanPhone, poll: { question, options } }) }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.message || data?.error || 'Failed to send poll' };
+    return { success: true, messageId: data.messageId || data.id || data.key?.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send button message
+ */
+export async function sendButtons(instanceId, token, phone, title, message, footer, buttons) {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/send-button?instanceId=${instanceId}`,
+      { method: 'POST', headers: getHeaders(token), body: JSON.stringify({ phone: cleanPhone, title, message, footer, buttons }) }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.message || data?.error || 'Failed to send buttons' };
+    return { success: true, messageId: data.messageId || data.id || data.key?.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send list message (interactive list)
+ */
+export async function sendList(instanceId, token, phone, title, description, buttonText, sections, footer = '') {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/send-list?instanceId=${instanceId}`,
+      { method: 'POST', headers: getHeaders(token), body: JSON.stringify({ phone: cleanPhone, title, description, buttonText, sections, footer }) }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.message || data?.error || 'Failed to send list' };
+    return { success: true, messageId: data.messageId || data.id || data.key?.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send link preview message
+ */
+export async function sendLink(instanceId, token, phone, url, caption = '') {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/send-link?instanceId=${instanceId}`,
+      { method: 'POST', headers: getHeaders(token), body: JSON.stringify({ phone: cleanPhone, url, caption }) }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, error: data?.message || data?.error || 'Failed to send link' };
+    return { success: true, messageId: data.messageId || data.id || data.key?.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// ==================== Contact Profile & Validation ====================
+
+/**
+ * Get profile picture for a contact
+ * GET /contact/get-profile-picture?instanceId=XXX&phoneNumber=YYY
+ */
+export async function getProfilePicture(instanceId, token, phone) {
+  const cleanPhone = phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/contact/get-profile-picture?instanceId=${encodeURIComponent(instanceId)}&phoneNumber=${cleanPhone}`,
+      { method: 'GET', headers: getHeaders(token), signal: AbortSignal.timeout(10000) }
+    );
+    if (!response.ok) return { success: false, error: `HTTP ${response.status}` };
+    const data = await response.json().catch(() => ({}));
+    const url = data?.profilePictureUrl || data?.profilePicture || data?.url || data?.imgUrl || data?.picture || data?.data?.profilePictureUrl || null;
+    return { success: !!url, url };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Bulk check if phone numbers are on WhatsApp
+ * Uses /contact/check-phone endpoint in batch
+ */
+export async function checkNumbersBulk(instanceId, token, phones) {
+  const results = [];
+  const BATCH_SIZE = 20;
+
+  for (let i = 0; i < phones.length; i += BATCH_SIZE) {
+    const batch = phones.slice(i, i + BATCH_SIZE);
+    const batchPromises = batch.map(async (phone) => {
+      const cleanPhone = phone.replace(/\D/g, '');
+      try {
+        const response = await fetch(
+          `${W_API_BASE_URL}/contacts/phone-exists?instanceId=${encodeURIComponent(instanceId)}&phoneNumber=${cleanPhone}`,
+          { method: 'GET', headers: getHeaders(token), signal: AbortSignal.timeout(10000) }
+        );
+        if (!response.ok) return { phone: cleanPhone, exists: false, error: `HTTP ${response.status}` };
+        const data = await response.json().catch(() => ({}));
+        const exists = data.exists === true || data.isWhatsApp === true || data.result === true;
+        return { phone: cleanPhone, exists };
+      } catch (error) {
+        return { phone: cleanPhone, exists: false, error: error.message };
+      }
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+    results.push(...batchResults);
+  }
+
+  return { success: true, results, total: results.length, valid: results.filter(r => r.exists).length };
+}
+
 /**
  * Generic message sender that routes to the correct method based on type
  */
@@ -1369,6 +1588,29 @@ export async function sendMessage(instanceId, token, phone, content, messageType
       return sendVideo(instanceId, token, phone, mediaUrl, content);
     case 'document':
       return sendDocument(instanceId, token, phone, mediaUrl, content || 'document');
+    case 'sticker':
+      return sendSticker(instanceId, token, phone, mediaUrl);
+    case 'gif':
+      return sendGif(instanceId, token, phone, mediaUrl, content);
+    case 'ptv':
+      return sendPtv(instanceId, token, phone, mediaUrl);
+    case 'location':
+      // content should be JSON: { latitude, longitude, name, address }
+      try {
+        const loc = typeof content === 'string' ? JSON.parse(content) : content;
+        return sendLocation(instanceId, token, phone, loc.latitude, loc.longitude, loc.name, loc.address);
+      } catch {
+        return { success: false, error: 'Invalid location data' };
+      }
+    case 'contact':
+      try {
+        const ct = typeof content === 'string' ? JSON.parse(content) : content;
+        return sendContact(instanceId, token, phone, ct.contactName, ct.contactPhone);
+      } catch {
+        return { success: false, error: 'Invalid contact data' };
+      }
+    case 'link':
+      return sendLink(instanceId, token, phone, mediaUrl, content);
     default:
       return sendText(instanceId, token, phone, content);
   }
