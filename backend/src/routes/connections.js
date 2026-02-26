@@ -102,27 +102,47 @@ router.post('/validate-wapi', async (req, res) => {
       return res.json({ valid: false, error: 'Token W-API não configurado. Configure no painel Superadmin.' });
     }
 
-    // Try to check status of a dummy instance to verify the token is valid
-    // We use the list instances endpoint if available, otherwise check with a status call
-    try {
-      const response = await fetch(
-        `https://api.w-api.app/v1/instance/list?instanceId=test`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${resolvedToken}`,
-          },
+    // Tenta validar em mais de uma variação de endpoint para evitar falso positivo
+    const baseUrls = ['https://api.w-api.app/v1', 'https://api.w-api.app'];
+    const validatePaths = ['/instance/list?instanceId=test', '/instance/status-instance?instanceId=test'];
+
+    let lastStatus = null;
+    let lastBody = '';
+
+    for (const baseUrl of baseUrls) {
+      for (const path of validatePaths) {
+        try {
+          const response = await fetch(`${baseUrl}${path}`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${resolvedToken}`,
+            },
+          });
+
+          const bodyText = await response.text().catch(() => '');
+          lastStatus = response.status;
+          lastBody = bodyText;
+
+          if (response.status === 401 || response.status === 403) {
+            return res.json({ valid: false, error: 'Token inválido ou expirado' });
+          }
+
+          if (response.ok) {
+            return res.json({ valid: true, message: 'Token W-API válido!' });
+          }
+
+          // 404/405 nesse path: tenta próximo endpoint
+        } catch (fetchError) {
+          // Falha de rede nesse endpoint específico: tenta próximo
+          lastBody = fetchError.message || '';
         }
-      );
-      
-      if (response.status === 401 || response.status === 403) {
-        return res.json({ valid: false, error: 'Token inválido ou expirado' });
       }
-      
-      return res.json({ valid: true, message: 'Token W-API válido!' });
-    } catch (fetchError) {
-      return res.json({ valid: false, error: `Erro ao conectar com W-API: ${fetchError.message}` });
     }
+
+    return res.json({
+      valid: false,
+      error: `Não foi possível validar token na W-API (status: ${lastStatus || 'sem resposta'}). ${String(lastBody || '').slice(0, 160)}`,
+    });
   } catch (error) {
     console.error('Validate W-API token error:', error);
     res.status(500).json({ valid: false, error: 'Erro ao validar token' });
