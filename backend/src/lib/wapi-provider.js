@@ -411,7 +411,12 @@ export async function checkStatus(instanceId, token) {
           error: errMsg,
           duration_ms: Date.now() - startedAt,
         });
-        return { status: 'disconnected', error: errMsg };
+
+        if (primaryResponse.status === 401 || primaryResponse.status === 403) {
+          return { status: 'disconnected', error: errMsg };
+        }
+
+        return { status: 'connecting', error: errMsg, transient: true };
       }
 
       let data = {};
@@ -486,6 +491,16 @@ export async function checkStatus(instanceId, token) {
 
     const result = await requestWithEndpointFallback(token, fallbackCandidates, 'checkStatus', instanceId);
     if (!result.success) {
+      const attempts = Array.isArray(result.attempts) ? result.attempts : [];
+      const hasTransientFailure = attempts.some((attempt) => {
+        const status = Number(attempt?.status || 0);
+        return status === 0 || status >= 500;
+      });
+
+      if (hasTransientFailure) {
+        return { status: 'connecting', error: result.error || 'Falha transitória ao verificar status', transient: true };
+      }
+
       return { status: 'disconnected', error: result.error || 'Falha ao verificar status' };
     }
 
@@ -541,7 +556,7 @@ export async function checkStatus(instanceId, token) {
       duration_ms: Date.now() - startedAt,
       endpoint: 'status-instance',
     });
-    return { status: 'disconnected', error: error.message };
+    return { status: 'connecting', error: error.message, transient: true };
   }
 }
 

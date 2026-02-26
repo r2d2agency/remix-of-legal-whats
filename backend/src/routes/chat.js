@@ -2926,23 +2926,27 @@ router.post('/conversations', authenticate, async (req, res) => {
     const connection = connResult.rows[0];
     const provider = whatsappProvider.detectProvider(connection);
     let isConnected = connection.status === 'connected' ||
-      (provider === 'wapi' && connection.instance_id && connection.wapi_token);
+      (provider === 'wapi' && connection.instance_id);
 
     if (!isConnected) {
       try {
         const liveStatus = await whatsappProvider.checkStatus(connection);
-        const newStatus = liveStatus?.status || 'disconnected';
+        const rawStatus = liveStatus?.status || 'disconnected';
         const phoneNumber = liveStatus?.phoneNumber || null;
+        const resolvedStatus =
+          connection.status === 'connected' && rawStatus === 'disconnected' && liveStatus?.transient
+            ? 'connected'
+            : rawStatus;
 
-        if (connection.status !== newStatus || connection.phone_number !== phoneNumber) {
+        if (connection.status !== resolvedStatus || connection.phone_number !== phoneNumber) {
           await query(
             'UPDATE connections SET status = $1, phone_number = $2, updated_at = NOW() WHERE id = $3',
-            [newStatus, phoneNumber, connection_id]
+            [resolvedStatus, phoneNumber, connection_id]
           );
         }
 
-        isConnected = newStatus === 'connected' ||
-          (provider === 'wapi' && connection.instance_id && connection.wapi_token);
+        isConnected = resolvedStatus === 'connected' ||
+          (provider === 'wapi' && connection.instance_id);
       } catch (statusError) {
         console.warn('[Chat] Live status check failed:', statusError?.message || statusError);
       }

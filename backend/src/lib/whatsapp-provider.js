@@ -1,8 +1,41 @@
 // Unified WhatsApp Provider
 // Routes requests to the correct provider (Evolution API or W-API)
 
+import { query } from '../db.js';
 import * as wapiProvider from './wapi-provider.js';
 import { logError, logInfo, logWarn } from '../logger.js';
+
+const globalWapiTokenCache = {
+  value: null,
+  expiresAt: 0,
+};
+
+async function getGlobalWapiToken() {
+  if (globalWapiTokenCache.value && Date.now() < globalWapiTokenCache.expiresAt) {
+    return globalWapiTokenCache.value;
+  }
+
+  const result = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token' LIMIT 1`);
+  const token = result.rows[0]?.value || null;
+
+  globalWapiTokenCache.value = token;
+  globalWapiTokenCache.expiresAt = Date.now() + 60 * 1000;
+  return token;
+}
+
+async function resolveWapiToken(connection) {
+  if (connection?.wapi_token) return connection.wapi_token;
+
+  try {
+    return await getGlobalWapiToken();
+  } catch (error) {
+    logWarn('wapi.resolve_token_failed', {
+      connection_id: connection?.id || null,
+      error: error?.message || 'unknown_error',
+    });
+    return null;
+  }
+}
 
 /**
  * Detect provider from connection data
@@ -10,8 +43,8 @@ import { logError, logInfo, logWarn } from '../logger.js';
 export function detectProvider(connection) {
   const provider = String(connection?.provider || '').toLowerCase();
 
-  // Prioritize concrete W-API credentials to handle legacy rows with stale provider='evolution'
-  if (connection?.instance_id && connection?.wapi_token) {
+  // Direct Instance ID é sempre W-API no sistema atual
+  if (connection?.instance_id) {
     return 'wapi';
   }
 
@@ -30,7 +63,8 @@ export async function checkStatus(connection) {
   const provider = detectProvider(connection);
 
   if (provider === 'wapi') {
-    return wapiProvider.checkStatus(connection.instance_id, connection.wapi_token);
+    const resolvedToken = await resolveWapiToken(connection);
+    return wapiProvider.checkStatus(connection.instance_id, resolvedToken);
   }
 
   // Evolution API
@@ -109,7 +143,8 @@ export async function getQRCode(connection) {
   const provider = detectProvider(connection);
 
   if (provider === 'wapi') {
-    return wapiProvider.getQRCode(connection.instance_id, connection.wapi_token);
+    const resolvedToken = await resolveWapiToken(connection);
+    return wapiProvider.getQRCode(connection.instance_id, resolvedToken);
   }
 
   // Evolution API
@@ -140,7 +175,8 @@ export async function disconnect(connection) {
   const provider = detectProvider(connection);
 
   if (provider === 'wapi') {
-    return wapiProvider.disconnect(connection.instance_id, connection.wapi_token);
+    const resolvedToken = await resolveWapiToken(connection);
+    return wapiProvider.disconnect(connection.instance_id, resolvedToken);
   }
 
   // Evolution API
@@ -178,9 +214,10 @@ export async function sendMessage(connection, phone, content, messageType, media
 
   if (provider === 'wapi') {
     try {
+      const resolvedToken = await resolveWapiToken(connection);
       const result = await wapiProvider.sendMessage(
         connection.instance_id,
-        connection.wapi_token,
+        resolvedToken,
         phone,
         content,
         messageType,
@@ -267,7 +304,8 @@ export async function checkNumber(connection, phone) {
   const provider = detectProvider(connection);
 
   if (provider === 'wapi') {
-    return wapiProvider.checkNumber(connection.instance_id, connection.wapi_token, phone);
+    const resolvedToken = await resolveWapiToken(connection);
+    return wapiProvider.checkNumber(connection.instance_id, resolvedToken, phone);
   }
 
   // Evolution API
@@ -305,7 +343,8 @@ export async function sendPresenceComposing(connection, contactPhone) {
   const provider = detectProvider(connection);
 
   if (provider === 'wapi') {
-    return wapiProvider.sendPresenceComposing(connection.instance_id, connection.wapi_token, contactPhone);
+    const resolvedToken = await resolveWapiToken(connection);
+    return wapiProvider.sendPresenceComposing(connection.instance_id, resolvedToken, contactPhone);
   }
 
   // Evolution API
