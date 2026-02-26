@@ -1088,17 +1088,91 @@ async function executeSummarizeHistory(args) {
   });
 }
 
+async function resolveUserInOrg(organizationId, nameOrEmail) {
+  if (!nameOrEmail) return null;
+  const result = await query(`
+    SELECT u.id, u.name, u.email FROM users u
+    JOIN organization_members om ON om.user_id = u.id
+    WHERE om.organization_id = $1 AND (u.name ILIKE $2 OR u.email ILIKE $2)
+    LIMIT 1
+  `, [organizationId, `%${nameOrEmail.trim()}%`]);
+  return result.rows[0] || null;
+}
+
 async function executeScheduleMeeting(organizationId, userId, args) {
   try {
+    let assignedUserId = userId;
+    let assignedUserName = null;
+    if (args.assigned_to_name) {
+      const resolved = await resolveUserInOrg(organizationId, args.assigned_to_name);
+      if (resolved) {
+        assignedUserId = resolved.id;
+        assignedUserName = resolved.name;
+      } else {
+        return `Usuário "${args.assigned_to_name}" não encontrado na organização.`;
+      }
+    }
+
+    const action = args.action || 'create';
+
+    if (action === 'check_agenda') {
+      const daysAhead = args.days_ahead || 7;
+      const result = await query(`
+        SELECT title, type, due_date, status, priority FROM crm_tasks
+        WHERE organization_id = $1 AND assigned_to = $2
+          AND status IN ('pending', 'in_progress')
+          AND due_date >= NOW() AND due_date <= NOW() + interval '1 day' * $3
+        ORDER BY due_date ASC LIMIT 20
+      `, [organizationId, assignedUserId, daysAhead]);
+      if (result.rows.length === 0) {
+        return `📋 Agenda de ${assignedUserName || 'responsável'} está livre nos próximos ${daysAhead} dias.`;
+      }
+      const items = result.rows.map(t => {
+        const d = new Date(t.due_date);
+        return `- [${t.type}] ${t.title} — ${d.toLocaleDateString('pt-BR')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} (${t.priority})`;
+      }).join('\n');
+      return `📋 Agenda de ${assignedUserName || 'responsável'} (próximos ${daysAhead} dias):\n${items}`;
+    }
+
+    if (action === 'find_available_slots') {
+      const daysAhead = args.days_ahead || 7;
+      const schedule = await getWorkSchedule(organizationId);
+      const slotDuration = args.duration_minutes || schedule.slot_duration_minutes;
+      const slots = await findAvailableSlotsForUser(organizationId, assignedUserId, daysAhead, slotDuration, args.preferred_period, schedule);
+      if (slots.length === 0) return `Nenhum horário disponível para ${assignedUserName || 'responsável'} nos próximos ${daysAhead} dias.`;
+      const slotList = slots.map((s, i) => `${i + 1}. ${s.day_of_week} ${s.date} das ${s.start} às ${s.end}`).join('\n');
+      return `Horários disponíveis de ${assignedUserName || 'responsável'}:\n${slotList}`;
+    }
+
+    // CREATE
+    if (!args.title || !args.date) return 'Título e data são obrigatórios.';
+    const durationMin = args.duration_minutes || 60;
+
+    const conflictResult = await query(`
+      SELECT id, title, due_date FROM crm_tasks
+      WHERE organization_id = $1 AND assigned_to = $2 AND type IN ('meeting', 'call')
+        AND status IN ('pending', 'in_progress')
+        AND due_date >= $3::timestamp - interval '1 hour'
+        AND due_date <= $3::timestamp + interval '1 hour'
+    `, [organizationId, assignedUserId, args.date]);
+
+    if (conflictResult.rows.length > 0) {
+      const conflicts = conflictResult.rows.map(c => {
+        const d = new Date(c.due_date);
+        return `"${c.title}" (${d.toLocaleDateString('pt-BR')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')})`;
+      }).join(', ');
+      return `⚠️ Conflito na agenda de ${assignedUserName || 'responsável'}: ${conflicts}. Use find_available_slots.`;
+    }
+
     const result = await query(`
       INSERT INTO crm_tasks (organization_id, assigned_to, created_by, title, description, type, priority, due_date)
-      VALUES ($1, $2, $2, $3, $4, 'meeting', 'high', $5)
+      VALUES ($1, $2, $3, $4, $5, 'meeting', 'high', $6)
       RETURNING id, title, due_date
-    `, [organizationId, userId, args.title,
-      `Participantes: ${args.attendees || 'A definir'}\nLocal: ${args.location || 'A definir'}\nDuração: ${args.duration_minutes || 60}min\n${args.notes || ''}`.trim(),
+    `, [organizationId, assignedUserId, userId, args.title,
+      `Participantes: ${args.attendees || 'A definir'}\nLocal: ${args.location || 'A definir'}\nDuração: ${durationMin}min\n${args.notes || ''}`.trim(),
       args.date
     ]);
-    return `Reunião "${result.rows[0].title}" agendada para ${result.rows[0].due_date}`;
+    return `✅ Reunião "${result.rows[0].title}" agendada para ${result.rows[0].due_date} com ${assignedUserName || 'responsável'} (duração: ${durationMin}min). Sem conflitos.`;
   } catch (error) {
     return `Erro: ${error.message}`;
   }
@@ -1227,12 +1301,24 @@ function timeToMinutes(timeStr) {
 }
 
 async function findAvailableSlots(organizationId, daysAhead, slotDuration, preferredPeriod, schedule) {
-  const existingResult = await query(`
-    SELECT due_date, due_date + interval '1 hour' as estimated_end
-    FROM crm_tasks WHERE organization_id = $1 AND type = 'meeting' AND status = 'pending'
-      AND due_date >= NOW() AND due_date <= NOW() + interval '1 day' * $2
-    ORDER BY due_date ASC
-  `, [organizationId, daysAhead]);
+  return findAvailableSlotsForUser(organizationId, null, daysAhead, slotDuration, preferredPeriod, schedule);
+}
+
+async function findAvailableSlotsForUser(organizationId, userId, daysAhead, slotDuration, preferredPeriod, schedule) {
+  const existingQuery = userId
+    ? `SELECT due_date, due_date + interval '1 hour' as estimated_end
+       FROM crm_tasks WHERE organization_id = $1 AND assigned_to = $3
+         AND type IN ('meeting', 'call') AND status IN ('pending', 'in_progress')
+         AND due_date >= NOW() AND due_date <= NOW() + interval '1 day' * $2
+       ORDER BY due_date ASC`
+    : `SELECT due_date, due_date + interval '1 hour' as estimated_end
+       FROM crm_tasks WHERE organization_id = $1
+         AND type IN ('meeting', 'call') AND status IN ('pending', 'in_progress')
+         AND due_date >= NOW() AND due_date <= NOW() + interval '1 day' * $2
+       ORDER BY due_date ASC`;
+
+  const params = userId ? [organizationId, daysAhead, userId] : [organizationId, daysAhead];
+  const existingResult = await query(existingQuery, params);
 
   const existingEvents = existingResult.rows.map(e => ({
     start: new Date(e.due_date).getTime(),
