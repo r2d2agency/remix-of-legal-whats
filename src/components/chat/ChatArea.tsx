@@ -207,7 +207,7 @@ export function ChatArea({
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
-  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall } = useChat();
+  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, editMessage, deleteMessage: deleteMessageFn } = useChat();
   
   const finishWithSummary = useFinishWithSummary();
   const generateSummary = useGenerateSummary();
@@ -870,6 +870,24 @@ export function ChatArea({
               searchQuery={searchQuery}
               onReply={setReplyingTo}
               onSendMessage={onSendMessage}
+              onEditMessage={async (messageId, content) => {
+                const ok = await editMessage(conversation.id, messageId, content);
+                if (ok) {
+                  // Update local message state
+                  const updatedMessages = messages.map(m => 
+                    m.id === messageId ? { ...m, content, is_edited: true } : m
+                  );
+                  onLoadMore(); // Reload messages
+                }
+                return ok;
+              }}
+              onDeleteMessage={async (messageId) => {
+                const ok = await deleteMessageFn(conversation.id, messageId);
+                if (ok) {
+                  onLoadMore(); // Reload messages
+                }
+                return ok;
+              }}
               highlightText={highlightText}
               getDocumentDisplayName={getDocumentDisplayName}
               looksLikeFilename={looksLikeFilename}

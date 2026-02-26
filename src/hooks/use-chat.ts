@@ -549,6 +549,33 @@ export const useChat = () => {
     }
   }, []);
 
+  // Edit message
+  const editMessage = useCallback(async (conversationId: string, messageId: string, content: string): Promise<boolean> => {
+    try {
+      await api(`/api/chat/conversations/${conversationId}/messages/${messageId}`, {
+        method: 'PATCH',
+        body: { content },
+      });
+      return true;
+    } catch (err: any) {
+      console.error('Erro ao editar mensagem:', err);
+      return false;
+    }
+  }, []);
+
+  // Delete message
+  const deleteMessageFn = useCallback(async (conversationId: string, messageId: string): Promise<boolean> => {
+    try {
+      await api(`/api/chat/conversations/${conversationId}/messages/${messageId}`, {
+        method: 'DELETE',
+      });
+      return true;
+    } catch (err: any) {
+      console.error('Erro ao apagar mensagem:', err);
+      return false;
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -570,6 +597,8 @@ export const useChat = () => {
     // Messages
     getMessages,
     sendMessage,
+    editMessage,
+    deleteMessage: deleteMessageFn,
     // Tags
     getTags,
     createTag,

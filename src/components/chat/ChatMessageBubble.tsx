@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Check,
@@ -9,6 +10,10 @@ import {
   Phone,
   Reply,
   RotateCcw,
+  Pencil,
+  Trash2,
+  X,
+  Send,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -17,6 +22,7 @@ import { resolveMediaUrl } from "@/lib/media";
 import { ChatMessage, Conversation } from "@/hooks/use-chat";
 import { AudioPlayer } from "./AudioPlayer";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
 
 interface ChatMessageBubbleProps {
   msg: ChatMessage;
@@ -27,6 +33,8 @@ interface ChatMessageBubbleProps {
   searchQuery: string;
   onReply: (msg: ChatMessage) => void;
   onSendMessage: (content: string, type?: string, mediaUrl?: string, quotedMessageId?: string, mediaMimetype?: string) => Promise<void>;
+  onEditMessage?: (messageId: string, content: string) => Promise<boolean>;
+  onDeleteMessage?: (messageId: string) => Promise<boolean>;
   highlightText: (text: string, query: string) => React.ReactNode;
   getDocumentDisplayName: (msg: ChatMessage, resolvedUrl?: string | null) => string;
   looksLikeFilename: (value: string) => boolean;
@@ -59,12 +67,43 @@ export function ChatMessageBubble({
   searchQuery,
   onReply,
   onSendMessage,
+  onEditMessage,
+  onDeleteMessage,
   highlightText,
   getDocumentDisplayName,
   looksLikeFilename,
   messageRef,
 }: ChatMessageBubbleProps) {
   const mediaUrl = resolveMediaUrl(msg.media_url);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(msg.content || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const canEdit = msg.from_me && msg.message_type === 'text' && !msg.is_deleted && !!onEditMessage;
+  const canDelete = msg.from_me && !msg.is_deleted && !!onDeleteMessage;
+
+  const handleEdit = async () => {
+    if (!editContent.trim() || !onEditMessage) return;
+    setIsSaving(true);
+    const ok = await onEditMessage(msg.id, editContent.trim());
+    setIsSaving(false);
+    if (ok) {
+      toast.success("Mensagem editada");
+      setIsEditing(false);
+    } else {
+      toast.error("Falha ao editar");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!onDeleteMessage) return;
+    const ok = await onDeleteMessage(msg.id);
+    if (ok) {
+      toast.success("Mensagem apagada");
+    } else {
+      toast.error("Falha ao apagar");
+    }
+  };
 
   return (
     <div
@@ -228,6 +267,30 @@ export function ChatMessageBubble({
           <p className="text-sm whitespace-pre-wrap line-through opacity-50 italic" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
             {msg.content || '🚫 Mensagem apagada'}
           </p>
+        ) : isEditing ? (
+          <div className="flex flex-col gap-1">
+            <Textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              className="text-sm min-h-[40px] bg-background/50 border-primary/30"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleEdit();
+                }
+                if (e.key === 'Escape') setIsEditing(false);
+              }}
+            />
+            <div className="flex items-center gap-1 justify-end">
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsEditing(false)} disabled={isSaving}>
+                <X className="h-3 w-3" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-primary" onClick={handleEdit} disabled={isSaving || !editContent.trim()}>
+                <Send className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
         ) : msg.content && msg.message_type !== 'call_log' && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) ? (
           <p className="text-sm whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
             {searchQuery ? highlightText(msg.content, searchQuery) : msg.content}
@@ -277,17 +340,54 @@ export function ChatMessageBubble({
         )}
       </div>
 
-      {/* Reply button - right side for sent messages */}
-      {msg.from_me && msg.message_type !== 'system' && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity self-center ml-1"
-          onClick={() => onReply(msg)}
-          title="Responder"
-        >
-          <Reply className="h-3 w-3" />
-        </Button>
+      {/* Action buttons - right side for sent messages */}
+      {msg.from_me && msg.message_type !== 'system' && !msg.is_deleted && (
+        <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center ml-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => onReply(msg)}
+            title="Responder"
+          >
+            <Reply className="h-3 w-3" />
+          </Button>
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => { setEditContent(msg.content || ''); setIsEditing(true); }}
+              title="Editar"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 hover:text-destructive"
+              onClick={handleDelete}
+              title="Apagar"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      )}
+      {msg.from_me && msg.message_type !== 'system' && msg.is_deleted && (
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity self-center ml-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => onReply(msg)}
+            title="Responder"
+          >
+            <Reply className="h-3 w-3" />
+          </Button>
+        </div>
       )}
     </div>
   );
