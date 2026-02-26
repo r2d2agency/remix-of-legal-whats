@@ -72,6 +72,8 @@ const Conexao = () => {
   const [syncingContacts, setSyncingContacts] = useState<string | null>(null);
   const [syncingConversations, setSyncingConversations] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; messagesImported: number; conversationsCreated: number } | null>(null);
+  const [syncingProfilePics, setSyncingProfilePics] = useState<string | null>(null);
+  const [validatingNumbers, setValidatingNumbers] = useState<string | null>(null);
 
   // Webhook viewer state (shows what the backend is actually receiving)
   const [webhookViewerOpen, setWebhookViewerOpen] = useState(false);
@@ -451,6 +453,38 @@ const handleGetQRCode = async (connection: Connection) => {
     } finally {
       setSyncingConversations(null);
       setSyncProgress(null);
+    }
+  };
+
+  const handleSyncProfilePictures = async (connection: Connection) => {
+    setSyncingProfilePics(connection.id);
+    try {
+      const result = await api<{ success: boolean; total: number; updated: number; errors: number }>(
+        `/api/wapi/${connection.id}/sync-profile-pictures`, { method: 'POST' }
+      );
+      if (result.success) {
+        toast.success(`Fotos de perfil: ${result.updated} atualizadas de ${result.total} contatos`);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao sincronizar fotos de perfil');
+    } finally {
+      setSyncingProfilePics(null);
+    }
+  };
+
+  const handleValidateAllContacts = async (connection: Connection) => {
+    setValidatingNumbers(connection.id);
+    try {
+      const result = await api<{ success: boolean; total: number; valid: number; invalid: number; message?: string }>(
+        `/api/wapi/${connection.id}/validate-all-contacts`, { method: 'POST' }
+      );
+      if (result.success) {
+        toast.success(result.message || `Validação concluída: ${result.valid} válidos, ${result.invalid} inválidos (de ${result.total})`);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao validar números');
+    } finally {
+      setValidatingNumbers(null);
     }
   };
 
@@ -956,8 +990,41 @@ const handleGetQRCode = async (connection: Connection) => {
                         </div>
                       </div>
                     )}
-                    
-                    {/* Webhook Diagnostic (Evolution only) */}
+
+                    {/* W-API: Sync profile pictures */}
+                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSyncProfilePictures(connection)}
+                        disabled={syncingProfilePics === connection.id}
+                        title="Sincronizar fotos de perfil"
+                      >
+                        {syncingProfilePics === connection.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <UserCheck className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
+
+                    {/* W-API: Validate all contacts */}
+                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleValidateAllContacts(connection)}
+                        disabled={validatingNumbers === connection.id}
+                        title="Validar números WhatsApp em lote"
+                      >
+                        {validatingNumbers === connection.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Phone className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
+
                     {!(connection.provider === 'wapi' || !!connection.instance_id) && (
                       <Popover>
                         <PopoverTrigger asChild>
