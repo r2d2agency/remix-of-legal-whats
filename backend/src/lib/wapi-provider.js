@@ -194,6 +194,90 @@ export async function configureWebhooks(instanceId, token) {
 }
 
 /**
+ * Create a new W-API instance using only the account token.
+ * POST https://api.w-api.app/v1/instance/create
+ * Returns { instanceId, token } of the newly created instance.
+ */
+export async function createInstance(token) {
+  logInfo('wapi.create_instance_started', {});
+
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/instance/create`,
+      {
+        method: 'POST',
+        headers: getHeaders(token),
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(30000),
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errMsg = data?.message || data?.error || `HTTP ${response.status}`;
+      logError('wapi.create_instance_failed', new Error(errMsg), { status: response.status });
+      throw new Error(errMsg);
+    }
+
+    // W-API may return { instanceId, token } or similar structure
+    const instanceId = data?.instanceId || data?.instance_id || data?.id || null;
+    const instanceToken = data?.token || data?.accessToken || data?.access_token || null;
+
+    if (!instanceId) {
+      logError('wapi.create_instance_no_id', new Error('No instanceId in response'), { body: JSON.stringify(data).slice(0, 500) });
+      throw new Error('W-API não retornou um Instance ID válido');
+    }
+
+    logInfo('wapi.create_instance_success', { instance_id: instanceId });
+
+    return {
+      instanceId,
+      token: instanceToken || token, // fallback to account token if instance-specific not returned
+      raw: data,
+    };
+  } catch (error) {
+    if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+      throw new Error('Timeout ao criar instância W-API');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Delete a W-API instance
+ * DELETE https://api.w-api.app/v1/instance/delete?instanceId=XXX
+ */
+export async function deleteInstance(instanceId, token) {
+  logInfo('wapi.delete_instance_started', { instance_id: instanceId });
+
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/instance/delete?instanceId=${encodeURIComponent(instanceId)}`,
+      {
+        method: 'DELETE',
+        headers: getHeaders(token),
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errMsg = data?.message || data?.error || `HTTP ${response.status}`;
+      logWarn('wapi.delete_instance_failed', { instance_id: instanceId, error: errMsg });
+      return { success: false, error: errMsg };
+    }
+
+    logInfo('wapi.delete_instance_success', { instance_id: instanceId });
+    return { success: true, data };
+  } catch (error) {
+    logError('wapi.delete_instance_exception', error, { instance_id: instanceId });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Check instance status
  * W-API returns different response structures, handle all possibilities
  */

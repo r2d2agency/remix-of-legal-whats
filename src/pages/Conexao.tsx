@@ -135,8 +135,8 @@ const Conexao = () => {
     }
 
     if (newConnectionProvider === 'wapi') {
-      if (!newConnectionInstanceId.trim() || !newConnectionWapiToken.trim()) {
-        toast.error('Instance ID e Token são obrigatórios para W-API');
+      if (!newConnectionWapiToken.trim()) {
+        toast.error('Token é obrigatório para W-API');
         return;
       }
     }
@@ -146,17 +146,20 @@ const Conexao = () => {
       let result: Connection & { qrCode?: string };
 
       if (newConnectionProvider === 'wapi') {
-        // Create W-API connection via connections endpoint
+        // Create W-API connection - instance is auto-created by the backend
         result = await api<Connection>('/api/connections', {
           method: 'POST',
           body: {
             provider: 'wapi',
             name: newConnectionName,
-            instance_id: newConnectionInstanceId,
+            instance_id: newConnectionInstanceId.trim() || undefined, // optional
             wapi_token: newConnectionWapiToken,
           },
         });
-        toast.success('Conexão W-API criada com sucesso!');
+        toast.success('Conexão W-API criada com sucesso! Instância criada automaticamente.');
+        // Auto-open QR code dialog
+        setSelectedConnection(result);
+        handleGetQRCode(result);
       } else {
         // Create Evolution API connection
         result = await api<Connection & { qrCode?: string }>('/api/evolution/create', {
@@ -569,7 +572,7 @@ const handleGetQRCode = async (connection: Connection) => {
                   <p className="text-xs text-muted-foreground">
                     {newConnectionProvider === 'evolution' 
                       ? 'Evolution API: Gera QR Code para conexão' 
-                      : 'W-API: Use seu Instance ID e Token fornecidos'}
+                      : 'W-API: Informe seu Token. A instância será criada automaticamente.'}
                   </p>
                 </div>
 
@@ -587,21 +590,27 @@ const handleGetQRCode = async (connection: Connection) => {
                 {newConnectionProvider === 'wapi' && (
                   <>
                     <div className="space-y-2">
-                      <Label>Instance ID</Label>
-                      <Input 
-                        placeholder="Seu Instance ID da W-API"
-                        value={newConnectionInstanceId}
-                        onChange={(e) => setNewConnectionInstanceId(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Token</Label>
+                      <Label>Token W-API <span className="text-destructive">*</span></Label>
                       <Input 
                         type="password"
                         placeholder="Seu Token da W-API"
                         value={newConnectionWapiToken}
                         onChange={(e) => setNewConnectionWapiToken(e.target.value)}
                       />
+                      <p className="text-xs text-muted-foreground">
+                        O token permite criar instâncias, gerar QR Code e sincronizar mensagens.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Instance ID <span className="text-xs text-muted-foreground">(opcional)</span></Label>
+                      <Input 
+                        placeholder="Deixe vazio para criar automaticamente"
+                        value={newConnectionInstanceId}
+                        onChange={(e) => setNewConnectionInstanceId(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Se já possui um Instance ID, informe aqui. Caso contrário, será criado automaticamente.
+                      </p>
                     </div>
                   </>
                 )}

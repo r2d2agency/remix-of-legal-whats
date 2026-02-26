@@ -88,7 +88,7 @@ BEGIN
         CHECK (provider IN ('evolution', 'wapi'));
     END IF;
 
-    -- Required fields per provider
+    -- Required fields per provider (wapi_token is always required for W-API; instance_id may be auto-created)
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'connections_provider_required_fields_chk'
@@ -96,7 +96,7 @@ BEGIN
         ALTER TABLE connections
         ADD CONSTRAINT connections_provider_required_fields_chk
         CHECK (
-            (provider = 'wapi' AND instance_id IS NOT NULL AND wapi_token IS NOT NULL)
+            (provider = 'wapi' AND wapi_token IS NOT NULL)
             OR
             (provider = 'evolution' AND api_url IS NOT NULL AND api_key IS NOT NULL AND instance_name IS NOT NULL)
         );
