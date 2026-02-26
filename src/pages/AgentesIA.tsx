@@ -54,6 +54,7 @@ export default function AgentesIA() {
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [realtimeLogs, setRealtimeLogs] = useState<AIAgentRealtimeLog[]>([]);
   const [loadingRealtimeLogs, setLoadingRealtimeLogs] = useState(false);
+  const [logAgentIdFilter, setLogAgentIdFilter] = useState('');
 
   const { getAgents, toggleAgent, deleteAgent, getRealtimeLogs, loading } = useAIAgents();
 
@@ -194,6 +195,38 @@ export default function AgentesIA() {
     return labels[cap] || cap;
   };
 
+  const parseLogCapabilities = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.map(String);
+    if (typeof value !== 'string') return [];
+
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      const inner = trimmed.slice(1, -1).trim();
+      if (!inner) return [];
+      return inner.split(',').map((part) => part.trim().replace(/^"|"$/g, ''));
+    }
+
+    return [trimmed.replace(/^"|"$/g, '')];
+  };
+
+  const filteredRealtimeLogs = realtimeLogs.filter((log) => {
+    const filter = logAgentIdFilter.trim().toLowerCase();
+    if (!filter) return true;
+    const agentId = typeof log.agentId === 'string' ? log.agentId.toLowerCase() : '';
+    return agentId.includes(filter);
+  });
+
   // Show loading while checking access
   if (checkingAccess) {
     return (
@@ -312,32 +345,55 @@ export default function AgentesIA() {
               Eventos de transcrição, RAG e tool calls.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="max-h-64 overflow-y-auto rounded-md border bg-muted/20">
+          <CardContent className="space-y-3">
+            <div className="max-w-sm">
+              <Input
+                placeholder="Filtrar por agentId..."
+                value={logAgentIdFilter}
+                onChange={(e) => setLogAgentIdFilter(e.target.value)}
+              />
+            </div>
+
+            <div className="max-h-72 overflow-y-auto rounded-md border bg-muted/20">
               {loadingRealtimeLogs && realtimeLogs.length === 0 ? (
                 <div className="p-4 text-sm text-muted-foreground">Carregando logs...</div>
-              ) : realtimeLogs.length === 0 ? (
-                <div className="p-4 text-sm text-muted-foreground">Sem eventos recentes.</div>
+              ) : filteredRealtimeLogs.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">
+                  {realtimeLogs.length === 0 ? 'Sem eventos recentes.' : 'Nenhum log para este agentId.'}
+                </div>
               ) : (
                 <div className="divide-y">
-                  {realtimeLogs.slice(0, 40).map((log, idx) => (
-                    <div key={`${log.ts}-${idx}`} className="p-3 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge variant={log.level === 'error' ? 'destructive' : 'secondary'} className="text-[10px]">
-                          {log.level}
-                        </Badge>
-                        <span className="text-muted-foreground">{new Date(log.ts).toLocaleTimeString('pt-BR')}</span>
+                  <div className="hidden md:grid md:grid-cols-6 gap-2 p-3 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/30">
+                    <span>Hora</span>
+                    <span>Nível</span>
+                    <span>Evento</span>
+                    <span>AgentId</span>
+                    <span>Capabilities</span>
+                    <span>Detalhes</span>
+                  </div>
+                  {filteredRealtimeLogs.slice(0, 40).map((log, idx) => {
+                    const caps = parseLogCapabilities(log.capabilities);
+                    return (
+                      <div key={`${log.ts}-${idx}`} className="p-3 text-xs">
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                          <span className="text-muted-foreground">{new Date(log.ts).toLocaleTimeString('pt-BR')}</span>
+                          <div>
+                            <Badge variant={log.level === 'error' ? 'destructive' : 'secondary'} className="text-[10px]">
+                              {log.level}
+                            </Badge>
+                          </div>
+                          <p className="font-medium break-all">{log.event}</p>
+                          <span className="break-all text-muted-foreground">{typeof log.agentId === 'string' ? log.agentId : '-'}</span>
+                          <span className="break-all text-muted-foreground">{caps.length ? caps.join(', ') : '-'}</span>
+                          <span className="break-all text-muted-foreground">
+                            {log.provider ? `provider=${log.provider} ` : ''}
+                            {log.messageType ? `tipo=${log.messageType} ` : ''}
+                            {log.toolName ? `tool=${log.toolName}` : ''}
+                          </span>
+                        </div>
                       </div>
-                      <p className="font-medium mt-1 break-all">{log.event}</p>
-                      {(log.toolName || log.messageType || log.provider) && (
-                        <p className="text-muted-foreground mt-1 break-all">
-                          {log.provider ? `provider=${log.provider} ` : ''}
-                          {log.messageType ? `tipo=${log.messageType} ` : ''}
-                          {log.toolName ? `tool=${log.toolName}` : ''}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
