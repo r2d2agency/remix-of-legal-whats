@@ -591,6 +591,62 @@ export async function sendText(instanceId, token, phone, message) {
 }
 
 /**
+ * Edit a sent text message
+ */
+export async function editMessage(instanceId, token, messageId, phone, newText) {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/edit-text?instanceId=${instanceId}`,
+      {
+        method: 'PUT',
+        headers: getHeaders(token),
+        body: JSON.stringify({
+          messageId,
+          phone: cleanPhone,
+          message: newText,
+        }),
+      }
+    );
+    const { data } = await readJsonResponse(response);
+    if (!response.ok) {
+      return { success: false, error: data?.message || 'Failed to edit message' };
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('W-API editMessage error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete/revoke a sent message
+ */
+export async function deleteMessage(instanceId, token, messageId, phone) {
+  const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/message/delete-message?instanceId=${instanceId}`,
+      {
+        method: 'DELETE',
+        headers: getHeaders(token),
+        body: JSON.stringify({
+          messageId,
+          phone: cleanPhone,
+        }),
+      }
+    );
+    const { data } = await readJsonResponse(response);
+    if (!response.ok) {
+      return { success: false, error: data?.message || 'Failed to delete message' };
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('W-API deleteMessage error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
  * Send image message
  */
 export async function sendImage(instanceId, token, phone, imageUrl, caption = '') {

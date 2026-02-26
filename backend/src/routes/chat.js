@@ -1506,6 +1506,120 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
   }
 });
 
+// Edit a message (text only, from_me only)
+router.patch('/conversations/:id/messages/:messageId', authenticate, async (req, res) => {
+  try {
+    const userOrg = await getUserOrganization(req.userId);
+    if (userOrg && isViewOnlyRole(userOrg.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const { id, messageId } = req.params;
+    const { content } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Conteúdo é obrigatório' });
+    }
+
+    // Get message + connection info
+    const msgResult = await query(
+      `SELECT m.*, conv.remote_jid, conv.is_group, conv.contact_phone,
+              conn.provider, conn.instance_id, conn.wapi_token, conn.api_url, conn.api_key, conn.instance_name
+       FROM chat_messages m
+       JOIN conversations conv ON conv.id = m.conversation_id
+       JOIN connections conn ON conn.id = conv.connection_id
+       WHERE m.id = $1 AND m.conversation_id = $2 AND conv.connection_id = ANY($3)
+         AND m.from_me = true AND m.message_type = 'text' AND COALESCE(m.is_deleted, false) = false`,
+      [messageId, id, connectionIds]
+    );
+
+    if (msgResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Mensagem não encontrada ou não editável' });
+    }
+
+    const msg = msgResult.rows[0];
+
+    // Update in DB
+    await query(
+      `UPDATE chat_messages SET content = $1, is_edited = true WHERE id = $2`,
+      [content.trim(), messageId]
+    );
+
+    // Try to edit on WhatsApp (async, non-blocking)
+    res.json({ success: true });
+
+    (async () => {
+      try {
+        if (msg.provider === 'wapi' && msg.instance_id && msg.wapi_token && msg.message_id) {
+          const { editMessage } = await import('../lib/wapi-provider.js');
+          const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', ''));
+          await editMessage(msg.instance_id, msg.wapi_token, msg.message_id, phone, content.trim());
+        }
+      } catch (err) {
+        console.error('Edit message on WhatsApp error:', err.message);
+      }
+    })();
+  } catch (error) {
+    console.error('Edit message error:', error);
+    res.status(500).json({ error: 'Erro ao editar mensagem' });
+  }
+});
+
+// Delete/revoke a message (from_me only)
+router.delete('/conversations/:id/messages/:messageId', authenticate, async (req, res) => {
+  try {
+    const userOrg = await getUserOrganization(req.userId);
+    if (userOrg && isViewOnlyRole(userOrg.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const { id, messageId } = req.params;
+    const connectionIds = await getUserConnections(req.userId);
+
+    const msgResult = await query(
+      `SELECT m.*, conv.remote_jid, conv.is_group, conv.contact_phone,
+              conn.provider, conn.instance_id, conn.wapi_token, conn.api_url, conn.api_key, conn.instance_name
+       FROM chat_messages m
+       JOIN conversations conv ON conv.id = m.conversation_id
+       JOIN connections conn ON conn.id = conv.connection_id
+       WHERE m.id = $1 AND m.conversation_id = $2 AND conv.connection_id = ANY($3)
+         AND m.from_me = true AND COALESCE(m.is_deleted, false) = false`,
+      [messageId, id, connectionIds]
+    );
+
+    if (msgResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Mensagem não encontrada' });
+    }
+
+    const msg = msgResult.rows[0];
+
+    // Mark as deleted in DB
+    await query(
+      `UPDATE chat_messages SET is_deleted = true WHERE id = $1`,
+      [messageId]
+    );
+
+    res.json({ success: true });
+
+    // Try to delete on WhatsApp (async)
+    (async () => {
+      try {
+        if (msg.provider === 'wapi' && msg.instance_id && msg.wapi_token && msg.message_id) {
+          const { deleteMessage } = await import('../lib/wapi-provider.js');
+          const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', ''));
+          await deleteMessage(msg.instance_id, msg.wapi_token, msg.message_id, phone);
+        }
+      } catch (err) {
+        console.error('Delete message on WhatsApp error:', err.message);
+      }
+    })();
+  } catch (error) {
+    console.error('Delete message error:', error);
+    res.status(500).json({ error: 'Erro ao apagar mensagem' });
+  }
+});
+
 // ==========================================
 // TAGS
 // ==========================================
