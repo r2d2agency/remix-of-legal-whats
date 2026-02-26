@@ -595,6 +595,38 @@ function extractInstanceId(payload) {
 }
 
 /**
+ * Normalize W-API webhook payload to a flat shape consumed by handlers.
+ * Some providers send data wrapped in payload/data/result objects.
+ */
+function normalizeWebhookPayload(rawPayload) {
+  const source = rawPayload && typeof rawPayload === 'object' ? rawPayload : {};
+  const nested = [source.payload, source.data, source.result, source.message, source.eventData]
+    .find((v) => v && typeof v === 'object') || {};
+
+  const merged = {
+    ...nested,
+    ...source,
+    chat: source.chat || nested.chat || source.data?.chat || null,
+    sender: source.sender || nested.sender || source.data?.sender || null,
+    msgContent:
+      source.msgContent ||
+      nested.msgContent ||
+      source.data?.msgContent ||
+      nested.message ||
+      source.message ||
+      {},
+  };
+
+  // Keep top-level instance identifiers stable for connection lookup
+  merged.instanceId =
+    source.instanceId || source.instance_id || nested.instanceId || nested.instance_id || merged.instanceId || null;
+  merged.instance_id =
+    source.instance_id || source.instanceId || nested.instance_id || nested.instanceId || merged.instance_id || null;
+
+  return merged;
+}
+
+/**
  * W-API Webhook handler
  * Receives messages from W-API instances
  * 
@@ -603,7 +635,7 @@ function extractInstanceId(payload) {
  */
 router.post('/webhook', async (req, res) => {
   try {
-    const payload = req.body;
+    const payload = normalizeWebhookPayload(req.body);
     console.log('[W-API Webhook] Received:', JSON.stringify(payload).slice(0, 500));
 
     // W-API sends different payload structures depending on event type
@@ -624,7 +656,7 @@ router.post('/webhook', async (req, res) => {
       `SELECT c.*, om.organization_id
        FROM connections c
        LEFT JOIN organization_members om ON om.user_id = c.user_id
-       WHERE c.instance_id = $1 AND c.wapi_token IS NOT NULL
+       WHERE LOWER(TRIM(c.instance_id)) = LOWER(TRIM($1)) AND c.wapi_token IS NOT NULL
        LIMIT 1`,
       [instanceId]
     );
@@ -1323,25 +1355,26 @@ router.post('/:connectionId/sync-all-groups', authenticate, async (req, res) => 
  * - webhookConnected / webhookDisconnected: connection status
  */
 function detectEventType(payload) {
-  const rawEvent = payload?.event || payload?.type || payload?.webhookType || '';
+  const rawEvent = payload?.event || payload?.type || payload?.webhookType || payload?.eventName || '';
   const event = String(rawEvent).trim().toLowerCase();
 
   const isTrue = (v) => v === true || v === 'true' || v === 1 || v === '1';
   const isFalse = (v) => v === false || v === 'false' || v === 0 || v === '0';
+  const fromMe = payload?.fromMe ?? payload?.isFromMe ?? payload?.from_me ?? payload?.key?.fromMe;
 
   // W-API specific event types (and common aliases)
-  if (['webhookreceived', 'received', 'message_received', 'incoming_message'].includes(event)) {
-    if (isTrue(payload.fromMe) || isTrue(payload.isFromMe) || isTrue(payload.from_me) || isTrue(payload.fromApi)) {
+  if (['webhookreceived', 'received', 'message_received', 'incoming_message', 'message.received', 'message_upsert'].includes(event)) {
+    if (isTrue(fromMe) || isTrue(payload.fromApi)) {
       return 'message_sent';
     }
     return 'message_received';
   }
 
-  if (['webhookdelivery', 'delivery', 'message_delivery', 'message_sent'].includes(event)) {
+  if (['webhookdelivery', 'delivery', 'message_delivery', 'message_sent', 'message.sent'].includes(event)) {
     return 'message_sent';
   }
 
-  if (['webhookstatus', 'message_status', 'status', 'message.ack'].includes(event)) {
+  if (['webhookstatus', 'message_status', 'status', 'message.ack', 'message_status_update'].includes(event)) {
     return 'status_update';
   }
 
@@ -1351,13 +1384,13 @@ function detectEventType(payload) {
 
   // Legacy/fallback: Evolution-style events
   if (event === 'message' || event === 'messages.upsert') {
-    if (isFalse(payload.fromMe) || isFalse(payload.isFromMe) || isFalse(payload.from_me)) return 'message_received';
+    if (isFalse(fromMe)) return 'message_received';
     return 'message_sent';
   }
 
   // Check by presence of message fields (msgContent is W-API specific)
   if (payload.msgContent || payload.message || payload.text || payload.body) {
-    if (isTrue(payload.fromMe) || isTrue(payload.isFromMe) || isTrue(payload.from_me) || isTrue(payload.fromApi)) {
+    if (isTrue(fromMe) || isTrue(payload.fromApi)) {
       return 'message_sent';
     }
     return 'message_received';
