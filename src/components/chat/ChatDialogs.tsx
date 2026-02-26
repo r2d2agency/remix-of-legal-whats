@@ -47,18 +47,38 @@ export function TransferDialog({ open, onOpenChange, conversation, team, onTrans
   const [transferNote, setTransferNote] = useState("");
   const [transferMode, setTransferMode] = useState<'human' | 'ai'>('human');
   const [transferAgents, setTransferAgents] = useState<Array<{ id: string; name: string; is_active: boolean }>>([]);
+  const [connectionTeam, setConnectionTeam] = useState<TeamMember[]>([]);
   const [transferToAgent, setTransferToAgent] = useState("");
   const [transferringToAI, setTransferringToAI] = useState(false);
   const [loadingAgents, setLoadingAgents] = useState(false);
+  const [loadingTeam, setLoadingTeam] = useState(false);
   const [agentsError, setAgentsError] = useState("");
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+
+    const loadDialogData = async () => {
       setTransferMode('human');
       setTransferTo("");
       setTransferToAgent("");
       setTransferNote("");
       setAgentsError("");
+
+      if (conversation?.connection_id) {
+        setLoadingTeam(true);
+        try {
+          const teamByConnection = await api<TeamMember[]>(`/api/chat/team?connection_id=${conversation.connection_id}`);
+          setConnectionTeam(teamByConnection || []);
+        } catch (err) {
+          console.error('[TransferDialog] Erro ao carregar equipe da conexão:', err);
+          setConnectionTeam(team || []);
+        } finally {
+          setLoadingTeam(false);
+        }
+      } else {
+        setConnectionTeam(team || []);
+      }
+
       setLoadingAgents(true);
       api<Array<{ id: string; name: string; is_active: boolean }>>('/api/ai-agents', { auth: true })
         .then(data => {
@@ -72,8 +92,10 @@ export function TransferDialog({ open, onOpenChange, conversation, team, onTrans
           setAgentsError(err.message || "Erro ao carregar agentes IA");
         })
         .finally(() => setLoadingAgents(false));
-    }
-  }, [open]);
+    };
+
+    loadDialogData();
+  }, [open, conversation?.connection_id, team]);
 
   const handleTransfer = async () => {
     if (transferMode === 'ai') {
@@ -122,16 +144,30 @@ export function TransferDialog({ open, onOpenChange, conversation, team, onTrans
         <div className="space-y-4">
           {transferMode === 'human' ? (
             <>
-              <Select value={transferTo} onValueChange={setTransferTo}>
-                <SelectTrigger><SelectValue placeholder="Selecione um atendente" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Liberar (sem atendente)</SelectItem>
-                  {team.filter(m => m.id).map(m => (
-                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Textarea placeholder="Observação (opcional)" value={transferNote} onChange={e => setTransferNote(e.target.value)} />
+              {loadingTeam ? (
+                <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Carregando atendentes da conexão...</span>
+                </div>
+              ) : (
+                <>
+                  <Select value={transferTo} onValueChange={setTransferTo}>
+                    <SelectTrigger><SelectValue placeholder="Selecione um atendente" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Liberar (sem atendente)</SelectItem>
+                      {connectionTeam.filter(m => m.id).map(m => (
+                        <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {connectionTeam.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhum outro atendente disponível nesta conexão.
+                    </p>
+                  )}
+                  <Textarea placeholder="Observação (opcional)" value={transferNote} onChange={e => setTransferNote(e.target.value)} />
+                </>
+              )}
             </>
           ) : (
             <>

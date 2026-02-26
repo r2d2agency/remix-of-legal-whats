@@ -1827,19 +1827,54 @@ router.get('/team', authenticate, async (req, res) => {
   try {
     const userOrg = await getUserOrganization(req.userId);
     const organizationId = userOrg?.organization_id;
-    
+    const connectionId = typeof req.query.connection_id === 'string' ? req.query.connection_id : null;
+
     if (!organizationId) {
       return res.json([]);
     }
 
-    const result = await query(
-      `SELECT u.id, u.name, u.email, om.role
-       FROM organization_members om
-       JOIN users u ON u.id = om.user_id
-       WHERE om.organization_id = $1
-       ORDER BY u.name`,
-      [organizationId]
+    if (!connectionId) {
+      const result = await query(
+        `SELECT u.id, u.name, u.email, om.role
+         FROM organization_members om
+         JOIN users u ON u.id = om.user_id
+         WHERE om.organization_id = $1
+         ORDER BY u.name`,
+        [organizationId]
+      );
+      return res.json(result.rows);
+    }
+
+    const connectionIds = await getUserConnections(req.userId);
+    if (!connectionIds.includes(connectionId)) {
+      return res.status(403).json({ error: 'Sem acesso a esta conexão' });
+    }
+
+    const specificMembersResult = await query(
+      `SELECT COUNT(*)::int AS total FROM connection_members WHERE connection_id = $1`,
+      [connectionId]
     );
+    const hasSpecificMembers = (specificMembersResult.rows[0]?.total || 0) > 0;
+
+    const result = hasSpecificMembers
+      ? await query(
+          `SELECT u.id, u.name, u.email, om.role
+           FROM connection_members cm
+           JOIN organization_members om ON om.user_id = cm.user_id
+           JOIN users u ON u.id = cm.user_id
+           WHERE cm.connection_id = $1
+             AND om.organization_id = $2
+           ORDER BY u.name`,
+          [connectionId, organizationId]
+        )
+      : await query(
+          `SELECT u.id, u.name, u.email, om.role
+           FROM organization_members om
+           JOIN users u ON u.id = om.user_id
+           WHERE om.organization_id = $1
+           ORDER BY u.name`,
+          [organizationId]
+        );
 
     res.json(result.rows);
   } catch (error) {
@@ -1857,7 +1892,7 @@ router.post('/conversations/:id/transfer', authenticate, async (req, res) => {
 
     // Check access
     const check = await query(
-      `SELECT id, assigned_to FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      `SELECT id, assigned_to, connection_id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
       [id, connectionIds]
     );
 
@@ -1866,6 +1901,48 @@ router.post('/conversations/:id/transfer', authenticate, async (req, res) => {
     }
 
     const previousAssigned = check.rows[0].assigned_to;
+    const conversationConnectionId = check.rows[0].connection_id;
+
+    // Validate target user access to this connection
+    if (to_user_id) {
+      if (to_user_id === req.userId) {
+        return res.status(400).json({ error: 'Selecione outro usuário para transferir a conversa' });
+      }
+
+      const specificMembersResult = await query(
+        `SELECT COUNT(*)::int AS total FROM connection_members WHERE connection_id = $1`,
+        [conversationConnectionId]
+      );
+      const hasSpecificMembers = (specificMembersResult.rows[0]?.total || 0) > 0;
+
+      if (hasSpecificMembers) {
+        const targetMember = await query(
+          `SELECT 1 FROM connection_members WHERE connection_id = $1 AND user_id = $2 LIMIT 1`,
+          [conversationConnectionId, to_user_id]
+        );
+
+        if (targetMember.rows.length === 0) {
+          return res.status(400).json({
+            error: 'Usuário selecionado não está disponível nesta conexão',
+          });
+        }
+      } else {
+        const userOrg = await getUserOrganization(req.userId);
+        const targetOrgMember = await query(
+          `SELECT 1
+           FROM organization_members
+           WHERE organization_id = $1 AND user_id = $2
+           LIMIT 1`,
+          [userOrg?.organization_id, to_user_id]
+        );
+
+        if (targetOrgMember.rows.length === 0) {
+          return res.status(400).json({
+            error: 'Usuário selecionado não está disponível nesta conexão',
+          });
+        }
+      }
+    }
 
     // Update assignment
     await query(

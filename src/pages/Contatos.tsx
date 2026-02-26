@@ -20,6 +20,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
   Upload,
@@ -34,6 +41,7 @@ import {
   X,
   Phone,
   UserPlus,
+  RefreshCw,
 } from "lucide-react";
 import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
 import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
@@ -42,6 +50,15 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+interface SyncConnection {
+  id: string;
+  name: string;
+  status: string;
+  phone_number: string | null;
+  provider?: string;
+  instance_id?: string | null;
+}
 
 const Contatos = () => {
   const {
@@ -72,17 +89,28 @@ const Contatos = () => {
   const [editingContact, setEditingContact] = useState<string | null>(null);
   const [validatingContact, setValidatingContact] = useState<string | null>(null);
   const [wapiConnectionId, setWapiConnectionId] = useState<string | null>(null);
+  const [syncConnections, setSyncConnections] = useState<SyncConnection[]>([]);
+  const [selectedSyncConnectionId, setSelectedSyncConnectionId] = useState("");
+  const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
 
-  // Find a connected W-API connection for bulk validation
+  // Load connected W-API connections
   useEffect(() => {
-    const findWapiConnection = async () => {
+    const loadConnections = async () => {
       try {
-        const connections = await api<{ id: string; provider?: string; instance_id?: string; status: string }[]>('/api/connections');
-        const wapi = connections.find(c => (c.provider === 'wapi' || !!c.instance_id) && c.status === 'connected');
-        if (wapi) setWapiConnectionId(wapi.id);
-      } catch { /* ignore */ }
+        const connections = await api<SyncConnection[]>('/api/connections');
+        const connectedWapi = connections.filter(
+          (c) => (c.provider === 'wapi' || !!c.instance_id) && c.status === 'connected'
+        );
+
+        setSyncConnections(connectedWapi);
+        setWapiConnectionId(connectedWapi[0]?.id || null);
+        setSelectedSyncConnectionId((prev) => prev || connectedWapi[0]?.id || "");
+      } catch {
+        setSyncConnections([]);
+      }
     };
-    findWapiConnection();
+
+    loadConnections();
   }, []);
 
   // Load lists on mount
@@ -317,6 +345,64 @@ const Contatos = () => {
     return result.results;
   };
 
+  const ensureConnectionReadyForSync = async (connection: SyncConnection): Promise<boolean> => {
+    if (connection.status === 'connected') return true;
+
+    try {
+      const liveStatus = await api<{ status: string; phoneNumber?: string }>(`/api/evolution/${connection.id}/status`);
+
+      setSyncConnections((prev) =>
+        prev.map((item) =>
+          item.id === connection.id
+            ? { ...item, status: liveStatus.status, phone_number: liveStatus.phoneNumber || item.phone_number }
+            : item
+        )
+      );
+
+      return liveStatus.status === 'connected';
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao verificar status da conexão');
+      return false;
+    }
+  };
+
+  const handleSyncConnectionContacts = async () => {
+    if (!selectedSyncConnectionId) {
+      toast.error('Selecione uma conexão para sincronizar');
+      return;
+    }
+
+    const selectedConnection = syncConnections.find((c) => c.id === selectedSyncConnectionId);
+    if (!selectedConnection) {
+      toast.error('Conexão selecionada não encontrada');
+      return;
+    }
+
+    const ready = await ensureConnectionReadyForSync(selectedConnection);
+    if (!ready) {
+      toast.warning('A conexão precisa estar conectada para sincronizar contatos');
+      return;
+    }
+
+    setSyncingConnectionId(selectedConnection.id);
+    try {
+      const result = await api<{ success: boolean; total: number; imported: number; updated: number; skipped: number; error?: string }>(
+        `/api/wapi/${selectedConnection.id}/sync-contacts`,
+        { method: 'POST' }
+      );
+
+      if (result.success) {
+        toast.success(`Sincronização concluída! ${result.imported} novos, ${result.updated} atualizados, ${result.skipped} ignorados.`);
+      } else {
+        toast.error(result.error || 'Erro ao sincronizar contatos');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao sincronizar contatos');
+    } finally {
+      setSyncingConnectionId(null);
+    }
+  };
+
   const filteredContacts = contacts.filter(
     (contact) =>
       contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -372,6 +458,56 @@ const Contatos = () => {
             </DialogContent>
           </Dialog>
         </div>
+
+        <Card className="animate-fade-in">
+          <CardHeader>
+            <CardTitle>Sincronizar agenda da conexão</CardTitle>
+            <CardDescription>
+              Selecione uma conexão W-API conectada para importar contatos da agenda do WhatsApp.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Select value={selectedSyncConnectionId} onValueChange={setSelectedSyncConnectionId}>
+                <SelectTrigger className="sm:w-[320px]">
+                  <SelectValue placeholder="Selecione uma conexão" />
+                </SelectTrigger>
+                <SelectContent>
+                  {syncConnections.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      Nenhuma conexão W-API conectada
+                    </SelectItem>
+                  ) : (
+                    syncConnections.map((connection) => (
+                      <SelectItem key={connection.id} value={connection.id}>
+                        {connection.name}
+                        {connection.phone_number ? ` (${connection.phone_number})` : ''}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                onClick={handleSyncConnectionContacts}
+                disabled={!selectedSyncConnectionId || syncingConnectionId === selectedSyncConnectionId || syncConnections.length === 0}
+              >
+                {syncingConnectionId === selectedSyncConnectionId ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sincronizando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Sincronizar contatos
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Lists Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

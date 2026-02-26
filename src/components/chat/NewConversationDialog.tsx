@@ -86,7 +86,8 @@ export function NewConversationDialog({
   const [agendaSearch, setAgendaSearch] = useState("");
   const [agendaContacts, setAgendaContacts] = useState<ChatContact[]>([]);
   const [loadingAgenda, setLoadingAgenda] = useState(false);
-  const [agendaConnectionFilter, setAgendaConnectionFilter] = useState("all");
+
+  const activeConnections = connections.filter(c => c.status === 'connected');
   
   const { toast } = useToast();
 
@@ -97,13 +98,15 @@ export function NewConversationDialog({
       setContactName("");
       setAgendaSearch("");
       setActiveTab("agenda");
-      // Pre-select first connected connection
-      const connectedConnection = connections.find(c => c.status === 'connected');
-      setConnectionId(connectedConnection?.id || connections[0]?.id || "");
-      setAgendaConnectionFilter("all");
-      loadAgendaContacts();
+
+      if (activeConnections.length === 1) {
+        setConnectionId(activeConnections[0].id);
+      } else {
+        setConnectionId("");
+        setAgendaContacts([]);
+      }
     }
-  }, [open, connections]);
+  }, [open, activeConnections]);
 
   const loadAgendaContacts = useCallback(async (search?: string, connection?: string) => {
     setLoadingAgenda(true);
@@ -124,23 +127,34 @@ export function NewConversationDialog({
   // Debounced search
   useEffect(() => {
     if (!open) return;
-    
+
+    if (activeConnections.length > 1 && !connectionId) {
+      setAgendaContacts([]);
+      return;
+    }
+
     const timer = setTimeout(() => {
-      loadAgendaContacts(agendaSearch, agendaConnectionFilter);
+      loadAgendaContacts(agendaSearch, connectionId || undefined);
     }, 300);
-    
+
     return () => clearTimeout(timer);
-  }, [agendaSearch, agendaConnectionFilter, open, loadAgendaContacts]);
+  }, [agendaSearch, connectionId, open, loadAgendaContacts, activeConnections.length]);
 
   const handleSelectFromAgenda = async (contact: ChatContact) => {
     setCreating(true);
     try {
+      const targetConnectionId = connectionId || contact.connection_id;
+      if (!targetConnectionId) {
+        toast({ title: "Selecione uma conexão", variant: "destructive" });
+        return;
+      }
+
       const conversation = await api<Conversation & { existed?: boolean }>('/api/chat/conversations', {
         method: 'POST',
         body: {
           contact_phone: contact.phone,
           contact_name: contact.name,
-          connection_id: contact.connection_id,
+          connection_id: targetConnectionId,
         },
       });
 
@@ -220,7 +234,6 @@ export function NewConversationDialog({
     }
   };
 
-  const activeConnections = connections.filter(c => c.status === 'connected');
 
   const getInitials = (name: string | null | undefined, phone: string | null | undefined): string => {
     if (name && typeof name === 'string' && name.trim()) {
@@ -248,6 +261,25 @@ export function NewConversationDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {activeConnections.length > 1 && (
+          <div className="space-y-2 mt-4">
+            <Label htmlFor="connection-global">Conexão para esta conversa</Label>
+            <Select value={connectionId} onValueChange={setConnectionId}>
+              <SelectTrigger id="connection-global">
+                <SelectValue placeholder="Escolha a conexão para continuar" />
+              </SelectTrigger>
+              <SelectContent>
+                {activeConnections.map((conn) => (
+                  <SelectItem key={conn.id} value={conn.id}>
+                    {conn.name}
+                    {conn.phone_number ? ` (${conn.phone_number})` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="agenda" className="flex items-center gap-2">
@@ -262,33 +294,24 @@ export function NewConversationDialog({
 
           {/* Agenda Tab */}
           <TabsContent value="agenda" className="space-y-4 mt-4">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nome ou telefone..."
-                  value={agendaSearch}
-                  onChange={(e) => setAgendaSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Select value={agendaConnectionFilter} onValueChange={setAgendaConnectionFilter}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Conexão" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {activeConnections.map(conn => (
-                    <SelectItem key={conn.id} value={conn.id}>
-                      {conn.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome ou telefone..."
+                value={agendaSearch}
+                onChange={(e) => setAgendaSearch(e.target.value)}
+                className="pl-9"
+                disabled={activeConnections.length > 1 && !connectionId}
+              />
             </div>
 
             <ScrollArea className="h-[250px] border rounded-md">
-              {loadingAgenda ? (
+              {activeConnections.length > 1 && !connectionId ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <MessageSquarePlus className="h-8 w-8 mb-2 opacity-50" />
+                  <p className="text-sm">Selecione a conexão para listar a agenda</p>
+                </div>
+              ) : loadingAgenda ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
