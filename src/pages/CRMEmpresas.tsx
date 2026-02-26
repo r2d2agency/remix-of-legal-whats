@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,11 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CompanyDialog } from "@/components/crm/CompanyDialog";
 import { CompanyImportDialog } from "@/components/crm/CompanyImportDialog";
-import { useCRMCompanies, useCRMCompanyMutations, CRMCompany } from "@/hooks/use-crm";
+import { useCRMCompanies, useCRMCompanyMutations, CRMCompany, useCRMFunnels } from "@/hooks/use-crm";
 import { Plus, Search, MoreHorizontal, Building2, Phone, Mail, Trash2, Edit, Loader2, FileSpreadsheet, Tag, HandshakeIcon } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { DealFormDialog } from "@/components/crm/DealFormDialog";
-import { useCRMFunnels } from "@/hooks/use-crm";
 
 export default function CRMEmpresas() {
   const [search, setSearch] = useState("");
@@ -22,10 +21,21 @@ export default function CRMEmpresas() {
   const [dealDialogOpen, setDealDialogOpen] = useState(false);
   const [selectedCompanyForDeal, setSelectedCompanyForDeal] = useState<CRMCompany | null>(null);
 
-  const { data: companies, isLoading } = useCRMCompanies(search);
-  const { importCompanies } = useCRMCompanyMutations();
+  const { data: companies, isLoading } = useCRMCompanies();
+  const { importCompanies, deleteCompany } = useCRMCompanyMutations();
   const { data: funnels } = useCRMFunnels();
-  const { deleteCompany } = useCRMCompanyMutations();
+
+  // Client-side filtering instead of API call per keystroke
+  const filteredCompanies = useMemo(() => {
+    if (!companies) return [];
+    if (!search.trim()) return companies;
+    const s = search.toLowerCase();
+    return companies.filter(c => 
+      c.name?.toLowerCase().includes(s) || 
+      c.cnpj?.toLowerCase().includes(s) || 
+      c.email?.toLowerCase().includes(s)
+    );
+  }, [companies, search]);
 
   const handleEdit = (company: CRMCompany) => {
     setEditingCompany(company);
@@ -87,17 +97,21 @@ export default function CRMEmpresas() {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : !companies?.length ? (
+            ) : !filteredCompanies.length ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Nenhuma empresa cadastrada</h3>
+                <h3 className="text-lg font-medium mb-2">
+                  {search ? "Nenhuma empresa encontrada" : "Nenhuma empresa cadastrada"}
+                </h3>
                 <p className="text-muted-foreground mb-4">
-                  Adicione empresas para vincular às suas negociações
+                  {search ? "Tente outro termo de busca" : "Adicione empresas para vincular às suas negociações"}
                 </p>
-                <Button onClick={handleNew}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Adicionar Empresa
-                </Button>
+                {!search && (
+                  <Button onClick={handleNew}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar Empresa
+                  </Button>
+                )}
               </div>
             ) : (
               <Table>
@@ -114,7 +128,7 @@ export default function CRMEmpresas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {companies.map((company) => (
+                  {filteredCompanies.map((company) => (
                     <TableRow key={company.id} className="cursor-pointer" onClick={() => handleEdit(company)}>
                       <TableCell className="max-w-[250px]">
                         <div className="flex items-center gap-3 min-w-0">
