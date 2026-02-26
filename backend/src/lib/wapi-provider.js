@@ -2,6 +2,7 @@
 // https://api.w-api.app/v1/
 
 import { logError, logInfo, logWarn } from '../logger.js';
+import { fetchWithRetry } from './retry-fetch.js';
 import http from 'http';
 import https from 'https';
 
@@ -581,7 +582,7 @@ export async function sendText(instanceId, token, phone, message) {
   const at = new Date().toISOString();
 
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${W_API_BASE_URL}/message/send-text?instanceId=${instanceId}`,
       {
         method: 'POST',
@@ -590,7 +591,8 @@ export async function sendText(instanceId, token, phone, message) {
           phone: cleanPhone,
           message: message,
         }),
-      }
+      },
+      { retries: 3, baseDelay: 2000, label: 'wapi-sendText' }
     );
 
     const { data, text } = await readJsonResponse(response);
@@ -706,7 +708,7 @@ export async function sendImage(instanceId, token, phone, imageUrl, caption = ''
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
   
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${W_API_BASE_URL}/message/send-image?instanceId=${instanceId}`,
       {
         method: 'POST',
@@ -716,7 +718,8 @@ export async function sendImage(instanceId, token, phone, imageUrl, caption = ''
           image: imageUrl,
           caption: caption,
         }),
-      }
+      },
+      { retries: 3, baseDelay: 2000, label: 'wapi-sendImage' }
     );
 
     const data = await response.json();
@@ -746,7 +749,7 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
   
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${W_API_BASE_URL}/message/send-audio?instanceId=${instanceId}`,
       {
         method: 'POST',
@@ -755,7 +758,8 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
           phone: cleanPhone,
           audio: audioUrl,
         }),
-      }
+      },
+      { retries: 3, baseDelay: 2000, label: 'wapi-sendAudio' }
     );
 
     const data = await response.json();
@@ -785,7 +789,7 @@ export async function sendVideo(instanceId, token, phone, videoUrl, caption = ''
   const cleanPhone = isGroup ? phone : phone.replace(/\D/g, '');
   
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${W_API_BASE_URL}/message/send-video?instanceId=${instanceId}`,
       {
         method: 'POST',
@@ -795,7 +799,8 @@ export async function sendVideo(instanceId, token, phone, videoUrl, caption = ''
           video: videoUrl,
           caption: caption,
         }),
-      }
+      },
+      { retries: 3, baseDelay: 2000, label: 'wapi-sendVideo' }
     );
 
     const data = await response.json();
@@ -941,7 +946,7 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
   const extension = extensionMatch ? extensionMatch[1].toLowerCase() : 'pdf';
 
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${W_API_BASE_URL}/message/send-document?instanceId=${instanceId}`,
       {
         method: 'POST',
@@ -950,12 +955,12 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
           phone: cleanPhone,
           document: effectiveDocumentUrl,
           filename: filenameWithExt,
-          // Some W-API installations/docs use camelCase
           fileName: filenameWithExt,
-          // W-API requires the 'extension' field explicitly
           extension: extension,
         }),
-      }
+      },
+      { retries: 3, baseDelay: 2000, label: 'wapi-sendDocument' }
+    );
     );
 
     const { data, text } = await readJsonResponse(response);
