@@ -1467,6 +1467,105 @@ export async function startAgentSession(agentId, conversationId, contactPhone, c
 }
 
 /**
+ * Trigger an immediate AI response after manual activation from CRM.
+ * Uses the seeded chat history as context and sends a proactive message.
+ */
+export async function triggerAgentFirstMessage(agentId, conversationId) {
+  try {
+    const session = await getActiveSession(conversationId);
+    if (!session) {
+      logInfo('ai_agent_processor.first_message_no_session', { conversationId });
+      return null;
+    }
+
+    // Load agent
+    const agentResult = await query(`SELECT * FROM ai_agents WHERE id = $1`, [agentId]);
+    if (agentResult.rows.length === 0) return null;
+    const agent = agentResult.rows[0];
+
+    // Get connection for this conversation
+    const connResult = await query(
+      `SELECT c.* FROM connections c JOIN conversations cv ON cv.connection_id = c.id WHERE cv.id = $1`,
+      [conversationId]
+    );
+    if (connResult.rows.length === 0) return null;
+    const connection = connResult.rows[0];
+    const organizationId = connection.organization_id;
+
+    // Load seeded history
+    const history = await getSessionHistory(session.id, agent.context_window || 10);
+    if (history.length === 0) {
+      logInfo('ai_agent_processor.first_message_no_history', { conversationId });
+      return null;
+    }
+
+    // Get the last user message content for RAG context
+    const lastUserMsg = [...history].reverse().find(m => m.role === 'user');
+    const contextMessage = lastUserMsg?.content || '';
+
+    // Build system prompt with RAG
+    const aiConfig = await getAgentAIConfig(agent, organizationId);
+    const systemPrompt = await buildSystemPrompt(agent, organizationId, session.contact_name, contextMessage, aiConfig);
+
+    // Build messages - add instruction to continue the conversation proactively
+    const messages = [
+      { role: 'system', content: systemPrompt + '\n\nIMPORTANTE: Você está sendo ativado para continuar uma conversa em andamento. Analise o histórico abaixo e responda de forma proativa, dando continuidade ao assunto. NÃO peça para o cliente repetir — você já tem o contexto.' },
+      ...history,
+    ];
+
+    // Build tools
+    const capabilities = parseArray(agent.capabilities, ['respond_messages']);
+    const tools = await buildToolsForAgent(agent, capabilities, organizationId);
+    const userId = agent.default_user_id || agent.created_by;
+
+    let result;
+    let toolCallsExecuted = [];
+    const startTime = Date.now();
+
+    if (tools.length > 0) {
+      const toolExecutor = createToolExecutor(organizationId, userId);
+      result = await callAIWithTools(aiConfig, messages, {
+        temperature: parseFloat(agent.temperature) || 0.7,
+        maxTokens: parseInt(agent.max_tokens, 10) || 1000,
+        tools,
+      }, toolExecutor);
+      toolCallsExecuted = result.toolCallsExecuted || [];
+    } else {
+      result = await callAI(aiConfig, messages, {
+        temperature: parseFloat(agent.temperature) || 0.7,
+        maxTokens: parseInt(agent.max_tokens, 10) || 1000,
+      });
+    }
+
+    const responseTime = Date.now() - startTime;
+    const responseText = result.content || '';
+
+    if (!responseText) {
+      logInfo('ai_agent_processor.first_message_empty_response', { conversationId });
+      return null;
+    }
+
+    // Send message via WhatsApp
+    await sendAgentMessage(connection, session.contact_phone, responseText, session.id);
+
+    // Save to session history
+    await saveAgentMessage(session.id, 'assistant', responseText, result.tokensUsed || 0, toolCallsExecuted);
+
+    // Update stats
+    await updateAgentStats(agentId, result.tokensUsed || 0, responseTime, toolCallsExecuted);
+
+    logInfo('ai_agent_processor.first_message_sent', {
+      sessionId: session.id, conversationId, responseTime, tokens: result.tokensUsed,
+    });
+
+    return { response: responseText, tokensUsed: result.tokensUsed };
+  } catch (error) {
+    logError('ai_agent_processor.first_message_error', error);
+    return null;
+  }
+}
+
+/**
  * Stop the active agent session for a conversation
  */
 export async function stopAgentSession(conversationId) {
