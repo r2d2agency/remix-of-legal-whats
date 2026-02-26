@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as whatsappProvider from '../lib/whatsapp-provider.js';
-import { startAgentSession, stopAgentSession, getActiveAgentSession, pauseSessionForHumanReply, setHumanTakeover } from '../lib/ai-agent-processor.js';
+import { startAgentSession, stopAgentSession, getActiveAgentSession, pauseSessionForHumanReply, setHumanTakeover, triggerAgentFirstMessage } from '../lib/ai-agent-processor.js';
 
 const router = Router();
 
@@ -2993,6 +2993,11 @@ router.post('/conversations/:id/agent-session', authenticate, async (req, res) =
         console.error('Erro ao enviar saudação do agente:', greetErr);
       }
     }
+
+    // Trigger immediate AI response in background (don't await - respond to client fast)
+    triggerAgentFirstMessage(agent_id, req.params.id).catch(err => {
+      console.error('Error triggering agent first message:', err);
+    });
 
     res.json({
       ...session,
