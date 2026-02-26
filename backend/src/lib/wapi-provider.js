@@ -1252,6 +1252,109 @@ export async function getChats(instanceId, token) {
 }
 
 /**
+ * Fetch contacts from W-API using /contact/get-contacts endpoint
+ * Returns actual phone contacts (not just chats)
+ */
+export async function fetchContacts(instanceId, token) {
+  const encodedInstanceId = encodeURIComponent(instanceId || '');
+
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/contact/get-contacts?instanceId=${encodedInstanceId}`,
+      {
+        method: 'GET',
+        headers: getHeaders(token),
+        signal: AbortSignal.timeout(30000),
+      }
+    );
+
+    const responseText = await response.text();
+    console.log(`[W-API] fetchContacts for ${instanceId}: HTTP ${response.status}, Body length: ${responseText.length}`);
+
+    if (!response.ok) {
+      let errMsg = `HTTP ${response.status}`;
+      try {
+        const errData = JSON.parse(responseText);
+        errMsg = errData?.message || errData?.error || errMsg;
+      } catch { /* ignore */ }
+      return { success: false, error: errMsg, contacts: [] };
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      return { success: false, error: 'Invalid JSON response', contacts: [] };
+    }
+
+    const rawContacts = Array.isArray(data) ? data
+      : Array.isArray(data?.data) ? data.data
+      : Array.isArray(data?.result) ? data.result
+      : Array.isArray(data?.contacts) ? data.contacts
+      : [];
+
+    const contacts = [];
+    for (const c of rawContacts) {
+      const jid = c.jid || c.id || c.remoteJid || c.phone || '';
+      if (jid.includes('@g.us') || jid.includes('@broadcast')) continue;
+
+      let phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
+      if (!phone) continue;
+
+      const name = c.name || c.pushName || c.notify || c.verifiedName || c.formattedName || c.displayName || c.contact?.name || '';
+      const profilePicture = c.profilePicture || c.profilePictureUrl || c.imgUrl || c.picture || null;
+
+      contacts.push({ phone, name: name || phone, jid, profilePicture });
+    }
+
+    console.log(`[W-API] Parsed ${contacts.length} contacts from fetchContacts`);
+    return { success: true, contacts, total: contacts.length };
+  } catch (error) {
+    console.error('[W-API] fetchContacts error:', error);
+    return { success: false, error: error.message, contacts: [] };
+  }
+}
+
+/**
+ * Fetch a single chat's messages (for conversation sync)
+ * GET /chat/get-chat?instanceId=XXX&chatId=YYY
+ */
+export async function getChatMessages(instanceId, token, chatId) {
+  const encodedInstanceId = encodeURIComponent(instanceId || '');
+  const encodedChatId = encodeURIComponent(chatId || '');
+
+  try {
+    const response = await fetch(
+      `${W_API_BASE_URL}/chat/get-chat?instanceId=${encodedInstanceId}&chatId=${encodedChatId}`,
+      {
+        method: 'GET',
+        headers: getHeaders(token),
+        signal: AbortSignal.timeout(30000),
+      }
+    );
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      return { success: false, error: `HTTP ${response.status}`, messages: [] };
+    }
+
+    const data = await response.json().catch(() => ({}));
+
+    // Response may contain messages in various shapes
+    const messages = Array.isArray(data) ? data
+      : Array.isArray(data?.data) ? data.data
+      : Array.isArray(data?.messages) ? data.messages
+      : Array.isArray(data?.result) ? data.result
+      : [];
+
+    return { success: true, messages };
+  } catch (error) {
+    console.error(`[W-API] getChatMessages error for ${chatId}:`, error);
+    return { success: false, error: error.message, messages: [] };
+  }
+}
+
+/**
  * Generic message sender that routes to the correct method based on type
  */
 export async function sendMessage(instanceId, token, phone, content, messageType, mediaUrl) {
