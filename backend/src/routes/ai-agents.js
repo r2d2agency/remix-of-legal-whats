@@ -166,8 +166,8 @@ router.post('/', authenticate, async (req, res) => {
       temperature, max_tokens, context_window,
       capabilities, greeting_message, fallback_message, handoff_message,
       handoff_keywords, auto_handoff_after_failures,
-      default_department_id, default_user_id,
-      JSON.stringify(lead_scoring_criteria), auto_create_deal_funnel_id, auto_create_deal_stage_id,
+      default_department_id || null, default_user_id || null,
+      JSON.stringify(lead_scoring_criteria), auto_create_deal_funnel_id || null, auto_create_deal_stage_id || null,
       JSON.stringify(call_agent_config),
       userCtx.id
     ]);
@@ -224,6 +224,10 @@ router.patch('/:id', authenticate, async (req, res) => {
 
          updates.push(assignment);
         let value = req.body[field];
+        // Convert empty strings to null for UUID foreign key fields
+        if (['default_user_id', 'default_department_id', 'auto_create_deal_funnel_id', 'auto_create_deal_stage_id'].includes(field) && (value === '' || value === null)) {
+          value = null;
+        }
         if (['personality_traits', 'lead_scoring_criteria', 'call_agent_config'].includes(field) && typeof value === 'object') {
           value = JSON.stringify(value);
         }
