@@ -654,15 +654,15 @@ const handleGetQRCode = async (connection: Connection) => {
     <MainLayout>
       <div className="space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between animate-slide-up">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-slide-up">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Conexões WhatsApp</h1>
-            <p className="mt-1 text-muted-foreground">
+            <h1 className="text-xl sm:text-3xl font-bold text-foreground">Conexões WhatsApp</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
               Gerencie suas conexões com o WhatsApp
             </p>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
             {/* Plan limits badge */}
             {planLimits && (
               <Badge variant="outline" className="text-sm py-1 px-3">
@@ -840,7 +840,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     </Badge>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {connection.status === 'connected' ? (
                       <>
                         <Button 
