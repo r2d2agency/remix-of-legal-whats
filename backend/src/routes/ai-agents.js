@@ -1055,38 +1055,127 @@ function buildScheduleMeetingsTool() {
     type: 'function',
     function: {
       name: 'schedule_meeting',
-      description: 'Agenda uma reunião ou encontro. Cria uma tarefa do tipo "meeting" no CRM com os detalhes do agendamento.',
+      description: `Agenda uma reunião ou encontro. Ações disponíveis:
+- "check_agenda": Consulta a agenda de um responsável específico para ver compromissos existentes. SEMPRE use antes de agendar.
+- "find_available_slots": Busca horários livres na agenda do responsável.
+- "create": Cria a reunião após verificar conflitos na agenda do responsável.`,
       parameters: {
         type: 'object',
         properties: {
-          title: { type: 'string', description: 'Título da reunião' },
-          date: { type: 'string', description: 'Data e hora da reunião (ISO 8601, ex: 2025-01-15T14:00:00)' },
+          action: { type: 'string', enum: ['create', 'check_agenda', 'find_available_slots'], description: 'Ação a executar. Use check_agenda ou find_available_slots ANTES de criar.' },
+          title: { type: 'string', description: 'Título da reunião (para create)' },
+          date: { type: 'string', description: 'Data e hora da reunião (ISO 8601, ex: 2025-01-15T14:00:00) (para create)' },
           duration_minutes: { type: 'number', description: 'Duração em minutos (padrão: 60)' },
+          assigned_to_name: { type: 'string', description: 'Nome ou email do responsável cuja agenda será verificada. Se não informado, usa o responsável padrão do agente.' },
           attendees: { type: 'string', description: 'Participantes, separados por vírgula' },
           location: { type: 'string', description: 'Local ou link da reunião' },
           notes: { type: 'string', description: 'Observações ou pauta da reunião' },
+          days_ahead: { type: 'number', description: 'Dias à frente para buscar (padrão: 7)' },
+          preferred_period: { type: 'string', enum: ['morning', 'afternoon', 'any'], description: 'Preferência de período (para find_available_slots)' },
         },
-        required: ['title', 'date'],
+        required: ['action'],
       },
     },
   };
 }
 
+/**
+ * Resolve a user by name or email within the organization
+ */
+async function resolveUserInOrg(organizationId, nameOrEmail) {
+  if (!nameOrEmail) return null;
+  const result = await query(`
+    SELECT u.id, u.name, u.email FROM users u
+    JOIN organization_members om ON om.user_id = u.id
+    WHERE om.organization_id = $1 AND (u.name ILIKE $2 OR u.email ILIKE $2)
+    LIMIT 1
+  `, [organizationId, `%${nameOrEmail.trim()}%`]);
+  return result.rows[0] || null;
+}
+
 async function executeScheduleMeeting(organizationId, userId, args) {
   try {
+    // Resolve assigned user
+    let assignedUserId = userId;
+    let assignedUserName = null;
+    if (args.assigned_to_name) {
+      const resolved = await resolveUserInOrg(organizationId, args.assigned_to_name);
+      if (resolved) {
+        assignedUserId = resolved.id;
+        assignedUserName = resolved.name;
+      } else {
+        return `Usuário "${args.assigned_to_name}" não encontrado na organização.`;
+      }
+    }
+
+    const action = args.action || 'create';
+
+    // CHECK AGENDA: list existing tasks/meetings for the user
+    if (action === 'check_agenda') {
+      const daysAhead = args.days_ahead || 7;
+      const result = await query(`
+        SELECT title, type, due_date, status, priority FROM crm_tasks
+        WHERE organization_id = $1 AND assigned_to = $2
+          AND status IN ('pending', 'in_progress')
+          AND due_date >= NOW() AND due_date <= NOW() + interval '1 day' * $3
+        ORDER BY due_date ASC LIMIT 20
+      `, [organizationId, assignedUserId, daysAhead]);
+
+      if (result.rows.length === 0) {
+        return `📋 Agenda de ${assignedUserName || 'responsável'} está livre nos próximos ${daysAhead} dias.`;
+      }
+      const items = result.rows.map(t => {
+        const d = new Date(t.due_date);
+        const dateStr = `${d.toLocaleDateString('pt-BR')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        return `- [${t.type}] ${t.title} — ${dateStr} (${t.priority})`;
+      }).join('\n');
+      return `📋 Agenda de ${assignedUserName || 'responsável'} (próximos ${daysAhead} dias):\n${items}`;
+    }
+
+    // FIND AVAILABLE SLOTS for the specific user
+    if (action === 'find_available_slots') {
+      const daysAhead = args.days_ahead || 7;
+      const schedule = await getWorkSchedule(organizationId);
+      const slotDuration = args.duration_minutes || schedule.slot_duration_minutes;
+      const slots = await findAvailableSlotsForUser(organizationId, assignedUserId, daysAhead, slotDuration, args.preferred_period, schedule);
+      if (slots.length === 0) return `Nenhum horário disponível para ${assignedUserName || 'responsável'} nos próximos ${daysAhead} dias.`;
+      const slotList = slots.map((s, i) => `${i + 1}. ${s.day_of_week} ${s.date} das ${s.start} às ${s.end}`).join('\n');
+      return `Horários disponíveis de ${assignedUserName || 'responsável'}:\n${slotList}`;
+    }
+
+    // CREATE: check conflicts for the assigned user first
+    if (!args.title || !args.date) return 'Título e data são obrigatórios para criar reunião.';
     const durationMin = args.duration_minutes || 60;
+
+    // Check user-specific conflicts
+    const conflictResult = await query(`
+      SELECT id, title, due_date FROM crm_tasks
+      WHERE organization_id = $1 AND assigned_to = $2 AND type IN ('meeting', 'call')
+        AND status IN ('pending', 'in_progress')
+        AND due_date >= $3::timestamp - interval '1 hour'
+        AND due_date <= $3::timestamp + interval '1 hour'
+    `, [organizationId, assignedUserId, args.date]);
+
+    if (conflictResult.rows.length > 0) {
+      const conflicts = conflictResult.rows.map(c => {
+        const d = new Date(c.due_date);
+        return `"${c.title}" (${d.toLocaleDateString('pt-BR')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')})`;
+      }).join(', ');
+      return `⚠️ Conflito na agenda de ${assignedUserName || 'responsável'}: ${conflicts}. Use find_available_slots para horários livres.`;
+    }
+
     const result = await query(`
       INSERT INTO crm_tasks (organization_id, assigned_to, created_by, title, description, type, priority, due_date)
-      VALUES ($1, $2, $2, $3, $4, 'meeting', 'high', $5)
+      VALUES ($1, $2, $3, $4, $5, 'meeting', 'high', $6)
       RETURNING id, title, due_date
     `, [
-      organizationId, userId, args.title,
+      organizationId, assignedUserId, userId, args.title,
       `Participantes: ${args.attendees || 'A definir'}\nLocal: ${args.location || 'A definir'}\nDuração: ${durationMin}min\n\n${args.notes || ''}`.trim(),
       args.date
     ]);
     const task = result.rows[0];
-    logInfo('ai_agents.tool_schedule_meeting', { taskId: task.id, date: task.due_date });
-    return `Reunião "${task.title}" agendada para ${task.due_date} (ID: ${task.id}, duração: ${durationMin}min)`;
+    logInfo('ai_agents.tool_schedule_meeting', { taskId: task.id, assignedTo: assignedUserId, date: task.due_date });
+    return `✅ Reunião "${task.title}" agendada para ${task.due_date} com ${assignedUserName || 'responsável'} (ID: ${task.id}, duração: ${durationMin}min). Sem conflitos.`;
   } catch (error) {
     logError('ai_agents.tool_schedule_meeting_error', error);
     return `Erro ao agendar reunião: ${error.message}`;
@@ -1150,21 +1239,31 @@ function timeToMinutes(timeStr) {
 }
 
 async function findAvailableSlots(organizationId, daysAhead, durationMinutes, preferredPeriod) {
-  const schedule = await getWorkSchedule(organizationId);
+  return findAvailableSlotsForUser(organizationId, null, daysAhead, durationMinutes, preferredPeriod);
+}
+
+/**
+ * Find available slots filtering by a specific user's agenda (or org-wide if userId is null)
+ */
+async function findAvailableSlotsForUser(organizationId, userId, daysAhead, durationMinutes, preferredPeriod, scheduleOverride) {
+  const schedule = scheduleOverride || await getWorkSchedule(organizationId);
   const slotDuration = durationMinutes || schedule.slot_duration_minutes;
   const buffer = schedule.buffer_minutes;
 
-  const existingResult = await query(`
-    SELECT due_date, 
-           due_date + interval '1 hour' as estimated_end
-    FROM crm_tasks
-    WHERE organization_id = $1 
-      AND type = 'meeting' 
-      AND status = 'pending'
-      AND due_date >= NOW() 
-      AND due_date <= NOW() + interval '1 day' * $2
-    ORDER BY due_date ASC
-  `, [organizationId, daysAhead]);
+  const existingQuery = userId
+    ? `SELECT due_date, due_date + interval '1 hour' as estimated_end
+       FROM crm_tasks WHERE organization_id = $1 AND assigned_to = $3
+         AND type IN ('meeting', 'call') AND status IN ('pending', 'in_progress')
+         AND due_date >= NOW() AND due_date <= NOW() + interval '1 day' * $2
+       ORDER BY due_date ASC`
+    : `SELECT due_date, due_date + interval '1 hour' as estimated_end
+       FROM crm_tasks WHERE organization_id = $1
+         AND type IN ('meeting', 'call') AND status IN ('pending', 'in_progress')
+         AND due_date >= NOW() AND due_date <= NOW() + interval '1 day' * $2
+       ORDER BY due_date ASC`;
+
+  const params = userId ? [organizationId, daysAhead, userId] : [organizationId, daysAhead];
+  const existingResult = await query(existingQuery, params);
 
   const existingEvents = existingResult.rows.map(e => ({
     start: new Date(e.due_date).getTime(),
@@ -1188,7 +1287,6 @@ async function findAvailableSlots(organizationId, daysAhead, durationMinutes, pr
     if (!schedule.work_days.includes(dayOfWeek)) continue;
 
     for (let min = workStartMin; min + slotDuration <= workEndMin && slots.length < maxSlots; min += slotDuration + buffer) {
-      // Skip lunch block
       if (min < lunchEndMin && min + slotDuration > lunchStartMin) {
         min = lunchEndMin - slotDuration - buffer;
         continue;
