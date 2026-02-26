@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, MessageSquare } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Radio, Users, Download, Pencil, UserCheck, MessageSquare, Check } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -70,6 +71,7 @@ const Conexao = () => {
   // W-API contact sync state
   const [syncingContacts, setSyncingContacts] = useState<string | null>(null);
   const [syncingConversations, setSyncingConversations] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; messagesImported: number; conversationsCreated: number } | null>(null);
 
   // Webhook viewer state (shows what the backend is actually receiving)
   const [webhookViewerOpen, setWebhookViewerOpen] = useState(false);
@@ -377,28 +379,78 @@ const handleGetQRCode = async (connection: Connection) => {
     }
 
     setSyncingConversations(connection.id);
-    try {
-      const result = await api<{ 
-        success: boolean; 
-        conversations_created: number; 
-        conversations_updated: number; 
-        messages_imported: number; 
-        messages_skipped: number;
-        errors: number;
-        error?: string;
-      }>(`/api/wapi/${connection.id}/sync-conversations`, { method: 'POST' });
+    setSyncProgress({ current: 0, total: 0, messagesImported: 0, conversationsCreated: 0 });
 
-      if (result.success) {
-        toast.success(
-          `Sincronização concluída! ${result.conversations_created} conversas novas, ${result.messages_imported} mensagens importadas (últimos 2 meses)`
-        );
-      } else {
-        toast.error(result.error || 'Erro ao sincronizar conversas');
+    try {
+      // Step 1: Prepare - get total chat count
+      const prepResult = await api<{ success: boolean; sync_id: string; total_chats: number; error?: string }>(
+        `/api/wapi/${connection.id}/sync-conversations/prepare`,
+        { method: 'POST' }
+      );
+
+      if (!prepResult.success) {
+        toast.error(prepResult.error || 'Erro ao preparar sincronização');
+        return;
       }
+
+      const { sync_id, total_chats } = prepResult;
+      setSyncProgress({ current: 0, total: total_chats, messagesImported: 0, conversationsCreated: 0 });
+
+      if (total_chats === 0) {
+        toast.info('Nenhuma conversa encontrada para sincronizar');
+        return;
+      }
+
+      // Step 2: Process in batches
+      const BATCH_SIZE = 10;
+      let offset = 0;
+      let totalMessagesImported = 0;
+      let totalConversationsCreated = 0;
+
+      while (offset < total_chats) {
+        const batchResult = await api<{
+          success: boolean;
+          processed: number;
+          total: number;
+          done: boolean;
+          conversations_created: number;
+          messages_imported: number;
+          error?: string;
+        }>(`/api/wapi/${connection.id}/sync-conversations/batch`, {
+          method: 'POST',
+          body: { sync_id, offset, limit: BATCH_SIZE },
+        });
+
+        if (!batchResult.success) {
+          toast.error(batchResult.error || 'Erro durante sincronização');
+          break;
+        }
+
+        totalMessagesImported += batchResult.messages_imported;
+        totalConversationsCreated += batchResult.conversations_created;
+
+        setSyncProgress({
+          current: batchResult.processed,
+          total: batchResult.total,
+          messagesImported: totalMessagesImported,
+          conversationsCreated: totalConversationsCreated,
+        });
+
+        if (batchResult.done) break;
+        offset += BATCH_SIZE;
+
+        // Small delay to yield to UI
+        await new Promise(r => setTimeout(r, 50));
+      }
+
+      toast.success(
+        `Sincronização concluída! ${totalConversationsCreated} conversas novas, ${totalMessagesImported} mensagens importadas (últimos 2 meses)`
+      );
     } catch (error: any) {
       toast.error(error?.message || 'Erro ao sincronizar conversas');
     } finally {
       setSyncingConversations(null);
+      setSyncProgress(null);
     }
   };
 
@@ -883,6 +935,26 @@ const handleGetQRCode = async (connection: Connection) => {
                           <MessageSquare className="h-4 w-4" />
                         )}
                       </Button>
+                    )}
+
+                    {/* Sync conversations progress bar */}
+                    {syncingConversations === connection.id && syncProgress && (
+                      <div className="w-full mt-2 space-y-1.5 col-span-full">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Sincronizando conversas...
+                          </span>
+                          <span className="font-medium">
+                            {syncProgress.current}/{syncProgress.total} chats
+                          </span>
+                        </div>
+                        <Progress value={syncProgress.total > 0 ? (syncProgress.current / syncProgress.total) * 100 : 0} className="h-2" />
+                        <div className="flex gap-3 text-xs text-muted-foreground">
+                          <span>{syncProgress.conversationsCreated} conversas novas</span>
+                          <span>{syncProgress.messagesImported} mensagens</span>
+                        </div>
+                      </div>
                     )}
                     
                     {/* Webhook Diagnostic (Evolution only) */}

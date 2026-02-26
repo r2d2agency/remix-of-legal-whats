@@ -738,163 +738,209 @@ router.post('/:connectionId/sync-contacts', authenticate, async (req, res) => {
 });
 
 /**
- * Sync conversations from W-API
- * Fetches all chats, creates conversations + imports messages (limited to 2 months)
+ * Prepare conversation sync: fetch chat list and return total count
  */
-router.post('/:connectionId/sync-conversations', authenticate, async (req, res) => {
+router.post('/:connectionId/sync-conversations/prepare', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
     const userId = req.user?.id;
+    const connection = await getAccessibleConnection(connectionId, userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+    if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
+
+    const chatsResult = await wapiGetChats(connection.instance_id, connection.wapi_token);
+    if (!chatsResult.success) return res.status(500).json({ error: chatsResult.error || 'Erro ao buscar conversas' });
+
+    const allChats = chatsResult.contacts || [];
+    if (!global._syncChatsCache) global._syncChatsCache = {};
+    const syncId = `${connectionId}-${Date.now()}`;
+    global._syncChatsCache[syncId] = { chats: allChats, connectionId, createdAt: Date.now() };
+
+    // Cleanup old caches (>30 min)
+    const now = Date.now();
+    for (const key of Object.keys(global._syncChatsCache)) {
+      if (now - global._syncChatsCache[key].createdAt > 30 * 60 * 1000) delete global._syncChatsCache[key];
+    }
+
+    res.json({ success: true, sync_id: syncId, total_chats: allChats.length });
+  } catch (error) {
+    console.error('[W-API] Conversation sync prepare error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Process a batch of chats for conversation sync
+ */
+router.post('/:connectionId/sync-conversations/batch', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const userId = req.user?.id;
+    const { sync_id, offset = 0, limit = 10 } = req.body;
 
     const connection = await getAccessibleConnection(connectionId, userId);
-    if (!connection) {
-      return res.status(404).json({ error: 'Conexão não encontrada' });
-    }
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+    if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
 
-    if (!connection.instance_id || !connection.wapi_token) {
-      return res.status(400).json({ error: 'Esta conexão não é W-API' });
-    }
+    const cache = global._syncChatsCache?.[sync_id];
+    if (!cache) return res.status(400).json({ error: 'Sessão de sync expirada. Inicie novamente.' });
 
-    console.log(`[W-API] Starting conversation sync for connection ${connectionId}`);
+    const allChats = cache.chats;
+    const batch = allChats.slice(offset, offset + limit);
 
-    // Fetch all chats
-    const chatsResult = await wapiGetChats(connection.instance_id, connection.wapi_token);
-    if (!chatsResult.success) {
-      return res.status(500).json({ error: chatsResult.error || 'Erro ao buscar conversas' });
-    }
-
-    // 2 months ago cutoff
     const twoMonthsAgo = new Date();
     twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
     const cutoffTimestamp = twoMonthsAgo.getTime();
 
-    const allChats = chatsResult.contacts || [];
-    console.log(`[W-API] Found ${allChats.length} chats to sync`);
+    let conversationsCreated = 0, conversationsUpdated = 0, messagesImported = 0, messagesSkipped = 0, errors = 0;
 
-    let conversationsCreated = 0;
-    let conversationsUpdated = 0;
-    let messagesImported = 0;
-    let messagesSkipped = 0;
-    let errors = 0;
-
-    for (const chat of allChats) {
+    for (const chat of batch) {
       try {
         const remoteJid = chat.jid || `${chat.phone}@s.whatsapp.net`;
         const isGroup = remoteJid.includes('@g.us');
 
-        // Upsert conversation
         const convResult = await query(
           `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, last_message_at, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())
            ON CONFLICT (connection_id, remote_jid) DO UPDATE SET
-             contact_name = COALESCE(EXCLUDED.contact_name, conversations.contact_name),
-             updated_at = NOW()
+             contact_name = COALESCE(EXCLUDED.contact_name, conversations.contact_name), updated_at = NOW()
            RETURNING id, (xmax = 0) as is_new`,
           [connectionId, remoteJid, chat.name || chat.phone, chat.phone, isGroup]
         );
 
         const conversationId = convResult.rows[0]?.id;
-        if (convResult.rows[0]?.is_new) {
-          conversationsCreated++;
-        } else {
-          conversationsUpdated++;
-        }
-
+        if (convResult.rows[0]?.is_new) conversationsCreated++;
+        else conversationsUpdated++;
         if (!conversationId) continue;
 
-        // Fetch messages for this chat
         const msgsResult = await wapiGetChatMessages(connection.instance_id, connection.wapi_token, remoteJid);
         if (!msgsResult.success || !msgsResult.messages?.length) continue;
 
         for (const msg of msgsResult.messages) {
           try {
-            // Parse timestamp
             let msgTimestamp = null;
             const rawTs = msg.timestamp || msg.messageTimestamp || msg.t || msg.createdAt;
             if (rawTs) {
-              const ts = typeof rawTs === 'number'
-                ? (rawTs > 1e12 ? rawTs : rawTs * 1000) // seconds vs milliseconds
-                : new Date(rawTs).getTime();
+              const ts = typeof rawTs === 'number' ? (rawTs > 1e12 ? rawTs : rawTs * 1000) : new Date(rawTs).getTime();
               if (!isNaN(ts)) msgTimestamp = ts;
             }
-
-            // Skip messages older than 2 months
-            if (msgTimestamp && msgTimestamp < cutoffTimestamp) {
-              messagesSkipped++;
-              continue;
-            }
-
+            if (msgTimestamp && msgTimestamp < cutoffTimestamp) { messagesSkipped++; continue; }
             const messageId = msg.id || msg.key?.id || msg.messageId || null;
-            if (!messageId) {
-              messagesSkipped++;
-              continue;
-            }
-
-            // Determine from_me
+            if (!messageId) { messagesSkipped++; continue; }
             const fromMe = msg.fromMe === true || msg.key?.fromMe === true || msg.from_me === true;
-
-            // Extract content
             const content = msg.body || msg.text || msg.message || msg.caption || msg.content || '';
-
-            // Determine message type
             let messageType = 'text';
             if (msg.type) messageType = msg.type;
             else if (msg.hasMedia || msg.mediaUrl) messageType = msg.mediaType || 'document';
-
             const mediaUrl = msg.mediaUrl || msg.media || msg.fileUrl || null;
 
-            // Insert with ON CONFLICT to avoid duplicates
             const insertResult = await query(
               `INSERT INTO chat_messages (conversation_id, message_id, from_me, content, message_type, media_url, timestamp, created_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING
                RETURNING id`,
-              [
-                conversationId,
-                messageId,
-                fromMe,
-                content,
-                messageType,
-                mediaUrl,
-                msgTimestamp ? new Date(msgTimestamp) : new Date(),
-                new Date(),
-              ]
+              [conversationId, messageId, fromMe, content, messageType, mediaUrl, msgTimestamp ? new Date(msgTimestamp) : new Date(), new Date()]
             );
-
-            if (insertResult.rows.length > 0) {
-              messagesImported++;
-            } else {
-              messagesSkipped++;
-            }
-          } catch (msgErr) {
-            messagesSkipped++;
-          }
+            if (insertResult.rows.length > 0) messagesImported++;
+            else messagesSkipped++;
+          } catch { messagesSkipped++; }
         }
 
-        // Update last_message_at on conversation
         await query(
-          `UPDATE conversations SET last_message_at = (
-            SELECT MAX(timestamp) FROM chat_messages WHERE conversation_id = $1
-          ), updated_at = NOW() WHERE id = $1`,
+          `UPDATE conversations SET last_message_at = (SELECT MAX(timestamp) FROM chat_messages WHERE conversation_id = $1), updated_at = NOW() WHERE id = $1`,
           [conversationId]
         );
-
       } catch (chatErr) {
         console.error(`[W-API] Error syncing chat ${chat.phone}:`, chatErr.message);
         errors++;
       }
     }
 
-    console.log(`[W-API] Conversation sync complete: conversations=${conversationsCreated} new / ${conversationsUpdated} updated, messages=${messagesImported} imported / ${messagesSkipped} skipped, errors=${errors}`);
+    const processed = Math.min(offset + limit, allChats.length);
+    const done = processed >= allChats.length;
+    if (done && global._syncChatsCache?.[sync_id]) delete global._syncChatsCache[sync_id];
 
-    res.json({
-      success: true,
-      conversations_created: conversationsCreated,
-      conversations_updated: conversationsUpdated,
-      messages_imported: messagesImported,
-      messages_skipped: messagesSkipped,
-      errors,
-    });
+    res.json({ success: true, processed, total: allChats.length, done, conversations_created: conversationsCreated, conversations_updated: conversationsUpdated, messages_imported: messagesImported, messages_skipped: messagesSkipped, errors });
+  } catch (error) {
+    console.error('[W-API] Conversation sync batch error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Legacy: full sync in one request
+ */
+router.post('/:connectionId/sync-conversations', authenticate, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const userId = req.user?.id;
+    const connection = await getAccessibleConnection(connectionId, userId);
+    if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
+    if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
+
+    const chatsResult = await wapiGetChats(connection.instance_id, connection.wapi_token);
+    if (!chatsResult.success) return res.status(500).json({ error: chatsResult.error || 'Erro ao buscar conversas' });
+
+    const twoMonthsAgo = new Date();
+    twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+    const cutoffTimestamp = twoMonthsAgo.getTime();
+    const allChats = chatsResult.contacts || [];
+    let conversationsCreated = 0, conversationsUpdated = 0, messagesImported = 0, messagesSkipped = 0, errors = 0;
+
+    for (const chat of allChats) {
+      try {
+        const remoteJid = chat.jid || `${chat.phone}@s.whatsapp.net`;
+        const isGroup = remoteJid.includes('@g.us');
+        const convResult = await query(
+          `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, last_message_at, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())
+           ON CONFLICT (connection_id, remote_jid) DO UPDATE SET contact_name = COALESCE(EXCLUDED.contact_name, conversations.contact_name), updated_at = NOW()
+           RETURNING id, (xmax = 0) as is_new`,
+          [connectionId, remoteJid, chat.name || chat.phone, chat.phone, isGroup]
+        );
+        const conversationId = convResult.rows[0]?.id;
+        if (convResult.rows[0]?.is_new) conversationsCreated++;
+        else conversationsUpdated++;
+        if (!conversationId) continue;
+
+        const msgsResult = await wapiGetChatMessages(connection.instance_id, connection.wapi_token, remoteJid);
+        if (!msgsResult.success || !msgsResult.messages?.length) continue;
+
+        for (const msg of msgsResult.messages) {
+          try {
+            let msgTimestamp = null;
+            const rawTs = msg.timestamp || msg.messageTimestamp || msg.t || msg.createdAt;
+            if (rawTs) {
+              const ts = typeof rawTs === 'number' ? (rawTs > 1e12 ? rawTs : rawTs * 1000) : new Date(rawTs).getTime();
+              if (!isNaN(ts)) msgTimestamp = ts;
+            }
+            if (msgTimestamp && msgTimestamp < cutoffTimestamp) { messagesSkipped++; continue; }
+            const messageId = msg.id || msg.key?.id || msg.messageId || null;
+            if (!messageId) { messagesSkipped++; continue; }
+            const fromMe = msg.fromMe === true || msg.key?.fromMe === true || msg.from_me === true;
+            const content = msg.body || msg.text || msg.message || msg.caption || msg.content || '';
+            let messageType = 'text';
+            if (msg.type) messageType = msg.type;
+            else if (msg.hasMedia || msg.mediaUrl) messageType = msg.mediaType || 'document';
+            const mediaUrl = msg.mediaUrl || msg.media || msg.fileUrl || null;
+            const insertResult = await query(
+              `INSERT INTO chat_messages (conversation_id, message_id, from_me, content, message_type, media_url, timestamp, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING RETURNING id`,
+              [conversationId, messageId, fromMe, content, messageType, mediaUrl, msgTimestamp ? new Date(msgTimestamp) : new Date(), new Date()]
+            );
+            if (insertResult.rows.length > 0) messagesImported++;
+            else messagesSkipped++;
+          } catch { messagesSkipped++; }
+        }
+        await query(`UPDATE conversations SET last_message_at = (SELECT MAX(timestamp) FROM chat_messages WHERE conversation_id = $1), updated_at = NOW() WHERE id = $1`, [conversationId]);
+      } catch (chatErr) {
+        console.error(`[W-API] Error syncing chat ${chat.phone}:`, chatErr.message);
+        errors++;
+      }
+    }
+
+    res.json({ success: true, conversations_created: conversationsCreated, conversations_updated: conversationsUpdated, messages_imported: messagesImported, messages_skipped: messagesSkipped, errors });
   } catch (error) {
     console.error('[W-API] Conversation sync error:', error);
     res.status(500).json({ error: error.message });
