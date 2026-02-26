@@ -333,6 +333,35 @@ const handleGetQRCode = async (connection: Connection) => {
     []
   );
 
+  const ensureConnectionReadyForSync = useCallback(
+    async (connection: Connection, actionLabel: string) => {
+      if (connection.status === 'connected') return true;
+
+      try {
+        const liveStatus = await api<{ status: string; phoneNumber?: string }>(`/api/evolution/${connection.id}/status`);
+
+        setConnections((prev) =>
+          prev.map((c) =>
+            c.id === connection.id
+              ? { ...c, status: liveStatus.status, phone_number: liveStatus.phoneNumber }
+              : c
+          )
+        );
+
+        if (liveStatus.status === 'connected') {
+          return true;
+        }
+
+        toast.warning(`A conexão precisa estar conectada para ${actionLabel}`);
+        return false;
+      } catch (error: any) {
+        toast.error(error?.message || 'Erro ao verificar status da conexão');
+        return false;
+      }
+    },
+    []
+  );
+
   const handleSyncWapiContacts = async (connection: Connection) => {
     const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
 
@@ -341,10 +370,8 @@ const handleGetQRCode = async (connection: Connection) => {
       return;
     }
 
-    if (connection.status !== 'connected') {
-      toast.warning('A conexão precisa estar conectada para sincronizar contatos');
-      return;
-    }
+    const ready = await ensureConnectionReadyForSync(connection, 'sincronizar contatos');
+    if (!ready) return;
 
     setSyncingContacts(connection.id);
     try {
@@ -379,10 +406,8 @@ const handleGetQRCode = async (connection: Connection) => {
       return;
     }
 
-    if (connection.status !== 'connected') {
-      toast.warning('A conexão precisa estar conectada para sincronizar conversas');
-      return;
-    }
+    const ready = await ensureConnectionReadyForSync(connection, 'sincronizar conversas');
+    if (!ready) return;
 
     setSyncingConversations(connection.id);
     setSyncProgress({ current: 0, total: 0, messagesImported: 0, conversationsCreated: 0 });
