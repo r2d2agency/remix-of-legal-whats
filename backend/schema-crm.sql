@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS crm_companies (
     zip_code VARCHAR(20),
     notes TEXT,
     custom_fields JSONB DEFAULT '{}',
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    group_id UUID REFERENCES crm_user_groups(id) ON DELETE SET NULL,
     created_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -192,6 +194,8 @@ CREATE INDEX IF NOT EXISTS idx_crm_stages_position ON crm_stages(funnel_id, posi
 
 CREATE INDEX IF NOT EXISTS idx_crm_companies_org ON crm_companies(organization_id);
 CREATE INDEX IF NOT EXISTS idx_crm_companies_name ON crm_companies(organization_id, name);
+CREATE INDEX IF NOT EXISTS idx_crm_companies_owner ON crm_companies(owner_id);
+CREATE INDEX IF NOT EXISTS idx_crm_companies_group ON crm_companies(group_id);
 
 CREATE INDEX IF NOT EXISTS idx_crm_deals_org ON crm_deals(organization_id);
 CREATE INDEX IF NOT EXISTS idx_crm_deals_funnel ON crm_deals(funnel_id);

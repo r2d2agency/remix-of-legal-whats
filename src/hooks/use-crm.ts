@@ -59,6 +59,10 @@ export interface CRMCompany {
   segment_name?: string;
   segment_color?: string;
   custom_fields?: Record<string, any>;
+  owner_id?: string;
+  owner_name?: string;
+  group_id?: string;
+  group_name?: string;
   deals_count: number;
   created_by_name?: string;
   created_at: string;

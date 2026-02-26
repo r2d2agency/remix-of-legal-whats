@@ -1738,6 +1738,24 @@ END $$;
 
 -- Index for segment lookup on companies
 CREATE INDEX IF NOT EXISTS idx_crm_companies_segment ON crm_companies(segment_id);
+
+-- Add owner_id and group_id to crm_companies
+DO $$ BEGIN
+  ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES users(id) ON DELETE SET NULL;
+EXCEPTION
+  WHEN duplicate_column THEN null;
+  WHEN undefined_table THEN null;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES crm_user_groups(id) ON DELETE SET NULL;
+EXCEPTION
+  WHEN duplicate_column THEN null;
+  WHEN undefined_table THEN null;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_crm_companies_owner ON crm_companies(owner_id);
+CREATE INDEX IF NOT EXISTS idx_crm_companies_group ON crm_companies(group_id);
 `;
 
 // Step 21: CRM Prospects

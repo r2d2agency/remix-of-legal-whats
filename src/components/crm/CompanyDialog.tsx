@@ -11,11 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CRMCompany, useCRMCompanyMutations } from "@/hooks/use-crm";
+import { CRMCompany, useCRMCompanyMutations, useCRMGroups } from "@/hooks/use-crm";
 import { useCRMSegments } from "@/hooks/use-crm-config";
 import { useContacts, Contact, ContactList } from "@/hooks/use-contacts";
-import { Tag, User, Plus, Trash2, Phone, Search, Check, UserPlus } from "lucide-react";
+import { Tag, User, Plus, Trash2, Phone, Search, Check, UserPlus, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { API_URL, getAuthToken } from "@/lib/api";
 
 interface CompanyContact {
   id?: string;
@@ -45,6 +47,8 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
     zip_code: "",
     notes: "",
     segment_id: "",
+    owner_id: "",
+    group_id: "",
   });
 
   const [contacts, setContacts] = useState<CompanyContact[]>([]);
@@ -58,9 +62,19 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
 
   const { createCompany, updateCompany } = useCRMCompanyMutations();
   const { data: segments } = useCRMSegments();
+  const { data: groups } = useCRMGroups();
+  const { data: orgMembers } = useQuery({
+    queryKey: ["org-members-for-company"],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/api/crm/map-users`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      if (!res.ok) return [];
+      return res.json() as Promise<{ id: string; name: string }[]>;
+    },
+  });
   const contactsApi = useContacts();
 
-  // Load contact lists on mount
   useEffect(() => {
     contactsApi.getLists().then(setContactLists).catch(console.error);
   }, []);
@@ -86,6 +100,8 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
         zip_code: company.zip_code || "",
         notes: company.notes || "",
         segment_id: company.segment_id || "",
+        owner_id: company.owner_id || "",
+        group_id: company.group_id || "",
       });
       // TODO: Load existing contacts from API
       setContacts([]);
@@ -102,6 +118,8 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
         zip_code: "",
         notes: "",
         segment_id: "",
+        owner_id: "",
+        group_id: "",
       });
       setContacts([]);
     }
@@ -146,6 +164,8 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
     const data = {
       ...formData,
       segment_id: formData.segment_id || undefined,
+      owner_id: formData.owner_id || undefined,
+      group_id: formData.group_id || undefined,
       contacts: contacts.length > 0 ? contacts : undefined,
     };
     if (company) {
@@ -202,6 +222,54 @@ export function CompanyDialog({ company, open, onOpenChange }: CompanyDialogProp
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Responsável e Grupo */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Vendedor Responsável
+                </Label>
+                <Select
+                  value={formData.owner_id || "none"}
+                  onValueChange={(value) => handleChange("owner_id", value === "none" ? "" : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {orgMembers?.map((member) => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Grupo
+                </Label>
+                <Select
+                  value={formData.group_id || "none"}
+                  onValueChange={(value) => handleChange("group_id", value === "none" ? "" : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {groups?.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
