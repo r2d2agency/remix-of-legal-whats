@@ -1968,8 +1968,9 @@ async function transcribeWithLovableGateway(audioBuffer, mimeType, lovableApiKey
 
 /**
  * Build a multimodal message content array for image messages
+ * Downloads the image and converts to base64 data URI so both OpenAI and Gemini can access it
  */
-function buildImageMessage(imageUrl, caption) {
+async function buildImageMessage(imageUrl, caption) {
   const content = [];
 
   if (caption) {
@@ -1979,9 +1980,38 @@ function buildImageMessage(imageUrl, caption) {
   }
 
   const resolvedUrl = resolveMediaUrl(imageUrl);
+  let finalUrl = resolvedUrl || imageUrl;
+
+  // Download and convert to base64 data URI so external AI APIs can access local images
+  if (finalUrl && !finalUrl.startsWith('data:')) {
+    try {
+      const imgResp = await fetch(finalUrl);
+      if (imgResp.ok) {
+        const imgBuf = await imgResp.arrayBuffer();
+        const bytes = new Uint8Array(imgBuf);
+        const chunkSize = 8192;
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+          for (let j = 0; j < chunk.length; j++) {
+            binary += String.fromCharCode(chunk[j]);
+          }
+        }
+        const b64 = Buffer.from(imgBuf).toString('base64');
+        const contentType = imgResp.headers.get('content-type') || 'image/jpeg';
+        finalUrl = `data:${contentType};base64,${b64}`;
+        logInfo('ai_agent_processor.image_converted_to_base64', { originalUrl: resolvedUrl?.slice(0, 100), size: imgBuf.byteLength });
+      } else {
+        logError('ai_agent_processor.image_download_failed', new Error(`HTTP ${imgResp.status}`), { url: resolvedUrl?.slice(0, 100) });
+      }
+    } catch (err) {
+      logError('ai_agent_processor.image_download_error', err, { url: resolvedUrl?.slice(0, 100) });
+    }
+  }
+
   content.push({
     type: 'image_url',
-    image_url: { url: resolvedUrl || imageUrl },
+    image_url: { url: finalUrl },
   });
 
   return content;
@@ -1989,20 +2019,64 @@ function buildImageMessage(imageUrl, caption) {
 
 /**
  * Build multimodal message for document - try to read if possible
+ * For PDFs and images disguised as documents, convert to base64 for AI vision
  */
 async function buildDocumentMessage(mediaUrl, filename, caption, mimetype) {
   try {
+    const resolvedDocUrl = resolveMediaUrl(mediaUrl);
+
     // For text-based documents, try to download and include content
     const textTypes = ['text/', 'application/json', 'application/xml', 'text/csv'];
     const isTextBased = textTypes.some(t => (mimetype || '').includes(t));
     
-    const resolvedDocUrl = resolveMediaUrl(mediaUrl);
     if (isTextBased && resolvedDocUrl) {
       const resp = await fetch(resolvedDocUrl);
       if (resp.ok) {
         const textContent = await resp.text();
         const truncated = textContent.substring(0, 3000);
         return `[Documento recebido: ${filename}]\n\nConteúdo do documento:\n${truncated}${textContent.length > 3000 ? '\n... (conteúdo truncado)' : ''}${caption ? `\n\nLegenda: ${caption}` : ''}`;
+      }
+    }
+
+    // For PDFs and image-based documents, download and send as base64 for AI vision
+    const visionTypes = ['application/pdf', 'image/'];
+    const isVisionCapable = visionTypes.some(t => (mimetype || '').includes(t));
+
+    if (isVisionCapable && resolvedDocUrl) {
+      try {
+        const resp = await fetch(resolvedDocUrl);
+        if (resp.ok) {
+          const buf = await resp.arrayBuffer();
+          const b64 = Buffer.from(buf).toString('base64');
+          const contentType = resp.headers.get('content-type') || mimetype || 'application/pdf';
+          logInfo('ai_agent_processor.document_converted_to_base64', { filename, size: buf.byteLength, contentType });
+
+          // Return multimodal content array for the AI
+          const parts = [];
+          parts.push({ 
+            type: 'text', 
+            text: caption 
+              ? `O cliente enviou o documento "${filename}" com a legenda: "${caption}". Analise o conteúdo e responda.` 
+              : `O cliente enviou o documento "${filename}". Analise o conteúdo e responda adequadamente.`
+          });
+
+          // For PDFs, some providers support file content via image_url with data URI
+          if (contentType.includes('pdf')) {
+            parts.push({
+              type: 'image_url',
+              image_url: { url: `data:${contentType};base64,${b64}` },
+            });
+          } else if (contentType.startsWith('image/')) {
+            parts.push({
+              type: 'image_url',
+              image_url: { url: `data:${contentType};base64,${b64}` },
+            });
+          }
+
+          return parts;
+        }
+      } catch (err) {
+        logError('ai_agent_processor.document_vision_error', err, { filename });
       }
     }
     
