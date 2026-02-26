@@ -310,6 +310,29 @@ const handleGetQRCode = async (connection: Connection) => {
     }
   };
 
+  const postWapiWithFallback = useCallback(
+    async <T,>(connectionId: string, endpoint: string, body?: Record<string, unknown>) => {
+      try {
+        return await api<T>(`/api/wapi/${connectionId}${endpoint}`, {
+          method: 'POST',
+          body,
+        });
+      } catch (error: any) {
+        const message = String(error?.message || '');
+        const is404 = message.includes('404');
+
+        if (!is404) throw error;
+
+        const fallbackBody = body ? { connectionId, ...body } : { connectionId };
+        return api<T>(`/api/wapi${endpoint}`, {
+          method: 'POST',
+          body: fallbackBody,
+        });
+      }
+    },
+    []
+  );
+
   const handleSyncWapiContacts = async (connection: Connection) => {
     const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
 
@@ -325,14 +348,14 @@ const handleGetQRCode = async (connection: Connection) => {
 
     setSyncingContacts(connection.id);
     try {
-      const result = await api<{ 
+      const result = await postWapiWithFallback<{ 
         success: boolean; 
         total: number; 
         imported: number; 
         updated: number; 
         skipped: number;
         error?: string;
-      }>(`/api/wapi/${connection.id}/sync-contacts`, { method: 'POST' });
+      }>(connection.id, '/sync-contacts');
 
       if (result.success) {
         toast.success(
@@ -366,9 +389,9 @@ const handleGetQRCode = async (connection: Connection) => {
 
     try {
       // Step 1: Prepare - get total chat count
-      const prepResult = await api<{ success: boolean; sync_id: string; total_chats: number; error?: string }>(
-        `/api/wapi/${connection.id}/sync-conversations/prepare`,
-        { method: 'POST' }
+      const prepResult = await postWapiWithFallback<{ success: boolean; sync_id: string; total_chats: number; error?: string }>(
+        connection.id,
+        '/sync-conversations/prepare'
       );
 
       if (!prepResult.success) {
@@ -391,7 +414,7 @@ const handleGetQRCode = async (connection: Connection) => {
       let totalConversationsCreated = 0;
 
       while (offset < total_chats) {
-        const batchResult = await api<{
+        const batchResult = await postWapiWithFallback<{
           success: boolean;
           processed: number;
           total: number;
@@ -399,10 +422,7 @@ const handleGetQRCode = async (connection: Connection) => {
           conversations_created: number;
           messages_imported: number;
           error?: string;
-        }>(`/api/wapi/${connection.id}/sync-conversations/batch`, {
-          method: 'POST',
-          body: { sync_id, offset, limit: BATCH_SIZE },
-        });
+        }>(connection.id, '/sync-conversations/batch', { sync_id, offset, limit: BATCH_SIZE });
 
         if (!batchResult.success) {
           toast.error(batchResult.error || 'Erro durante sincronização');
@@ -440,8 +460,9 @@ const handleGetQRCode = async (connection: Connection) => {
   const handleSyncProfilePictures = async (connection: Connection) => {
     setSyncingProfilePics(connection.id);
     try {
-      const result = await api<{ success: boolean; total: number; updated: number; errors: number }>(
-        `/api/wapi/${connection.id}/sync-profile-pictures`, { method: 'POST' }
+      const result = await postWapiWithFallback<{ success: boolean; total: number; updated: number; errors: number }>(
+        connection.id,
+        '/sync-profile-pictures'
       );
       if (result.success) {
         toast.success(`Fotos de perfil: ${result.updated} atualizadas de ${result.total} contatos`);
@@ -456,8 +477,9 @@ const handleGetQRCode = async (connection: Connection) => {
   const handleValidateAllContacts = async (connection: Connection) => {
     setValidatingNumbers(connection.id);
     try {
-      const result = await api<{ success: boolean; total: number; valid: number; invalid: number; message?: string }>(
-        `/api/wapi/${connection.id}/validate-all-contacts`, { method: 'POST' }
+      const result = await postWapiWithFallback<{ success: boolean; total: number; valid: number; invalid: number; message?: string }>(
+        connection.id,
+        '/validate-all-contacts'
       );
       if (result.success) {
         toast.success(result.message || `Validação concluída: ${result.valid} válidos, ${result.invalid} inválidos (de ${result.total})`);
