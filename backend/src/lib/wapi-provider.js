@@ -198,16 +198,17 @@ export async function configureWebhooks(instanceId, token) {
  * POST https://api.w-api.app/v1/instance/create
  * Returns { instanceId, token } of the newly created instance.
  */
-export async function createInstance(token) {
-  logInfo('wapi.create_instance_started', {});
+export async function createInstance(token, instanceName) {
+  logInfo('wapi.create_instance_started', { instance_name: instanceName || null });
 
   try {
+    const body = instanceName ? { name: instanceName } : {};
     const response = await fetch(
       `${W_API_BASE_URL}/instance/create`,
       {
         method: 'POST',
         headers: getHeaders(token),
-        body: JSON.stringify({}),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(30000),
       }
     );

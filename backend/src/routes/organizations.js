@@ -919,4 +919,57 @@ router.put('/work-schedule', async (req, res) => {
   }
 });
 
+// Get W-API token for organization
+router.get('/:id([0-9a-fA-F-]{36})/wapi-token', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+
+    if (memberCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const result = await query(
+      `SELECT wapi_token FROM organizations WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ wapi_token: result.rows[0]?.wapi_token || '' });
+  } catch (error) {
+    console.error('Get wapi token error:', error);
+    res.status(500).json({ error: 'Erro ao buscar token' });
+  }
+});
+
+// Save W-API token for organization
+router.put('/:id([0-9a-fA-F-]{36})/wapi-token', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { wapi_token } = req.body;
+
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+
+    if (memberCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    await query(
+      `UPDATE organizations SET wapi_token = $1, updated_at = NOW() WHERE id = $2`,
+      [wapi_token || null, id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save wapi token error:', error);
+    res.status(500).json({ error: 'Erro ao salvar token' });
+  }
+});
+
 export default router;
