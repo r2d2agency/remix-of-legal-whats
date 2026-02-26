@@ -163,10 +163,12 @@ export async function configureWebhooks(instanceId, token) {
   });
   
   const webhookTypes = [
-    { endpoint: 'update-webhook-received', name: 'received' },      // Mensagens recebidas
-    { endpoint: 'update-webhook-delivery', name: 'delivery' },      // Status de entrega
-    { endpoint: 'update-webhook-connected', name: 'connected' },    // Conexão estabelecida
-    { endpoint: 'update-webhook-disconnected', name: 'disconnected' }, // Desconexão
+    { endpoint: 'update-webhook-received', name: 'received' },              // Mensagens recebidas
+    { endpoint: 'update-webhook-delivery', name: 'delivery' },              // Status de entrega
+    { endpoint: 'update-webhook-message-status', name: 'message-status' },  // Status de msg (lido, entregue)
+    { endpoint: 'update-webhook-connected', name: 'connected' },            // Conexão estabelecida
+    { endpoint: 'update-webhook-disconnected', name: 'disconnected' },      // Desconexão
+    { endpoint: 'update-webhook-chat-presence', name: 'chat-presence' },    // Typing/presença
   ];
 
   const results = [];
