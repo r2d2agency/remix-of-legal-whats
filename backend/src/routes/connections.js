@@ -90,7 +90,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { 
-      provider = 'evolution', 
+      provider = 'wapi', 
       api_url, 
       api_key, 
       instance_name, 
@@ -99,10 +99,26 @@ router.post('/', async (req, res) => {
       name 
     } = req.body;
 
+    const org = await getUserOrganization(req.userId);
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Nome da conexão é obrigatório' });
+    }
+
+    // For W-API: get token from org if not provided
+    let resolvedToken = wapi_token || null;
+    if (provider === 'wapi' && !resolvedToken && org) {
+      const orgResult = await query(
+        `SELECT wapi_token, slug FROM organizations WHERE id = $1`,
+        [org.organization_id]
+      );
+      resolvedToken = orgResult.rows[0]?.wapi_token || null;
+    }
+
     // Validate based on provider
     if (provider === 'wapi') {
-      if (!wapi_token) {
-        return res.status(400).json({ error: 'Token é obrigatório para W-API' });
+      if (!resolvedToken) {
+        return res.status(400).json({ error: 'Token W-API não configurado. Configure o token nas configurações da organização.' });
       }
     } else {
       if (!api_url || !api_key || !instance_name) {
@@ -110,18 +126,41 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const org = await getUserOrganization(req.userId);
+    // Check plan limits
+    if (org) {
+      const limitsResult = await query(
+        `SELECT p.max_connections, 
+                (SELECT COUNT(*) FROM connections WHERE organization_id = $1) as current_count
+         FROM organizations o
+         LEFT JOIN plans p ON p.id = o.plan_id
+         WHERE o.id = $1`,
+        [org.organization_id]
+      );
+      const limits = limitsResult.rows[0];
+      if (limits && limits.max_connections && Number(limits.current_count) >= Number(limits.max_connections)) {
+        return res.status(400).json({ error: `Limite de conexões atingido (${limits.max_connections}). Upgrade seu plano para adicionar mais.` });
+      }
+    }
 
     let finalInstanceId = instance_id || null;
-    let finalToken = wapi_token || null;
+    let finalToken = resolvedToken;
 
-    // Auto-create W-API instance if no instance_id provided
+    // Auto-create W-API instance with name orgSlug-connectionShortId
     if (provider === 'wapi' && !instance_id) {
       try {
-        const created = await wapiProvider.createInstance(wapi_token);
+        // Get org slug for instance naming
+        let orgSlug = 'inst';
+        if (org) {
+          const orgData = await query(`SELECT slug FROM organizations WHERE id = $1`, [org.organization_id]);
+          orgSlug = orgData.rows[0]?.slug || 'inst';
+        }
+        const shortId = Date.now().toString(36);
+        const instanceName = `${orgSlug}-${shortId}`;
+
+        const created = await wapiProvider.createInstance(resolvedToken, instanceName);
         finalInstanceId = created.instanceId;
-        finalToken = created.token || wapi_token;
-        console.log('[W-API] Auto-created instance:', finalInstanceId);
+        finalToken = created.token || resolvedToken;
+        console.log('[W-API] Auto-created instance:', finalInstanceId, 'name:', instanceName);
       } catch (createError) {
         console.error('[W-API] Failed to create instance:', createError);
         return res.status(400).json({ error: `Erro ao criar instância W-API: ${createError.message}` });
@@ -140,7 +179,7 @@ router.post('/', async (req, res) => {
         instance_name || null,
         finalInstanceId,
         finalToken,
-        name || instance_name || finalInstanceId
+        name.trim()
       ]
     );
 
@@ -237,14 +276,31 @@ router.delete('/:id', async (req, res) => {
       params = [id, org.organization_id];
     }
 
-    const result = await query(
-      `DELETE FROM connections WHERE ${whereClause} RETURNING id`,
+    // Get connection details before deleting (to delete W-API instance)
+    const connResult = await query(
+      `SELECT * FROM connections WHERE ${whereClause}`,
       params
     );
 
-    if (result.rows.length === 0) {
+    if (connResult.rows.length === 0) {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
+
+    const connection = connResult.rows[0];
+
+    // Delete W-API instance remotely if applicable
+    const connProvider = connection.provider || (connection.instance_id && connection.wapi_token ? 'wapi' : 'evolution');
+    if (connProvider === 'wapi' && connection.instance_id && connection.wapi_token) {
+      try {
+        await wapiProvider.deleteInstance(connection.instance_id, connection.wapi_token);
+        console.log('[W-API] Instance deleted remotely:', connection.instance_id);
+      } catch (deleteError) {
+        console.error('[W-API] Failed to delete instance remotely:', deleteError);
+        // Continue with local deletion even if remote fails
+      }
+    }
+
+    await query(`DELETE FROM connections WHERE id = $1`, [id]);
 
     res.json({ success: true });
   } catch (error) {

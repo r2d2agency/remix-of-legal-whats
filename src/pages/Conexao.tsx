@@ -134,29 +134,20 @@ const Conexao = () => {
       return;
     }
 
-    if (newConnectionProvider === 'wapi') {
-      if (!newConnectionWapiToken.trim()) {
-        toast.error('Token é obrigatório para W-API');
-        return;
-      }
-    }
-
     setCreating(true);
     try {
       let result: Connection & { qrCode?: string };
 
       if (newConnectionProvider === 'wapi') {
-        // Create W-API connection - instance is auto-created by the backend
+        // Create W-API connection - instance is auto-created using org token
         result = await api<Connection>('/api/connections', {
           method: 'POST',
           body: {
             provider: 'wapi',
             name: newConnectionName,
-            instance_id: newConnectionInstanceId.trim() || undefined, // optional
-            wapi_token: newConnectionWapiToken,
           },
         });
-        toast.success('Conexão W-API criada com sucesso! Instância criada automaticamente.');
+        toast.success('Conexão criada! Instância W-API gerada automaticamente.');
         // Auto-open QR code dialog
         setSelectedConnection(result);
         handleGetQRCode(result);
@@ -586,33 +577,13 @@ const handleGetQRCode = async (connection: Connection) => {
                   />
                 </div>
 
-                {/* W-API specific fields */}
+                {/* W-API specific info */}
                 {newConnectionProvider === 'wapi' && (
-                  <>
-                    <div className="space-y-2">
-                      <Label>Token W-API <span className="text-destructive">*</span></Label>
-                      <Input 
-                        type="password"
-                        placeholder="Seu Token da W-API"
-                        value={newConnectionWapiToken}
-                        onChange={(e) => setNewConnectionWapiToken(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        O token permite criar instâncias, gerar QR Code e sincronizar mensagens.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Instance ID <span className="text-xs text-muted-foreground">(opcional)</span></Label>
-                      <Input 
-                        placeholder="Deixe vazio para criar automaticamente"
-                        value={newConnectionInstanceId}
-                        onChange={(e) => setNewConnectionInstanceId(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Se já possui um Instance ID, informe aqui. Caso contrário, será criado automaticamente.
-                      </p>
-                    </div>
-                  </>
+                  <div className="rounded-lg border border-dashed p-3 bg-muted/30">
+                    <p className="text-xs text-muted-foreground">
+                      💡 A instância será criada automaticamente usando o token W-API configurado nas <strong>Configurações da Organização</strong>.
+                    </p>
+                  </div>
                 )}
               </div>
               <DialogFooter>
