@@ -33,7 +33,19 @@ export async function fetchWithRetry(url, options = {}, retryOptions = {}) {
   
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(url, options);
+      const fetchOptions = { ...options };
+      // Add timeout via AbortController if not already set
+      const timeoutMs = retryOptions.timeout || 15000;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      if (!fetchOptions.signal) fetchOptions.signal = controller.signal;
+
+      let response;
+      try {
+        response = await fetch(url, fetchOptions);
+      } finally {
+        clearTimeout(timer);
+      }
       
       // Only retry on 5xx server errors
       if (response.status >= 500 && response.status < 600 && attempt < retries) {

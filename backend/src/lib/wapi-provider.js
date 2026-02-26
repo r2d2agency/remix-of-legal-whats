@@ -592,7 +592,7 @@ export async function sendText(instanceId, token, phone, message) {
           message: message,
         }),
       },
-      { retries: 3, baseDelay: 2000, label: 'wapi-sendText' }
+      { retries: 2, baseDelay: 1000, timeout: 10000, label: 'wapi-sendText' }
     );
 
     const { data, text } = await readJsonResponse(response);
@@ -719,7 +719,7 @@ export async function sendImage(instanceId, token, phone, imageUrl, caption = ''
           caption: caption,
         }),
       },
-      { retries: 3, baseDelay: 2000, label: 'wapi-sendImage' }
+      { retries: 2, baseDelay: 1000, timeout: 10000, label: 'wapi-sendImage' }
     );
 
     const data = await response.json();
@@ -759,7 +759,7 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
           audio: audioUrl,
         }),
       },
-      { retries: 3, baseDelay: 2000, label: 'wapi-sendAudio' }
+      { retries: 2, baseDelay: 1000, timeout: 10000, label: 'wapi-sendAudio' }
     );
 
     const data = await response.json();
@@ -800,7 +800,7 @@ export async function sendVideo(instanceId, token, phone, videoUrl, caption = ''
           caption: caption,
         }),
       },
-      { retries: 3, baseDelay: 2000, label: 'wapi-sendVideo' }
+      { retries: 2, baseDelay: 1000, timeout: 10000, label: 'wapi-sendVideo' }
     );
 
     const data = await response.json();
@@ -959,7 +959,7 @@ export async function sendDocument(instanceId, token, phone, documentUrl, filena
           extension: extension,
         }),
       },
-      { retries: 3, baseDelay: 2000, label: 'wapi-sendDocument' }
+      { retries: 2, baseDelay: 1000, timeout: 15000, label: 'wapi-sendDocument' }
     );
 
     const { data, text } = await readJsonResponse(response);
