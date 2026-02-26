@@ -1299,6 +1299,11 @@ export async function getChats(instanceId, token) {
 
   try {
     const candidates = [
+      // Possível padrão novo (plural)
+      { url: `${W_API_BASE_URL}/chats/fetch-chats?instanceId=${encodedInstanceId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/chats/fetch-chats?instanceId=${encodedInstanceId}`, method: 'POST', body: {} },
+
+      // Legados
       { url: `${W_API_BASE_URL}/chat/get-chats?instanceId=${encodedInstanceId}`, method: 'GET' },
       { url: `${W_API_BASE_URL}/chat/get-chats?instanceId=${encodedInstanceId}`, method: 'POST', body: {} },
       { url: `${W_API_BASE_URL}/chat/get-chats`, method: 'POST', body: { instanceId } },
@@ -1360,23 +1365,54 @@ export async function fetchContacts(instanceId, token) {
   const encodedInstanceId = encodeURIComponent(instanceId || '');
 
   try {
-    const candidates = [
-      { url: `${W_API_BASE_URL}/contact/get-contacts?instanceId=${encodedInstanceId}`, method: 'GET' },
-      { url: `${W_API_BASE_URL}/contact/get-contacts?instanceId=${encodedInstanceId}`, method: 'POST', body: {} },
-      { url: `${W_API_BASE_URL}/contact/get-contacts`, method: 'POST', body: { instanceId } },
-      { url: `${W_API_BASE_URL}/contacts?instanceId=${encodedInstanceId}`, method: 'GET' },
-      { url: `${W_API_BASE_URL}/contacts`, method: 'POST', body: { instanceId } },
-    ];
+    const perPage = 200;
+    const maxPages = 50;
+    const allRawContacts = [];
 
-    const result = await requestWithEndpointFallback(token, candidates, 'fetchContacts');
-    if (!result.success) {
-      return { success: false, error: result.error, contacts: [] };
+    for (let page = 1; page <= maxPages; page++) {
+      const candidates = [
+        // Endpoint confirmado pelo usuário
+        { url: `${W_API_BASE_URL}/contacts/fetch-contacts?instanceId=${encodedInstanceId}&perPage=${perPage}&page=${page}`, method: 'GET' },
+        { url: `${W_API_BASE_URL}/contacts/fetch-contacts?instanceId=${encodedInstanceId}&perPage=${perPage}&page=${page}`, method: 'POST', body: {} },
+
+        // Fallbacks de compatibilidade
+        { url: `${W_API_BASE_URL}/contact/get-contacts?instanceId=${encodedInstanceId}`, method: 'GET' },
+        { url: `${W_API_BASE_URL}/contact/get-contacts?instanceId=${encodedInstanceId}`, method: 'POST', body: {} },
+        { url: `${W_API_BASE_URL}/contact/get-contacts`, method: 'POST', body: { instanceId } },
+        { url: `${W_API_BASE_URL}/contacts?instanceId=${encodedInstanceId}`, method: 'GET' },
+        { url: `${W_API_BASE_URL}/contacts`, method: 'POST', body: { instanceId } },
+      ];
+
+      const result = await requestWithEndpointFallback(token, candidates, `fetchContacts.page_${page}`);
+
+      if (!result.success) {
+        if (page === 1) {
+          return { success: false, error: result.error, contacts: [] };
+        }
+        break;
+      }
+
+      const rawContacts = pickArray(result.data, ['data', 'result', 'contacts', 'items', 'chats']);
+
+      if (!rawContacts.length) break;
+
+      allRawContacts.push(...rawContacts);
+
+      const totalPages = Number(
+        result.data?.totalPages ||
+        result.data?.pagination?.totalPages ||
+        result.data?.meta?.totalPages ||
+        0
+      );
+
+      if ((totalPages && page >= totalPages) || rawContacts.length < perPage) {
+        break;
+      }
     }
 
-    const rawContacts = pickArray(result.data, ['data', 'result', 'contacts', 'chats']);
-    const contacts = [];
+    const contactsByPhone = new Map();
 
-    for (const c of rawContacts) {
+    for (const c of allRawContacts) {
       const jid = c.jid || c.id || c.remoteJid || c.phone || '';
       if (typeof jid !== 'string' || jid.includes('@g.us') || jid.includes('@broadcast')) continue;
 
@@ -1386,10 +1422,12 @@ export async function fetchContacts(instanceId, token) {
       const name = c.name || c.pushName || c.notify || c.verifiedName || c.formattedName || c.displayName || c.contact?.name || '';
       const profilePicture = c.profilePicture || c.profilePictureUrl || c.imgUrl || c.picture || null;
 
-      contacts.push({ phone, name: name || phone, jid, profilePicture });
+      contactsByPhone.set(phone, { phone, name: name || phone, jid, profilePicture });
     }
 
+    const contacts = Array.from(contactsByPhone.values());
     console.log(`[W-API] Parsed ${contacts.length} contacts from fetchContacts`);
+
     return { success: true, contacts, total: contacts.length };
   } catch (error) {
     console.error('[W-API] fetchContacts error:', error);
@@ -1406,6 +1444,11 @@ export async function getChatMessages(instanceId, token, chatId) {
 
   try {
     const candidates = [
+      // Possível padrão novo (plural)
+      { url: `${W_API_BASE_URL}/chats/fetch-chat-messages?instanceId=${encodedInstanceId}&chatId=${encodedChatId}`, method: 'GET' },
+      { url: `${W_API_BASE_URL}/chats/fetch-chat-messages?instanceId=${encodedInstanceId}`, method: 'POST', body: { chatId } },
+
+      // Legados
       { url: `${W_API_BASE_URL}/chat/get-chat?instanceId=${encodedInstanceId}&chatId=${encodedChatId}`, method: 'GET' },
       { url: `${W_API_BASE_URL}/chat/get-chat?instanceId=${encodedInstanceId}`, method: 'POST', body: { chatId } },
       { url: `${W_API_BASE_URL}/chat/get-chat`, method: 'POST', body: { instanceId, chatId } },
