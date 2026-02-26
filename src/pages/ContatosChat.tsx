@@ -66,6 +66,8 @@ interface Connection {
   name: string;
   phone_number: string | null;
   status: string;
+  provider?: string;
+  instance_id?: string;
 }
 
 interface ContactList {
@@ -133,6 +135,19 @@ const ContatosChat = () => {
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [deletingBulk, setDeletingBulk] = useState(false);
+
+  // Find W-API connection for bulk validation
+  const wapiConnection = connections.find(c => (c as any).provider === 'wapi' || (c as any).instance_id);
+
+  const validateWhatsAppBulkFn = async (phones: string[]): Promise<{ phone: string; exists: boolean }[]> => {
+    const connId = wapiConnection?.id || selectedConnectionForImport;
+    if (!connId) throw new Error("Nenhuma conexão disponível");
+    const result = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(
+      `/api/wapi/${connId}/validate-numbers`,
+      { method: 'POST', body: { phones } }
+    );
+    return result.results;
+  };
 
   useEffect(() => {
     loadData();
@@ -1184,6 +1199,7 @@ const ContatosChat = () => {
           if (!open) setSelectedConnectionForImport("");
         }}
         onImport={handleImportChatContacts}
+        validateWhatsAppBulk={wapiConnection ? validateWhatsAppBulkFn : undefined}
       />
     </MainLayout>
   );
