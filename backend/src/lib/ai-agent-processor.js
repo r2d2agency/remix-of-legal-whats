@@ -1423,6 +1423,7 @@ async function getAgentAIConfig(agent, organizationId) {
 
 /**
  * Start an agent session for a conversation (manual activation from chat UI)
+ * Seeds the session with recent chat history so the AI has context
  */
 export async function startAgentSession(agentId, conversationId, contactPhone, contactName) {
   // End any existing active session first
@@ -1432,7 +1433,37 @@ export async function startAgentSession(agentId, conversationId, contactPhone, c
     [conversationId]
   );
 
-  return createSession(agentId, conversationId, contactPhone, contactName);
+  const session = await createSession(agentId, conversationId, contactPhone, contactName);
+
+  // Seed session with recent chat_messages so the AI can read conversation context
+  try {
+    const recentMessages = await query(`
+      SELECT content, from_me, created_at FROM chat_messages
+      WHERE conversation_id = $1 AND content IS NOT NULL AND content != ''
+      ORDER BY created_at DESC LIMIT 10
+    `, [conversationId]);
+
+    if (recentMessages.rows.length > 0) {
+      // Insert in chronological order (oldest first)
+      const msgs = recentMessages.rows.reverse();
+      for (const msg of msgs) {
+        const role = msg.from_me ? 'assistant' : 'user';
+        await query(
+          `INSERT INTO ai_agent_messages (session_id, role, content, tokens_used)
+           VALUES ($1, $2, $3, 0)`,
+          [session.id, role, msg.content]
+        );
+      }
+      logInfo('ai_agent_processor.session_seeded_with_history', {
+        sessionId: session.id, conversationId, messagesSeeded: msgs.length,
+      });
+    }
+  } catch (err) {
+    logError('ai_agent_processor.session_seed_error', err);
+    // Non-critical - session still works without history
+  }
+
+  return session;
 }
 
 /**
