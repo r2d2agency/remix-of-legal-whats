@@ -1689,6 +1689,26 @@ export default function Admin() {
                       {savingWapiToken && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                       Salvar
                     </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={async () => {
+                        try {
+                          const result = await api<{ valid: boolean; message?: string; error?: string }>('/api/connections/validate-wapi', {
+                            method: 'POST',
+                            body: { token: wapiToken || undefined },
+                          });
+                          if (result.valid) {
+                            toast.success(result.message || 'Token válido!');
+                          } else {
+                            toast.error(result.error || 'Token inválido');
+                          }
+                        } catch (err: any) {
+                          toast.error(err.message || 'Erro ao validar');
+                        }
+                      }}
+                    >
+                      Validar API
+                    </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Este token será usado globalmente para criar e gerenciar instâncias WhatsApp ao adicionar novas conexões.

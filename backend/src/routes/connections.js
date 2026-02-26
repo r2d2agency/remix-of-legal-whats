@@ -86,6 +86,49 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Validate W-API token
+router.post('/validate-wapi', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    // Get token from body or from system_settings
+    let resolvedToken = token;
+    if (!resolvedToken) {
+      const settingResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+      resolvedToken = settingResult.rows[0]?.value || null;
+    }
+
+    if (!resolvedToken) {
+      return res.json({ valid: false, error: 'Token W-API não configurado. Configure no painel Superadmin.' });
+    }
+
+    // Try to check status of a dummy instance to verify the token is valid
+    // We use the list instances endpoint if available, otherwise check with a status call
+    try {
+      const response = await fetch(
+        `https://api.w-api.app/v1/instance/list?instanceId=test`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${resolvedToken}`,
+          },
+        }
+      );
+      
+      if (response.status === 401 || response.status === 403) {
+        return res.json({ valid: false, error: 'Token inválido ou expirado' });
+      }
+      
+      return res.json({ valid: true, message: 'Token W-API válido!' });
+    } catch (fetchError) {
+      return res.json({ valid: false, error: `Erro ao conectar com W-API: ${fetchError.message}` });
+    }
+  } catch (error) {
+    console.error('Validate W-API token error:', error);
+    res.status(500).json({ valid: false, error: 'Erro ao validar token' });
+  }
+});
+
 // Create connection
 router.post('/', async (req, res) => {
   try {
