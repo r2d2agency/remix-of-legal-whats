@@ -19,6 +19,7 @@ import {
   Calendar, User, ArrowRight, ExternalLink, Clock, Send, Reply, LayoutTemplate,
   BarChart3, ChevronDown, ChevronUp as ChevronUpIcon
 } from "lucide-react";
+import { ProjectKanbanBoard } from "@/components/projects/ProjectKanbanBoard";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -192,46 +193,12 @@ export default function Projetos() {
             </CardContent>
           </Card>
         ) : (
-          <div className="flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory" style={{ minHeight: "60vh" }}>
-            {stages.map(stage => {
-              const stageProjects = projectsByStage[stage.id] || [];
-              return (
-                <div
-                  key={stage.id}
-                  className="flex-shrink-0 w-[85vw] sm:w-72 lg:w-80 bg-muted/30 rounded-xl border border-border snap-start"
-                >
-                  <div
-                    className="flex items-center justify-between px-4 py-3 rounded-t-xl border-b border-border"
-                    style={{ borderTopColor: stage.color, borderTopWidth: 3 }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{stage.name}</span>
-                      <Badge variant="secondary" className="text-xs">{stageProjects.length}</Badge>
-                    </div>
-                  </div>
-                  <ScrollArea className="p-2" style={{ maxHeight: "calc(100vh - 280px)" }}>
-                    <div className="space-y-2">
-                      {stageProjects.map(project => (
-                        <ProjectCard
-                          key={project.id}
-                          project={project}
-                          stages={stages}
-                          canEdit={canEdit}
-                          onOpen={() => setSelectedProject(project)}
-                          onMove={handleMoveProject}
-                        />
-                      ))}
-                      {stageProjects.length === 0 && (
-                        <div className="py-8 text-center text-xs text-muted-foreground">
-                          Nenhum projeto
-                        </div>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-              );
-            })}
-          </div>
+          <ProjectKanbanBoard
+            stages={stages}
+            projectsByStage={projectsByStage}
+            onProjectClick={(p) => setSelectedProject(p)}
+            canEdit={canEdit}
+          />
         )}
       </div>
 
