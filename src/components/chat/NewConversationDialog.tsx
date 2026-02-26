@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -87,7 +87,10 @@ export function NewConversationDialog({
   const [agendaContacts, setAgendaContacts] = useState<ChatContact[]>([]);
   const [loadingAgenda, setLoadingAgenda] = useState(false);
 
-  const activeConnections = connections.filter(c => c.status === 'connected');
+  const activeConnections = useMemo(
+    () => connections.filter((c) => c.status === 'connected'),
+    [connections]
+  );
   
   const { toast } = useToast();
 
@@ -106,7 +109,7 @@ export function NewConversationDialog({
         setAgendaContacts([]);
       }
     }
-  }, [open, activeConnections]);
+  }, [open]);
 
   const loadAgendaContacts = useCallback(async (search?: string, connection?: string) => {
     setLoadingAgenda(true);
