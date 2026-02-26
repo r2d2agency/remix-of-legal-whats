@@ -16,7 +16,7 @@ import { useOrganizations } from '@/hooks/use-organizations';
 import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image, Key } from 'lucide-react';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image } from 'lucide-react';
 import { useUpload } from '@/hooks/use-upload';
 
 interface Organization {
@@ -114,10 +114,6 @@ export default function Organizacoes() {
   const [editPasswordMember, setEditPasswordMember] = useState<OrganizationMember | null>(null);
   const [newPassword, setNewPassword] = useState('');
 
-  // W-API token
-  const [wapiToken, setWapiToken] = useState('');
-  const [savingWapiToken, setSavingWapiToken] = useState(false);
-
   // Modules settings
   const [activeTab, setActiveTab] = useState('members');
   const [modulesEnabled, setModulesEnabled] = useState({
@@ -162,7 +158,6 @@ export default function Organizacoes() {
       loadConnections(selectedOrg.id);
       loadDepartments(selectedOrg.id);
       loadModules(selectedOrg.id);
-      loadWapiToken(selectedOrg.id);
     }
   }, [selectedOrg]);
 
@@ -210,31 +205,6 @@ export default function Organizacoes() {
       });
     } catch (error) {
       console.error('Error loading modules:', error);
-    }
-  };
-
-  const loadWapiToken = async (orgId: string) => {
-    try {
-      const data = await api<{ wapi_token?: string }>(`/api/organizations/${orgId}/wapi-token`);
-      setWapiToken(data.wapi_token || '');
-    } catch {
-      setWapiToken('');
-    }
-  };
-
-  const handleSaveWapiToken = async () => {
-    if (!selectedOrg) return;
-    setSavingWapiToken(true);
-    try {
-      await api(`/api/organizations/${selectedOrg.id}/wapi-token`, {
-        method: 'PUT',
-        body: { wapi_token: wapiToken },
-      });
-      toast.success('Token W-API salvo com sucesso!');
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao salvar token');
-    } finally {
-      setSavingWapiToken(false);
     }
   };
 
@@ -925,44 +895,6 @@ export default function Organizacoes() {
 
                   {/* Settings Tab */}
                   <TabsContent value="settings">
-                    {/* W-API Integration Token */}
-                    <Card className="mb-6">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Key className="h-5 w-5" />
-                          Token de Integração W-API
-                        </CardTitle>
-                        <CardDescription>
-                          Configure o token da conta W-API para criação automática de instâncias WhatsApp
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <Label>Token W-API</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              type="password"
-                              placeholder="Cole aqui o token da sua conta W-API"
-                              value={wapiToken}
-                              onChange={(e) => setWapiToken(e.target.value)}
-                              disabled={!canManageOrg}
-                            />
-                            <Button 
-                              onClick={handleSaveWapiToken} 
-                              disabled={savingWapiToken || !canManageOrg}
-                              size="sm"
-                            >
-                              {savingWapiToken && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                              Salvar
-                            </Button>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Este token será usado para criar instâncias automaticamente ao adicionar novas conexões.
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">

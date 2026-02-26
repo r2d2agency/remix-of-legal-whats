@@ -20,7 +20,8 @@ import { useAdminSettings } from '@/hooks/use-branding';
 import { useUpload } from '@/hooks/use-upload';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { toast } from 'sonner';
-import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase, Search, AlertTriangle, Mail, Sparkles } from 'lucide-react';
+import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase, Search, AlertTriangle, Mail, Sparkles, Key } from 'lucide-react';
+import { api } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -102,6 +103,11 @@ export default function Admin() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
+  
+  // W-API token
+  const [wapiToken, setWapiToken] = useState('');
+  const [savingWapiToken, setSavingWapiToken] = useState(false);
+  const [loadingWapiToken, setLoadingWapiToken] = useState(false);
   
   // User search and filter
   const [userSearch, setUserSearch] = useState('');
@@ -225,6 +231,34 @@ export default function Admin() {
     loadData();
   };
 
+  const loadWapiToken = async () => {
+    setLoadingWapiToken(true);
+    try {
+      const settings = await api<Array<{ key: string; value: string }>>('/api/admin/settings');
+      const found = settings.find(s => s.key === 'wapi_token');
+      setWapiToken(found?.value || '');
+    } catch {
+      // ignore
+    } finally {
+      setLoadingWapiToken(false);
+    }
+  };
+
+  const handleSaveWapiToken = async () => {
+    setSavingWapiToken(true);
+    try {
+      await api('/api/admin/settings/wapi_token', {
+        method: 'PATCH',
+        body: { value: wapiToken },
+      });
+      toast.success('Token W-API salvo com sucesso!');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao salvar token');
+    } finally {
+      setSavingWapiToken(false);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     const [usersData, orgsData, plansData] = await Promise.all([
@@ -236,6 +270,7 @@ export default function Admin() {
     setOrganizations(orgsData);
     setPlans(plansData);
     setLoading(false);
+    loadWapiToken();
   };
 
   // Reload users with search/filter
@@ -637,7 +672,7 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="plans" className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-4">
+          <TabsList className="grid w-full max-w-3xl grid-cols-5">
             <TabsTrigger value="plans" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               Planos
@@ -649,6 +684,10 @@ export default function Admin() {
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Usuários
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="flex items-center gap-2">
+              <Key className="h-4 w-4" />
+              Integrações
             </TabsTrigger>
             <TabsTrigger value="branding" className="flex items-center gap-2">
               <Palette className="h-4 w-4" />
@@ -1619,6 +1658,42 @@ export default function Admin() {
                     </TableBody>
                   </Table>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Integrations Tab */}
+          <TabsContent value="integrations" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  Token W-API (WhatsApp)
+                </CardTitle>
+                <CardDescription>
+                  Token da conta W-API para criação automática de instâncias WhatsApp em todas as organizações
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Token da Conta W-API</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      placeholder="Cole aqui o token da conta W-API"
+                      value={wapiToken}
+                      onChange={(e) => setWapiToken(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button onClick={handleSaveWapiToken} disabled={savingWapiToken}>
+                      {savingWapiToken && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Salvar
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Este token será usado globalmente para criar e gerenciar instâncias WhatsApp ao adicionar novas conexões.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

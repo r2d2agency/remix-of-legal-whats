@@ -107,18 +107,18 @@ router.post('/', async (req, res) => {
 
     // For W-API: get token from org if not provided
     let resolvedToken = wapi_token || null;
-    if (provider === 'wapi' && !resolvedToken && org) {
-      const orgResult = await query(
-        `SELECT wapi_token, slug FROM organizations WHERE id = $1`,
-        [org.organization_id]
+    if (provider === 'wapi' && !resolvedToken) {
+      // Fetch global W-API token from system_settings (configured by superadmin)
+      const settingResult = await query(
+        `SELECT value FROM system_settings WHERE key = 'wapi_token'`
       );
-      resolvedToken = orgResult.rows[0]?.wapi_token || null;
+      resolvedToken = settingResult.rows[0]?.value || null;
     }
 
     // Validate based on provider
     if (provider === 'wapi') {
       if (!resolvedToken) {
-        return res.status(400).json({ error: 'Token W-API não configurado. Configure o token nas configurações da organização.' });
+        return res.status(400).json({ error: 'Token W-API não configurado. Peça ao administrador para configurar o token no painel Superadmin.' });
       }
     } else {
       if (!api_url || !api_key || !instance_name) {
