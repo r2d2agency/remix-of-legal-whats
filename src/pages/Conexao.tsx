@@ -575,7 +575,8 @@ const handleGetQRCode = async (connection: Connection) => {
     setWebhookEventsLoading(true);
     setWebhookEventsError(null);
     try {
-      const result = await api<{ events: any[] }>(`/api/evolution/${connection.id}/webhook-events?limit=50`);
+      const endpointBase = connection.provider === 'wapi' || connection.instance_id ? '/api/wapi' : '/api/evolution';
+      const result = await api<{ events: any[] }>(`${endpointBase}/${connection.id}/webhook-events?limit=50`);
       setWebhookEvents(result.events || []);
     } catch (error: any) {
       setWebhookEventsError(error.message || 'Erro ao buscar eventos do webhook');
@@ -593,7 +594,8 @@ const handleGetQRCode = async (connection: Connection) => {
   const handleClearWebhookEvents = async () => {
     if (!webhookViewerConnection) return;
     try {
-      await api(`/api/evolution/${webhookViewerConnection.id}/webhook-events`, { method: 'DELETE' });
+      const endpointBase = webhookViewerConnection.provider === 'wapi' || webhookViewerConnection.instance_id ? '/api/wapi' : '/api/evolution';
+      await api(`${endpointBase}/${webhookViewerConnection.id}/webhook-events`, { method: 'DELETE' });
       setWebhookEvents([]);
       toast.success('Eventos limpos');
     } catch (error: any) {

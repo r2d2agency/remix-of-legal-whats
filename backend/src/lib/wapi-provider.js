@@ -158,6 +158,24 @@ function getHeaders(token) {
 export async function configureWebhooks(instanceId, token) {
   const webhookUrl = `${WEBHOOK_BASE_URL}/api/wapi/webhook`;
 
+  if (!/^https?:\/\//i.test(webhookUrl)) {
+    const error = 'WEBHOOK_BASE_URL/API_BASE_URL inválido: defina uma URL pública absoluta (https://...)';
+    logWarn('wapi.webhooks_configure_invalid_base_url', {
+      instance_id: instanceId,
+      webhook_url: webhookUrl,
+      webhook_base_url: WEBHOOK_BASE_URL,
+    });
+    return {
+      success: false,
+      configured: 0,
+      total: 0,
+      required_ok: false,
+      required_webhooks: ['received'],
+      missing_required: ['received'],
+      results: [{ type: 'base-url', success: false, error }],
+    };
+  }
+
   logInfo('wapi.webhooks_configure_started', {
     instance_id: instanceId,
     webhook_url: webhookUrl,
@@ -218,15 +236,27 @@ export async function configureWebhooks(instanceId, token) {
   }
   
   const successCount = results.filter(r => r.success).length;
+  const requiredWebhooks = ['received'];
+  const missingRequired = requiredWebhooks.filter((required) => {
+    const found = results.find((r) => r.type === required);
+    return !found || !found.success;
+  });
+  const requiredOk = missingRequired.length === 0;
+
   logInfo('wapi.webhooks_configure_finished', {
     instance_id: instanceId,
     configured: successCount,
     total: webhookTypes.length,
+    required_ok: requiredOk,
+    missing_required: missingRequired,
   });
   return {
-    success: successCount > 0,
+    success: requiredOk,
     configured: successCount,
     total: webhookTypes.length,
+    required_ok: requiredOk,
+    required_webhooks: requiredWebhooks,
+    missing_required: missingRequired,
     results,
   };
 }
