@@ -1225,4 +1225,145 @@ router.patch('/settings/:key', requireSuperadmin, async (req, res) => {
 });
 
 
+// ============================================
+// W-API INSTANCES MANAGEMENT (Integrator)
+// ============================================
+
+router.get('/wapi/instances', requireSuperadmin, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 50;
+    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const token = tokenResult.rows[0]?.value;
+    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
+
+    const response = await fetch(
+      `https://api.w-api.app/v1/integrator/instances?pageSize=${pageSize}&page=${page}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return res.status(response.status).json({ error: data?.message || 'Erro ao listar instâncias' });
+    res.json(data);
+  } catch (error) {
+    console.error('List W-API instances error:', error);
+    res.status(500).json({ error: 'Erro ao listar instâncias W-API' });
+  }
+});
+
+router.delete('/wapi/instances/:instanceId', requireSuperadmin, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const token = tokenResult.rows[0]?.value;
+    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
+
+    const response = await fetch(
+      `https://api.w-api.app/v1/integrator/delete-instance?instanceId=${encodeURIComponent(instanceId)}`,
+      { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return res.status(response.status).json({ error: data?.message || 'Erro ao deletar instância' });
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Delete W-API instance error:', error);
+    res.status(500).json({ error: 'Erro ao deletar instância W-API' });
+  }
+});
+
+router.get('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const token = tokenResult.rows[0]?.value;
+    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
+
+    const webhookTypes = [
+      { endpoint: 'get-webhook-received', name: 'received' },
+      { endpoint: 'get-webhook-delivery', name: 'delivery' },
+      { endpoint: 'get-webhook-message-status', name: 'message-status' },
+      { endpoint: 'get-webhook-connected', name: 'connected' },
+      { endpoint: 'get-webhook-disconnected', name: 'disconnected' },
+      { endpoint: 'get-webhook-chat-presence', name: 'chat-presence' },
+    ];
+    const results = [];
+    for (const wh of webhookTypes) {
+      try {
+        const r = await fetch(
+          `https://api.w-api.app/v1/webhook/${wh.endpoint}?instanceId=${instanceId}`,
+          { method: 'GET', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
+        );
+        const d = await r.json().catch(() => ({}));
+        results.push({ type: wh.name, ok: r.ok, status: r.status, data: d });
+      } catch (err) {
+        results.push({ type: wh.name, ok: false, error: err.message });
+      }
+    }
+    res.json({ instanceId, webhooks: results });
+  } catch (error) {
+    console.error('Get webhooks error:', error);
+    res.status(500).json({ error: 'Erro ao buscar webhooks' });
+  }
+});
+
+router.put('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    const { webhookUrl } = req.body;
+    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const token = tokenResult.rows[0]?.value;
+    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
+    if (!webhookUrl) return res.status(400).json({ error: 'webhookUrl é obrigatório' });
+
+    const webhookTypes = [
+      { endpoint: 'update-webhook-received', name: 'received' },
+      { endpoint: 'update-webhook-delivery', name: 'delivery' },
+      { endpoint: 'update-webhook-message-status', name: 'message-status' },
+      { endpoint: 'update-webhook-connected', name: 'connected' },
+      { endpoint: 'update-webhook-disconnected', name: 'disconnected' },
+      { endpoint: 'update-webhook-chat-presence', name: 'chat-presence' },
+    ];
+    const results = [];
+    for (const wh of webhookTypes) {
+      try {
+        const r = await fetch(
+          `https://api.w-api.app/v1/webhook/${wh.endpoint}?instanceId=${instanceId}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ url: webhookUrl, enabled: true }),
+          }
+        );
+        const d = await r.json().catch(() => ({}));
+        results.push({ type: wh.name, ok: r.ok, status: r.status, data: d });
+      } catch (err) {
+        results.push({ type: wh.name, ok: false, error: err.message });
+      }
+    }
+    const successCount = results.filter(r => r.ok).length;
+    res.json({ success: successCount > 0, configured: successCount, total: results.length, results });
+  } catch (error) {
+    console.error('Configure webhooks error:', error);
+    res.status(500).json({ error: 'Erro ao configurar webhooks' });
+  }
+});
+
+router.get('/wapi/instances/:instanceId/status', requireSuperadmin, async (req, res) => {
+  try {
+    const { instanceId } = req.params;
+    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const token = tokenResult.rows[0]?.value;
+    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
+
+    const response = await fetch(
+      `https://api.w-api.app/v1/instance/status-instance?instanceId=${encodeURIComponent(instanceId)}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
+    );
+    const data = await response.json().catch(() => ({}));
+    res.json({ instanceId, status: response.status, ok: response.ok, data });
+  } catch (error) {
+    console.error('Instance status error:', error);
+    res.status(500).json({ error: 'Erro ao verificar status' });
+  }
+});
+
 export default router;
