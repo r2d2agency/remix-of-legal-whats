@@ -8,10 +8,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, RefreshCw, Trash2, Wifi, WifiOff, Globe, Plus, Search, Building2, ChevronDown, ChevronUp, Check, X } from 'lucide-react';
+import { Loader2, RefreshCw, Trash2, Wifi, WifiOff, Globe, Plus, Search, Building2, ChevronDown, ChevronUp, Check, X, AlertCircle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { API_URL, getAuthToken } from '@/lib/api';
+import React from 'react';
 
 interface LocalInfo {
   connectionName?: string;
@@ -50,21 +51,21 @@ const getHeaders = () => ({
   'Authorization': `Bearer ${getAuthToken()}`
 });
 
-const WEBHOOK_TYPES = ['received', 'delivery', 'message-status', 'connected', 'disconnected', 'chat-presence'] as const;
+const DEFAULT_WEBHOOK_URL = 'https://blaster-whats-backend.isyhhh.easypanel.host/api/wapi/webhook';
 
 export function WapiInstancesTab() {
   const [instances, setInstances] = useState<WapiInstance[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
   const [orgFilter, setOrgFilter] = useState('all');
-  const [statusCache, setStatusCache] = useState<Record<string, { status: string; phone?: string }>>({});
+  const [statusCache, setStatusCache] = useState<Record<string, { status: string; phone?: string; error?: string }>>({});
 
   // Webhook management
   const [expandedInstance, setExpandedInstance] = useState<string | null>(null);
   const [webhookData, setWebhookData] = useState<Record<string, WebhookInfo[]>>({});
   const [webhookLoading, setWebhookLoading] = useState<Record<string, boolean>>({});
   const [configuringWebhooks, setConfiguringWebhooks] = useState<Record<string, boolean>>({});
-  const DEFAULT_WEBHOOK_URL = 'https://blaster-whats-backend.isyhhh.easypanel.host/api/wapi/webhook';
+  const [togglingWebhook, setTogglingWebhook] = useState<Record<string, boolean>>({});
   const [webhookUrlInput, setWebhookUrlInput] = useState(DEFAULT_WEBHOOK_URL);
 
   // Create dialog
@@ -82,13 +83,15 @@ export function WapiInstancesTab() {
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Erro ao listar instâncias');
+        throw new Error(err.error || `Erro ao listar instâncias (HTTP ${response.status})`);
       }
       const data = await response.json();
       const list = data?.instances || (Array.isArray(data) ? data : data?.data || []);
+      console.log('[WapiInstances] Loaded', list.length, 'instances');
       setInstances(list);
     } catch (err: any) {
-      toast.error(err.message);
+      console.error('[WapiInstances] loadInstances error:', err);
+      toast.error(`Erro ao carregar instâncias: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -144,26 +147,56 @@ export function WapiInstancesTab() {
     return matchesSearch && matchesOrg;
   });
 
+  // Deeply search for connected status in any nested object
+  const parseStatusResponse = (data: any): { connected: boolean; phone: string } => {
+    let connected = false;
+    let phone = '';
+    
+    const check = (obj: any) => {
+      if (!obj || typeof obj !== 'object') return;
+      // Check common fields
+      if (obj.connected === true || obj.isConnected === true) connected = true;
+      const st = String(obj.status || obj.state || '').toLowerCase();
+      if (['connected', 'open', 'online', 'authenticated'].includes(st)) connected = true;
+      phone = phone || obj.phoneNumber || obj.phone || obj.number || obj.wid || '';
+    };
+
+    // Check top level
+    check(data);
+    check(data?.data);
+    check(data?.data?.data);
+    check(data?.data?.result);
+    check(data?.data?.instance);
+    check(data?.data?.info);
+    // Also check if the W-API returns status directly
+    if (data?.ok && data?.data) {
+      check(data.data);
+    }
+    
+    console.log('[WapiInstances] parseStatus result:', { connected, phone, rawData: data });
+    return { connected, phone };
+  };
+
   const checkInstanceStatus = async (inst: WapiInstance) => {
     const id = getInstanceId(inst);
+    setStatusCache(prev => ({ ...prev, [id]: { status: 'checking' } }));
     try {
       const response = await fetch(`${API_URL}/api/admin/wapi/instances/${encodeURIComponent(id)}/status`, {
         headers: getHeaders()
       });
       const data = await response.json();
-      const candidates = [data?.data, data?.data?.data, data?.data?.result, data?.data?.instance].filter(Boolean);
-      let connected = false;
-      let phone = '';
-      for (const c of candidates) {
-        if (c?.connected === true || c?.isConnected === true ||
-            ['connected', 'open', 'online'].includes(String(c?.status || c?.state || '').toLowerCase())) {
-          connected = true;
-        }
-        phone = phone || c?.phoneNumber || c?.phone || c?.number || '';
+      console.log(`[WapiInstances] Status for ${id}:`, JSON.stringify(data).substring(0, 500));
+      
+      if (!response.ok) {
+        setStatusCache(prev => ({ ...prev, [id]: { status: 'error', error: data?.error || `HTTP ${response.status}` } }));
+        return;
       }
+      
+      const { connected, phone } = parseStatusResponse(data);
       setStatusCache(prev => ({ ...prev, [id]: { status: connected ? 'connected' : 'disconnected', phone } }));
-    } catch {
-      setStatusCache(prev => ({ ...prev, [id]: { status: 'error' } }));
+    } catch (err: any) {
+      console.error(`[WapiInstances] checkStatus error for ${id}:`, err);
+      setStatusCache(prev => ({ ...prev, [id]: { status: 'error', error: err.message } }));
     }
   };
 
@@ -175,11 +208,12 @@ export function WapiInstancesTab() {
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Erro ao deletar');
+        throw new Error(err.error || `Erro ao deletar (HTTP ${response.status})`);
       }
       toast.success('Instância deletada');
       loadInstances();
     } catch (err: any) {
+      console.error('[WapiInstances] deleteInstance error:', err);
       toast.error(err.message);
     }
   };
@@ -190,10 +224,31 @@ export function WapiInstancesTab() {
       const response = await fetch(`${API_URL}/api/admin/wapi/instances/${encodeURIComponent(instanceId)}/webhooks`, {
         headers: getHeaders()
       });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        console.error(`[WapiInstances] loadWebhooks error for ${instanceId}:`, err);
+        // Create empty webhook entries for each type so UI shows toggles
+        const emptyWebhooks: WebhookInfo[] = ['received', 'delivery', 'message-status', 'connected', 'disconnected', 'chat-presence']
+          .map(type => ({ type, ok: false, error: err.error || `HTTP ${response.status}` }));
+        setWebhookData(prev => ({ ...prev, [instanceId]: emptyWebhooks }));
+        return;
+      }
       const data = await response.json();
-      setWebhookData(prev => ({ ...prev, [instanceId]: data?.webhooks || [] }));
-    } catch {
-      toast.error('Erro ao carregar webhooks');
+      const webhooks = data?.webhooks || [];
+      console.log(`[WapiInstances] Webhooks for ${instanceId}:`, webhooks.map((w: any) => `${w.type}:${w.ok}`).join(', '));
+      
+      // If backend returned fewer than 6, fill missing types
+      const existingTypes = new Set(webhooks.map((w: any) => w.type));
+      const allTypes = ['received', 'delivery', 'message-status', 'connected', 'disconnected', 'chat-presence'];
+      for (const type of allTypes) {
+        if (!existingTypes.has(type)) {
+          webhooks.push({ type, ok: false, data: null });
+        }
+      }
+      
+      setWebhookData(prev => ({ ...prev, [instanceId]: webhooks }));
+    } catch (err: any) {
+      console.error(`[WapiInstances] loadWebhooks error for ${instanceId}:`, err);
     } finally {
       setWebhookLoading(prev => ({ ...prev, [instanceId]: false }));
     }
@@ -204,54 +259,87 @@ export function WapiInstancesTab() {
       setExpandedInstance(null);
     } else {
       setExpandedInstance(instanceId);
-      if (!webhookData[instanceId]) {
-        loadWebhooks(instanceId);
-      }
+      // Always reload webhooks when expanding
+      loadWebhooks(instanceId);
     }
   };
 
   const configureAllWebhooks = async (instanceId: string) => {
-    if (!webhookUrlInput) {
+    const url = webhookUrlInput || DEFAULT_WEBHOOK_URL;
+    if (!url) {
       toast.error('Informe a URL do webhook');
       return;
     }
     setConfiguringWebhooks(prev => ({ ...prev, [instanceId]: true }));
     try {
+      console.log(`[WapiInstances] Configuring all webhooks for ${instanceId} with URL: ${url}`);
       const response = await fetch(`${API_URL}/api/admin/wapi/instances/${encodeURIComponent(instanceId)}/webhooks`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify({ webhookUrl: webhookUrlInput })
+        body: JSON.stringify({ webhookUrl: url })
       });
       const data = await response.json();
+      console.log(`[WapiInstances] configureAll response:`, data);
+      
+      if (!response.ok) {
+        throw new Error(data.error || `Erro HTTP ${response.status}`);
+      }
+      
       if (data.success) {
-        toast.success(`${data.configured}/${data.total} webhooks configurados`);
+        toast.success(`${data.configured}/${data.total} webhooks configurados com sucesso`);
+        // Show details of any failures
+        const failures = (data.results || []).filter((r: any) => !r.ok);
+        if (failures.length > 0) {
+          console.warn('[WapiInstances] Some webhooks failed:', failures);
+          toast.warning(`${failures.length} webhook(s) falharam: ${failures.map((f: any) => f.type).join(', ')}`);
+        }
         loadWebhooks(instanceId);
       } else {
-        toast.error('Falha ao configurar webhooks');
+        toast.error(`Falha ao configurar webhooks: ${data.error || 'Resposta inesperada'}`);
       }
     } catch (err: any) {
-      toast.error(err.message);
+      console.error('[WapiInstances] configureAllWebhooks error:', err);
+      toast.error(`Erro ao configurar webhooks: ${err.message}`);
     } finally {
       setConfiguringWebhooks(prev => ({ ...prev, [instanceId]: false }));
     }
   };
 
-  const toggleWebhook = async (instanceId: string, type: string, enabled: boolean, url?: string) => {
+  const toggleWebhook = async (instanceId: string, type: string, enabled: boolean, existingUrl?: string) => {
+    // Always use a URL when enabling - prefer existing, then input, then default
+    const url = enabled 
+      ? (existingUrl && existingUrl !== '—' ? existingUrl : webhookUrlInput || DEFAULT_WEBHOOK_URL)
+      : undefined;
+    
+    const toggleKey = `${instanceId}-${type}`;
+    setTogglingWebhook(prev => ({ ...prev, [toggleKey]: true }));
+    
     try {
+      console.log(`[WapiInstances] Toggle webhook ${type} for ${instanceId}: enabled=${enabled}, url=${url}`);
       const response = await fetch(`${API_URL}/api/admin/wapi/instances/${encodeURIComponent(instanceId)}/webhooks/${type}/toggle`, {
         method: 'PUT',
         headers: getHeaders(),
-        body: JSON.stringify({ enabled, url: url || webhookUrlInput || undefined })
+        body: JSON.stringify({ enabled, url })
       });
       const data = await response.json();
+      console.log(`[WapiInstances] toggleWebhook response:`, data);
+      
+      if (!response.ok) {
+        throw new Error(data.error || `Erro HTTP ${response.status}`);
+      }
+      
       if (data.success) {
         toast.success(`Webhook ${type} ${enabled ? 'ativado' : 'desativado'}`);
         loadWebhooks(instanceId);
       } else {
-        toast.error(`Falha ao alterar webhook ${type}`);
+        const detail = data.data?.message || data.data?.error || JSON.stringify(data.data || {}).substring(0, 100);
+        toast.error(`Falha ao alterar webhook ${type}: ${detail}`);
       }
     } catch (err: any) {
-      toast.error(err.message);
+      console.error(`[WapiInstances] toggleWebhook error for ${type}:`, err);
+      toast.error(`Erro ao alterar webhook ${type}: ${err.message}`);
+    } finally {
+      setTogglingWebhook(prev => ({ ...prev, [toggleKey]: false }));
     }
   };
 
@@ -263,7 +351,14 @@ export function WapiInstancesTab() {
   const isWebhookEnabled = (wh: WebhookInfo): boolean => {
     if (!wh.ok) return false;
     const d = wh.data;
-    return d?.enabled === true || d?.webhook?.enabled === true || !!d?.url || !!d?.webhook?.url;
+    if (!d) return false;
+    // Check various response formats from W-API
+    if (d.enabled === true) return true;
+    if (d.webhook?.enabled === true) return true;
+    // If there's a URL set and it's not empty, consider enabled
+    if (d.url && d.url.startsWith('http')) return true;
+    if (d.webhook?.url && d.webhook.url.startsWith('http')) return true;
+    return false;
   };
 
   const createInstance = async () => {
@@ -284,7 +379,7 @@ export function WapiInstancesTab() {
         })
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao criar instância');
+      if (!response.ok) throw new Error(data.error || `Erro ao criar instância (HTTP ${response.status})`);
       const whResult = data.webhooksResult;
       if (whResult) {
         toast.success(`Instância criada com ${whResult.configured}/${whResult.total} webhooks configurados!`);
@@ -295,16 +390,50 @@ export function WapiInstancesTab() {
       setNewInstanceName('');
       loadInstances();
     } catch (err: any) {
-      toast.error(err.message);
+      console.error('[WapiInstances] createInstance error:', err);
+      toast.error(`Erro ao criar: ${err.message}`);
     } finally {
       setCreating(false);
     }
   };
 
   const checkAllStatuses = async () => {
-    for (const inst of filtered.slice(0, 20)) {
-      checkInstanceStatus(inst);
+    toast.info('Verificando status de todas as instâncias...');
+    const promises = filtered.slice(0, 30).map(inst => checkInstanceStatus(inst));
+    await Promise.allSettled(promises);
+    toast.success('Verificação concluída');
+  };
+
+  const getStatusDisplay = (id: string) => {
+    const cached = statusCache[id];
+    if (!cached) return null;
+    
+    if (cached.status === 'checking') {
+      return (
+        <Badge variant="outline" className="text-xs">
+          <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Verificando
+        </Badge>
+      );
     }
+    if (cached.status === 'connected') {
+      return (
+        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+          <Wifi className="h-3 w-3 mr-1" /> Conectado
+        </Badge>
+      );
+    }
+    if (cached.status === 'error') {
+      return (
+        <Badge variant="destructive" className="text-xs cursor-help" title={cached.error}>
+          <AlertCircle className="h-3 w-3 mr-1" /> Erro
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="destructive">
+        <WifiOff className="h-3 w-3 mr-1" /> Desconectado
+      </Badge>
+    );
   };
 
   return (
@@ -371,7 +500,7 @@ export function WapiInstancesTab() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {instances.length === 0 ? 'Nenhuma instância encontrada.' : 'Nenhuma instância corresponde aos filtros.'}
+              {instances.length === 0 ? 'Nenhuma instância encontrada. Verifique se o token W-API está configurado.' : 'Nenhuma instância corresponde aos filtros.'}
             </div>
           ) : (
             <Table>
@@ -395,8 +524,8 @@ export function WapiInstancesTab() {
                   const activeWebhooks = instanceWebhooks.filter(w => isWebhookEnabled(w)).length;
 
                   return (
-                    <>
-                      <TableRow key={id || idx} className="cursor-pointer" onClick={() => toggleExpand(id)}>
+                    <React.Fragment key={id || idx}>
+                      <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => toggleExpand(id)}>
                         <TableCell className="w-10 px-2">
                           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </TableCell>
@@ -421,19 +550,9 @@ export function WapiInstancesTab() {
                             <span className="text-xs text-muted-foreground">Sem vínculo local</span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          {cached ? (
-                            cached.status === 'connected' ? (
-                              <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                                <Wifi className="h-3 w-3 mr-1" /> Conectado
-                              </Badge>
-                            ) : (
-                              <Badge variant="destructive">
-                                <WifiOff className="h-3 w-3 mr-1" /> Desconectado
-                              </Badge>
-                            )
-                          ) : (
-                            <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); checkInstanceStatus(inst); }}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {getStatusDisplay(id) || (
+                            <Button variant="ghost" size="sm" onClick={() => checkInstanceStatus(inst)}>
                               Verificar
                             </Button>
                           )}
@@ -445,38 +564,45 @@ export function WapiInstancesTab() {
                               {activeWebhooks}/{instanceWebhooks.length} ativos
                             </Badge>
                           ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
+                            <Badge variant="outline" className="text-xs">
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" /> ...
+                            </Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Deletar instância?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  A instância <strong>{getInstanceName(inst)}</strong> ({id}) será removida.
-                                  {inst.local?.orgName && <> Pertence à organização <strong>{inst.local.orgName}</strong>.</>}
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteInstance(inst)} className="bg-destructive hover:bg-destructive/90">
-                                  Deletar
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => checkInstanceStatus(inst)} title="Re-verificar status">
+                              <RefreshCw className="h-3 w-3" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Deletar instância?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    A instância <strong>{getInstanceName(inst)}</strong> ({id}) será removida permanentemente da W-API.
+                                    {inst.local?.orgName && <> Pertence à organização <strong>{inst.local.orgName}</strong>.</>}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deleteInstance(inst)} className="bg-destructive hover:bg-destructive/90">
+                                    Deletar
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </TableCell>
                       </TableRow>
 
                       {/* Expanded webhook config */}
                       {isExpanded && (
-                        <TableRow key={`${id}-webhooks`}>
+                        <TableRow>
                           <TableCell colSpan={7} className="bg-muted/30 p-4">
                             <div className="space-y-4">
                               <div className="flex items-center justify-between">
@@ -494,30 +620,40 @@ export function WapiInstancesTab() {
                                 <>
                                   {/* Webhook list */}
                                   <div className="grid gap-2">
-                                    {instanceWebhooks.length > 0 ? instanceWebhooks.map(wh => {
+                                    {instanceWebhooks.map(wh => {
                                       const enabled = isWebhookEnabled(wh);
                                       const url = getWebhookUrl(wh);
+                                      const toggleKey = `${id}-${wh.type}`;
+                                      const isToggling = togglingWebhook[toggleKey];
                                       return (
                                         <div key={wh.type} className="flex items-center justify-between gap-3 rounded-md border p-2 px-3">
                                           <div className="flex items-center gap-3 flex-1 min-w-0">
                                             <Switch
                                               checked={enabled}
+                                              disabled={isToggling}
                                               onCheckedChange={(val) => toggleWebhook(id, wh.type, val, url !== '—' ? url : undefined)}
                                             />
-                                            <span className="font-mono text-sm font-medium w-28">{wh.type}</span>
-                                            <span className="text-xs text-muted-foreground truncate flex-1">{url}</span>
+                                            <span className="font-mono text-sm font-medium w-32">{wh.type}</span>
+                                            <span className="text-xs text-muted-foreground truncate flex-1">
+                                              {url}
+                                              {wh.error && <span className="text-destructive ml-2">({wh.error})</span>}
+                                            </span>
                                           </div>
-                                          {enabled ? (
-                                            <Badge className="bg-green-500/20 text-green-400 border-green-500/30 shrink-0">
-                                              <Check className="h-3 w-3 mr-1" /> Ativo
-                                            </Badge>
-                                          ) : (
-                                            <Badge variant="secondary" className="shrink-0">Inativo</Badge>
-                                          )}
+                                          <div className="flex items-center gap-2 shrink-0">
+                                            {isToggling && <Loader2 className="h-3 w-3 animate-spin" />}
+                                            {enabled ? (
+                                              <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                                                <Check className="h-3 w-3 mr-1" /> Ativo
+                                              </Badge>
+                                            ) : (
+                                              <Badge variant="secondary">Inativo</Badge>
+                                            )}
+                                          </div>
                                         </div>
                                       );
-                                    }) : (
-                                      <p className="text-sm text-muted-foreground">Clique em atualizar para carregar os webhooks.</p>
+                                    })}
+                                    {instanceWebhooks.length === 0 && (
+                                      <p className="text-sm text-muted-foreground">Nenhum webhook encontrado. Use "Aplicar Todos" abaixo para configurar.</p>
                                     )}
                                   </div>
 
@@ -549,7 +685,7 @@ export function WapiInstancesTab() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </TableBody>
@@ -565,7 +701,7 @@ export function WapiInstancesTab() {
             <DialogTitle className="flex items-center gap-2">
               <Plus className="h-5 w-5" /> Nova Instância W-API
             </DialogTitle>
-            <DialogDescription>Crie uma nova instância via integrador W-API</DialogDescription>
+            <DialogDescription>Crie uma nova instância via integrador W-API. Webhooks serão configurados automaticamente.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -582,6 +718,10 @@ export function WapiInstancesTab() {
                 <Input value={callMessage} onChange={(e) => setCallMessage(e.target.value)} />
               </div>
             )}
+            <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+              <strong>Webhook URL:</strong> {DEFAULT_WEBHOOK_URL}
+              <br />Os 6 tipos de webhook serão configurados automaticamente após a criação.
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>

@@ -1438,12 +1438,33 @@ router.get('/wapi/instances/:instanceId/status', requireSuperadmin, async (req, 
     const token = tokenResult.rows[0]?.value;
     if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
 
-    const response = await fetch(
+    // Try multiple status endpoints as W-API may use different ones
+    const endpoints = [
       `https://api.w-api.app/v1/instance/status-instance?instanceId=${encodeURIComponent(instanceId)}`,
-      { method: 'GET', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
-    );
-    const data = await response.json().catch(() => ({}));
-    res.json({ instanceId, status: response.status, ok: response.ok, data });
+      `https://api.w-api.app/v1/instance/status?instanceId=${encodeURIComponent(instanceId)}`,
+    ];
+
+    let lastData = null;
+    let lastStatus = 500;
+    for (const url of endpoints) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json().catch(() => ({}));
+        console.log(`[admin] Instance status from ${url.split('?')[0].split('/').pop()}:`, JSON.stringify(data).substring(0, 300));
+        if (response.ok) {
+          return res.json({ instanceId, status: response.status, ok: true, data });
+        }
+        lastData = data;
+        lastStatus = response.status;
+      } catch (err) {
+        console.error(`[admin] Status endpoint failed: ${url}`, err.message);
+      }
+    }
+    
+    res.json({ instanceId, status: lastStatus, ok: false, data: lastData, error: 'Nenhum endpoint de status respondeu com sucesso' });
   } catch (error) {
     console.error('Instance status error:', error);
     res.status(500).json({ error: 'Erro ao verificar status' });
