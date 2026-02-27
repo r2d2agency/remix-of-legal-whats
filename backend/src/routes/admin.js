@@ -1452,7 +1452,7 @@ router.get('/wapi/instances/:instanceId/status', requireSuperadmin, async (req, 
 
 router.post('/wapi/instances', requireSuperadmin, async (req, res) => {
   try {
-    const { instanceName, rejectCalls = true, callMessage = 'Não estamos disponíveis no momento.' } = req.body;
+    const { instanceName, rejectCalls = true, callMessage = 'Não estamos disponíveis no momento.', webhookUrl } = req.body;
     if (!instanceName) return res.status(400).json({ error: 'instanceName é obrigatório' });
 
     const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
@@ -1469,7 +1469,37 @@ router.post('/wapi/instances', requireSuperadmin, async (req, res) => {
     );
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return res.status(response.status).json({ error: data?.message || 'Erro ao criar instância' });
-    res.json(data);
+
+    // Auto-configure webhooks if webhookUrl provided
+    const newInstanceId = data?.instanceId || data?.id || '';
+    let webhooksResult = null;
+    if (webhookUrl && newInstanceId) {
+      const webhookTypes = [
+        'update-webhook-received', 'update-webhook-delivery', 'update-webhook-message-status',
+        'update-webhook-connected', 'update-webhook-disconnected', 'update-webhook-chat-presence',
+      ];
+      const results = [];
+      for (const endpoint of webhookTypes) {
+        try {
+          const r = await fetch(
+            `https://api.w-api.app/v1/webhook/${endpoint}?instanceId=${newInstanceId}`,
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ url: webhookUrl, enabled: true }),
+            }
+          );
+          results.push({ endpoint, ok: r.ok });
+        } catch (err) {
+          results.push({ endpoint, ok: false, error: err.message });
+        }
+      }
+      const configured = results.filter(r => r.ok).length;
+      webhooksResult = { configured, total: results.length };
+      console.log(`Auto-configured ${configured}/${results.length} webhooks for instance ${newInstanceId}`);
+    }
+
+    res.json({ ...data, webhooksResult });
   } catch (error) {
     console.error('Create W-API instance error:', error);
     res.status(500).json({ error: 'Erro ao criar instância W-API' });

@@ -64,7 +64,8 @@ export function WapiInstancesTab() {
   const [webhookData, setWebhookData] = useState<Record<string, WebhookInfo[]>>({});
   const [webhookLoading, setWebhookLoading] = useState<Record<string, boolean>>({});
   const [configuringWebhooks, setConfiguringWebhooks] = useState<Record<string, boolean>>({});
-  const [webhookUrlInput, setWebhookUrlInput] = useState('');
+  const DEFAULT_WEBHOOK_URL = 'https://blaster-whats-backend.isyhhh.easypanel.host/api/wapi/webhook';
+  const [webhookUrlInput, setWebhookUrlInput] = useState(DEFAULT_WEBHOOK_URL);
 
   // Create dialog
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -94,6 +95,20 @@ export function WapiInstancesTab() {
   }, []);
 
   useEffect(() => { loadInstances(); }, [loadInstances]);
+
+  // Auto-check all statuses and load webhooks after instances load
+  useEffect(() => {
+    if (instances.length > 0) {
+      instances.slice(0, 30).forEach(inst => {
+        const id = inst.instanceId || inst.id || '';
+        if (id) {
+          if (!statusCache[id]) checkInstanceStatus(inst);
+          if (!webhookData[id]) loadWebhooks(id);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instances]);
 
   const getInstanceId = (inst: WapiInstance) => inst.instanceId || inst.id || '';
   const getInstanceName = (inst: WapiInstance) => inst.instanceName || inst.name || getInstanceId(inst);
@@ -261,11 +276,21 @@ export function WapiInstancesTab() {
       const response = await fetch(`${API_URL}/api/admin/wapi/instances`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ instanceName: newInstanceName.trim(), rejectCalls, callMessage })
+        body: JSON.stringify({ 
+          instanceName: newInstanceName.trim(), 
+          rejectCalls, 
+          callMessage,
+          webhookUrl: DEFAULT_WEBHOOK_URL 
+        })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao criar instância');
-      toast.success(`Instância criada! ID: ${data.instanceId || data.id || 'OK'}`);
+      const whResult = data.webhooksResult;
+      if (whResult) {
+        toast.success(`Instância criada com ${whResult.configured}/${whResult.total} webhooks configurados!`);
+      } else {
+        toast.success(`Instância criada! ID: ${data.instanceId || data.id || 'OK'}`);
+      }
       setCreateDialogOpen(false);
       setNewInstanceName('');
       loadInstances();
