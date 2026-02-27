@@ -20,7 +20,8 @@ import { useAdminSettings } from '@/hooks/use-branding';
 import { useUpload } from '@/hooks/use-upload';
 import { BrandingTab } from '@/components/admin/BrandingTab';
 import { toast } from 'sonner';
-import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase, Search, AlertTriangle, Mail, Sparkles, Key } from 'lucide-react';
+import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase, Search, AlertTriangle, Mail, Sparkles, Key, Server } from 'lucide-react';
+import { WapiInstancesTab } from '@/components/admin/WapiInstancesTab';
 import { api } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -672,7 +673,7 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="plans" className="space-y-6">
-          <TabsList className="grid w-full max-w-3xl grid-cols-5">
+          <TabsList className="grid w-full max-w-4xl grid-cols-6">
             <TabsTrigger value="plans" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               Planos
@@ -684,6 +685,10 @@ export default function Admin() {
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Usuários
+            </TabsTrigger>
+            <TabsTrigger value="wapi-instances" className="flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              Instâncias
             </TabsTrigger>
             <TabsTrigger value="integrations" className="flex items-center gap-2">
               <Key className="h-4 w-4" />
@@ -1660,6 +1665,11 @@ export default function Admin() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* W-API Instances Tab */}
+          <TabsContent value="wapi-instances" className="space-y-4">
+            <WapiInstancesTab />
           </TabsContent>
 
           {/* Integrations Tab */}
