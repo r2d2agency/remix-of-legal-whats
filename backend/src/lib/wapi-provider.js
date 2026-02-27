@@ -1437,26 +1437,90 @@ async function requestWithEndpointFallback(token, candidates, label, instanceId)
 }
 
 function pickArray(data, keys = []) {
-  if (Array.isArray(data)) return data;
-  if (!data || typeof data !== 'object') return [];
+  const containers = [
+    data,
+    data?.data,
+    data?.result,
+    data?.payload,
+    data?.response,
+    data?.data?.data,
+    data?.result?.data,
+    data?.payload?.data,
+    data?.response?.data,
+  ].filter(Boolean);
 
-  for (const key of keys) {
-    if (Array.isArray(data?.[key])) return data[key];
-  }
+  for (const container of containers) {
+    if (Array.isArray(container)) return container;
+    if (typeof container !== 'object') continue;
 
-  if (data.data && typeof data.data === 'object') {
     for (const key of keys) {
-      if (Array.isArray(data.data?.[key])) return data.data[key];
-    }
-  }
-
-  if (data.result && typeof data.result === 'object') {
-    for (const key of keys) {
-      if (Array.isArray(data.result?.[key])) return data.result[key];
+      if (Array.isArray(container?.[key])) return container[key];
     }
   }
 
   return [];
+}
+
+function normalizePhone(value) {
+  if (value == null) return '';
+  return String(value).replace(/\D/g, '');
+}
+
+function extractJidAndPhone(entity = {}) {
+  const jidCandidates = [
+    entity?.jid,
+    entity?.id,
+    entity?.remoteJid,
+    entity?.chatId,
+    entity?.from,
+    entity?.to,
+    entity?.participant,
+    entity?.key?.remoteJid,
+    entity?.key?.participant,
+    entity?.contact?.jid,
+    entity?.contact?.id,
+    entity?.chat?.id,
+    entity?.chat?.jid,
+    entity?.chat?.remoteJid,
+  ];
+
+  const plainPhoneCandidates = [
+    entity?.phone,
+    entity?.number,
+    entity?.user,
+    entity?.contact?.phone,
+    entity?.contact?.number,
+    entity?.chat?.phone,
+    entity?.chat?.number,
+  ];
+
+  let jid = '';
+  for (const candidate of jidCandidates) {
+    if (typeof candidate !== 'string') continue;
+    if (candidate.includes('@')) {
+      jid = candidate;
+      break;
+    }
+    const digits = normalizePhone(candidate);
+    if (digits) {
+      jid = `${digits}@s.whatsapp.net`;
+      break;
+    }
+  }
+
+  let phone = normalizePhone(jid);
+  if (!phone) {
+    for (const candidate of plainPhoneCandidates) {
+      phone = normalizePhone(candidate);
+      if (phone) break;
+    }
+  }
+
+  if (!jid && phone) {
+    jid = `${phone}@s.whatsapp.net`;
+  }
+
+  return { jid, phone };
 }
 
 /**
@@ -1485,16 +1549,14 @@ export async function getChats(instanceId, token) {
       return { success: false, error: result.error, chats: [] };
     }
 
-    const chatsArray = pickArray(result.data, ['data', 'result', 'chats', 'contacts']);
+    const chatsArray = pickArray(result.data, ['data', 'result', 'chats', 'contacts', 'items']);
     console.log(`[W-API] Found ${chatsArray.length} chats`);
 
-    const contacts = [];
-    for (const chat of chatsArray) {
-      const jid = chat.jid || chat.id || chat.remoteJid || chat.from || chat.phone || '';
-      if (typeof jid !== 'string' || jid.includes('@g.us')) continue;
+    const contactsByPhone = new Map();
 
-      const phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
-      if (!phone) continue;
+    for (const chat of chatsArray) {
+      const { jid, phone } = extractJidAndPhone(chat);
+      if (!jid || !phone || jid.includes('@g.us')) continue;
 
       const name =
         chat.name ||
@@ -1505,6 +1567,7 @@ export async function getChats(instanceId, token) {
         chat.displayName ||
         chat.contact?.name ||
         chat.contact?.pushName ||
+        chat.chat?.name ||
         '';
 
       const profilePicture =
@@ -1513,11 +1576,13 @@ export async function getChats(instanceId, token) {
         chat.imgUrl ||
         chat.picture ||
         chat.contact?.profilePictureUrl ||
+        chat.chat?.profilePictureUrl ||
         null;
 
-      contacts.push({ phone, name: name || phone, jid, profilePicture });
+      contactsByPhone.set(phone, { phone, name: name || phone, jid, profilePicture });
     }
 
+    const contacts = Array.from(contactsByPhone.values());
     console.log(`[W-API] Parsed ${contacts.length} individual contacts from chats`);
     return { success: true, contacts, total: contacts.length };
   } catch (error) {
@@ -1571,6 +1636,8 @@ export async function fetchContacts(instanceId, token) {
         result.data?.totalPages ||
         result.data?.pagination?.totalPages ||
         result.data?.meta?.totalPages ||
+        result.data?.data?.totalPages ||
+        result.data?.result?.totalPages ||
         0
       );
 
@@ -1582,14 +1649,28 @@ export async function fetchContacts(instanceId, token) {
     const contactsByPhone = new Map();
 
     for (const c of allRawContacts) {
-      const jid = c.jid || c.id || c.remoteJid || c.phone || '';
-      if (typeof jid !== 'string' || jid.includes('@g.us') || jid.includes('@broadcast')) continue;
+      const { jid, phone } = extractJidAndPhone(c);
+      if (!jid || !phone || jid.includes('@g.us') || jid.includes('@broadcast')) continue;
 
-      const phone = jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace(/\D/g, '');
-      if (!phone) continue;
+      const name =
+        c.name ||
+        c.pushName ||
+        c.notify ||
+        c.verifiedName ||
+        c.formattedName ||
+        c.displayName ||
+        c.contact?.name ||
+        c.chat?.name ||
+        '';
 
-      const name = c.name || c.pushName || c.notify || c.verifiedName || c.formattedName || c.displayName || c.contact?.name || '';
-      const profilePicture = c.profilePicture || c.profilePictureUrl || c.imgUrl || c.picture || null;
+      const profilePicture =
+        c.profilePicture ||
+        c.profilePictureUrl ||
+        c.imgUrl ||
+        c.picture ||
+        c.contact?.profilePictureUrl ||
+        c.chat?.profilePictureUrl ||
+        null;
 
       contactsByPhone.set(phone, { phone, name: name || phone, jid, profilePicture });
     }
