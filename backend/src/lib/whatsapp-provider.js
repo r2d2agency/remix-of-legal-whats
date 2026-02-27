@@ -24,30 +24,35 @@ async function getGlobalWapiToken() {
 }
 
 async function resolveWapiToken(connection) {
-  // Preferimos o token global do integrador (fonte única no sistema atual).
-  // Isso evita conexões novas com token de instância divergente/inválido.
-  let globalToken = null;
+  // Prioriza token da própria conexão (especialmente importante para instâncias
+  // que exigem token de instância), com fallback para token global do integrador.
+  if (connection?.wapi_token) {
+    try {
+      const globalToken = await getGlobalWapiToken();
+      if (globalToken && globalToken !== connection.wapi_token) {
+        logWarn('wapi.token_mismatch_using_connection', {
+          connection_id: connection?.id || null,
+        });
+      }
+    } catch (error) {
+      logWarn('wapi.resolve_global_token_failed', {
+        connection_id: connection?.id || null,
+        error: error?.message || 'unknown_error',
+      });
+    }
+
+    return connection.wapi_token;
+  }
+
   try {
-    globalToken = await getGlobalWapiToken();
+    return await getGlobalWapiToken();
   } catch (error) {
     logWarn('wapi.resolve_global_token_failed', {
       connection_id: connection?.id || null,
       error: error?.message || 'unknown_error',
     });
+    return null;
   }
-
-  if (globalToken) {
-    if (connection?.wapi_token && connection.wapi_token !== globalToken) {
-      logWarn('wapi.token_mismatch_using_global', {
-        connection_id: connection?.id || null,
-      });
-    }
-    return globalToken;
-  }
-
-  if (connection?.wapi_token) return connection.wapi_token;
-
-  return null;
 }
 
 /**
