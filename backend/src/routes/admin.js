@@ -1322,23 +1322,23 @@ router.get('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req
     const instanceToken = connResult.rows[0]?.wapi_token;
     const globalResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
     const globalToken = globalResult.rows[0]?.value;
-    const token = instanceToken || globalToken;
-    if (!token) return res.status(400).json({ error: 'Nenhum token W-API disponível' });
+    const tokensToTry = [instanceToken, globalToken].filter(Boolean);
+    if (tokensToTry.length === 0) return res.status(400).json({ error: 'Nenhum token W-API disponível' });
 
-    const results = await wapiProvider.getWebhookConfig(instanceId, token);
-    
-    // If all failed with token error, try the other token
-    const allFailed = results.every(r => !r.ok);
-    if (allFailed && instanceToken && globalToken && token === instanceToken) {
-      console.log(`[admin] Retrying webhooks for ${instanceId} with global token`);
-      const retryResults = await wapiProvider.getWebhookConfig(instanceId, globalToken);
-      if (retryResults.some(r => r.ok)) {
-        return res.json({ instanceId, webhooks: retryResults });
+    let bestResults = null;
+    for (const token of tokensToTry) {
+      const results = await wapiProvider.getWebhookConfig(instanceId, token);
+      const okCount = results.filter(r => r.ok).length;
+      console.log(`[admin] Webhooks for ${instanceId} (${token === instanceToken ? 'instance' : 'global'} token): ${okCount}/${results.length} ok, sample data:`, JSON.stringify(results[0]?.data || {}).substring(0, 300));
+      
+      if (okCount > 0) {
+        bestResults = results;
+        break; // Use first token that works
       }
+      if (!bestResults) bestResults = results;
     }
     
-    console.log(`[admin] Webhooks for ${instanceId}:`, results.map(r => `${r.type}:${r.ok}`).join(', '));
-    res.json({ instanceId, webhooks: results });
+    res.json({ instanceId, webhooks: bestResults || [] });
   } catch (error) {
     console.error('Get webhooks error:', error);
     res.status(500).json({ error: 'Erro ao buscar webhooks' });
@@ -1498,21 +1498,46 @@ router.put('/wapi/instances/:instanceId/webhooks/:webhookType/toggle', requireSu
 router.get('/wapi/instances/:instanceId/status', requireSuperadmin, async (req, res) => {
   try {
     const { instanceId } = req.params;
-    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
-    const token = tokenResult.rows[0]?.value;
-    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
+    
+    // Try instance-specific token first, then global
+    const connResult = await query(
+      `SELECT wapi_token FROM connections WHERE instance_id = $1 AND provider = 'wapi' AND wapi_token IS NOT NULL LIMIT 1`,
+      [instanceId]
+    );
+    const instanceToken = connResult.rows[0]?.wapi_token;
+    const globalResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const globalToken = globalResult.rows[0]?.value;
+    const tokensToTry = [instanceToken, globalToken].filter(Boolean);
+    if (tokensToTry.length === 0) return res.status(400).json({ error: 'Token W-API não configurado' });
 
-    // Use the robust wapi-provider checkStatus which handles multiple endpoints and response formats
-    const result = await wapiProvider.checkStatus(instanceId, token);
-    console.log(`[admin] Instance ${instanceId} status via wapiProvider:`, JSON.stringify(result));
+    let lastResult = null;
+    for (const token of tokensToTry) {
+      try {
+        const result = await wapiProvider.checkStatus(instanceId, token);
+        console.log(`[admin] Instance ${instanceId} status via wapiProvider (${token === instanceToken ? 'instance' : 'global'} token):`, JSON.stringify(result));
+        
+        if (result.status === 'connected' || !result.error) {
+          return res.json({ 
+            instanceId, ok: true, 
+            connected: result.status === 'connected',
+            status: result.status,
+            phoneNumber: result.phoneNumber || null,
+            error: result.error || null,
+          });
+        }
+        lastResult = result;
+      } catch (err) {
+        console.log(`[admin] Token ${token === instanceToken ? 'instance' : 'global'} failed for status:`, err.message);
+        lastResult = { status: 'disconnected', error: err.message };
+      }
+    }
     
     res.json({ 
-      instanceId, 
-      ok: true, 
-      connected: result.status === 'connected',
-      status: result.status,
-      phoneNumber: result.phoneNumber || null,
-      error: result.error || null,
+      instanceId, ok: true, 
+      connected: lastResult?.status === 'connected',
+      status: lastResult?.status || 'disconnected',
+      phoneNumber: lastResult?.phoneNumber || null,
+      error: lastResult?.error || null,
     });
   } catch (error) {
     console.error('Instance status error:', error);
