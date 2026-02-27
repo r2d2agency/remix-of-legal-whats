@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import bcrypt from 'bcryptjs';
+import * as wapiProvider from '../lib/wapi-provider.js';
 
 const router = Router();
 
@@ -1316,27 +1317,9 @@ router.get('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req
     const token = tokenResult.rows[0]?.value;
     if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
 
-    const webhookTypes = [
-      { endpoint: 'get-webhook-received', name: 'received' },
-      { endpoint: 'get-webhook-delivery', name: 'delivery' },
-      { endpoint: 'get-webhook-message-status', name: 'message-status' },
-      { endpoint: 'get-webhook-connected', name: 'connected' },
-      { endpoint: 'get-webhook-disconnected', name: 'disconnected' },
-      { endpoint: 'get-webhook-chat-presence', name: 'chat-presence' },
-    ];
-    const results = [];
-    for (const wh of webhookTypes) {
-      try {
-        const r = await fetch(
-          `https://api.w-api.app/v1/webhook/${wh.endpoint}?instanceId=${instanceId}`,
-          { method: 'GET', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }
-        );
-        const d = await r.json().catch(() => ({}));
-        results.push({ type: wh.name, ok: r.ok, status: r.status, data: d });
-      } catch (err) {
-        results.push({ type: wh.name, ok: false, error: err.message });
-      }
-    }
+    // Use wapi-provider's getWebhookConfig for consistent parsing
+    const results = await wapiProvider.getWebhookConfig(instanceId, token);
+    console.log(`[admin] Webhooks for ${instanceId}:`, results.map(r => `${r.type}:${r.ok}`).join(', '));
     res.json({ instanceId, webhooks: results });
   } catch (error) {
     console.error('Get webhooks error:', error);
@@ -1438,36 +1421,21 @@ router.get('/wapi/instances/:instanceId/status', requireSuperadmin, async (req, 
     const token = tokenResult.rows[0]?.value;
     if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
 
-    // Try multiple status endpoints as W-API may use different ones
-    const endpoints = [
-      `https://api.w-api.app/v1/instance/status-instance?instanceId=${encodeURIComponent(instanceId)}`,
-      `https://api.w-api.app/v1/instance/status?instanceId=${encodeURIComponent(instanceId)}`,
-    ];
-
-    let lastData = null;
-    let lastStatus = 500;
-    for (const url of endpoints) {
-      try {
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-        });
-        const data = await response.json().catch(() => ({}));
-        console.log(`[admin] Instance status from ${url.split('?')[0].split('/').pop()}:`, JSON.stringify(data).substring(0, 300));
-        if (response.ok) {
-          return res.json({ instanceId, status: response.status, ok: true, data });
-        }
-        lastData = data;
-        lastStatus = response.status;
-      } catch (err) {
-        console.error(`[admin] Status endpoint failed: ${url}`, err.message);
-      }
-    }
+    // Use the robust wapi-provider checkStatus which handles multiple endpoints and response formats
+    const result = await wapiProvider.checkStatus(instanceId, token);
+    console.log(`[admin] Instance ${instanceId} status via wapiProvider:`, JSON.stringify(result));
     
-    res.json({ instanceId, status: lastStatus, ok: false, data: lastData, error: 'Nenhum endpoint de status respondeu com sucesso' });
+    res.json({ 
+      instanceId, 
+      ok: true, 
+      connected: result.status === 'connected',
+      status: result.status,
+      phoneNumber: result.phoneNumber || null,
+      error: result.error || null,
+    });
   } catch (error) {
     console.error('Instance status error:', error);
-    res.status(500).json({ error: 'Erro ao verificar status' });
+    res.status(500).json({ error: 'Erro ao verificar status: ' + error.message });
   }
 });
 

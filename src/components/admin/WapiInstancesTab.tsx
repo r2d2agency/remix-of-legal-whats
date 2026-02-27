@@ -147,36 +147,6 @@ export function WapiInstancesTab() {
     return matchesSearch && matchesOrg;
   });
 
-  // Deeply search for connected status in any nested object
-  const parseStatusResponse = (data: any): { connected: boolean; phone: string } => {
-    let connected = false;
-    let phone = '';
-    
-    const check = (obj: any) => {
-      if (!obj || typeof obj !== 'object') return;
-      // Check common fields
-      if (obj.connected === true || obj.isConnected === true) connected = true;
-      const st = String(obj.status || obj.state || '').toLowerCase();
-      if (['connected', 'open', 'online', 'authenticated'].includes(st)) connected = true;
-      phone = phone || obj.phoneNumber || obj.phone || obj.number || obj.wid || '';
-    };
-
-    // Check top level
-    check(data);
-    check(data?.data);
-    check(data?.data?.data);
-    check(data?.data?.result);
-    check(data?.data?.instance);
-    check(data?.data?.info);
-    // Also check if the W-API returns status directly
-    if (data?.ok && data?.data) {
-      check(data.data);
-    }
-    
-    console.log('[WapiInstances] parseStatus result:', { connected, phone, rawData: data });
-    return { connected, phone };
-  };
-
   const checkInstanceStatus = async (inst: WapiInstance) => {
     const id = getInstanceId(inst);
     setStatusCache(prev => ({ ...prev, [id]: { status: 'checking' } }));
@@ -185,14 +155,17 @@ export function WapiInstancesTab() {
         headers: getHeaders()
       });
       const data = await response.json();
-      console.log(`[WapiInstances] Status for ${id}:`, JSON.stringify(data).substring(0, 500));
+      console.log(`[WapiInstances] Status for ${id}:`, data);
       
       if (!response.ok) {
         setStatusCache(prev => ({ ...prev, [id]: { status: 'error', error: data?.error || `HTTP ${response.status}` } }));
         return;
       }
       
-      const { connected, phone } = parseStatusResponse(data);
+      // Backend now returns { connected, status, phoneNumber } directly
+      const connected = data.connected === true || data.status === 'connected';
+      const phone = data.phoneNumber || '';
+      
       setStatusCache(prev => ({ ...prev, [id]: { status: connected ? 'connected' : 'disconnected', phone } }));
     } catch (err: any) {
       console.error(`[WapiInstances] checkStatus error for ${id}:`, err);
