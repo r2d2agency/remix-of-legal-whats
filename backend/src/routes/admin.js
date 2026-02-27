@@ -1232,7 +1232,7 @@ router.patch('/settings/:key', requireSuperadmin, async (req, res) => {
 router.get('/wapi/instances', requireSuperadmin, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 50;
+    const pageSize = parseInt(req.query.pageSize) || 100;
     const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
     const token = tokenResult.rows[0]?.value;
     if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
@@ -1243,7 +1243,46 @@ router.get('/wapi/instances', requireSuperadmin, async (req, res) => {
     );
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return res.status(response.status).json({ error: data?.message || 'Erro ao listar instâncias' });
-    res.json(data);
+
+    // Cross-reference with local connections table to find org/owner info
+    const list = Array.isArray(data) ? data : (data?.instances || data?.data || []);
+    
+    // Get all W-API connections with org info
+    const connectionsResult = await query(`
+      SELECT c.instance_id, c.name as connection_name, c.phone_number,
+             o.id as org_id, o.name as org_name, o.slug as org_slug,
+             u.name as owner_name, u.email as owner_email
+      FROM connections c
+      LEFT JOIN organization_members om ON om.user_id = c.user_id
+      LEFT JOIN organizations o ON o.id = om.organization_id
+      LEFT JOIN users u ON u.id = c.user_id
+      WHERE c.provider = 'wapi' AND c.instance_id IS NOT NULL
+    `);
+    
+    const connectionMap = {};
+    for (const row of connectionsResult.rows) {
+      if (row.instance_id) connectionMap[row.instance_id] = row;
+    }
+
+    // Enrich instances with local data
+    const enriched = list.map(inst => {
+      const id = inst.instanceId || inst.id || '';
+      const local = connectionMap[id] || null;
+      return {
+        ...inst,
+        local: local ? {
+          connectionName: local.connection_name,
+          phoneNumber: local.phone_number,
+          orgId: local.org_id,
+          orgName: local.org_name,
+          orgSlug: local.org_slug,
+          ownerName: local.owner_name,
+          ownerEmail: local.owner_email,
+        } : null,
+      };
+    });
+
+    res.json({ instances: enriched, total: enriched.length });
   } catch (error) {
     console.error('List W-API instances error:', error);
     res.status(500).json({ error: 'Erro ao listar instâncias W-API' });
@@ -1308,13 +1347,13 @@ router.get('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req
 router.put('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req, res) => {
   try {
     const { instanceId } = req.params;
-    const { webhookUrl } = req.body;
+    const { webhookUrl, webhookTypes: requestedTypes } = req.body;
     const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
     const token = tokenResult.rows[0]?.value;
     if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
     if (!webhookUrl) return res.status(400).json({ error: 'webhookUrl é obrigatório' });
 
-    const webhookTypes = [
+    const allWebhookTypes = [
       { endpoint: 'update-webhook-received', name: 'received' },
       { endpoint: 'update-webhook-delivery', name: 'delivery' },
       { endpoint: 'update-webhook-message-status', name: 'message-status' },
@@ -1322,8 +1361,14 @@ router.put('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req
       { endpoint: 'update-webhook-disconnected', name: 'disconnected' },
       { endpoint: 'update-webhook-chat-presence', name: 'chat-presence' },
     ];
+
+    // If specific types requested, only configure those
+    const webhookTypesToConfigure = requestedTypes && Array.isArray(requestedTypes) 
+      ? allWebhookTypes.filter(wh => requestedTypes.includes(wh.name))
+      : allWebhookTypes;
+
     const results = [];
-    for (const wh of webhookTypes) {
+    for (const wh of webhookTypesToConfigure) {
       try {
         const r = await fetch(
           `https://api.w-api.app/v1/webhook/${wh.endpoint}?instanceId=${instanceId}`,
@@ -1344,6 +1389,45 @@ router.put('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req
   } catch (error) {
     console.error('Configure webhooks error:', error);
     res.status(500).json({ error: 'Erro ao configurar webhooks' });
+  }
+});
+
+// Toggle individual webhook on/off
+router.put('/wapi/instances/:instanceId/webhooks/:webhookType/toggle', requireSuperadmin, async (req, res) => {
+  try {
+    const { instanceId, webhookType } = req.params;
+    const { enabled, url } = req.body;
+    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const token = tokenResult.rows[0]?.value;
+    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
+
+    const endpointMap = {
+      'received': 'update-webhook-received',
+      'delivery': 'update-webhook-delivery',
+      'message-status': 'update-webhook-message-status',
+      'connected': 'update-webhook-connected',
+      'disconnected': 'update-webhook-disconnected',
+      'chat-presence': 'update-webhook-chat-presence',
+    };
+    const endpoint = endpointMap[webhookType];
+    if (!endpoint) return res.status(400).json({ error: `Tipo de webhook inválido: ${webhookType}` });
+
+    const body = { enabled: !!enabled };
+    if (url) body.url = url;
+
+    const r = await fetch(
+      `https://api.w-api.app/v1/webhook/${endpoint}?instanceId=${instanceId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body),
+      }
+    );
+    const d = await r.json().catch(() => ({}));
+    res.json({ success: r.ok, status: r.status, data: d });
+  } catch (error) {
+    console.error('Toggle webhook error:', error);
+    res.status(500).json({ error: 'Erro ao alternar webhook' });
   }
 });
 
