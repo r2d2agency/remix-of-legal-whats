@@ -1030,7 +1030,6 @@ router.post('/:connectionId/sync-profile-pictures', authenticate, async (req, re
           await query('UPDATE contacts SET profile_picture_url = $1 WHERE id = $2', [result.url, contact.id]);
           updated++;
         }
-        }
       } catch {
         errors++;
       }
