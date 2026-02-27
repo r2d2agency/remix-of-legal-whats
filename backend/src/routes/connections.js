@@ -222,8 +222,8 @@ router.post('/', async (req, res) => {
 
         const created = await wapiProvider.createInstance(resolvedToken, instanceName);
         finalInstanceId = created.instanceId;
-        // Mantém o token global do integrador como padrão para evitar divergência de credencial por instância.
-        finalToken = resolvedToken;
+        // Usa token retornado pela própria instância quando disponível; fallback para o token global.
+        finalToken = created.token || resolvedToken;
         console.log('[W-API] Auto-created instance:', finalInstanceId, 'name:', instanceName);
       } catch (createError) {
         console.error('[W-API] Failed to create instance:', createError);
