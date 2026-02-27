@@ -1009,9 +1009,14 @@ router.post('/:connectionId/sync-profile-pictures', authenticate, async (req, re
     if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
     if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
 
-    // Get all contacts for this connection that don't have a profile picture
+    // Get all contacts linked to this connection that don't have a profile picture
     const contactsResult = await query(
-      `SELECT id, phone FROM contacts WHERE organization_id = (SELECT organization_id FROM connections WHERE id = $1) AND (profile_picture_url IS NULL OR profile_picture_url = '') LIMIT 100`,
+      `SELECT c.id, c.phone
+       FROM contacts c
+       JOIN contact_lists cl ON cl.id = c.list_id
+       WHERE cl.connection_id = $1
+         AND (c.profile_picture_url IS NULL OR c.profile_picture_url = '')
+       LIMIT 100`,
       [connectionId]
     );
 
@@ -1022,8 +1027,9 @@ router.post('/:connectionId/sync-profile-pictures', authenticate, async (req, re
       try {
         const result = await wapiGetProfilePicture(connection.instance_id, connection.wapi_token, contact.phone);
         if (result.success && result.url) {
-          await query('UPDATE contacts SET profile_picture_url = $1, updated_at = NOW() WHERE id = $2', [result.url, contact.id]);
+          await query('UPDATE contacts SET profile_picture_url = $1 WHERE id = $2', [result.url, contact.id]);
           updated++;
+        }
         }
       } catch {
         errors++;
@@ -1074,9 +1080,15 @@ router.post('/:connectionId/validate-all-contacts', authenticate, async (req, re
     if (!connection) return res.status(404).json({ error: 'Conexão não encontrada' });
     if (!connection.instance_id || !connection.wapi_token) return res.status(400).json({ error: 'Esta conexão não é W-API' });
 
-    // Get all contacts for this org that haven't been validated
+    // Get all contacts linked to this connection that haven't been validated yet
     const contactsResult = await query(
-      `SELECT id, phone FROM contacts WHERE organization_id = (SELECT organization_id FROM connections WHERE id = $1) AND (whatsapp_valid IS NULL) LIMIT 500`,
+      `SELECT c.id, c.phone
+       FROM contacts c
+       JOIN contact_lists cl ON cl.id = c.list_id
+       WHERE cl.connection_id = $1
+         AND c.phone IS NOT NULL
+         AND c.is_whatsapp IS NULL
+       LIMIT 500`,
       [connectionId]
     );
 
@@ -1092,7 +1104,7 @@ router.post('/:connectionId/validate-all-contacts', authenticate, async (req, re
     for (const r of result.results) {
       const contact = contactsResult.rows.find(c => c.phone.replace(/\D/g, '') === r.phone);
       if (contact) {
-        await query('UPDATE contacts SET whatsapp_valid = $1, updated_at = NOW() WHERE id = $2', [r.exists, contact.id]);
+        await query('UPDATE contacts SET is_whatsapp = $1 WHERE id = $2', [r.exists, contact.id]);
         if (r.exists) valid++;
         else invalid++;
       }
