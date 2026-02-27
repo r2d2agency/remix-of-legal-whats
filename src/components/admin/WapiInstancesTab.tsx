@@ -318,20 +318,33 @@ export function WapiInstancesTab() {
 
   const getWebhookUrl = (wh: WebhookInfo): string => {
     if (!wh.data) return '—';
-    return wh.data?.url || wh.data?.webhook?.url || wh.data?.webhookUrl || '—';
+    const d = wh.data;
+    // Search various nesting levels for the URL
+    const url = d.url || d.webhook?.url || d.webhookUrl || d.data?.url || d.result?.url || d.config?.url || d.configuration?.url;
+    return (url && typeof url === 'string' && url.startsWith('http')) ? url : '—';
   };
 
   const isWebhookEnabled = (wh: WebhookInfo): boolean => {
     if (!wh.ok) return false;
     const d = wh.data;
     if (!d) return false;
-    // Check various response formats from W-API
-    if (d.enabled === true) return true;
-    if (d.webhook?.enabled === true) return true;
-    // If there's a URL set and it's not empty, consider enabled
-    if (d.url && d.url.startsWith('http')) return true;
-    if (d.webhook?.url && d.webhook.url.startsWith('http')) return true;
-    return false;
+    
+    // Deep-search for enabled flag in any nesting level
+    const checkEnabled = (obj: any): boolean => {
+      if (!obj || typeof obj !== 'object') return false;
+      if (obj.enabled === true) return true;
+      // Check if there's a URL configured (means it's active even without explicit enabled flag)
+      if (typeof obj.url === 'string' && obj.url.startsWith('http')) return true;
+      // Recurse one level into known wrapper keys
+      for (const key of ['webhook', 'data', 'result', 'config', 'configuration']) {
+        if (obj[key] && typeof obj[key] === 'object') {
+          if (checkEnabled(obj[key])) return true;
+        }
+      }
+      return false;
+    };
+    
+    return checkEnabled(d);
   };
 
   const createInstance = async () => {
