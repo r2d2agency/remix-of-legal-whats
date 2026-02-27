@@ -1313,12 +1313,30 @@ router.delete('/wapi/instances/:instanceId', requireSuperadmin, async (req, res)
 router.get('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req, res) => {
   try {
     const { instanceId } = req.params;
-    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
-    const token = tokenResult.rows[0]?.value;
-    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
+    
+    // Resolve best token: instance-specific first, then global
+    const connResult = await query(
+      `SELECT wapi_token FROM connections WHERE instance_id = $1 AND provider = 'wapi' AND wapi_token IS NOT NULL LIMIT 1`,
+      [instanceId]
+    );
+    const instanceToken = connResult.rows[0]?.wapi_token;
+    const globalResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const globalToken = globalResult.rows[0]?.value;
+    const token = instanceToken || globalToken;
+    if (!token) return res.status(400).json({ error: 'Nenhum token W-API disponível' });
 
-    // Use wapi-provider's getWebhookConfig for consistent parsing
     const results = await wapiProvider.getWebhookConfig(instanceId, token);
+    
+    // If all failed with token error, try the other token
+    const allFailed = results.every(r => !r.ok);
+    if (allFailed && instanceToken && globalToken && token === instanceToken) {
+      console.log(`[admin] Retrying webhooks for ${instanceId} with global token`);
+      const retryResults = await wapiProvider.getWebhookConfig(instanceId, globalToken);
+      if (retryResults.some(r => r.ok)) {
+        return res.json({ instanceId, webhooks: retryResults });
+      }
+    }
+    
     console.log(`[admin] Webhooks for ${instanceId}:`, results.map(r => `${r.type}:${r.ok}`).join(', '));
     res.json({ instanceId, webhooks: results });
   } catch (error) {
@@ -1331,10 +1349,18 @@ router.put('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req
   try {
     const { instanceId } = req.params;
     const { webhookUrl, webhookTypes: requestedTypes } = req.body;
-    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
-    const token = tokenResult.rows[0]?.value;
-    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
     if (!webhookUrl) return res.status(400).json({ error: 'webhookUrl é obrigatório' });
+
+    // Resolve best token
+    const connResult = await query(
+      `SELECT wapi_token FROM connections WHERE instance_id = $1 AND provider = 'wapi' AND wapi_token IS NOT NULL LIMIT 1`,
+      [instanceId]
+    );
+    const instanceToken = connResult.rows[0]?.wapi_token;
+    const globalResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const globalToken = globalResult.rows[0]?.value;
+    const tokensToTry = [instanceToken, globalToken].filter(Boolean);
+    if (tokensToTry.length === 0) return res.status(400).json({ error: 'Nenhum token W-API disponível' });
 
     const allWebhookTypes = [
       { endpoint: 'update-webhook-received', name: 'received' },
@@ -1345,29 +1371,47 @@ router.put('/wapi/instances/:instanceId/webhooks', requireSuperadmin, async (req
       { endpoint: 'update-webhook-chat-presence', name: 'chat-presence' },
     ];
 
-    // If specific types requested, only configure those
     const webhookTypesToConfigure = requestedTypes && Array.isArray(requestedTypes) 
       ? allWebhookTypes.filter(wh => requestedTypes.includes(wh.name))
       : allWebhookTypes;
 
     const results = [];
     for (const wh of webhookTypesToConfigure) {
-      try {
-        const r = await fetch(
-          `https://api.w-api.app/v1/webhook/${wh.endpoint}?instanceId=${instanceId}`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ url: webhookUrl, enabled: true }),
+      let configured = false;
+      for (const token of tokensToTry) {
+        try {
+          const r = await fetch(
+            `https://api.w-api.app/v1/webhook/${wh.endpoint}?instanceId=${instanceId}`,
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ url: webhookUrl, enabled: true }),
+            }
+          );
+          const d = await r.json().catch(() => ({}));
+          if (r.ok) {
+            results.push({ type: wh.name, ok: true, status: r.status, data: d });
+            configured = true;
+            break;
           }
-        );
-        const d = await r.json().catch(() => ({}));
-        results.push({ type: wh.name, ok: r.ok, status: r.status, data: d });
-      } catch (err) {
-        results.push({ type: wh.name, ok: false, error: err.message });
+          // If token error, try next token
+          const errMsg = (d?.message || d?.error || '').toLowerCase();
+          if (errMsg.includes('token') || r.status === 401 || r.status === 403) {
+            continue;
+          }
+          results.push({ type: wh.name, ok: false, status: r.status, data: d });
+          configured = true; // stop trying tokens for this type
+          break;
+        } catch (err) {
+          // try next token
+        }
+      }
+      if (!configured) {
+        results.push({ type: wh.name, ok: false, error: 'Todos os tokens falharam' });
       }
     }
     const successCount = results.filter(r => r.ok).length;
+    console.log(`[admin] Configured webhooks for ${instanceId}: ${successCount}/${results.length}`);
     res.json({ success: successCount > 0, configured: successCount, total: results.length, results });
   } catch (error) {
     console.error('Configure webhooks error:', error);
@@ -1380,9 +1424,19 @@ router.put('/wapi/instances/:instanceId/webhooks/:webhookType/toggle', requireSu
   try {
     const { instanceId, webhookType } = req.params;
     const { enabled, url } = req.body;
-    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
-    const token = tokenResult.rows[0]?.value;
-    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
+    
+    // Try instance-specific token first, then global integrator token
+    const connResult = await query(
+      `SELECT wapi_token FROM connections WHERE instance_id = $1 AND provider = 'wapi' AND wapi_token IS NOT NULL LIMIT 1`,
+      [instanceId]
+    );
+    const instanceToken = connResult.rows[0]?.wapi_token;
+    
+    const globalResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const globalToken = globalResult.rows[0]?.value;
+    
+    const tokensToTry = [instanceToken, globalToken].filter(Boolean);
+    if (tokensToTry.length === 0) return res.status(400).json({ error: 'Nenhum token W-API disponível' });
 
     const endpointMap = {
       'received': 'update-webhook-received',
@@ -1397,20 +1451,47 @@ router.put('/wapi/instances/:instanceId/webhooks/:webhookType/toggle', requireSu
 
     const body = { enabled: !!enabled };
     if (url) body.url = url;
+    // Always include default URL when enabling and no URL provided
+    if (enabled && !url) body.url = 'https://blaster-whats-backend.isyhhh.easypanel.host/api/wapi/webhook';
 
-    const r = await fetch(
-      `https://api.w-api.app/v1/webhook/${endpoint}?instanceId=${instanceId}`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(body),
+    let lastError = null;
+    for (const token of tokensToTry) {
+      try {
+        const r = await fetch(
+          `https://api.w-api.app/v1/webhook/${endpoint}?instanceId=${instanceId}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body),
+          }
+        );
+        const d = await r.json().catch(() => ({}));
+        console.log(`[admin] toggleWebhook ${webhookType} for ${instanceId}: status=${r.status} token=${token === instanceToken ? 'instance' : 'global'}`, JSON.stringify(d).substring(0, 200));
+        
+        if (r.ok) {
+          return res.json({ success: true, status: r.status, data: d, tokenUsed: token === instanceToken ? 'instance' : 'global' });
+        }
+        
+        // If token invalid, try next token
+        const errMsg = d?.message || d?.error || '';
+        if (errMsg.toLowerCase().includes('token') || r.status === 401 || r.status === 403) {
+          lastError = { status: r.status, data: d };
+          continue;
+        }
+        
+        // Other error, return it
+        return res.json({ success: false, status: r.status, data: d, error: errMsg });
+      } catch (err) {
+        lastError = { error: err.message };
       }
-    );
-    const d = await r.json().catch(() => ({}));
-    res.json({ success: r.ok, status: r.status, data: d });
+    }
+    
+    // All tokens failed
+    const errMsg = lastError?.data?.message || lastError?.data?.error || lastError?.error || 'Token inválido';
+    res.json({ success: false, error: errMsg, data: lastError?.data });
   } catch (error) {
     console.error('Toggle webhook error:', error);
-    res.status(500).json({ error: 'Erro ao alternar webhook' });
+    res.status(500).json({ error: 'Erro ao alternar webhook: ' + error.message });
   }
 });
 
