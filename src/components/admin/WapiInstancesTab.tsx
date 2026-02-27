@@ -7,7 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Loader2, RefreshCw, Trash2, Wifi, WifiOff, Settings, Eye, Globe } from 'lucide-react';
+import { Loader2, RefreshCw, Trash2, Wifi, WifiOff, Settings, Eye, Globe, Plus } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { API_URL, getAuthToken } from '@/lib/api';
 
 interface WapiInstance {
@@ -46,7 +48,11 @@ export function WapiInstancesTab() {
   const [configuring, setConfiguring] = useState(false);
   const [customWebhookUrl, setCustomWebhookUrl] = useState('');
   const [statusCache, setStatusCache] = useState<Record<string, { status: string; phone?: string }>>({});
-
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [newInstanceName, setNewInstanceName] = useState('');
+  const [rejectCalls, setRejectCalls] = useState(true);
+  const [callMessage, setCallMessage] = useState('Não estamos disponíveis no momento.');
+  const [creating, setCreating] = useState(false);
   const loadInstances = useCallback(async () => {
     setLoading(true);
     try {
@@ -182,14 +188,44 @@ export function WapiInstancesTab() {
     return d?.enabled === true || d?.webhook?.enabled === true || !!d?.url || !!d?.webhook?.url;
   };
 
+  const createInstance = async () => {
+    if (!newInstanceName.trim()) {
+      toast.error('Informe o nome da instância');
+      return;
+    }
+    setCreating(true);
+    try {
+      const response = await fetch(`${API_URL}/api/admin/wapi/instances`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ instanceName: newInstanceName.trim(), rejectCalls, callMessage })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao criar instância');
+      toast.success(`Instância criada! ID: ${data.instanceId || data.id || 'OK'}`);
+      setCreateDialogOpen(false);
+      setNewInstanceName('');
+      loadInstances();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Instâncias W-API</h2>
-        <Button variant="outline" onClick={loadInstances} disabled={loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          Atualizar
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Nova Instância
+          </Button>
+          <Button variant="outline" onClick={loadInstances} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -350,6 +386,51 @@ export function WapiInstancesTab() {
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Instance Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Nova Instância W-API
+            </DialogTitle>
+            <DialogDescription>
+              Crie uma nova instância via integrador W-API
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome da Instância</Label>
+              <Input
+                placeholder="ex: minha-instancia"
+                value={newInstanceName}
+                onChange={(e) => setNewInstanceName(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Rejeitar chamadas</Label>
+              <Switch checked={rejectCalls} onCheckedChange={setRejectCalls} />
+            </div>
+            {rejectCalls && (
+              <div className="space-y-2">
+                <Label>Mensagem de rejeição</Label>
+                <Input
+                  value={callMessage}
+                  onChange={(e) => setCallMessage(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={createInstance} disabled={creating || !newInstanceName.trim()}>
+              {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+              Criar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
