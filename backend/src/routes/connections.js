@@ -102,46 +102,47 @@ router.post('/validate-wapi', async (req, res) => {
       return res.json({ valid: false, error: 'Token W-API não configurado. Configure no painel Superadmin.' });
     }
 
-    // Tenta validar em mais de uma variação de endpoint para evitar falso positivo
-    const baseUrls = ['https://api.w-api.app/v1', 'https://api.w-api.app'];
-    const validatePaths = ['/instance/list?instanceId=test', '/instance/status-instance?instanceId=test'];
+    // Try integrator endpoint first (most common token type), then instance endpoints
+    const validateEndpoints = [
+      'https://api.w-api.app/v1/integrator/instances?pageSize=1&page=1',
+      'https://api.w-api.app/v1/instance/status?instanceId=test',
+    ];
 
     let lastStatus = null;
     let lastBody = '';
 
-    for (const baseUrl of baseUrls) {
-      for (const path of validatePaths) {
-        try {
-          const response = await fetch(`${baseUrl}${path}`, {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${resolvedToken}`,
-            },
-          });
+    for (const url of validateEndpoints) {
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${resolvedToken}`,
+          },
+        });
 
-          const bodyText = await response.text().catch(() => '');
-          lastStatus = response.status;
-          lastBody = bodyText;
+        const bodyText = await response.text().catch(() => '');
+        lastStatus = response.status;
+        lastBody = bodyText;
 
-          if (response.status === 401 || response.status === 403) {
-            return res.json({ valid: false, error: 'Token inválido ou expirado' });
-          }
-
-          if (response.ok) {
-            return res.json({ valid: true, message: 'Token W-API válido!' });
-          }
-
-          // 404/405 nesse path: tenta próximo endpoint
-        } catch (fetchError) {
-          // Falha de rede nesse endpoint específico: tenta próximo
-          lastBody = fetchError.message || '';
+        if (response.status === 401 || response.status === 403) {
+          return res.json({ valid: false, error: 'Token inválido ou expirado' });
         }
+
+        if (response.ok) {
+          return res.json({ valid: true, message: 'Token W-API válido!' });
+        }
+
+        // 404/405: try next endpoint
+      } catch (fetchError) {
+        lastBody = fetchError.message || '';
       }
     }
 
+    // If we got HTML back, provide a cleaner error
+    const cleanBody = String(lastBody || '').replace(/<[^>]*>/g, '').trim().slice(0, 100);
     return res.json({
       valid: false,
-      error: `Não foi possível validar token na W-API (status: ${lastStatus || 'sem resposta'}). ${String(lastBody || '').slice(0, 160)}`,
+      error: `Não foi possível validar token na W-API (status: ${lastStatus || 'sem resposta'}). ${cleanBody}`,
     });
   } catch (error) {
     console.error('Validate W-API token error:', error);
