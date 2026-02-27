@@ -200,7 +200,10 @@ export async function configureWebhooks(instanceId, token) {
         {
           method: 'PUT',
           headers: getHeaders(token),
-          body: JSON.stringify({ url: webhookUrl }),
+          body: JSON.stringify({ 
+            url: webhookUrl,
+            enabled: true,
+          }),
         }
       );
 
@@ -263,6 +266,38 @@ export async function configureWebhooks(instanceId, token) {
 }
 
 /**
+ * Read current webhook configuration from the W-API instance for diagnostics.
+ */
+export async function getWebhookConfig(instanceId, token) {
+  const webhookNames = [
+    { endpoint: 'get-webhook-received', name: 'received' },
+    { endpoint: 'get-webhook-delivery', name: 'delivery' },
+    { endpoint: 'get-webhook-message-status', name: 'message-status' },
+    { endpoint: 'get-webhook-connected', name: 'connected' },
+    { endpoint: 'get-webhook-disconnected', name: 'disconnected' },
+    { endpoint: 'get-webhook-chat-presence', name: 'chat-presence' },
+  ];
+
+  const results = [];
+
+  for (const wh of webhookNames) {
+    try {
+      const response = await fetch(
+        `${W_API_BASE_URL}/webhook/${wh.endpoint}?instanceId=${instanceId}`,
+        { method: 'GET', headers: getHeaders(token) }
+      );
+      const data = await response.json().catch(() => ({}));
+      results.push({ type: wh.name, status: response.status, ok: response.ok, data });
+    } catch (error) {
+      results.push({ type: wh.name, ok: false, error: error.message });
+    }
+  }
+
+  return results;
+}
+
+/**
+
  * Create a new W-API instance via the integrator endpoint.
  * POST https://api.w-api.app/v1/integrator/create-instance
  * Returns { instanceId, token } of the newly created instance.
