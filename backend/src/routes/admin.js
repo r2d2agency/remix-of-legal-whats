@@ -1366,4 +1366,30 @@ router.get('/wapi/instances/:instanceId/status', requireSuperadmin, async (req, 
   }
 });
 
+router.post('/wapi/instances', requireSuperadmin, async (req, res) => {
+  try {
+    const { instanceName, rejectCalls = true, callMessage = 'Não estamos disponíveis no momento.' } = req.body;
+    if (!instanceName) return res.status(400).json({ error: 'instanceName é obrigatório' });
+
+    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'wapi_token'`);
+    const token = tokenResult.rows[0]?.value;
+    if (!token) return res.status(400).json({ error: 'Token W-API não configurado' });
+
+    const response = await fetch(
+      'https://api.w-api.app/v1/integrator/create-instance',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ instanceName, rejectCalls, callMessage }),
+      }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return res.status(response.status).json({ error: data?.message || 'Erro ao criar instância' });
+    res.json(data);
+  } catch (error) {
+    console.error('Create W-API instance error:', error);
+    res.status(500).json({ error: 'Erro ao criar instância W-API' });
+  }
+});
+
 export default router;
