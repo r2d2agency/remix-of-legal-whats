@@ -14,6 +14,8 @@ export interface MapLocation {
   owner_id?: string;
   owner_name?: string;
   created_at?: string;
+  company_name?: string;
+  address?: string;
 }
 
 // Brazilian state capitals coordinates

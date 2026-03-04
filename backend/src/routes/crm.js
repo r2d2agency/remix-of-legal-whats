@@ -2975,12 +2975,12 @@ router.get('/map-data', async (req, res) => {
       let dealSql = `SELECT d.id, d.title, d.value, d.owner_id, d.created_at,
               ow.name as owner_name,
               c.phone, c.city, c.state,
-              co.city as company_city, co.state as company_state
+              co.name as company_name, co.city as company_city, co.state as company_state, co.address as company_address
        FROM crm_deals d
        LEFT JOIN contacts c ON d.contact_id = c.id
        LEFT JOIN crm_companies co ON d.company_id = co.id
        LEFT JOIN users ow ON ow.id = d.owner_id
-       WHERE d.organization_id = $1`;
+       WHERE d.organization_id = $1 AND d.status = 'open'`;
       const dealParams = [org.organization_id];
       let pi = 2;
       if (owner_id) {
@@ -2994,14 +2994,15 @@ router.get('/map-data', async (req, res) => {
 
       const dealsResult = await query(dealSql, dealParams);
       for (const deal of dealsResult.rows) {
-        const city = deal.city || deal.company_city;
-        const state = deal.state || deal.company_state;
+        const city = deal.company_city || deal.city;
+        const state = deal.company_state || deal.state;
         const coords = getCoords(city, state);
         if (coords) {
           locations.push({
             id: deal.id, type: 'deal', name: deal.title, phone: deal.phone,
             city, state, lat: coords.lat, lng: coords.lng, value: deal.value,
             owner_id: deal.owner_id, owner_name: deal.owner_name, created_at: deal.created_at,
+            company_name: deal.company_name, address: deal.company_address,
           });
         }
       }
