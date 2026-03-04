@@ -383,13 +383,40 @@ router.get('/boards/:boardId/cards', async (req, res) => {
     if (!board.rows[0]) return res.status(404).json({ error: 'Quadro não encontrado' });
 
     // Personal boards: only show own cards
-    let assignFilter = '';
-    const params = [req.params.boardId];
-
-    if (!board.rows[0].is_global && board.rows[0].created_by === req.userId) {
-      // Personal board, user's own - show all
-    } else if (!board.rows[0].is_global) {
+    if (!board.rows[0].is_global && board.rows[0].created_by !== req.userId) {
       return res.status(403).json({ error: 'Sem acesso a este quadro' });
+    }
+
+    const isManagerOrAdmin = canManage(org.role);
+    const { filter_user, due_from, due_to } = req.query;
+
+    let extraFilters = '';
+    const params = [req.params.boardId];
+    let paramIdx = 2;
+
+    // Role-based filtering for global boards
+    if (board.rows[0].is_global && !isManagerOrAdmin) {
+      // Sellers: only see cards assigned to them or created by them
+      extraFilters += ` AND (tc.assigned_to = $${paramIdx} OR tc.created_by = $${paramIdx})`;
+      params.push(req.userId);
+      paramIdx++;
+    } else if (board.rows[0].is_global && isManagerOrAdmin && filter_user && filter_user !== 'all') {
+      // Admin/manager filtering by specific user
+      extraFilters += ` AND (tc.assigned_to = $${paramIdx} OR tc.created_by = $${paramIdx})`;
+      params.push(filter_user);
+      paramIdx++;
+    }
+
+    // Date filters
+    if (due_from) {
+      extraFilters += ` AND tc.due_date >= $${paramIdx}`;
+      params.push(due_from);
+      paramIdx++;
+    }
+    if (due_to) {
+      extraFilters += ` AND tc.due_date <= $${paramIdx}`;
+      params.push(due_to);
+      paramIdx++;
     }
 
     const result = await query(
@@ -409,7 +436,7 @@ router.get('/boards/:boardId/cards', async (req, res) => {
        LEFT JOIN users cu ON cu.id = tc.created_by
        LEFT JOIN crm_deals d ON d.id = tc.deal_id
        LEFT JOIN crm_companies comp ON comp.id = tc.company_id
-       WHERE tc.board_id = $1 ${assignFilter}
+       WHERE tc.board_id = $1 ${extraFilters}
        ORDER BY tc.column_id, tc.position ASC`,
       params
     );

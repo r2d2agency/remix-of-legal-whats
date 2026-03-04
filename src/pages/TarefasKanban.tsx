@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   useTaskBoards, useTaskBoardColumns, useTaskBoardCards,
   useTaskBoardMutations, useTaskColumnMutations, useTaskCardMutations,
@@ -22,7 +24,7 @@ import { useOrganizations } from "@/hooks/use-organizations";
 import { cn } from "@/lib/utils";
 import {
   Plus, Kanban, LayoutGrid, Settings, Trash2, ListChecks, Download, GanttChart,
-  Loader2, ChevronDown, Pencil
+  Loader2, ChevronDown, Pencil, Filter, CalendarIcon, Users, X
 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -55,6 +57,12 @@ export default function TarefasKanban() {
   const [showNewCard, setShowNewCard] = useState(false);
   const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
 
+  // Filters
+  const [filterUser, setFilterUser] = useState<string>("all");
+  const [filterDueFrom, setFilterDueFrom] = useState<Date | undefined>();
+  const [filterDueTo, setFilterDueTo] = useState<Date | undefined>();
+  const [showFilters, setShowFilters] = useState(false);
+
   const isAdmin = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
 
   // Load org members
@@ -80,9 +88,25 @@ export default function TarefasKanban() {
 
   const selectedBoard = boards?.find(b => b.id === selectedBoardId);
   const { data: columns, isLoading: colsLoading } = useTaskBoardColumns(selectedBoardId);
-  const { data: cards, isLoading: cardsLoading } = useTaskBoardCards(selectedBoardId);
+
+  // Build filter params
+  const cardFilters = useMemo(() => ({
+    filter_user: filterUser,
+    due_from: filterDueFrom ? format(filterDueFrom, 'yyyy-MM-dd') : undefined,
+    due_to: filterDueTo ? format(filterDueTo, 'yyyy-MM-dd') : undefined,
+  }), [filterUser, filterDueFrom, filterDueTo]);
+
+  const { data: cards, isLoading: cardsLoading } = useTaskBoardCards(selectedBoardId, cardFilters);
   const columnMut = useTaskColumnMutations(selectedBoardId);
   const cardMut = useTaskCardMutations(selectedBoardId);
+
+  const hasActiveFilters = filterUser !== 'all' || !!filterDueFrom || !!filterDueTo;
+
+  const clearFilters = () => {
+    setFilterUser("all");
+    setFilterDueFrom(undefined);
+    setFilterDueTo(undefined);
+  };
 
   const handleCreateBoard = () => {
     if (!newBoardName.trim()) return;
@@ -159,6 +183,96 @@ export default function TarefasKanban() {
               <Plus className="h-4 w-4 mr-2" />Novo Card
             </Button>
           </div>
+        </div>
+
+        {/* Filter Bar */}
+        <div className="px-4 py-2 border-b flex items-center gap-2 flex-wrap">
+          <Button
+            variant={hasActiveFilters ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="gap-1.5"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Filtros
+            {hasActiveFilters && (
+              <Badge variant="secondary" className="h-4 px-1 text-[10px] ml-1">
+                {[filterUser !== 'all', !!filterDueFrom, !!filterDueTo].filter(Boolean).length}
+              </Badge>
+            )}
+          </Button>
+
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs gap-1 text-muted-foreground">
+              <X className="h-3 w-3" /> Limpar filtros
+            </Button>
+          )}
+
+          {showFilters && (
+            <>
+              {/* User filter - only for admin/manager */}
+              {isAdmin && selectedBoard?.is_global && (
+                <Select value={filterUser} onValueChange={setFilterUser}>
+                  <SelectTrigger className="w-[180px] h-8 text-xs">
+                    <Users className="h-3.5 w-3.5 mr-1.5" />
+                    <SelectValue placeholder="Todos os usuários" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os usuários</SelectItem>
+                    {orgMembers.map(m => (
+                      <SelectItem key={m.user_id} value={m.user_id}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Date From */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("h-8 text-xs gap-1.5", filterDueFrom && "border-primary")}>
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    {filterDueFrom ? format(filterDueFrom, "dd/MM/yyyy") : "Data início"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filterDueFrom}
+                    onSelect={setFilterDueFrom}
+                    className="p-3 pointer-events-auto"
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+
+              {/* Date To */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("h-8 text-xs gap-1.5", filterDueTo && "border-primary")}>
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    {filterDueTo ? format(filterDueTo, "dd/MM/yyyy") : "Data fim"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filterDueTo}
+                    onSelect={setFilterDueTo}
+                    className="p-3 pointer-events-auto"
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </>
+          )}
+
+          {!isAdmin && selectedBoard?.is_global && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Users className="h-3 w-3" /> Exibindo apenas suas tarefas
+            </span>
+          )}
         </div>
 
         {/* Board Tabs */}
