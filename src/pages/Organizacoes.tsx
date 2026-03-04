@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -73,6 +74,7 @@ const roleLabels = {
 };
 
 export default function Organizacoes() {
+  const { refreshUser } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
@@ -217,6 +219,7 @@ export default function Organizacoes() {
         method: 'PATCH',
         body: { modules_enabled: modulesEnabled },
       });
+      await refreshUser();
       toast.success('Configurações salvas!');
     } catch (error: any) {
       toast.error(error.message || 'Erro ao salvar configurações');
