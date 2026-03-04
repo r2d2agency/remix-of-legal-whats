@@ -1,9 +1,11 @@
 FROM node:20-alpine
 
+RUN apk add --no-cache python3 make g++ pkgconfig
+
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --production
+RUN npm install --production --legacy-peer-deps
 
 COPY . .
 
