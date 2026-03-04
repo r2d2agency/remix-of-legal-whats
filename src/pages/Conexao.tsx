@@ -750,7 +750,7 @@ const handleGetQRCode = async (connection: Connection) => {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {connections.map((connection) => (
-              <Card key={connection.id} className="animate-fade-in shadow-card">
+              <Card key={connection.id} className="animate-fade-in shadow-card overflow-hidden">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">{connection.name}</CardTitle>
@@ -765,7 +765,7 @@ const handleGetQRCode = async (connection: Connection) => {
                       )}
                     </Badge>
                   </div>
-                  <CardDescription className="text-xs">
+                  <CardDescription className="text-xs truncate">
                     {(connection.provider === 'wapi' || !!connection.instance_id)
                       ? (connection.instance_id || 'W-API')
                       : (connection.instance_name || '')}

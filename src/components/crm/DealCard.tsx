@@ -127,7 +127,7 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         role="article"
         aria-label={`Negociação: ${deal.title}, ${formatCurrency(deal.value)}${isWon ? ', ganho' : isLost ? ', perdido' : isPaused ? ', pausado' : ''}`}
         className={cn(
-          "p-3 cursor-grab active:cursor-grabbing",
+          "p-3 cursor-grab active:cursor-grabbing overflow-hidden",
           "transition-all duration-200 ease-out",
           "hover:shadow-md hover:-translate-y-0.5",
           isDragging && "shadow-2xl scale-105 rotate-2 ring-2 ring-primary/50 cursor-grabbing",
@@ -144,15 +144,15 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         )}
 
         {/* Title & Value */}
-        <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-start justify-between gap-2 mb-2 min-w-0">
           <h4 className={cn(
-            "font-medium text-sm line-clamp-2",
+            "font-medium text-sm break-words min-w-0 flex-1",
             isPaused && "text-muted-foreground"
           )}>
             {deal.title}
           </h4>
           <Badge variant="outline" className={cn(
-            "shrink-0 text-xs",
+            "shrink-0 text-xs whitespace-nowrap",
             isWon && "border-green-500 text-green-600",
             isLost && "border-red-500 text-red-600 line-through",
             isPaused && "border-gray-400 text-gray-500"
@@ -176,7 +176,7 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t mt-2">
+        <div className="flex items-center justify-between pt-2 border-t mt-2 gap-1 flex-wrap">
           <div className="flex items-center gap-2">
             {/* Owner */}
             {deal.owner_name && (
@@ -245,7 +245,7 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
             {/* Projects linked */}
             {hasProjects && (
               <Badge 
