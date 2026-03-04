@@ -3739,4 +3739,40 @@ router.get('/intelligence/win-loss-analysis', async (req, res) => {
   }
 });
 
+// CNPJ lookup via Gleego API
+router.get('/cnpj/:cnpj', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const cnpj = req.params.cnpj.replace(/\D/g, '');
+    if (cnpj.length !== 14) {
+      return res.status(400).json({ error: 'CNPJ deve ter 14 dígitos' });
+    }
+
+    // Get token from system_settings
+    const tokenResult = await query(`SELECT value FROM system_settings WHERE key = 'cnpj_api_token'`);
+    const token = tokenResult.rows[0]?.value;
+    if (!token) {
+      return res.status(400).json({ error: 'Token da API CNPJ não configurado. Configure em Admin > Integrações.' });
+    }
+
+    const response = await fetch(`https://cnpj.gleego.com.br/api/v1/cnpj/${cnpj}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      logError('CNPJ lookup failed', { status: response.status, body: errText });
+      return res.status(response.status).json({ error: `Erro na consulta: ${response.status}` });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    logError('CNPJ lookup error', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

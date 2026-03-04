@@ -110,6 +110,10 @@ export default function Admin() {
   const [savingWapiToken, setSavingWapiToken] = useState(false);
   const [loadingWapiToken, setLoadingWapiToken] = useState(false);
   
+  // CNPJ API token
+  const [cnpjApiToken, setCnpjApiToken] = useState('');
+  const [savingCnpjToken, setSavingCnpjToken] = useState(false);
+  
   // User search and filter
   const [userSearch, setUserSearch] = useState('');
   const [showOrphansOnly, setShowOrphansOnly] = useState(false);
@@ -236,8 +240,10 @@ export default function Admin() {
     setLoadingWapiToken(true);
     try {
       const settings = await api<Array<{ key: string; value: string }>>('/api/admin/settings');
-      const found = settings.find(s => s.key === 'wapi_token');
-      setWapiToken(found?.value || '');
+      const foundWapi = settings.find(s => s.key === 'wapi_token');
+      setWapiToken(foundWapi?.value || '');
+      const foundCnpj = settings.find(s => s.key === 'cnpj_api_token');
+      setCnpjApiToken(foundCnpj?.value || '');
     } catch {
       // ignore
     } finally {
@@ -1722,6 +1728,56 @@ export default function Admin() {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Este token será usado globalmente para criar e gerenciar instâncias WhatsApp ao adicionar novas conexões.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* CNPJ API Integration */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Search className="h-5 w-5" />
+                  API de Consulta CNPJ (Gleego)
+                </CardTitle>
+                <CardDescription>
+                  Token para consulta automática de dados de empresas por CNPJ. Usado no cadastro de empresas do CRM.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Token da API CNPJ</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      placeholder="Cole aqui o token da API CNPJ"
+                      value={cnpjApiToken}
+                      onChange={(e) => setCnpjApiToken(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button 
+                      onClick={async () => {
+                        setSavingCnpjToken(true);
+                        try {
+                          await api('/api/admin/settings/cnpj_api_token', {
+                            method: 'PATCH',
+                            body: { value: cnpjApiToken },
+                          });
+                          toast.success('Token CNPJ salvo com sucesso!');
+                        } catch (error: any) {
+                          toast.error(error.message || 'Erro ao salvar token');
+                        } finally {
+                          setSavingCnpjToken(false);
+                        }
+                      }} 
+                      disabled={savingCnpjToken}
+                    >
+                      {savingCnpjToken && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Salvar
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Este token será usado para buscar automaticamente dados de empresas (razão social, endereço, sócios, etc.) ao consultar um CNPJ no cadastro de empresas.
                   </p>
                 </div>
               </CardContent>

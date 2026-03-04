@@ -14,10 +14,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CRMCompany, useCRMCompanyMutations, useCRMGroups } from "@/hooks/use-crm";
 import { useCRMSegments } from "@/hooks/use-crm-config";
 import { useContacts, Contact, ContactList } from "@/hooks/use-contacts";
-import { Tag, User, Plus, Trash2, Phone, Search, Check, UserPlus, Users } from "lucide-react";
+import { Tag, User, Plus, Trash2, Phone, Search, Check, UserPlus, Users, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { API_URL, getAuthToken } from "@/lib/api";
+import { API_URL, api, getAuthToken } from "@/lib/api";
+import { toast } from "sonner";
 
 interface CompanyContact {
   id?: string;
@@ -60,6 +61,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
   const [listContacts, setListContacts] = useState<Contact[]>([]);
   const [searchContact, setSearchContact] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [lookingUpCnpj, setLookingUpCnpj] = useState(false);
 
   const { createCompany, updateCompany } = useCRMCompanyMutations();
   const { data: segments } = useCRMSegments();
@@ -128,6 +130,59 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCnpjLookup = async () => {
+    const cnpj = formData.cnpj.replace(/\D/g, '');
+    if (cnpj.length !== 14) {
+      toast.error("CNPJ deve ter 14 dígitos");
+      return;
+    }
+    setLookingUpCnpj(true);
+    try {
+      const data = await api<any>(`/api/crm/cnpj/${cnpj}`);
+      const emp = data.empresa || {};
+      const est = data.estabelecimento || {};
+      const socios = data.socios || [];
+
+      // Build details text from extra info
+      const details: string[] = [];
+      if (emp.natureza_descricao) details.push(`Natureza: ${emp.natureza_descricao}`);
+      if (emp.capital_social) details.push(`Capital Social: R$ ${parseFloat(emp.capital_social).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+      if (est.cnae_principal) details.push(`CNAE: ${est.cnae_principal}`);
+      if (est.situacao_cadastral) {
+        const sit = est.situacao_cadastral === '02' ? 'Ativa' : est.situacao_cadastral === '08' ? 'Baixada' : est.situacao_cadastral;
+        details.push(`Situação: ${sit}`);
+      }
+      if (est.data_inicio_atividade) {
+        const d = est.data_inicio_atividade;
+        details.push(`Início Atividade: ${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`);
+      }
+      if (socios.length > 0) {
+        details.push(`\nSócios:`);
+        socios.forEach((s: any) => {
+          details.push(`  • ${s.nome_socio}${s.qualificacao_descricao ? ` (${s.qualificacao_descricao})` : ''}`);
+        });
+      }
+
+      const address = [est.logradouro, est.numero, est.complemento, est.bairro].filter(Boolean).join(', ');
+
+      setFormData(prev => ({
+        ...prev,
+        name: prev.name || emp.razao_social || est.nome_fantasia || '',
+        address: prev.address || address,
+        city: prev.city || est.municipio_nome || '',
+        state: prev.state || est.uf || '',
+        zip_code: prev.zip_code || (est.cep ? est.cep.replace(/(\d{5})(\d{3})/, '$1-$2') : ''),
+        notes: prev.notes ? prev.notes + '\n\n' + details.join('\n') : details.join('\n'),
+      }));
+
+      toast.success("Dados do CNPJ preenchidos!");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao consultar CNPJ");
+    } finally {
+      setLookingUpCnpj(false);
+    }
   };
 
   const handleAddContact = () => {
@@ -283,11 +338,24 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>CNPJ</Label>
-                <Input
-                  value={formData.cnpj}
-                  onChange={(e) => handleChange("cnpj", e.target.value)}
-                  placeholder="00.000.000/0000-00"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    value={formData.cnpj}
+                    onChange={(e) => handleChange("cnpj", e.target.value)}
+                    placeholder="00.000.000/0000-00"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCnpjLookup}
+                    disabled={lookingUpCnpj || !formData.cnpj.replace(/\D/g, '').length}
+                    title="Consultar CNPJ"
+                  >
+                    {lookingUpCnpj ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Telefone</Label>
