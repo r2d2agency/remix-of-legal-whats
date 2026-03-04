@@ -6,6 +6,27 @@ import { logInfo, logError } from '../logger.js';
 const router = express.Router();
 router.use(authenticate);
 
+// ── Self-healing: ensure new company columns exist ──
+(async () => {
+  const cols = [
+    { name: 'razao_social', type: 'VARCHAR(255)' },
+    { name: 'nome_fantasia', type: 'VARCHAR(255)' },
+    { name: 'inscricao_estadual', type: 'VARCHAR(30)' },
+    { name: 'inscricao_municipal', type: 'VARCHAR(30)' },
+    { name: 'porte', type: 'VARCHAR(50)' },
+    { name: 'cnae', type: 'VARCHAR(255)' },
+    { name: 'more_info', type: 'TEXT' },
+  ];
+  for (const col of cols) {
+    try {
+      await query(`ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
+    } catch (e) {
+      // ignore if table doesn't exist yet or column already exists
+    }
+  }
+  logInfo('[CRM] Self-healing company columns check complete');
+})();
+
 // Some CRM/Intelligence tables/columns may not exist yet during partial deployments.
 // Avoid 500s on dashboards by returning safe empty payloads when schema is missing.
 function isMissingSchemaError(error) {
