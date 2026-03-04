@@ -786,13 +786,13 @@ export function CRMSidePanel({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 w-full">
+      <ScrollArea className="flex-1 w-full [&>div>div]:!block">
         {loadingDeals ? (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="p-2 w-full max-w-full overflow-hidden">
+          <div className="p-2 w-full min-w-0 overflow-hidden">
             {deals.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground mb-2">
                 <Briefcase className="h-10 w-10 mb-3 opacity-40" />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CRMFunnel, useCRMDealMutations, useCRMCompanies, useCRMFunnel, useCRMGroups } from "@/hooks/use-crm";
 import { Slider } from "@/components/ui/slider";
-import { Building2, User } from "lucide-react";
+import { Building2, User, Search, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface DealFormDialogProps {
   funnel: CRMFunnel | null;
@@ -33,6 +34,9 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
 
   const [title, setTitle] = useState("");
   const [companyId, setCompanyId] = useState("");
+  const [companySearchQuery, setCompanySearchQuery] = useState("");
+  const [companySearchOpen, setCompanySearchOpen] = useState(false);
+  const [selectedCompanyName, setSelectedCompanyName] = useState("");
   const [stageId, setStageId] = useState("");
   const [value, setValue] = useState("");
   const [probability, setProbability] = useState(50);
@@ -44,7 +48,7 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
 
-  const { data: companies } = useCRMCompanies();
+  const { data: companies } = useCRMCompanies(companySearchQuery.length >= 2 ? companySearchQuery : undefined);
   const { data: funnelData } = useCRMFunnel(funnel?.id || null);
   const { data: groups } = useCRMGroups();
   const { data: myGroups } = useMyGroups();
@@ -92,6 +96,9 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
   const resetForm = () => {
     setTitle("");
     setCompanyId("");
+    setCompanySearchQuery("");
+    setSelectedCompanyName("");
+    setCompanySearchOpen(false);
     setValue("");
     setProbability(50);
     setExpectedCloseDate("");
@@ -147,19 +154,64 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="company" className="mt-3">
-                  <Select value={companyId} onValueChange={setCompanyId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione uma empresa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companies?.map((company) => (
-                        <SelectItem key={company.id} value={company.id}>
-                          {company.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <TabsContent value="company" className="mt-3 space-y-2">
+                  <Popover open={companySearchOpen} onOpenChange={setCompanySearchOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between h-10 font-normal"
+                      >
+                        {selectedCompanyName || "Buscar empresa por nome ou CNPJ..."}
+                        <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <div className="p-2">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Digite nome ou CNPJ..."
+                            value={companySearchQuery}
+                            onChange={(e) => setCompanySearchQuery(e.target.value)}
+                            className="pl-8"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {companySearchQuery.length < 2 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            Digite pelo menos 2 caracteres...
+                          </p>
+                        ) : !companies?.length ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            Nenhuma empresa encontrada
+                          </p>
+                        ) : (
+                          companies.map((company) => (
+                            <button
+                              key={company.id}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center gap-2 cursor-pointer"
+                              onClick={() => {
+                                setCompanyId(company.id);
+                                setSelectedCompanyName(company.name + (company.cnpj ? ` (${company.cnpj})` : ''));
+                                setCompanySearchOpen(false);
+                              }}
+                            >
+                              <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">{company.name}</p>
+                                {company.cnpj && (
+                                  <p className="text-xs text-muted-foreground">{company.cnpj}</p>
+                                )}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </TabsContent>
 
                 <TabsContent value="contact" className="mt-3 space-y-3">
