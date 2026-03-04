@@ -174,7 +174,7 @@ export function KanbanColumn({
       role="listitem"
       aria-label={`Etapa ${stage.name}, ${deals.length} negociações, total ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalValue)}`}
       className={cn(
-        "flex flex-col w-[300px] min-w-[300px] bg-muted/50 rounded-lg border",
+        "flex flex-col w-[300px] min-w-[300px] max-w-[300px] bg-muted/50 rounded-lg border overflow-hidden",
         "transition-all duration-300 ease-out",
         isDraggingOverColumn && !hasActiveItem && "ring-2 ring-primary bg-primary/5 shadow-lg scale-[1.02]",
         hasActiveItem && "opacity-90"
