@@ -230,6 +230,33 @@ export function ConversationList({
     return () => clearTimeout(timer);
   }, [conversations]);
 
+  // Auto-sync group names for groups without proper names
+  const [groupsSynced, setGroupsSynced] = useState(false);
+  useEffect(() => {
+    if (groupsSynced) return;
+    const groupsWithoutNames = conversations.filter(
+      c => c.is_group && (!c.group_name || c.group_name === 'Grupo' || c.group_name === 'Grupo sem nome')
+    );
+    if (groupsWithoutNames.length === 0) return;
+
+    const syncGroupNames = async () => {
+      try {
+        const result = await api<{ updated: number }>('/api/chat/sync-group-names', { method: 'POST' });
+        if (result.updated > 0) {
+          console.log(`[Chat] Synced ${result.updated} group names`);
+          onRefresh();
+        }
+        setGroupsSynced(true);
+      } catch (e) {
+        console.debug('Group name sync failed:', e);
+        setGroupsSynced(true);
+      }
+    };
+
+    const timer = setTimeout(syncGroupNames, 2000);
+    return () => clearTimeout(timer);
+  }, [conversations]);
+
   const handleDeleteConversation = async () => {
     if (!conversationToDelete) return;
     

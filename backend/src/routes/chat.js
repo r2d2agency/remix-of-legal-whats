@@ -588,6 +588,91 @@ router.get('/conversations', authenticate, async (req, res) => {
   }
 });
 
+// Sync group names - fetch from provider for groups with missing names
+router.post('/sync-group-names', authenticate, async (req, res) => {
+  try {
+    const connectionIds = await getUserConnections(req.userId);
+    if (connectionIds.length === 0) return res.json({ updated: 0 });
+
+    // Find groups without proper names
+    const groups = await query(
+      `SELECT conv.id, conv.remote_jid, conv.connection_id, conn.provider, conn.instance_id, conn.instance_name, conn.wapi_token, conn.api_key
+       FROM conversations conv
+       JOIN connections conn ON conn.id = conv.connection_id
+       WHERE conv.connection_id = ANY($1)
+         AND conv.is_group = true
+         AND (conv.group_name IS NULL OR conv.group_name = '' OR conv.group_name = 'Grupo' OR conv.group_name = 'Grupo sem nome')
+       LIMIT 50`,
+      [connectionIds]
+    );
+
+    if (groups.rows.length === 0) return res.json({ updated: 0 });
+
+    let updated = 0;
+
+    // Group by connection for bulk operations
+    const byConnection = {};
+    for (const g of groups.rows) {
+      if (!byConnection[g.connection_id]) byConnection[g.connection_id] = { connection: g, convs: [] };
+      byConnection[g.connection_id].convs.push(g);
+    }
+
+    for (const { connection, convs } of Object.values(byConnection)) {
+      try {
+        if (connection.provider === 'wapi' && connection.instance_id && connection.wapi_token) {
+          const { getGroups } = await import('../lib/wapi-provider.js');
+          const groupsData = await getGroups(connection.instance_id, connection.wapi_token);
+          
+          if (groupsData.success && groupsData.groups?.length > 0) {
+            const nameMap = new Map();
+            for (const g of groupsData.groups) {
+              if (g.jid && g.name) nameMap.set(g.jid, g.name);
+            }
+
+            for (const conv of convs) {
+              const name = nameMap.get(conv.remote_jid);
+              if (name) {
+                await query(`UPDATE conversations SET group_name = $1, contact_name = $1 WHERE id = $2`, [name, conv.id]);
+                updated++;
+              }
+            }
+          }
+        } else if ((connection.provider === 'evolution' || !connection.provider) && connection.instance_name) {
+          // For Evolution API - try fetching group info
+          const baseUrl = process.env.EVOLUTION_API_URL;
+          const apiKey = connection.api_key || process.env.EVOLUTION_API_KEY;
+          if (baseUrl && apiKey) {
+            for (const conv of convs) {
+              try {
+                const resp = await fetch(`${baseUrl}/group/findGroupInfos/${connection.instance_name}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', apikey: apiKey },
+                  body: JSON.stringify({ groupJid: conv.remote_jid }),
+                });
+                if (resp.ok) {
+                  const info = await resp.json();
+                  const name = info?.subject || info?.name;
+                  if (name) {
+                    await query(`UPDATE conversations SET group_name = $1, contact_name = $1 WHERE id = $2`, [name, conv.id]);
+                    updated++;
+                  }
+                }
+              } catch (e) { /* ignore individual failures */ }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[Chat] sync-group-names connection error:', e.message);
+      }
+    }
+
+    res.json({ updated, total: groups.rows.length });
+  } catch (error) {
+    console.error('Sync group names error:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar nomes dos grupos' });
+  }
+});
+
 // Get chat statistics
 router.get('/stats', authenticate, async (req, res) => {
   try {
