@@ -142,7 +142,9 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const recalculateScore = useRecalculateDealScore();
 
   // Projects
-  const { data: dealProjects } = useProjectsByDeal(deal?.id || null);
+  const { modulesEnabled } = useAuth();
+  const projectsEnabled = modulesEnabled.projects;
+  const { data: dealProjects } = useProjectsByDeal(projectsEnabled ? (deal?.id || null) : null);
   const { create: createProject } = useProjectMutations();
   const { data: projectTemplates } = useProjectTemplates();
 
@@ -541,10 +543,12 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setShowNewProject(true); setActiveTab("projects"); }} title="Solicitar Projeto">
-                <FolderKanban className="h-4 w-4 mr-2" />
-                Projeto
-              </Button>
+              {projectsEnabled && (
+                <Button variant="outline" size="sm" onClick={() => { setShowNewProject(true); setActiveTab("projects"); }} title="Solicitar Projeto">
+                  <FolderKanban className="h-4 w-4 mr-2" />
+                  Projeto
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => setShowSequenceDialog(true)} title="Inscrever em Sequência de Nurturing">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Sequência
@@ -625,14 +629,16 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="projects">
-              Projetos
-              {dealProjects && dealProjects.length > 0 && (
-                <Badge variant="secondary" className="ml-1 text-xs">
-                  {dealProjects.length}
-                </Badge>
-              )}
-            </TabsTrigger>
+            {projectsEnabled && (
+              <TabsTrigger value="projects">
+                Projetos
+                {dealProjects && dealProjects.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {dealProjects.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="history">Histórico</TabsTrigger>
           </TabsList>
 
@@ -1376,93 +1382,95 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
             </TabsContent>
 
             {/* Projects Tab */}
-            <TabsContent value="projects" className="m-0">
-              <div className="space-y-4">
-                {/* New project form */}
-                {showNewProject && (
-                  <Card className="p-4 space-y-3">
-                    <h4 className="font-medium">Solicitar Projeto</h4>
-                    <div>
-                      <Label>Título</Label>
-                      <Input
-                        value={newProjectTitle}
-                        onChange={(e) => setNewProjectTitle(e.target.value)}
-                        placeholder="Ex: Projeto de reforma..."
-                      />
-                    </div>
-                    <div>
-                      <Label>Descrição da solicitação</Label>
-                      <Textarea
-                        value={newProjectDescription}
-                        onChange={(e) => setNewProjectDescription(e.target.value)}
-                        placeholder="Descreva o que precisa..."
-                        rows={3}
-                      />
-                    </div>
-                    {projectTemplates && projectTemplates.length > 0 && (
+            {projectsEnabled && (
+              <TabsContent value="projects" className="m-0">
+                <div className="space-y-4">
+                  {/* New project form */}
+                  {showNewProject && (
+                    <Card className="p-4 space-y-3">
+                      <h4 className="font-medium">Solicitar Projeto</h4>
                       <div>
-                        <Label>Template (opcional)</Label>
-                        <Select value={newProjectTemplateId} onValueChange={setNewProjectTemplateId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sem template" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sem template</SelectItem>
-                            {projectTemplates.map(t => (
-                              <SelectItem key={t.id} value={t.id}>{t.name} ({t.task_count} tarefas)</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label>Título</Label>
+                        <Input
+                          value={newProjectTitle}
+                          onChange={(e) => setNewProjectTitle(e.target.value)}
+                          placeholder="Ex: Projeto de reforma..."
+                        />
                       </div>
-                    )}
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          if (!newProjectTitle.trim()) { toast.error("Informe o título"); return; }
-                          createProject.mutate({
-                            title: newProjectTitle,
-                            description: newProjectDescription,
-                            deal_id: deal?.id,
-                            template_id: newProjectTemplateId && newProjectTemplateId !== "none" ? newProjectTemplateId : undefined,
-                          }, {
-                            onSuccess: () => {
-                              setShowNewProject(false);
-                              setNewProjectTitle("");
-                              setNewProjectDescription("");
-                              setNewProjectTemplateId("");
-                            }
-                          });
-                        }}
-                        disabled={createProject.isPending}
-                      >
-                        {createProject.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-                        Criar Projeto
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setShowNewProject(false)}>Cancelar</Button>
+                      <div>
+                        <Label>Descrição da solicitação</Label>
+                        <Textarea
+                          value={newProjectDescription}
+                          onChange={(e) => setNewProjectDescription(e.target.value)}
+                          placeholder="Descreva o que precisa..."
+                          rows={3}
+                        />
+                      </div>
+                      {projectTemplates && projectTemplates.length > 0 && (
+                        <div>
+                          <Label>Template (opcional)</Label>
+                          <Select value={newProjectTemplateId} onValueChange={setNewProjectTemplateId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sem template" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Sem template</SelectItem>
+                              {projectTemplates.map(t => (
+                                <SelectItem key={t.id} value={t.id}>{t.name} ({t.task_count} tarefas)</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            if (!newProjectTitle.trim()) { toast.error("Informe o título"); return; }
+                            createProject.mutate({
+                              title: newProjectTitle,
+                              description: newProjectDescription,
+                              deal_id: deal?.id,
+                              template_id: newProjectTemplateId && newProjectTemplateId !== "none" ? newProjectTemplateId : undefined,
+                            }, {
+                              onSuccess: () => {
+                                setShowNewProject(false);
+                                setNewProjectTitle("");
+                                setNewProjectDescription("");
+                                setNewProjectTemplateId("");
+                              }
+                            });
+                          }}
+                          disabled={createProject.isPending}
+                        >
+                          {createProject.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                          Criar Projeto
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setShowNewProject(false)}>Cancelar</Button>
+                      </div>
+                    </Card>
+                  )}
+
+                  {!showNewProject && (
+                    <Button variant="outline" size="sm" onClick={() => setShowNewProject(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Solicitar Projeto
+                    </Button>
+                  )}
+
+                  {/* Project list */}
+                  {dealProjects && dealProjects.length > 0 ? (
+                    <div className="space-y-3">
+                      {dealProjects.map((project: Project) => (
+                        <DealProjectCard key={project.id} project={project} />
+                      ))}
                     </div>
-                  </Card>
-                )}
-
-                {!showNewProject && (
-                  <Button variant="outline" size="sm" onClick={() => setShowNewProject(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Solicitar Projeto
-                  </Button>
-                )}
-
-                {/* Project list */}
-                {dealProjects && dealProjects.length > 0 ? (
-                  <div className="space-y-3">
-                    {dealProjects.map((project: Project) => (
-                      <DealProjectCard key={project.id} project={project} />
-                    ))}
-                  </div>
-                ) : !showNewProject && (
-                  <p className="text-center text-muted-foreground py-8">Nenhum projeto vinculado</p>
-                )}
-              </div>
-            </TabsContent>
+                  ) : !showNewProject && (
+                    <p className="text-center text-muted-foreground py-8">Nenhum projeto vinculado</p>
+                  )}
+                </div>
+              </TabsContent>
+            )}
 
             <TabsContent value="history" className="m-0">
               <div className="space-y-3">
