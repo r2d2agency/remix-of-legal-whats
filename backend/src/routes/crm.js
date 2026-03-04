@@ -3043,7 +3043,7 @@ router.get('/map-data', async (req, res) => {
 
     // Get companies
     try {
-      let compSql = `SELECT c.id, c.name, c.phone, c.city, c.state, c.owner_id, c.created_at, ow.name as owner_name
+      let compSql = `SELECT c.id, c.name, c.phone, c.city, c.state, c.address, c.cnpj, c.cnae, c.porte, c.owner_id, c.created_at, ow.name as owner_name
        FROM crm_companies c LEFT JOIN users ow ON ow.id = c.owner_id WHERE c.organization_id = $1`;
       const compParams = [org.organization_id];
       let pi = 2;
@@ -3063,6 +3063,7 @@ router.get('/map-data', async (req, res) => {
             id: company.id, type: 'company', name: company.name, phone: company.phone,
             city: company.city, state: company.state, lat: coords.lat, lng: coords.lng,
             owner_id: company.owner_id, owner_name: company.owner_name, created_at: company.created_at,
+            address: company.address, cnpj: company.cnpj, cnae: company.cnae, porte: company.porte,
           });
         }
       }

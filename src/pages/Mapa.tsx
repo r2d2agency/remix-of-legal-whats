@@ -79,6 +79,9 @@ function LeafletMap({ locations }: LeafletMapProps) {
           </div>
           <p style="font-weight: 600; margin: 0;">${location.name}</p>
           ${location.company_name ? `<p style="font-size: 13px; color: #22c55e; margin: 4px 0;">🏢 ${location.company_name}</p>` : ""}
+          ${location.cnpj ? `<p style="font-size: 12px; color: #888; margin: 2px 0;">CNPJ: ${location.cnpj}</p>` : ""}
+          ${location.cnae ? `<p style="font-size: 12px; color: #888; margin: 2px 0;">CNAE: ${location.cnae}</p>` : ""}
+          ${location.porte ? `<p style="font-size: 12px; color: #888; margin: 2px 0;">Porte: ${location.porte}</p>` : ""}
           ${location.owner_name ? `<p style="font-size: 13px; color: #3b82f6; margin: 4px 0;">👤 ${location.owner_name}</p>` : ""}
           ${location.address ? `<p style="font-size: 13px; color: #666; margin: 4px 0;">📍 ${location.address}</p>` : ""}
           ${location.phone ? `<p style="font-size: 14px; color: #666; margin: 4px 0;">${location.phone}</p>` : ""}
