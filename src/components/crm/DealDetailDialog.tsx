@@ -26,7 +26,7 @@ import { CompanyDialog } from "./CompanyDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDealScore, useRecalculateDealScore } from "@/hooks/use-lead-scoring";
 import { LeadScoreDetail, LeadScoreBadge } from "./LeadScoreBadge";
 import { PredictiveAnalyticsCard } from "./PredictiveAnalytics";
@@ -66,6 +66,16 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [description, setDescription] = useState("");
+
+  // Inline editing states
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [isEditingValue, setIsEditingValue] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [editProbability, setEditProbability] = useState("");
+  const [editExpectedClose, setEditExpectedClose] = useState("");
+  const [editOwnerId, setEditOwnerId] = useState("");
   const [attachments, setAttachments] = useState<DealAttachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -114,6 +124,19 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const { createTask, completeTask, deleteTask } = useCRMTaskMutations();
   const { uploadFile, isUploading } = useUpload();
   
+  // Org members for owner select
+  const { data: orgMembers } = useQuery({
+    queryKey: ["org-members-for-deal-detail"],
+    queryFn: async () => {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/crm/map-users`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
+      });
+      if (!res.ok) return [];
+      return res.json() as Promise<{ id: string; name: string }[]>;
+    },
+    enabled: open,
+  });
+
   // Lead Scoring
   const { data: dealScore, isLoading: loadingScore } = useDealScore(deal?.id);
   const recalculateScore = useRecalculateDealScore();
@@ -170,6 +193,51 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       style: "currency",
       currency: "BRL",
     }).format(value);
+  };
+
+  const handleStartEditTitle = () => {
+    setEditTitle(currentDeal?.title || "");
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveTitle = () => {
+    if (editTitle.trim() && editTitle !== currentDeal?.title) {
+      updateDeal.mutate({ id: deal.id, title: editTitle.trim() });
+      toast.success("Título atualizado!");
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleStartEditValue = () => {
+    setEditValue(String(currentDeal?.value || 0));
+    setIsEditingValue(true);
+  };
+
+  const handleSaveValue = () => {
+    const numValue = parseFloat(editValue.replace(/[^\d.,]/g, '').replace(',', '.'));
+    if (!isNaN(numValue) && numValue !== currentDeal?.value) {
+      updateDeal.mutate({ id: deal.id, value: numValue });
+      toast.success("Valor atualizado!");
+    }
+    setIsEditingValue(false);
+  };
+
+  const handleStartEditDetails = () => {
+    setEditProbability(String(currentDeal?.probability || 0));
+    setEditExpectedClose(currentDeal?.expected_close_date ? currentDeal.expected_close_date.split('T')[0] : '');
+    setEditOwnerId(currentDeal?.owner_id || '');
+    setIsEditingDetails(true);
+  };
+
+  const handleSaveDetails = () => {
+    const updates: any = { id: deal.id };
+    const prob = parseInt(editProbability);
+    if (!isNaN(prob)) updates.probability = prob;
+    if (editExpectedClose) updates.expected_close_date = editExpectedClose;
+    if (editOwnerId) updates.owner_id = editOwnerId;
+    updateDeal.mutate(updates);
+    setIsEditingDetails(false);
+    toast.success("Detalhes atualizados!");
   };
 
   const handleStatusChange = (status: string) => {
@@ -358,8 +426,25 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       <DialogContent className="max-w-4xl h-[95vh] max-h-[95vh] flex flex-col" aria-describedby={undefined}>
         <DialogHeader>
           <div className="flex items-start justify-between">
-            <div>
-              <DialogTitle className="text-xl">{currentDeal?.title}</DialogTitle>
+            <div className="flex-1 min-w-0">
+              {isEditingTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="text-xl font-semibold h-9"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveTitle(); if (e.key === 'Escape') setIsEditingTitle(false); }}
+                  />
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleSaveTitle}><Save className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsEditingTitle(false)}><X className="h-4 w-4" /></Button>
+                </div>
+              ) : (
+                <DialogTitle className="text-xl cursor-pointer hover:text-primary transition-colors flex items-center gap-2" onClick={handleStartEditTitle}>
+                  {currentDeal?.title}
+                  <Edit2 className="h-4 w-4 opacity-40" />
+                </DialogTitle>
+              )}
               <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                 <Building2 className="h-4 w-4" />
                 {isEditingCompany ? (
@@ -424,9 +509,25 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                   </button>
                 )}
                 <span>•</span>
-                <span className="font-semibold text-foreground">
-                  {formatCurrency(currentDeal?.value || 0)}
-                </span>
+                {isEditingValue ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-foreground font-semibold">R$</span>
+                    <Input
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="h-7 w-28 text-sm font-semibold"
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveValue(); if (e.key === 'Escape') setIsEditingValue(false); }}
+                    />
+                    <Button variant="ghost" size="icon" className="h-6 w-6 p-0" onClick={handleSaveValue}><Save className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 p-0" onClick={() => setIsEditingValue(false)}><X className="h-3 w-3" /></Button>
+                  </div>
+                ) : (
+                  <button onClick={handleStartEditValue} className="font-semibold text-foreground hover:text-primary transition-colors flex items-center gap-1">
+                    {formatCurrency(currentDeal?.value || 0)}
+                    <Edit2 className="h-3 w-3 opacity-40" />
+                  </button>
+                )}
                 {isEditingCompany && (
                   <Button 
                     variant="ghost" 
@@ -539,26 +640,81 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
             <TabsContent value="details" className="m-0">
               <div className="grid grid-cols-2 gap-4">
                 <Card className="p-4">
-                  <h4 className="font-medium mb-3">Informações</h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium">Informações</h4>
+                    {!isEditingDetails ? (
+                      <Button variant="ghost" size="sm" onClick={handleStartEditDetails}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => setIsEditingDetails(false)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={handleSaveDetails}>
+                          <Save className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   <div className="space-y-3 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Probabilidade</span>
-                      <Badge variant="outline">{currentDeal?.probability}%</Badge>
+                      {isEditingDetails ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={editProbability}
+                            onChange={(e) => setEditProbability(e.target.value)}
+                            className="h-7 w-20 text-right text-sm"
+                          />
+                          <span>%</span>
+                        </div>
+                      ) : (
+                        <Badge variant="outline">{currentDeal?.probability}%</Badge>
+                      )}
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Etapa</span>
                       <span>{currentDeal?.stage_name}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Responsável</span>
-                      <span>{currentDeal?.owner_name || "Não definido"}</span>
+                      {isEditingDetails ? (
+                        <Select value={editOwnerId || "none"} onValueChange={(v) => setEditOwnerId(v === "none" ? "" : v)}>
+                          <SelectTrigger className="h-7 w-40 text-sm">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Nenhum</SelectItem>
+                            {orgMembers?.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span>{currentDeal?.owner_name || "Não definido"}</span>
+                      )}
                     </div>
-                    {currentDeal?.expected_close_date && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Fechamento previsto</span>
-                        <span>{format(parseISO(currentDeal.expected_close_date), "dd/MM/yyyy")}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Fechamento previsto</span>
+                      {isEditingDetails ? (
+                        <Input
+                          type="date"
+                          value={editExpectedClose}
+                          onChange={(e) => setEditExpectedClose(e.target.value)}
+                          className="h-7 w-40 text-sm"
+                        />
+                      ) : (
+                        <span>
+                          {currentDeal?.expected_close_date
+                            ? format(parseISO(currentDeal.expected_close_date), "dd/MM/yyyy")
+                            : "Não definido"}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Criado em</span>
                       <span>{format(parseISO(currentDeal?.created_at || new Date().toISOString()), "dd/MM/yyyy", { locale: ptBR })}</span>
