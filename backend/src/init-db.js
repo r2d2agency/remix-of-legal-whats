@@ -1781,6 +1781,10 @@ EXCEPTION WHEN duplicate_column THEN null; WHEN undefined_table THEN null; END $
 DO $$ BEGIN
   ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS cnae VARCHAR(100);
 EXCEPTION WHEN duplicate_column THEN null; WHEN undefined_table THEN null; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS more_info TEXT;
+EXCEPTION WHEN duplicate_column THEN null; WHEN undefined_table THEN null; END $$;
 `;
 
 // Step 21: CRM Prospects
