@@ -923,7 +923,15 @@ export function CRMSidePanel({
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6"
-                              onClick={() => setIsEditingDeal(true)}
+                              onClick={() => {
+                                setDealForm({
+                                  title: selectedDeal.title || "",
+                                  value: Number(selectedDeal.value) || 0,
+                                  probability: Number(selectedDeal.probability) || 0,
+                                  expected_close_date: selectedDeal.expected_close_date ? selectedDeal.expected_close_date.split("T")[0] : "",
+                                });
+                                setIsEditingDeal(true);
+                              }}
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
