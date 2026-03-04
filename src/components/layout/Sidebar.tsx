@@ -91,7 +91,7 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
       { name: "Projetos", href: "/projetos", icon: FolderKanban, moduleKey: 'projects' },
       { name: "Mapa", href: "/mapa", icon: Map },
       { name: "Agenda", href: "/crm/agenda", icon: CalendarDays },
-      { name: "Tarefas", href: "/crm/tarefas", icon: ClipboardList },
+      { name: "Tarefas", href: "/tarefas", icon: ClipboardList },
       { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3 },
       { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, adminOnly: true },
       { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, ownerOnly: true, moduleKey: 'ghost' },
