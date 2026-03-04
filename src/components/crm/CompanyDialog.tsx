@@ -54,6 +54,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
     state: "",
     zip_code: "",
     notes: "",
+    more_info: "",
     segment_id: "",
     owner_id: "",
     group_id: "",
@@ -114,6 +115,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
         state: company.state || "",
         zip_code: company.zip_code || "",
         notes: company.notes || "",
+        more_info: company.more_info || "",
         segment_id: company.segment_id || "",
         owner_id: company.owner_id || "",
         group_id: company.group_id || "",
@@ -138,6 +140,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
         state: "",
         zip_code: "",
         notes: "",
+        more_info: "",
         segment_id: "",
         owner_id: "",
         group_id: "",
@@ -163,22 +166,65 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
       const est = data.estabelecimento || {};
       const socios = data.socios || [];
 
-      // Build details text from extra info
-      const details: string[] = [];
-      if (emp.capital_social) details.push(`Capital Social: R$ ${parseFloat(emp.capital_social).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+      // Build "Mais Informações" content
+      const moreInfoParts: string[] = [];
+
+      // Sócios
+      if (socios.length > 0) {
+        moreInfoParts.push(`═══ SÓCIOS ═══`);
+        socios.forEach((s: any) => {
+          const parts = [s.nome_socio];
+          if (s.qualificacao_descricao) parts.push(`(${s.qualificacao_descricao})`);
+          if (s.cpf_cnpj_socio) parts.push(`- CPF/CNPJ: ${s.cpf_cnpj_socio}`);
+          if (s.data_entrada) parts.push(`- Entrada: ${s.data_entrada}`);
+          moreInfoParts.push(`• ${parts.join(' ')}`);
+        });
+      }
+
+      // CNAEs secundários
+      const cnaesSecundarios = est.cnaes_secundarios || est.atividades_secundarias || [];
+      if (cnaesSecundarios.length > 0) {
+        moreInfoParts.push(`\n═══ CNAEs SECUNDÁRIOS ═══`);
+        cnaesSecundarios.forEach((c: any) => {
+          const code = c.codigo || c.id || c.cnae || '';
+          const desc = c.descricao || c.description || '';
+          moreInfoParts.push(`• ${code}${desc ? ` - ${desc}` : ''}`);
+        });
+      }
+
+      // Capital Social
+      if (emp.capital_social) {
+        moreInfoParts.push(`\n═══ DADOS ADICIONAIS ═══`);
+        moreInfoParts.push(`Capital Social: R$ ${parseFloat(emp.capital_social).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+      }
+
+      // Situação cadastral
       if (est.situacao_cadastral) {
         const sit = est.situacao_cadastral === '02' ? 'Ativa' : est.situacao_cadastral === '08' ? 'Baixada' : est.situacao_cadastral;
-        details.push(`Situação: ${sit}`);
+        moreInfoParts.push(`Situação Cadastral: ${sit}`);
       }
+
+      // Data início atividade
       if (est.data_inicio_atividade) {
         const d = est.data_inicio_atividade;
-        details.push(`Início Atividade: ${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`);
+        const formatted = d.includes('-') ? d.split('-').reverse().join('/') : `${d.slice(6,8)}/${d.slice(4,6)}/${d.slice(0,4)}`;
+        moreInfoParts.push(`Início Atividade: ${formatted}`);
       }
-      if (socios.length > 0) {
-        details.push(`\nSócios:`);
-        socios.forEach((s: any) => {
-          details.push(`  • ${s.nome_socio}${s.qualificacao_descricao ? ` (${s.qualificacao_descricao})` : ''}`);
-        });
+
+      // Natureza jurídica
+      if (emp.natureza_juridica || emp.natureza_descricao) {
+        moreInfoParts.push(`Natureza Jurídica: ${emp.natureza_descricao || emp.natureza_juridica}`);
+      }
+
+      // Email do estabelecimento
+      if (est.email) {
+        moreInfoParts.push(`Email (Receita): ${est.email}`);
+      }
+
+      // Telefones do estabelecimento
+      const tels = [est.ddd1 && est.telefone1 ? `(${est.ddd1}) ${est.telefone1}` : null, est.ddd2 && est.telefone2 ? `(${est.ddd2}) ${est.telefone2}` : null].filter(Boolean);
+      if (tels.length > 0) {
+        moreInfoParts.push(`Telefone(s) (Receita): ${tels.join(', ')}`);
       }
 
       const address = [est.logradouro, est.numero, est.complemento, est.bairro].filter(Boolean).join(', ');
@@ -188,13 +234,15 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
         name: prev.name || est.nome_fantasia || emp.razao_social || '',
         razao_social: prev.razao_social || emp.razao_social || '',
         nome_fantasia: prev.nome_fantasia || est.nome_fantasia || '',
-        porte: prev.porte || emp.natureza_descricao || '',
-        cnae: prev.cnae || est.cnae_principal || '',
+        porte: prev.porte || emp.porte_descricao || emp.natureza_descricao || '',
+        cnae: prev.cnae || (est.cnae_principal ? `${est.cnae_principal.codigo || est.cnae_principal} - ${est.cnae_principal.descricao || ''}`.trim() : ''),
         address: prev.address || address,
-        city: prev.city || est.municipio_nome || '',
-        state: prev.state || est.uf || '',
+        city: prev.city || est.municipio_nome || est.cidade?.nome || '',
+        state: prev.state || est.uf || est.estado?.sigla || '',
         zip_code: prev.zip_code || (est.cep ? est.cep.replace(/(\d{5})(\d{3})/, '$1-$2') : ''),
-        notes: prev.notes ? prev.notes + '\n\n' + details.join('\n') : details.join('\n'),
+        email: prev.email || est.email || '',
+        phone: prev.phone || (est.ddd1 && est.telefone1 ? `(${est.ddd1}) ${est.telefone1}` : prev.phone),
+        more_info: moreInfoParts.length > 0 ? moreInfoParts.join('\n') : prev.more_info,
       }));
 
       toast.success("Dados do CNPJ preenchidos!");
@@ -705,6 +753,18 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2 border-t pt-4">
+              <Label className="text-base font-semibold">📋 Mais Informações</Label>
+              <p className="text-xs text-muted-foreground">Sócios, CNAEs secundários, capital social e outros dados preenchidos automaticamente pela consulta CNPJ</p>
+              <Textarea
+                value={formData.more_info}
+                onChange={(e) => handleChange("more_info", e.target.value)}
+                placeholder="Informações adicionais da empresa (preenchido automaticamente ao consultar CNPJ)..."
+                rows={8}
+                className="font-mono text-xs"
+              />
             </div>
 
             <div className="space-y-2">
