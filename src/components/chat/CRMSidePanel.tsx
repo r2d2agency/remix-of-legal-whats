@@ -579,10 +579,10 @@ export function CRMSidePanel({
 
   return (
     <div className={cn(
-      "relative flex flex-col bg-card overflow-x-hidden",
+      "relative flex flex-col bg-card overflow-hidden",
       isMobile 
         ? "w-full h-full" 
-        : "w-80 min-w-[20rem] shrink-0 h-full border-l"
+        : "w-80 min-w-[20rem] max-w-[20rem] shrink-0 h-full border-l"
     )}>
       <ToggleButton />
       
@@ -786,13 +786,13 @@ export function CRMSidePanel({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 w-full">
         {loadingDeals ? (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="p-2">
+          <div className="p-2 w-full max-w-full overflow-hidden">
             {deals.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground mb-2">
                 <Briefcase className="h-10 w-10 mb-3 opacity-40" />
