@@ -426,13 +426,14 @@ router.get('/cards/:id', async (req, res) => {
     const result = await query(
       `SELECT tc.*, u.name as assigned_name, cu.name as creator_name,
               d.title as deal_title, comp.name as company_name,
-              p.title as project_title, p.stage_name as project_stage
+              p.title as project_title, ps.name as project_stage
        FROM task_cards tc
        LEFT JOIN users u ON u.id = tc.assigned_to
        LEFT JOIN users cu ON cu.id = tc.created_by
        LEFT JOIN crm_deals d ON d.id = tc.deal_id
        LEFT JOIN crm_companies comp ON comp.id = tc.company_id
        LEFT JOIN projects p ON p.id = tc.project_id
+       LEFT JOIN project_stages ps ON ps.id = p.stage_id
        WHERE tc.id = $1`,
       [req.params.id]
     );
