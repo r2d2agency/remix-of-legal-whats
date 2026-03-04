@@ -136,10 +136,16 @@ export function useTaskBoardColumns(boardId: string | null) {
   });
 }
 
-export function useTaskBoardCards(boardId: string | null) {
+export function useTaskBoardCards(boardId: string | null, filters?: { filter_user?: string; due_from?: string; due_to?: string }) {
+  const filterParams = new URLSearchParams();
+  if (filters?.filter_user && filters.filter_user !== 'all') filterParams.set('filter_user', filters.filter_user);
+  if (filters?.due_from) filterParams.set('due_from', filters.due_from);
+  if (filters?.due_to) filterParams.set('due_to', filters.due_to);
+  const qs = filterParams.toString();
+
   return useQuery<TaskCard[]>({
-    queryKey: ["task-board-cards", boardId],
-    queryFn: () => api(`/api/task-boards/boards/${boardId}/cards`, { auth: true }),
+    queryKey: ["task-board-cards", boardId, filters?.filter_user || 'all', filters?.due_from || '', filters?.due_to || ''],
+    queryFn: () => api(`/api/task-boards/boards/${boardId}/cards${qs ? `?${qs}` : ''}`, { auth: true }),
     enabled: !!boardId,
   });
 }
