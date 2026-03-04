@@ -355,7 +355,7 @@ export function useChecklistTemplateMutations() {
   const { toast } = useToast();
 
   const createTemplate = useMutation({
-    mutationFn: (data: { name: string; items: { title: string }[] }) =>
+    mutationFn: (data: { name: string; items: { title: string; days_offset?: number }[] }) =>
       api("/api/task-boards/checklist-templates", { method: "POST", body: data, auth: true }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["checklist-templates"] });
@@ -364,7 +364,7 @@ export function useChecklistTemplateMutations() {
   });
 
   const updateTemplate = useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name: string; items: { title: string }[] }) =>
+    mutationFn: ({ id, ...data }: { id: string; name: string; items: { title: string; days_offset?: number }[] }) =>
       api(`/api/task-boards/checklist-templates/${id}`, { method: "PUT", body: data, auth: true }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["checklist-templates"] });

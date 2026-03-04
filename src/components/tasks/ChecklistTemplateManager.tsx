@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   useChecklistTemplates, useChecklistTemplateMutations, ChecklistTemplate,
 } from "@/hooks/use-task-boards";
-import { Plus, Trash2, X, ListChecks, GripVertical } from "lucide-react";
+import { Plus, Trash2, X, ListChecks, Clock } from "lucide-react";
 
 interface ChecklistTemplateManagerProps {
   open: boolean;
@@ -20,26 +20,30 @@ export function ChecklistTemplateManager({ open, onOpenChange }: ChecklistTempla
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [items, setItems] = useState<{ title: string }[]>([]);
+  const [items, setItems] = useState<{ title: string; days_offset?: number }[]>([]);
   const [newItemTitle, setNewItemTitle] = useState("");
+  const [newItemDays, setNewItemDays] = useState<string>("");
 
   const resetForm = () => {
     setEditingId(null);
     setName("");
     setItems([]);
     setNewItemTitle("");
+    setNewItemDays("");
   };
 
   const startEdit = (template: ChecklistTemplate) => {
     setEditingId(template.id);
     setName(template.name);
-    setItems(template.items?.map(i => ({ title: i.title })) || []);
+    setItems(template.items?.map(i => ({ title: i.title, days_offset: (i as any).days_offset })) || []);
   };
 
   const addItem = () => {
     if (!newItemTitle.trim()) return;
-    setItems(prev => [...prev, { title: newItemTitle }]);
+    const days = newItemDays ? parseInt(newItemDays) : undefined;
+    setItems(prev => [...prev, { title: newItemTitle, days_offset: days }]);
     setNewItemTitle("");
+    setNewItemDays("");
   };
 
   const removeItem = (idx: number) => {
@@ -85,6 +89,11 @@ export function ChecklistTemplateManager({ open, onOpenChange }: ChecklistTempla
               {items.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-2 text-sm">
                   <span className="flex-1">{item.title}</span>
+                  {item.days_offset !== undefined && (
+                    <Badge variant="outline" className="text-xs gap-1 shrink-0">
+                      <Clock className="h-3 w-3" />{item.days_offset}d
+                    </Badge>
+                  )}
                   <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(idx)}>
                     <X className="h-3 w-3" />
                   </Button>
@@ -97,12 +106,23 @@ export function ChecklistTemplateManager({ open, onOpenChange }: ChecklistTempla
                 onChange={e => setNewItemTitle(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addItem()}
                 placeholder="Novo item da checklist"
-                className="h-8"
+                className="h-8 flex-1"
+              />
+              <Input
+                type="number"
+                value={newItemDays}
+                onChange={e => setNewItemDays(e.target.value)}
+                placeholder="Dias"
+                className="h-8 w-20"
+                title="Prazo em dias a partir da criação do card"
               />
               <Button size="sm" variant="outline" className="h-8" onClick={addItem}>
                 <Plus className="h-3 w-3" />
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              O campo "Dias" define o prazo do item em dias após a criação do card (ex: 3 = 3 dias depois)
+            </p>
             <div className="flex gap-2">
               <Button size="sm" onClick={handleSave} disabled={!name.trim()}>
                 {editingId ? "Atualizar" : "Criar Template"}
@@ -122,6 +142,7 @@ export function ChecklistTemplateManager({ open, onOpenChange }: ChecklistTempla
                     <p className="font-medium text-sm">{template.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {template.items?.length || 0} itens
+                      {template.items?.some((i: any) => i.days_offset) && " • com prazos"}
                     </p>
                   </div>
                   <Button variant="ghost" size="icon" className="h-7 w-7"

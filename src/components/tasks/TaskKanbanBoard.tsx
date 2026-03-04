@@ -52,13 +52,20 @@ function MiniTaskCard({ card, isDragging, onClick }: { card: TaskCard; isDraggin
         <img src={card.cover_image_url} alt="" className="w-full h-24 object-cover rounded-md mb-2" />
       )}
 
-      {/* Title */}
-      <p className={cn(
-        "text-sm font-medium mb-1 line-clamp-2",
-        card.status === 'completed' && "line-through text-muted-foreground"
-      )}>
-        {card.title}
-      </p>
+      {/* Title + Status */}
+      <div className="flex items-start gap-1.5 mb-1">
+        {card.status === 'completed' ? (
+          <CheckSquare className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+        ) : (
+          <Clock className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+        )}
+        <p className={cn(
+          "text-sm font-medium line-clamp-2",
+          card.status === 'completed' && "line-through text-muted-foreground"
+        )}>
+          {card.title}
+        </p>
+      </div>
 
       {/* Deal/Company link */}
       {(card.deal_title || card.company_name) && (

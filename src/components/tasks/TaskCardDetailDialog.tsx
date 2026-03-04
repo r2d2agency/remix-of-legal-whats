@@ -21,8 +21,10 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Calendar, CheckSquare, Paperclip, MessageSquare, User, Trash2, Plus,
-  Send, Image, FileText, X, Clock, Star, Upload, ListChecks
+  Send, Image, FileText, X, Clock, Star, Upload, ListChecks, Save, Loader2,
+  CircleCheck, Circle, MoreHorizontal
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface TaskCardDetailDialogProps {
   cardId: string | null;
@@ -49,11 +51,14 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
   const [newChecklistTitle, setNewChecklistTitle] = useState("");
   const [newItemTitles, setNewItemTitles] = useState<Record<string, string>>({});
   const [showChecklistForm, setShowChecklistForm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     if (card) {
       setEditTitle(card.title);
       setEditDesc(card.description || "");
+      setHasChanges(false);
     }
   }, [card]);
 
@@ -61,7 +66,16 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
 
   const handleSaveDetails = () => {
     if (!cardId) return;
-    cardMut.updateCard.mutate({ id: cardId, title: editTitle, description: editDesc } as any);
+    setIsSaving(true);
+    cardMut.updateCard.mutate({ id: cardId, title: editTitle, description: editDesc } as any, {
+      onSettled: () => { setIsSaving(false); setHasChanges(false); },
+    });
+  };
+
+  const handleToggleStatus = () => {
+    if (!cardId || !card) return;
+    const newStatus = card.status === 'completed' ? 'pending' : 'completed';
+    cardMut.updateCard.mutate({ id: cardId, status: newStatus } as any);
   };
 
   const handleUpdateField = (field: string, value: any) => {
@@ -133,17 +147,49 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
             {/* Header */}
             <DialogHeader className="p-4 pb-2 border-b">
               <div className="flex items-start gap-3">
+                {/* Status toggle */}
+                <button onClick={handleToggleStatus} className="mt-1 shrink-0" title={card.status === 'completed' ? 'Marcar como pendente' : 'Marcar como concluído'}>
+                  {card.status === 'completed' ? (
+                    <CircleCheck className="h-6 w-6 text-green-500" />
+                  ) : (
+                    <Circle className="h-6 w-6 text-muted-foreground hover:text-green-500 transition-colors" />
+                  )}
+                </button>
                 <div className="flex-1">
                   <Input
                     value={editTitle}
-                    onChange={e => setEditTitle(e.target.value)}
-                    onBlur={handleSaveDetails}
+                    onChange={e => { setEditTitle(e.target.value); setHasChanges(true); }}
                     className="text-lg font-bold border-none p-0 h-auto focus-visible:ring-0 shadow-none"
                     placeholder="Título do card"
                   />
-                  {card.deal_title && (
-                    <p className="text-xs text-muted-foreground mt-1">📋 {card.deal_title}{card.company_name ? ` • ${card.company_name}` : ''}</p>
-                  )}
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant={card.status === 'completed' ? 'default' : 'secondary'} className={cn("text-xs", card.status === 'completed' && "bg-green-500/10 text-green-600 border-green-500/20")}>
+                      {card.status === 'completed' ? 'Concluído' : 'Pendente'}
+                    </Badge>
+                    {card.deal_title && (
+                      <span className="text-xs text-muted-foreground">📋 {card.deal_title}{card.company_name ? ` • ${card.company_name}` : ''}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {/* Save button */}
+                  <Button size="sm" variant={hasChanges ? "default" : "outline"} className="h-8 gap-1.5" onClick={handleSaveDetails} disabled={isSaving || !hasChanges}>
+                    {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    {isSaving ? "Salvando..." : "Salvar"}
+                  </Button>
+                  {/* Discrete delete via dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem className="text-destructive" onClick={handleDelete}>
+                        <Trash2 className="h-4 w-4 mr-2" /> Excluir card
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </DialogHeader>
@@ -170,8 +216,7 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                     </h4>
                     <Textarea
                       value={editDesc}
-                      onChange={e => setEditDesc(e.target.value)}
-                      onBlur={handleSaveDetails}
+                      onChange={e => { setEditDesc(e.target.value); setHasChanges(true); }}
                       placeholder="Adicionar descrição..."
                       className="min-h-[80px]"
                     />
@@ -452,11 +497,6 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                     {card.completed_at && <p>Concluído: {format(parseISO(card.completed_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>}
                   </div>
 
-                  <Separator />
-
-                  <Button variant="destructive" size="sm" className="w-full" onClick={handleDelete}>
-                    <Trash2 className="h-4 w-4 mr-2" /> Excluir Card
-                  </Button>
                 </div>
               </div>
             </ScrollArea>
