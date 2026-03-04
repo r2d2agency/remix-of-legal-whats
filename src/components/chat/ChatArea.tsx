@@ -440,6 +440,22 @@ export function ChatArea({
     setPendingFile({ file, preview });
   }, [inferMessageTypeFromFile]);
 
+  // Paste image from clipboard (Ctrl+V / Cmd+V)
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (!file) return;
+        const preview = URL.createObjectURL(file);
+        setPendingFile({ file, preview });
+        return;
+      }
+    }
+  }, []);
+
   const looksLikeFilename = (value: string) => {
     const s = value.trim(); if (!s || s.length > 160) return false;
     return /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z|jpg|jpeg|png|gif|webp|mp3|ogg|wav|m4a|mp4|webm|mov)$/i.test(s);
@@ -1031,6 +1047,7 @@ export function ChatArea({
               <div className="relative flex-1">
                 <Textarea ref={textareaRef} placeholder="Digite uma mensagem... Use @ para mencionar" value={messageText} onChange={e => setMessageText(e.target.value)}
                   onKeyDown={e => { if (showMentionSuggestions && ['Enter', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.key)) return; handleKeyPress(e); }}
+                  onPaste={handlePaste}
                   className="min-h-[40px] max-h-[120px] resize-none" rows={1} />
                 {showMentionSuggestions && <MentionSuggestions query={mentionQuery} team={team} onSelect={handleSelectMember} onClose={closeSuggestions} position={suggestionPosition} />}
               </div>
