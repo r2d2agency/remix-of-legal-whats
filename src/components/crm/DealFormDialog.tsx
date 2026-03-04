@@ -9,11 +9,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CRMFunnel, useCRMDealMutations, useCRMCompanies, useCRMFunnel, useCRMGroups } from "@/hooks/use-crm";
 import { Slider } from "@/components/ui/slider";
-import { Building2, User, Search, Loader2 } from "lucide-react";
+import { Building2, User, Search, Loader2, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CompanyDialog } from "./CompanyDialog";
 
 interface DealFormDialogProps {
   funnel: CRMFunnel | null;
@@ -47,6 +48,7 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
   const [mode, setMode] = useState<"company" | "contact">("company");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [showCompanyDialog, setShowCompanyDialog] = useState(false);
 
   const { data: companies } = useCRMCompanies(companySearchQuery.length >= 2 ? companySearchQuery : undefined);
   const { data: funnelData } = useCRMFunnel(funnel?.id || null);
@@ -122,6 +124,7 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
     : null;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] flex flex-col" aria-describedby={undefined}>
         <DialogHeader>
@@ -212,6 +215,16 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
                       </div>
                     </PopoverContent>
                   </Popover>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2"
+                    onClick={() => setShowCompanyDialog(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Criar nova empresa
+                  </Button>
                 </TabsContent>
 
                 <TabsContent value="contact" className="mt-3 space-y-3">
@@ -330,5 +343,17 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+      <CompanyDialog
+        company={null}
+        open={showCompanyDialog}
+        onOpenChange={setShowCompanyDialog}
+        onCreated={(newCompany) => {
+          setCompanyId(newCompany.id);
+          setSelectedCompanyName(newCompany.name);
+          setShowCompanyDialog(false);
+        }}
+      />
+    </>
   );
 }
