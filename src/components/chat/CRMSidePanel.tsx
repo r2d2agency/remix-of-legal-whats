@@ -550,7 +550,7 @@ export function CRMSidePanel({
       <Button
         variant="outline"
         size="icon"
-        onClick={onToggle}
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
         className={cn(
           "absolute top-1/2 -translate-y-1/2 z-20 h-12 w-6 rounded-l-md rounded-r-none border-r-0 bg-background shadow-md hover:bg-muted",
           "-left-6"
@@ -564,7 +564,7 @@ export function CRMSidePanel({
 
   if (!isOpen) {
     return (
-      <div className="relative">
+      <div className="relative shrink-0 w-6">
         <ToggleButton />
       </div>
     );
