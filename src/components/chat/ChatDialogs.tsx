@@ -382,8 +382,14 @@ interface EditContactDialogProps {
 }
 
 export function EditContactDialog({ open, onOpenChange, conversation }: EditContactDialogProps) {
-  const [name, setName] = useState(conversation?.contact_name || '');
+  const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setName(conversation?.contact_name || conversation?.contact_phone || '');
+    }
+  }, [open, conversation]);
 
   const handleSave = async () => {
     if (!conversation || !name.trim()) return;
@@ -408,7 +414,7 @@ export function EditContactDialog({ open, onOpenChange, conversation }: EditCont
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (o) setName(conversation?.contact_name || ''); onOpenChange(o); }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Editar Contato</DialogTitle>
