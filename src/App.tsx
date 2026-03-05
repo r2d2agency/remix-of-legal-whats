@@ -1,4 +1,7 @@
 import { useEffect } from "react";
+import { Navigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -72,6 +75,25 @@ function FaviconUpdater() {
   return null;
 }
 
+// Smart redirect: logged in → dashboard, not logged in → login (PWA/mobile skip landing)
+function SmartRedirect() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const isPWA = window.matchMedia('(display-mode: standalone)').matches
+    || (navigator as any).standalone === true;
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (isPWA) return <Navigate to="/login" replace />;
+  return <LandingPage />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -83,7 +105,8 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Cadastro />} />
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<SmartRedirect />} />
+            <Route path="/landing" element={<LandingPage />} />
             <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/conexao" element={<ProtectedRoute><Conexao /></ProtectedRoute>} />
             <Route path="/contatos" element={<ProtectedRoute><Contatos /></ProtectedRoute>} />
