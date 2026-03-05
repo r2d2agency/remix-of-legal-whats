@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Target, X, ExternalLink, BellRing, Bell, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,23 +39,27 @@ interface CRMAlert {
 export function CRMAlerts() {
   const [alerts, setAlerts] = useState<CRMAlert[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [previousCount, setPreviousCount] = useState(0);
+  const previousCountRef = useRef(0);
 
   const { notify, settings } = useNotificationSound();
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const notifyRef = useRef(notify);
+  notifyRef.current = notify;
 
   const fetchAlerts = useCallback(async () => {
     try {
       const data = await api<CRMAlert[]>("/api/chat/alerts");
-      // Include new_lead AND task_reminder alerts
+      if (!Array.isArray(data)) return;
+      
       const crmAlerts = data.filter(a => a.type === 'new_lead' || a.type === 'task_reminder');
       
-      // Play sound and show notification if new alerts arrived
-      if (crmAlerts.length > previousCount && previousCount > 0) {
-        const newCount = crmAlerts.length - previousCount;
+      if (crmAlerts.length > previousCountRef.current && previousCountRef.current > 0) {
+        const newCount = crmAlerts.length - previousCountRef.current;
         const latestAlert = crmAlerts[0];
         
-        if (settings.soundEnabled) {
-          notify(
+        if (settingsRef.current.soundEnabled) {
+          notifyRef.current(
             latestAlert?.title || '🎯 Novo Lead',
             latestAlert?.message || `${newCount} novo(s) lead(s) no CRM!`,
             { playSound: true }
@@ -63,12 +67,12 @@ export function CRMAlerts() {
         }
       }
       
-      setPreviousCount(crmAlerts.length);
+      previousCountRef.current = crmAlerts.length;
       setAlerts(crmAlerts);
     } catch (error) {
-      console.error("Error fetching CRM alerts:", error);
+      // Silently ignore - backend may be temporarily unavailable
     }
-  }, [previousCount, settings.soundEnabled, notify]);
+  }, []);
 
   // Poll for alerts every 10 seconds
   useEffect(() => {
