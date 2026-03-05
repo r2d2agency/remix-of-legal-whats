@@ -58,7 +58,7 @@ export function OnboardingWizard({ open, onClose }: OnboardingWizardProps) {
     }
     setLoading(true);
     try {
-      await api("/api/auth/profile", { method: "PATCH", body: { name: displayName.trim() }, auth: true });
+      await api("/api/auth/profile", { method: "PUT", body: { name: displayName.trim() }, auth: true });
       await refreshUser();
       toast.success("Perfil atualizado!");
       next();
