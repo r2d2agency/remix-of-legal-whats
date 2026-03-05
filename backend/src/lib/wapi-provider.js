@@ -917,6 +917,7 @@ export async function sendAudio(instanceId, token, phone, audioUrl) {
         body: JSON.stringify({
           phone: cleanPhone,
           audio: audioUrl,
+          ptt: true,
         }),
       },
       { retries: 2, baseDelay: 1000, timeout: 10000, label: 'wapi-sendAudio' }

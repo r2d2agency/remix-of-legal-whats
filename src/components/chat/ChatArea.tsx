@@ -518,8 +518,8 @@ export function ChatArea({
   const handleSendAudio = async () => {
     if (!audioBlob) return;
     try {
-      const extension = audioBlob.type.includes('webm') ? 'webm' : audioBlob.type.includes('mp4') ? 'm4a' : 'wav';
-      const file = new File([audioBlob], `audio.${extension}`, { type: audioBlob.type });
+      // Use .ogg extension for WhatsApp compatibility (W-API expects ogg/opus for voice messages)
+      const file = new File([audioBlob], `audio.ogg`, { type: 'audio/ogg; codecs=opus' });
       const url = await uploadFile(file);
       if (url) { await onSendMessage('', 'audio', url, undefined, file.type); toast.success("Áudio enviado!"); }
       clearAudio();
