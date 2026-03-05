@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,6 +11,7 @@ import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
 import { WinCelebration } from "@/components/crm/WinCelebration";
 import { LossReasonDialog } from "@/components/crm/LossReasonDialog";
 import { useCRMFunnels, useCRMFunnel, useCRMDeals, useCRMGroups, useCRMGroupMembers, useCRMDealMutations, useCRMDeal, CRMDeal, CRMFunnel } from "@/hooks/use-crm";
+import { api } from "@/lib/api";
 import { Plus, Settings, Loader2, Filter, User, Users, ArrowUpDown, CalendarIcon, X, LayoutGrid, List, Trophy, XCircle, Pause, CheckSquare, Trash2, ArrowRightLeft, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { parseISO, format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
@@ -91,6 +93,13 @@ export default function CRMNegociacoes() {
   const { data: funnelData } = useCRMFunnel(currentFunnelId);
   const { data: dealsByStage, isLoading: loadingDeals } = useCRMDeals(currentFunnelId);
   const { data: groupMembers } = useCRMGroupMembers(groupFilter !== "all" ? groupFilter : null);
+
+  // Load all org members for reassign dialog
+  const { data: orgMembers } = useQuery({
+    queryKey: ['org-members', user?.organization_id],
+    queryFn: () => api<Array<{ user_id: string; name: string; email: string; role: string }>>(`/api/organizations/${user?.organization_id}/members`),
+    enabled: !!user?.organization_id,
+  });
 
   const currentFunnel = funnels?.find((f) => f.id === currentFunnelId) || null;
   const canManage = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
@@ -732,7 +741,7 @@ export default function CRMNegociacoes() {
                   <SelectValue placeholder="Selecione o vendedor" />
                 </SelectTrigger>
                 <SelectContent>
-                  {groupMembers?.map(m => (
+                  {(orgMembers || []).map(m => (
                     <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
                   ))}
                 </SelectContent>
