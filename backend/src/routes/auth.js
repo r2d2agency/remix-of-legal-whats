@@ -332,7 +332,7 @@ router.get('/me', async (req, res) => {
 
     // Role and organization info (multi-tenant)
     const orgResult = await query(
-      `SELECT om.role, o.id as organization_id, o.modules_enabled
+      `SELECT om.role, o.id as organization_id, o.modules_enabled, om.permission_template_id
        FROM organization_members om
        JOIN organizations o ON o.id = om.organization_id
        WHERE om.user_id = $1
@@ -346,6 +346,23 @@ router.get('/me', async (req, res) => {
        LIMIT 1`,
       [decoded.userId]
     );
+
+    // Get page permissions from template if assigned
+    let pagePermissions = null;
+    const templateId = orgResult.rows[0]?.permission_template_id;
+    if (templateId) {
+      try {
+        const tplResult = await query(
+          `SELECT permissions FROM permission_templates WHERE id = $1`,
+          [templateId]
+        );
+        if (tplResult.rows.length > 0) {
+          pagePermissions = tplResult.rows[0].permissions;
+        }
+      } catch (e) {
+        // table might not exist yet
+      }
+    }
 
     const role = orgResult.rows[0]?.role || null;
     const organizationId = orgResult.rows[0]?.organization_id || null;
@@ -412,6 +429,7 @@ router.get('/me', async (req, res) => {
         organization_id: organizationId,
         modules_enabled: modulesEnabled,
         has_connections: hasConnections,
+        page_permissions: pagePermissions,
       } 
     });
   } catch (error) {

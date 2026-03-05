@@ -17,6 +17,9 @@ interface ModulesEnabled {
   lead_gleego: boolean;
 }
 
+// Page-level permissions from permission templates
+export type PagePermissions = Record<string, boolean> | null;
+
 interface User {
   id: string;
   email: string;
@@ -25,6 +28,7 @@ interface User {
   organization_id?: string;
   modules_enabled?: ModulesEnabled;
   has_connections?: boolean;
+  page_permissions?: PagePermissions;
 }
 
 interface AuthContextType {
@@ -32,6 +36,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   modulesEnabled: ModulesEnabled;
+  pagePermissions: PagePermissions;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, planId?: string) => Promise<void>;
   logout: () => void;
@@ -109,6 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const modulesEnabled = user?.modules_enabled || defaultModules;
+  const pagePermissions = user?.page_permissions || null;
 
   return (
     <AuthContext.Provider
@@ -117,6 +123,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isLoading,
         isAuthenticated: !!user,
         modulesEnabled,
+        pagePermissions,
         login,
         register,
         logout,

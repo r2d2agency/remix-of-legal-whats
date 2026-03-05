@@ -3176,6 +3176,23 @@ CREATE TABLE IF NOT EXISTS project_note_notifications (
 CREATE INDEX IF NOT EXISTS idx_project_note_notifs_user ON project_note_notifications(user_id, read);
 `;
 
+// Step 37: Permission Templates
+const step37PermissionTemplates = `
+CREATE TABLE IF NOT EXISTS permission_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  color VARCHAR(20) DEFAULT '#6366f1',
+  permissions JSONB NOT NULL DEFAULT '{}',
+  is_default BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_permission_templates_org ON permission_templates(organization_id);
+ALTER TABLE organization_members ADD COLUMN IF NOT EXISTS permission_template_id UUID REFERENCES permission_templates(id) ON DELETE SET NULL;
+`;
+
 // Migration steps in order of execution
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
@@ -3215,6 +3232,7 @@ const migrationSteps = [
   { name: 'Ghost Saved Analyses', sql: step34GhostSavedAnalyses, critical: false },
   { name: 'Group Funnels', sql: step35GroupFunnels, critical: false },
   { name: 'Projects Module', sql: step36Projects, critical: false },
+  { name: 'Permission Templates', sql: step37PermissionTemplates, critical: false },
 ];
 
 export async function initDatabase() {

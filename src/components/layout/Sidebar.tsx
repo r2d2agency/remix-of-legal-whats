@@ -51,6 +51,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
+  pageKey?: string; // Used for permission template matching
   moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects' | 'lead_gleego';
   adminOnly?: boolean;
   ownerOnly?: boolean;
@@ -70,15 +71,15 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
     title: "Atendimento",
     icon: MessagesSquare,
     items: [
-      ...(hasConnections ? [{ name: "Chat", href: "/chat", icon: MessagesSquare, moduleKey: 'chat' as const }] : []),
-      ...(hasConnections ? [{ name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, moduleKey: 'group_secretary' as const, adminOnly: true }] : []),
-      { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, superadminOnly: true },
-      ...(hasConnections ? [{ name: "Chatbots", href: "/chatbots", icon: Bot, moduleKey: 'chatbots' as const, adminOnly: true }] : []),
-      ...(hasConnections ? [{ name: "Fluxos", href: "/fluxos", icon: GitBranch, moduleKey: 'chatbots' as const, adminOnly: true }] : []),
-      { name: "Departamentos", href: "/departamentos", icon: Building2, adminOnly: true },
-      { name: "Agendamentos", href: "/agendamentos", icon: Bell, moduleKey: 'scheduled_messages' as const },
-      { name: "Tags", href: "/tags", icon: Receipt },
-      { name: "Contatos", href: "/contatos-chat", icon: Users },
+      ...(hasConnections ? [{ name: "Chat", href: "/chat", icon: MessagesSquare, pageKey: 'chat', moduleKey: 'chat' as const }] : []),
+      ...(hasConnections ? [{ name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, pageKey: 'secretaria_ia', moduleKey: 'group_secretary' as const, adminOnly: true }] : []),
+      { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, pageKey: 'agentes_ia', superadminOnly: true },
+      ...(hasConnections ? [{ name: "Chatbots", href: "/chatbots", icon: Bot, pageKey: 'chatbots', moduleKey: 'chatbots' as const, adminOnly: true }] : []),
+      ...(hasConnections ? [{ name: "Fluxos", href: "/fluxos", icon: GitBranch, pageKey: 'fluxos', moduleKey: 'chatbots' as const, adminOnly: true }] : []),
+      { name: "Departamentos", href: "/departamentos", icon: Building2, pageKey: 'departamentos', adminOnly: true },
+      { name: "Agendamentos", href: "/agendamentos", icon: Bell, pageKey: 'agendamentos', moduleKey: 'scheduled_messages' as const },
+      { name: "Tags", href: "/tags", icon: Receipt, pageKey: 'tags' },
+      { name: "Contatos", href: "/contatos-chat", icon: Users, pageKey: 'contatos' },
     ],
   },
   {
@@ -86,17 +87,17 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
     icon: Briefcase,
     moduleKey: 'crm',
     items: [
-      { name: "Negociações", href: "/crm/negociacoes", icon: Kanban },
-      { name: "Prospects", href: "/crm/prospects", icon: UserPlus },
-      { name: "Empresas", href: "/crm/empresas", icon: Building2 },
-      { name: "Projetos", href: "/projetos", icon: FolderKanban, moduleKey: 'projects' },
-      { name: "Mapa", href: "/mapa", icon: Map },
-      { name: "Agenda", href: "/crm/agenda", icon: CalendarDays },
-      { name: "Tarefas", href: "/tarefas", icon: ClipboardList },
-      { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3 },
-      { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, adminOnly: true },
-      { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, ownerOnly: true, moduleKey: 'ghost' },
-      { name: "Configurações", href: "/crm/configuracoes", icon: Settings, adminOnly: true },
+      { name: "Negociações", href: "/crm/negociacoes", icon: Kanban, pageKey: 'crm_negociacoes' },
+      { name: "Prospects", href: "/crm/prospects", icon: UserPlus, pageKey: 'crm_prospects' },
+      { name: "Empresas", href: "/crm/empresas", icon: Building2, pageKey: 'crm_empresas' },
+      { name: "Projetos", href: "/projetos", icon: FolderKanban, pageKey: 'projetos', moduleKey: 'projects' },
+      { name: "Mapa", href: "/mapa", icon: Map, pageKey: 'mapa' },
+      { name: "Agenda", href: "/crm/agenda", icon: CalendarDays, pageKey: 'crm_agenda' },
+      { name: "Tarefas", href: "/tarefas", icon: ClipboardList, pageKey: 'crm_tarefas' },
+      { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3, pageKey: 'crm_relatorios' },
+      { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, pageKey: 'revenue_intelligence', adminOnly: true },
+      { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, pageKey: 'modulo_fantasma', ownerOnly: true, moduleKey: 'ghost' },
+      { name: "Configurações", href: "/crm/configuracoes", icon: Settings, pageKey: 'crm_configuracoes', adminOnly: true },
     ],
   },
   {
@@ -104,21 +105,21 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
     icon: Send,
     moduleKey: 'campaigns',
     items: [
-      { name: "Listas", href: "/contatos", icon: Users },
-      { name: "Mensagens", href: "/mensagens", icon: MessageSquare },
-      { name: "Campanhas", href: "/campanhas", icon: Send },
-      { name: "Sequências", href: "/sequencias", icon: RefreshCw, adminOnly: true },
-      { name: "Fluxos Externos", href: "/fluxos-externos", icon: FileText, adminOnly: true },
-      { name: "Webhooks", href: "/lead-webhooks", icon: Webhook, adminOnly: true },
-      { name: "CTWA Analytics", href: "/ctwa-analytics", icon: MousePointerClick, adminOnly: true },
-      { name: "Lead Gleego", href: "/lead-gleego", icon: BarChart4, moduleKey: 'lead_gleego' as const },
+      { name: "Listas", href: "/contatos", icon: Users, pageKey: 'listas' },
+      { name: "Mensagens", href: "/mensagens", icon: MessageSquare, pageKey: 'mensagens' },
+      { name: "Campanhas", href: "/campanhas", icon: Send, pageKey: 'campanhas' },
+      { name: "Sequências", href: "/sequencias", icon: RefreshCw, pageKey: 'sequencias', adminOnly: true },
+      { name: "Fluxos Externos", href: "/fluxos-externos", icon: FileText, pageKey: 'fluxos_externos', adminOnly: true },
+      { name: "Webhooks", href: "/lead-webhooks", icon: Webhook, pageKey: 'webhooks', adminOnly: true },
+      { name: "CTWA Analytics", href: "/ctwa-analytics", icon: MousePointerClick, pageKey: 'ctwa_analytics', adminOnly: true },
+      { name: "Lead Gleego", href: "/lead-gleego", icon: BarChart4, pageKey: 'lead_gleego', moduleKey: 'lead_gleego' as const },
     ],
   },
   {
     title: "Minha Conta",
     icon: User,
     items: [
-      { name: "Ajustes", href: "/configuracoes", icon: Settings },
+      { name: "Ajustes", href: "/configuracoes", icon: Settings, pageKey: 'ajustes' },
     ],
   },
   {
@@ -126,9 +127,9 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
     icon: Shield,
     adminOnly: true,
     items: [
-      { name: "Cobrança", href: "/cobranca", icon: Receipt, moduleKey: 'billing' },
-      { name: "Conexões", href: "/conexao", icon: Plug },
-      { name: "Organizações", href: "/organizacoes", icon: Building2 },
+      { name: "Cobrança", href: "/cobranca", icon: Receipt, pageKey: 'cobranca', moduleKey: 'billing' },
+      { name: "Conexões", href: "/conexao", icon: Plug, pageKey: 'conexoes' },
+      { name: "Organizações", href: "/organizacoes", icon: Building2, pageKey: 'organizacoes' },
     ],
   },
 ];
@@ -142,7 +143,7 @@ interface SidebarContentProps {
 function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: SidebarContentProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user, modulesEnabled } = useAuth();
+  const { logout, user, modulesEnabled, pagePermissions } = useAuth();
   const { branding } = useBranding();
   const [openSections, setOpenSections] = useState<string[]>(["Atendimento"]);
 
@@ -152,16 +153,19 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
   const userIsAdmin = isSuperadmin || isAdminRole(user?.role);
   const userIsOwner = isSuperadmin || isOwnerRole(user?.role);
   const hasConnections = user?.has_connections !== false; // default true if undefined
+  const hasTemplate = !!pagePermissions; // User has a permission template assigned
 
   const navSections = getNavSections(hasConnections);
 
-  // Filter sections and items based on modules enabled AND role
+  // Filter sections and items based on modules enabled, role, AND permission template
   const filteredSections = navSections
     .filter(section => {
       // Check module access
       if (section.moduleKey && !modulesEnabled[section.moduleKey] && !isSuperadmin) return false;
-      // Check admin-only section
-      if (section.adminOnly && !userIsAdmin) return false;
+      // If user has a permission template, don't filter by adminOnly for sections
+      if (!hasTemplate) {
+        if (section.adminOnly && !userIsAdmin) return false;
+      }
       return true;
     })
     .map(section => ({
@@ -169,9 +173,16 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
       items: section.items.filter(item => {
         // Check module access
         if (item.moduleKey && !modulesEnabled[item.moduleKey] && !isSuperadmin) return false;
-        // Check superadmin-only item
+        // Check superadmin-only item (always requires superadmin)
         if (item.superadminOnly && !isSuperadmin) return false;
-        // Check admin-only item
+        
+        // If user has a permission template, use it instead of role-based checks
+        if (hasTemplate && item.pageKey) {
+          // Template explicitly controls access - if key exists, use its value; if not in template, deny
+          return pagePermissions[item.pageKey] === true;
+        }
+        
+        // Fallback to role-based checks when no template
         if (item.adminOnly && !userIsAdmin) return false;
         if (item.ownerOnly && !userIsOwner) return false;
         return true;

@@ -17,8 +17,9 @@ import { useOrganizations } from '@/hooks/use-organizations';
 import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image, BarChart3 } from 'lucide-react';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image, BarChart3, Lock, Copy } from 'lucide-react';
 import { useUpload } from '@/hooks/use-upload';
+import { PAGE_PERMISSIONS, PAGE_SECTIONS, createFullPermissions, createEmptyPermissions } from '@/lib/page-permissions';
 
 interface Organization {
   id: string;
@@ -48,6 +49,20 @@ interface OrganizationMember {
   role: 'owner' | 'admin' | 'manager' | 'agent';
   assigned_connections: AssignedConnection[];
   assigned_departments: AssignedDepartment[];
+  permission_template_id?: string;
+  template_name?: string;
+  template_color?: string;
+  created_at: string;
+}
+
+interface PermissionTemplate {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string;
+  color: string;
+  permissions: Record<string, boolean>;
+  member_count: number;
   created_at: string;
 }
 
@@ -135,6 +150,20 @@ export default function Organizacoes() {
   const [leadGleegoApiKeyMasked, setLeadGleegoApiKeyMasked] = useState('');
   const [savingModules, setSavingModules] = useState(false);
 
+  // Permission templates
+  const [templates, setTemplates] = useState<PermissionTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<PermissionTemplate | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templateColor, setTemplateColor] = useState('#6366f1');
+  const [templatePermissions, setTemplatePermissions] = useState<Record<string, boolean>>(createEmptyPermissions());
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  // Edit member template
+  const [editMemberTemplateId, setEditMemberTemplateId] = useState<string>('');
+
   const { 
     loading, 
     error,
@@ -163,6 +192,7 @@ export default function Organizacoes() {
       loadConnections(selectedOrg.id);
       loadDepartments(selectedOrg.id);
       loadModules(selectedOrg.id);
+      loadTemplates(selectedOrg.id);
     }
   }, [selectedOrg]);
 
@@ -219,6 +249,101 @@ export default function Organizacoes() {
     } catch {
       // ignore
     }
+  };
+
+  const loadTemplates = async (orgId: string) => {
+    setLoadingTemplates(true);
+    try {
+      const tpls = await api<PermissionTemplate[]>(`/api/organizations/${orgId}/permission-templates`);
+      setTemplates(tpls);
+    } catch {
+      setTemplates([]);
+    }
+    setLoadingTemplates(false);
+  };
+
+  const openTemplateDialog = (template?: PermissionTemplate) => {
+    if (template) {
+      setEditingTemplate(template);
+      setTemplateName(template.name);
+      setTemplateDescription(template.description || '');
+      setTemplateColor(template.color);
+      setTemplatePermissions(template.permissions || createEmptyPermissions());
+    } else {
+      setEditingTemplate(null);
+      setTemplateName('');
+      setTemplateDescription('');
+      setTemplateColor('#6366f1');
+      setTemplatePermissions(createEmptyPermissions());
+    }
+    setTemplateDialogOpen(true);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!selectedOrg || !templateName.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+    setSavingTemplate(true);
+    try {
+      const data = { name: templateName, description: templateDescription, color: templateColor, permissions: templatePermissions };
+      if (editingTemplate) {
+        await api(`/api/organizations/${selectedOrg.id}/permission-templates/${editingTemplate.id}`, { method: 'PUT', body: data });
+        toast.success('Template atualizado!');
+      } else {
+        await api(`/api/organizations/${selectedOrg.id}/permission-templates`, { method: 'POST', body: data });
+        toast.success('Template criado!');
+      }
+      setTemplateDialogOpen(false);
+      loadTemplates(selectedOrg.id);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao salvar template');
+    }
+    setSavingTemplate(false);
+  };
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    if (!selectedOrg) return;
+    try {
+      await api(`/api/organizations/${selectedOrg.id}/permission-templates/${templateId}`, { method: 'DELETE' });
+      toast.success('Template excluído!');
+      loadTemplates(selectedOrg.id);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao excluir template');
+    }
+  };
+
+  const handleDuplicateTemplate = (template: PermissionTemplate) => {
+    setEditingTemplate(null);
+    setTemplateName(`${template.name} (cópia)`);
+    setTemplateDescription(template.description || '');
+    setTemplateColor(template.color);
+    setTemplatePermissions({ ...template.permissions });
+    setTemplateDialogOpen(true);
+  };
+
+  const handleAssignTemplate = async (memberId: string, templateId: string | null) => {
+    if (!selectedOrg) return;
+    try {
+      await api(`/api/organizations/${selectedOrg.id}/members/${memberId}/template`, {
+        method: 'PATCH',
+        body: { permission_template_id: templateId },
+      });
+      toast.success('Permissões atualizadas!');
+      loadMembers(selectedOrg.id);
+      refreshUser();
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao atribuir template');
+    }
+  };
+
+  const toggleSectionPermissions = (section: string, value: boolean) => {
+    const sectionKeys = PAGE_PERMISSIONS.filter(p => p.section === section).map(p => p.key);
+    setTemplatePermissions(prev => {
+      const updated = { ...prev };
+      sectionKeys.forEach(key => { updated[key] = value; });
+      return updated;
+    });
   };
 
   const handleSaveLeadGleegoKey = async () => {
@@ -354,6 +479,7 @@ export default function Organizacoes() {
     setEditMemberRole(member.role);
     setEditMemberConnectionIds(member.assigned_connections?.map(c => c.id) || []);
     setEditMemberDepartmentIds(member.assigned_departments?.map(d => d.id) || []);
+    setEditMemberTemplateId(member.permission_template_id || '');
     setEditMemberDialogOpen(true);
   };
 
@@ -373,10 +499,17 @@ export default function Organizacoes() {
     const success = await updateMember(selectedOrg.id, editingMember.user_id, updateData);
 
     if (success) {
-      toast.success('Membro atualizado!');
+      // Also update template assignment
+      const newTemplateId = editMemberTemplateId || null;
+      const currentTemplateId = editingMember.permission_template_id || null;
+      if (newTemplateId !== currentTemplateId) {
+        await handleAssignTemplate(editingMember.user_id, newTemplateId);
+      } else {
+        toast.success('Membro atualizado!');
+        loadMembers(selectedOrg.id);
+      }
       setEditMemberDialogOpen(false);
       setEditingMember(null);
-      loadMembers(selectedOrg.id);
     } else if (error) {
       toast.error(error);
     }
@@ -650,10 +783,14 @@ export default function Organizacoes() {
 
                 {/* Tabs for Members and Settings */}
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="members" className="flex items-center gap-2">
                       <Users className="h-4 w-4" />
                       Membros
+                    </TabsTrigger>
+                    <TabsTrigger value="permissions" className="flex items-center gap-2">
+                      <Lock className="h-4 w-4" />
+                      Permissões
                     </TabsTrigger>
                     <TabsTrigger value="settings" className="flex items-center gap-2">
                       <Settings className="h-4 w-4" />
@@ -796,8 +933,8 @@ export default function Organizacoes() {
                               <TableRow>
                                 <TableHead>Usuário</TableHead>
                                 <TableHead>Função</TableHead>
+                                <TableHead>Permissões</TableHead>
                                 <TableHead>Conexões</TableHead>
-                                <TableHead>Departamentos</TableHead>
                                 <TableHead>Desde</TableHead>
                                 {canManageOrg && <TableHead className="w-[120px]">Ações</TableHead>}
                               </TableRow>
@@ -827,6 +964,16 @@ export default function Organizacoes() {
                                       </Badge>
                                     </TableCell>
                                     <TableCell>
+                                      {member.template_name ? (
+                                        <Badge variant="outline" className="text-xs" style={{ borderColor: member.template_color || '#6366f1', color: member.template_color || '#6366f1' }}>
+                                          <Lock className="h-3 w-3 mr-1" />
+                                          {member.template_name}
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-muted-foreground text-sm">Padrão (cargo)</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
                                       {assignedConns.length === 0 ? (
                                         <span className="text-muted-foreground text-sm">Todas</span>
                                       ) : (
@@ -839,24 +986,6 @@ export default function Organizacoes() {
                                           {assignedConns.length > 2 && (
                                             <Badge variant="outline" className="text-xs">
                                               +{assignedConns.length - 2}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      )}
-                                    </TableCell>
-                                    <TableCell>
-                                      {assignedDepts.length === 0 ? (
-                                        <span className="text-muted-foreground text-sm">-</span>
-                                      ) : (
-                                        <div className="flex flex-wrap gap-1">
-                                          {assignedDepts.slice(0, 2).map((d) => (
-                                            <Badge key={d.id} variant="secondary" className="text-xs">
-                                              {d.name}
-                                            </Badge>
-                                          ))}
-                                          {assignedDepts.length > 2 && (
-                                            <Badge variant="secondary" className="text-xs">
-                                              +{assignedDepts.length - 2}
                                             </Badge>
                                           )}
                                         </div>
@@ -920,6 +1049,114 @@ export default function Organizacoes() {
                               })}
                             </TableBody>
                           </Table>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* Permissions Tab */}
+                  <TabsContent value="permissions">
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              <Lock className="h-5 w-5" />
+                              Templates de Permissão
+                            </CardTitle>
+                            <CardDescription>
+                              Crie perfis de acesso personalizados e atribua a cada usuário
+                            </CardDescription>
+                          </div>
+                          {canManageOrg && (
+                            <Button size="sm" onClick={() => openTemplateDialog()}>
+                              <Plus className="h-4 w-4 mr-2" />
+                              Novo Template
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {loadingTemplates ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : templates.length === 0 ? (
+                          <div className="text-center py-12 text-muted-foreground">
+                            <Lock className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                            <p className="font-medium">Nenhum template criado</p>
+                            <p className="text-sm mt-1">
+                              Sem templates, o acesso é controlado pelo cargo (admin, supervisor, agente).
+                              <br />
+                              Crie templates para personalizar as permissões de cada usuário.
+                            </p>
+                            {canManageOrg && (
+                              <Button className="mt-4" onClick={() => openTemplateDialog()}>
+                                <Plus className="h-4 w-4 mr-2" />
+                                Criar Primeiro Template
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            {templates.map((tpl) => {
+                              const enabledCount = Object.values(tpl.permissions).filter(Boolean).length;
+                              return (
+                                <div key={tpl.id} className="rounded-lg border p-4 space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tpl.color }} />
+                                      <span className="font-medium">{tpl.name}</span>
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDuplicateTemplate(tpl)} title="Duplicar">
+                                        <Copy className="h-3.5 w-3.5" />
+                                      </Button>
+                                      {canManageOrg && (
+                                        <>
+                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openTemplateDialog(tpl)} title="Editar">
+                                            <Pencil className="h-3.5 w-3.5" />
+                                          </Button>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Excluir template?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  {tpl.member_count > 0
+                                                    ? `${tpl.member_count} membro(s) usam este template. Eles voltarão para permissões padrão por cargo.`
+                                                    : 'Este template será removido permanentemente.'}
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteTemplate(tpl.id)} className="bg-destructive hover:bg-destructive/90">
+                                                  Excluir
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {tpl.description && (
+                                    <p className="text-sm text-muted-foreground">{tpl.description}</p>
+                                  )}
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">{enabledCount} páginas habilitadas</span>
+                                    <Badge variant="secondary" className="text-xs">
+                                      {tpl.member_count} membro{tpl.member_count !== 1 ? 's' : ''}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
                       </CardContent>
                     </Card>
@@ -1238,7 +1475,32 @@ export default function Organizacoes() {
                 </div>
               )}
 
-              {/* Connections */}
+              {/* Permission Template */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Template de Permissões
+                </Label>
+                <Select value={editMemberTemplateId} onValueChange={setEditMemberTemplateId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Padrão (baseado no cargo)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Padrão (baseado no cargo)</SelectItem>
+                    {templates.map(tpl => (
+                      <SelectItem key={tpl.id} value={tpl.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tpl.color }} />
+                          {tpl.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Define quais páginas e módulos o usuário pode acessar
+                </p>
+              </div>
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <Link2 className="h-4 w-4" />
@@ -1367,6 +1629,74 @@ export default function Organizacoes() {
               <Button onClick={handleUpdatePassword} disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Template Editor Dialog */}
+        <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+            <DialogHeader className="shrink-0">
+              <DialogTitle>{editingTemplate ? 'Editar Template' : 'Novo Template de Permissão'}</DialogTitle>
+              <DialogDescription>Defina quais páginas os usuários com este template podem acessar</DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-6 overflow-y-auto flex-1 pr-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome *</Label>
+                  <Input placeholder="Ex: Vendedor, Gerente..." value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cor</Label>
+                  <div className="flex gap-2">
+                    {['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#06b6d4','#ec4899'].map(color => (
+                      <button key={color} className={`w-8 h-8 rounded-full border-2 transition-transform ${templateColor === color ? 'scale-110 border-foreground' : 'border-transparent'}`} style={{ backgroundColor: color }} onClick={() => setTemplateColor(color)} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Input placeholder="Descrição opcional" value={templateDescription} onChange={(e) => setTemplateDescription(e.target.value)} />
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">Páginas Habilitadas</Label>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setTemplatePermissions(createFullPermissions())}>Marcar Todas</Button>
+                    <Button variant="outline" size="sm" onClick={() => setTemplatePermissions(createEmptyPermissions())}>Desmarcar Todas</Button>
+                  </div>
+                </div>
+                {PAGE_SECTIONS.map(section => {
+                  const sectionPages = PAGE_PERMISSIONS.filter(p => p.section === section);
+                  const enabledInSection = sectionPages.filter(p => templatePermissions[p.key]).length;
+                  const allEnabled = enabledInSection === sectionPages.length;
+                  return (
+                    <div key={section} className="rounded-lg border p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Checkbox checked={allEnabled} onCheckedChange={(checked) => toggleSectionPermissions(section, !!checked)} />
+                        <span className="font-medium text-sm">{section}</span>
+                        <Badge variant="secondary" className="text-xs">{enabledInSection}/{sectionPages.length}</Badge>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pl-6">
+                        {sectionPages.map(page => (
+                          <div key={page.key} className="flex items-center space-x-2">
+                            <Checkbox id={`perm-${page.key}`} checked={templatePermissions[page.key] || false} onCheckedChange={(checked) => setTemplatePermissions(prev => ({ ...prev, [page.key]: !!checked }))} />
+                            <label htmlFor={`perm-${page.key}`} className="text-sm leading-none cursor-pointer">{page.label}</label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <DialogFooter className="shrink-0">
+              <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSaveTemplate} disabled={savingTemplate}>
+                {savingTemplate && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingTemplate ? 'Salvar' : 'Criar Template'}
               </Button>
             </DialogFooter>
           </DialogContent>

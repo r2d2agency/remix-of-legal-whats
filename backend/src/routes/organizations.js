@@ -251,9 +251,12 @@ router.get('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
       `SELECT 
         om.*, 
         u.name, 
-        u.email
+        u.email,
+        pt.name as template_name,
+        pt.color as template_color
        FROM organization_members om
        JOIN users u ON u.id = om.user_id
+       LEFT JOIN permission_templates pt ON pt.id = om.permission_template_id
        WHERE om.organization_id = $1
        ORDER BY om.created_at`,
       [id]
@@ -916,6 +919,138 @@ router.put('/work-schedule', async (req, res) => {
   } catch (error) {
     console.error('Update work schedule error:', error);
     res.status(500).json({ error: 'Erro ao atualizar horário de trabalho' });
+  }
+});
+
+// ========================================
+// Permission Templates
+// ========================================
+
+// List permission templates for org
+router.get('/:id([0-9a-fA-F-]{36})/permission-templates', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Acesso negado' });
+
+    const result = await query(
+      `SELECT pt.*, 
+        (SELECT COUNT(*) FROM organization_members om WHERE om.permission_template_id = pt.id)::int as member_count
+       FROM permission_templates pt 
+       WHERE pt.organization_id = $1 
+       ORDER BY pt.created_at`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('List permission templates error:', error);
+    res.status(500).json({ error: 'Erro ao listar templates de permissão' });
+  }
+});
+
+// Create permission template
+router.post('/:id([0-9a-fA-F-]{36})/permission-templates', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, color, permissions } = req.body;
+
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins podem criar templates' });
+
+    if (!name) return res.status(400).json({ error: 'Nome é obrigatório' });
+
+    const result = await query(
+      `INSERT INTO permission_templates (organization_id, name, description, color, permissions) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [id, name, description || null, color || '#6366f1', JSON.stringify(permissions || {})]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create permission template error:', error);
+    res.status(500).json({ error: 'Erro ao criar template' });
+  }
+});
+
+// Update permission template
+router.put('/:id([0-9a-fA-F-]{36})/permission-templates/:templateId', async (req, res) => {
+  try {
+    const { id, templateId } = req.params;
+    const { name, description, color, permissions } = req.body;
+
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins podem editar templates' });
+
+    const result = await query(
+      `UPDATE permission_templates 
+       SET name = COALESCE($1, name), 
+           description = COALESCE($2, description), 
+           color = COALESCE($3, color), 
+           permissions = COALESCE($4, permissions),
+           updated_at = NOW()
+       WHERE id = $5 AND organization_id = $6 RETURNING *`,
+      [name, description, color, permissions ? JSON.stringify(permissions) : null, templateId, id]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Template não encontrado' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update permission template error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar template' });
+  }
+});
+
+// Delete permission template
+router.delete('/:id([0-9a-fA-F-]{36})/permission-templates/:templateId', async (req, res) => {
+  try {
+    const { id, templateId } = req.params;
+
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins podem excluir templates' });
+
+    // Unset template from members first
+    await query(`UPDATE organization_members SET permission_template_id = NULL WHERE permission_template_id = $1`, [templateId]);
+    
+    await query(`DELETE FROM permission_templates WHERE id = $1 AND organization_id = $2`, [templateId, id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete permission template error:', error);
+    res.status(500).json({ error: 'Erro ao excluir template' });
+  }
+});
+
+// Assign template to member
+router.patch('/:id([0-9a-fA-F-]{36})/members/:userId([0-9a-fA-F-]{36})/template', async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const { permission_template_id } = req.body;
+
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins podem atribuir templates' });
+
+    await query(
+      `UPDATE organization_members SET permission_template_id = $1 WHERE organization_id = $2 AND user_id = $3`,
+      [permission_template_id || null, id, userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Assign template error:', error);
+    res.status(500).json({ error: 'Erro ao atribuir template' });
   }
 });
 
