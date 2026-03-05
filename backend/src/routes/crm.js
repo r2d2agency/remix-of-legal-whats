@@ -1677,6 +1677,26 @@ router.post('/tasks', async (req, res) => {
        reminder_minutes || null, reminder_whatsapp ?? false, reminder_popup ?? true]
     );
 
+    // Also create a card in the Global Kanban board
+    try {
+      const { createTaskCardInGlobalBoard } = await import('../lib/task-card-helper.js');
+      await createTaskCardInGlobalBoard({
+        organizationId: org.organization_id,
+        createdBy: req.userId,
+        assignedTo: assigned_to || req.userId,
+        title,
+        description,
+        priority: priority || 'medium',
+        dueDate: due_date,
+        sourceModule: 'crm',
+        dealId: deal_id,
+        companyId: company_id,
+        crmTaskId: result.rows[0].id,
+      });
+    } catch (kanbanErr) {
+      console.error('Error creating kanban card from CRM:', kanbanErr);
+    }
+
     // If linked to deal, update last_activity
     if (deal_id) {
       await query(`UPDATE crm_deals SET last_activity_at = NOW() WHERE id = $1`, [deal_id]);

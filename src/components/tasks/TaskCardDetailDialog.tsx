@@ -294,6 +294,16 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                       )}>
                       {currentStatus.label}
                     </Badge>
+                    {card.source_module && card.source_module !== 'manual' && (
+                      <Badge variant="outline" className="text-[10px] gap-1">
+                        {card.source_module === 'group_secretary' && '🤖 Secretária IA'}
+                        {card.source_module === 'crm' && '📊 CRM'}
+                        {card.source_module === 'ai_agent' && '🧠 Agente IA'}
+                        {card.source_module === 'chatbot' && '💬 Chatbot'}
+                        {card.source_module === 'flow' && '⚡ Fluxo'}
+                        {card.source_module === 'migration' && '🔄 Migração'}
+                      </Badge>
+                    )}
                     {card.deal_title && (
                       <span className="text-xs text-muted-foreground">📋 {card.deal_title}{card.company_name ? ` • ${card.company_name}` : ''}</span>
                     )}

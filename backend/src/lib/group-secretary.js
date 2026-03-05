@@ -487,7 +487,27 @@ async function createCRMTask({ organizationId, assignedTo, title, description, p
        RETURNING id`,
       [organizationId, assignedTo, title, description, priority || 'medium', actualDueDate, source || null]
     );
-    return result.rows[0]?.id || null;
+    const crmTaskId = result.rows[0]?.id || null;
+
+    // Also create a card in the Global Kanban board
+    try {
+      const { createTaskCardInGlobalBoard } = await import('./task-card-helper.js');
+      await createTaskCardInGlobalBoard({
+        organizationId,
+        createdBy: assignedTo,
+        assignedTo,
+        title,
+        description,
+        priority: priority || 'medium',
+        dueDate: actualDueDate,
+        sourceModule: 'group_secretary',
+        crmTaskId,
+      });
+    } catch (kanbanErr) {
+      logError('group_secretary.kanban_card_error', kanbanErr);
+    }
+
+    return crmTaskId;
   } catch (error) {
     logError('group_secretary.create_task_error', error);
     return null;

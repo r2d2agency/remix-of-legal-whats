@@ -1059,6 +1059,18 @@ async function executeManageTasks(organizationId, userId, args) {
         RETURNING id, title, priority, due_date
       `, [organizationId, userId, args.title, args.description || null, args.type || 'task', args.priority || 'medium', args.due_date || null]);
       const task = result.rows[0];
+
+      // Also create kanban card
+      try {
+        const { createTaskCardInGlobalBoard } = await import('./task-card-helper.js');
+        await createTaskCardInGlobalBoard({
+          organizationId, createdBy: userId, assignedTo: userId,
+          title: args.title, description: args.description,
+          priority: args.priority || 'medium', dueDate: args.due_date,
+          sourceModule: 'ai_agent', crmTaskId: task.id,
+        });
+      } catch (e) { /* ignore */ }
+
       return `Tarefa "${task.title}" criada (prioridade: ${task.priority})`;
     } else {
       const result = await query(`

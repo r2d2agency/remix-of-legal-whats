@@ -10,9 +10,18 @@ import { TaskCard, TaskBoardColumn } from "@/hooks/use-task-boards";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Calendar, Paperclip, CheckSquare, MessageSquare, User, Clock, AlertTriangle } from "lucide-react";
+import { Calendar, Paperclip, CheckSquare, MessageSquare, User, Clock, AlertTriangle, Bot, Briefcase, Zap, MessageCircle, Settings2 } from "lucide-react";
 import { format, parseISO, isPast, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+const SOURCE_MODULE_CONFIG: Record<string, { label: string; icon: typeof Bot; className: string }> = {
+  group_secretary: { label: 'Secretária IA', icon: Bot, className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+  crm: { label: 'CRM', icon: Briefcase, className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  ai_agent: { label: 'Agente IA', icon: Bot, className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  chatbot: { label: 'Chatbot', icon: MessageCircle, className: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' },
+  flow: { label: 'Fluxo', icon: Zap, className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  migration: { label: 'Migração', icon: Settings2, className: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' },
+};
 
 interface TaskKanbanBoardProps {
   columns: TaskBoardColumn[];
@@ -50,6 +59,17 @@ function MiniTaskCard({ card, isDragging, onClick }: { card: TaskCard; isDraggin
       {card.cover_image_url && (
         <img src={card.cover_image_url} alt="" className="w-full h-24 object-cover rounded-md mb-2" />
       )}
+
+      {/* Source module badge */}
+      {card.source_module && card.source_module !== 'manual' && SOURCE_MODULE_CONFIG[card.source_module] && (() => {
+        const cfg = SOURCE_MODULE_CONFIG[card.source_module!];
+        const Icon = cfg.icon;
+        return (
+          <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full mb-1.5 w-fit", cfg.className)}>
+            <Icon className="h-3 w-3" />{cfg.label}
+          </span>
+        );
+      })()}
 
       <div className="flex items-start gap-1.5 mb-1">
         {card.status === 'completed' ? (
