@@ -500,7 +500,18 @@ export function useCRMDealMutations() {
     },
   });
 
-  return { createDeal, updateDeal, moveDeal, addContact, removeContact };
+  const bulkAction = useMutation({
+    mutationFn: async (data: { action: string; deal_ids: string[]; target_funnel_id?: string; target_stage_id?: string; owner_id?: string; group_id?: string }) => {
+      return api<{ success: boolean; affected: number }>("/api/crm/deals/bulk", { method: "POST", body: data });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["crm-deals"] });
+      queryClient.invalidateQueries({ queryKey: ["crm-funnels"] });
+      toast({ title: `${data.affected} negociação(ões) atualizadas` });
+    },
+  });
+
+  return { createDeal, updateDeal, moveDeal, addContact, removeContact, bulkAction };
 }
 
 // Tasks

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Trophy, XCircle, Pause, Play } from "lucide-react";
 
@@ -19,6 +20,9 @@ interface KanbanColumnProps {
   newWinDealId?: string | null;
   activeId?: string | null;
   overId?: string | null;
+  selectedDeals?: Set<string>;
+  onToggleSelect?: (dealId: string) => void;
+  selectionMode?: boolean;
 }
 
 // Sortable Deal Item wrapper for smooth animations
@@ -29,7 +33,10 @@ function SortableDealItem({
   isNewWin,
   isActive,
   isOver,
-  activeId
+  activeId,
+  isSelected,
+  onToggleSelect,
+  selectionMode
 }: { 
   deal: CRMDeal; 
   onDealClick: (deal: CRMDeal) => void;
@@ -38,6 +45,9 @@ function SortableDealItem({
   isActive?: boolean;
   isOver?: boolean;
   activeId?: string | null;
+  isSelected?: boolean;
+  onToggleSelect?: (dealId: string) => void;
+  selectionMode?: boolean;
 }) {
   const {
     attributes,
@@ -67,13 +77,13 @@ function SortableDealItem({
     <div 
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(selectionMode ? {} : { ...attributes, ...listeners })}
       className={cn(
         "relative group touch-manipulation",
         "transition-all duration-200 ease-out",
         isDragging && "opacity-30 scale-95",
-        isSorting && !isDragging && "transition-transform"
+        isSorting && !isDragging && "transition-transform",
+        isSelected && "ring-2 ring-primary rounded-lg"
       )}
     >
       {/* Drop indicator line above */}
@@ -81,11 +91,26 @@ function SortableDealItem({
         <div className="absolute -top-1 left-0 right-0 h-1 bg-primary rounded-full animate-pulse z-20" aria-hidden="true" />
       )}
       
+      {/* Selection checkbox */}
+      {selectionMode && (
+        <div className="absolute top-2 left-2 z-20">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => onToggleSelect?.(deal.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-background"
+          />
+        </div>
+      )}
+      
       <DealCard
         deal={deal}
         onClick={(e) => {
           e.stopPropagation();
-          // Only trigger click if not dragging
+          if (selectionMode) {
+            onToggleSelect?.(deal.id);
+            return;
+          }
           if (!isDragging) {
             onDealClick(deal);
           }
@@ -149,7 +174,10 @@ export function KanbanColumn({
   onStatusChange, 
   newWinDealId,
   activeId,
-  overId 
+  overId,
+  selectedDeals,
+  onToggleSelect,
+  selectionMode
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id!,
@@ -228,6 +256,9 @@ export function KanbanColumn({
                 isActive={activeId === deal.id}
                 isOver={overId === deal.id}
                 activeId={activeId}
+                isSelected={selectedDeals?.has(deal.id)}
+                onToggleSelect={onToggleSelect}
+                selectionMode={selectionMode}
               />
             ))
           )}

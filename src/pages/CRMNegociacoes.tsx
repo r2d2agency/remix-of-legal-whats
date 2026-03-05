@@ -10,7 +10,7 @@ import { FunnelEditorDialog } from "@/components/crm/FunnelEditorDialog";
 import { WinCelebration } from "@/components/crm/WinCelebration";
 import { LossReasonDialog } from "@/components/crm/LossReasonDialog";
 import { useCRMFunnels, useCRMFunnel, useCRMDeals, useCRMGroups, useCRMGroupMembers, useCRMDealMutations, useCRMDeal, CRMDeal, CRMFunnel } from "@/hooks/use-crm";
-import { Plus, Settings, Loader2, Filter, User, Users, ArrowUpDown, CalendarIcon, X, LayoutGrid, List, Trophy, XCircle, Pause } from "lucide-react";
+import { Plus, Settings, Loader2, Filter, User, Users, ArrowUpDown, CalendarIcon, X, LayoutGrid, List, Trophy, XCircle, Pause, CheckSquare, Trash2, ArrowRightLeft, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { parseISO, format, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -20,6 +20,9 @@ import { cn } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 export default function CRMNegociacoes() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -62,9 +65,19 @@ export default function CRMNegociacoes() {
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   
+  // Selection mode
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedDeals, setSelectedDeals] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
+  const [bulkReassignOpen, setBulkReassignOpen] = useState(false);
+  const [bulkTargetFunnel, setBulkTargetFunnel] = useState<string>("");
+  const [bulkTargetStage, setBulkTargetStage] = useState<string>("");
+  const [bulkTargetOwner, setBulkTargetOwner] = useState<string>("");
+  
   const { data: funnels, isLoading: loadingFunnels } = useCRMFunnels();
   const { data: groups } = useCRMGroups();
-  const { updateDeal } = useCRMDealMutations();
+  const { updateDeal, bulkAction } = useCRMDealMutations();
   
   // Auto-select first funnel
   const currentFunnelId = selectedFunnelId || funnels?.[0]?.id || null;
@@ -192,6 +205,53 @@ export default function CRMNegociacoes() {
     }, {} as Record<string, CRMDeal[]>);
   }, [dealsByStage, ownerFilter, groupFilter, sortOrder, user?.id, startDate, endDate, dateFilterType, statusFilter]);
 
+  const handleToggleSelect = useCallback((dealId: string) => {
+    setSelectedDeals(prev => {
+      const next = new Set(prev);
+      if (next.has(dealId)) next.delete(dealId);
+      else next.add(dealId);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    const allDeals = Object.values(filteredDealsByStage).flat();
+    if (selectedDeals.size === allDeals.length) {
+      setSelectedDeals(new Set());
+    } else {
+      setSelectedDeals(new Set(allDeals.map(d => d.id)));
+    }
+  }, [filteredDealsByStage, selectedDeals.size]);
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedDeals);
+    await bulkAction.mutateAsync({ action: 'delete', deal_ids: ids });
+    setSelectedDeals(new Set());
+    setSelectionMode(false);
+    setBulkDeleteOpen(false);
+  }, [selectedDeals, bulkAction]);
+
+  const handleBulkMove = useCallback(async () => {
+    if (!bulkTargetFunnel || !bulkTargetStage) return;
+    const ids = Array.from(selectedDeals);
+    await bulkAction.mutateAsync({ action: 'move_funnel', deal_ids: ids, target_funnel_id: bulkTargetFunnel, target_stage_id: bulkTargetStage });
+    setSelectedDeals(new Set());
+    setSelectionMode(false);
+    setBulkMoveOpen(false);
+  }, [selectedDeals, bulkTargetFunnel, bulkTargetStage, bulkAction]);
+
+  const handleBulkReassign = useCallback(async () => {
+    if (!bulkTargetOwner) return;
+    const ids = Array.from(selectedDeals);
+    await bulkAction.mutateAsync({ action: 'reassign', deal_ids: ids, owner_id: bulkTargetOwner });
+    setSelectedDeals(new Set());
+    setSelectionMode(false);
+    setBulkReassignOpen(false);
+  }, [selectedDeals, bulkTargetOwner, bulkAction]);
+
+  // Get stages for target funnel (for bulk move)
+  const { data: bulkTargetFunnelData } = useCRMFunnel(bulkTargetFunnel || null);
+
   const handleDealClick = (deal: CRMDeal) => {
     setSelectedDeal(deal);
     setDealDetailOpen(true);
@@ -234,6 +294,21 @@ export default function CRMNegociacoes() {
                 </ToggleGroupItem>
               </ToggleGroup>
 
+              {canManage && viewMode === "kanban" && (
+                <Button
+                  variant={selectionMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setSelectionMode(!selectionMode);
+                    if (selectionMode) setSelectedDeals(new Set());
+                  }}
+                  className="gap-1"
+                >
+                  <CheckSquare className="h-4 w-4" />
+                  <span className="hidden sm:inline">{selectionMode ? "Cancelar" : "Selecionar"}</span>
+                </Button>
+              )}
+
               {canManage && (
                 <Button variant="outline" size="sm" onClick={handleNewFunnel} className="hidden lg:flex">
                   <Plus className="h-4 w-4 mr-2" />
@@ -247,6 +322,30 @@ export default function CRMNegociacoes() {
               </Button>
             </div>
           </div>
+
+          {/* Bulk action toolbar */}
+          {selectionMode && selectedDeals.size > 0 && (
+            <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/20">
+              <span className="text-sm font-medium">{selectedDeals.size} selecionado(s)</span>
+              <Button variant="outline" size="sm" onClick={handleSelectAll} className="gap-1">
+                <CheckSquare className="h-3.5 w-3.5" />
+                {selectedDeals.size === Object.values(filteredDealsByStage).flat().length ? "Desmarcar todos" : "Selecionar todos"}
+              </Button>
+              <div className="flex-1" />
+              <Button variant="outline" size="sm" onClick={() => setBulkMoveOpen(true)} className="gap-1">
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Mover Funil</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setBulkReassignOpen(true)} className="gap-1">
+                <UserPlus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Reatribuir</span>
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)} className="gap-1">
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Excluir</span>
+              </Button>
+            </div>
+          )}
 
           {/* Second row: funnel selector */}
           <div className="flex items-center gap-2">
@@ -490,6 +589,9 @@ export default function CRMNegociacoes() {
                 onDealClick={handleDealClick}
                 onStatusChange={handleStatusChange}
                 newWinDealId={newWinDealId}
+                selectedDeals={selectedDeals}
+                onToggleSelect={handleToggleSelect}
+                selectionMode={selectionMode}
               />
             ) : (
               <PipelineView
@@ -552,6 +654,99 @@ export default function CRMNegociacoes() {
         onConfirm={handleConfirmLoss}
         dealTitle={pendingLossDeal?.title}
       />
+
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selectedDeals.size} negociação(ões)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Todas as negociações selecionadas serão excluídas permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir {selectedDeals.size}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Move Dialog */}
+      <Dialog open={bulkMoveOpen} onOpenChange={setBulkMoveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mover {selectedDeals.size} negociação(ões) para outro funil</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Funil de destino</Label>
+              <Select value={bulkTargetFunnel} onValueChange={(v) => { setBulkTargetFunnel(v); setBulkTargetStage(""); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o funil" />
+                </SelectTrigger>
+                <SelectContent>
+                  {funnels?.map(f => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {bulkTargetFunnel && bulkTargetFunnelData?.stages && (
+              <div className="space-y-2">
+                <Label>Etapa de destino</Label>
+                <Select value={bulkTargetStage} onValueChange={setBulkTargetStage}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a etapa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bulkTargetFunnelData.stages.map(s => (
+                      <SelectItem key={s.id} value={s.id!}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkMoveOpen(false)}>Cancelar</Button>
+            <Button onClick={handleBulkMove} disabled={!bulkTargetFunnel || !bulkTargetStage || bulkAction.isPending}>
+              Mover {selectedDeals.size}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Reassign Dialog */}
+      <Dialog open={bulkReassignOpen} onOpenChange={setBulkReassignOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reatribuir {selectedDeals.size} negociação(ões)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Novo responsável</Label>
+              <Select value={bulkTargetOwner} onValueChange={setBulkTargetOwner}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groupMembers?.map(m => (
+                    <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkReassignOpen(false)}>Cancelar</Button>
+            <Button onClick={handleBulkReassign} disabled={!bulkTargetOwner || bulkAction.isPending}>
+              Reatribuir {selectedDeals.size}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

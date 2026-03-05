@@ -11,7 +11,7 @@ import {
   useSensors,
   MeasuringStrategy
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { KanbanColumn } from "./KanbanColumn";
 import { DealCard } from "./DealCard";
 import { CRMDeal, CRMStage, useCRMDealMutations } from "@/hooks/use-crm";
@@ -23,9 +23,12 @@ interface KanbanBoardProps {
   onDealClick: (deal: CRMDeal) => void;
   onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open') => void;
   newWinDealId?: string | null;
+  selectedDeals?: Set<string>;
+  onToggleSelect?: (dealId: string) => void;
+  selectionMode?: boolean;
 }
 
-export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange, newWinDealId }: KanbanBoardProps) {
+export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange, newWinDealId, selectedDeals, onToggleSelect, selectionMode }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const { moveDeal } = useCRMDealMutations();
@@ -47,7 +50,6 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
     return null;
   }, [activeId, dealsByStage]);
 
-  // Find which stage a deal belongs to
   const findStageForDeal = (dealId: string): string | null => {
     for (const [stageId, deals] of Object.entries(dealsByStage)) {
       if (deals.some((d) => d.id === dealId)) {
@@ -58,6 +60,7 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
   };
 
   function handleDragStart(event: DragStartEvent) {
+    if (selectionMode) return; // disable drag in selection mode
     setActiveId(event.active.id as string);
   }
 
@@ -75,14 +78,11 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
     const dealId = active.id as string;
     const targetId = over.id as string;
 
-    // Don't do anything if dropped on itself
     if (dealId === targetId) return;
 
-    // Find the current stage of the dragged deal
     const currentStageId = findStageForDeal(dealId);
     if (!currentStageId) return;
 
-    // Check if dropped on a stage column directly
     const isStageColumn = stages.some((s) => s.id === targetId);
     
     let targetStageId: string | null = null;
@@ -91,26 +91,16 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
     if (isStageColumn) {
       targetStageId = targetId;
     } else {
-      // Dropped on another deal - find which stage that deal belongs to
       targetStageId = findStageForDeal(targetId);
       targetDealId = targetId;
     }
 
     if (!targetStageId) return;
 
-    // Same column - reorder within column
     if (currentStageId === targetStageId && targetDealId) {
-      moveDeal.mutate({ 
-        id: dealId, 
-        over_deal_id: targetDealId 
-      });
-    } 
-    // Different column - move to new stage
-    else if (currentStageId !== targetStageId) {
-      moveDeal.mutate({ 
-        id: dealId, 
-        stage_id: targetStageId 
-      });
+      moveDeal.mutate({ id: dealId, over_deal_id: targetDealId });
+    } else if (currentStageId !== targetStageId) {
+      moveDeal.mutate({ id: dealId, stage_id: targetStageId });
     }
   }
 
@@ -119,7 +109,6 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
     setOverId(null);
   }
 
-  // Configure measuring for smoother animations
   const measuringConfig = {
     droppable: {
       strategy: MeasuringStrategy.Always,
@@ -157,6 +146,9 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
                   newWinDealId={newWinDealId}
                   activeId={activeId}
                   overId={overId}
+                  selectedDeals={selectedDeals}
+                  onToggleSelect={onToggleSelect}
+                  selectionMode={selectionMode}
                 />
               </SortableContext>
             );

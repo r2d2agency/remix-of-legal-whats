@@ -1335,6 +1335,65 @@ router.post('/deals/:id/move', async (req, res) => {
   }
 });
 
+// Bulk operations on deals
+router.post('/deals/bulk', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    if (!['owner', 'admin', 'manager'].includes(org.role)) return res.status(403).json({ error: 'Permission denied' });
+
+    const { action, deal_ids, target_funnel_id, target_stage_id, owner_id, group_id } = req.body;
+    if (!deal_ids || !Array.isArray(deal_ids) || deal_ids.length === 0) {
+      return res.status(400).json({ error: 'deal_ids is required' });
+    }
+
+    let affected = 0;
+
+    if (action === 'delete') {
+      const result = await query(
+        `DELETE FROM crm_deals WHERE id = ANY($1) AND organization_id = $2`,
+        [deal_ids, org.organization_id]
+      );
+      affected = result.rowCount;
+    } else if (action === 'move_funnel') {
+      if (!target_funnel_id || !target_stage_id) return res.status(400).json({ error: 'target_funnel_id and target_stage_id required' });
+      const result = await query(
+        `UPDATE crm_deals SET funnel_id = $1, stage_id = $2, updated_at = NOW() WHERE id = ANY($3) AND organization_id = $4`,
+        [target_funnel_id, target_stage_id, deal_ids, org.organization_id]
+      );
+      affected = result.rowCount;
+    } else if (action === 'reassign') {
+      const updates = [];
+      const params = [deal_ids, org.organization_id];
+      let paramIdx = 3;
+      if (owner_id !== undefined) {
+        updates.push(`owner_id = $${paramIdx}`);
+        params.push(owner_id);
+        paramIdx++;
+      }
+      if (group_id !== undefined) {
+        updates.push(`group_id = $${paramIdx}`);
+        params.push(group_id);
+        paramIdx++;
+      }
+      if (updates.length === 0) return res.status(400).json({ error: 'owner_id or group_id required' });
+      updates.push('updated_at = NOW()');
+      const result = await query(
+        `UPDATE crm_deals SET ${updates.join(', ')} WHERE id = ANY($1) AND organization_id = $2`,
+        params
+      );
+      affected = result.rowCount;
+    } else {
+      return res.status(400).json({ error: 'Invalid action' });
+    }
+
+    res.json({ success: true, affected });
+  } catch (error) {
+    console.error('Error bulk deals:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Add contact to deal
 router.post('/deals/:id/contacts', async (req, res) => {
   let contact_id, role, is_primary, finalContactId;
