@@ -139,7 +139,7 @@ export function CRMAlerts() {
   const leadCount = alerts.filter(a => a.type === 'new_lead').length;
 
   if (alerts.length === 0) {
-    return null;
+    return <span className="hidden" />;
   }
 
   return (
