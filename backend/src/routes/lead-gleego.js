@@ -84,6 +84,7 @@ router.put('/settings', async (req, res) => {
 router.get('/sso', async (req, res) => {
   try {
     const userId = req.userId;
+    log(`Lead Gleego SSO attempt for user ${userId}`);
 
     // Buscar email e org settings
     const result = await query(
@@ -95,7 +96,7 @@ router.get('/sso', async (req, res) => {
       [userId]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
+      return res.status(404).json({ error: 'Usuário não encontrado ou sem organização' });
     }
 
     const email = result.rows[0].email;
@@ -106,26 +107,44 @@ router.get('/sso', async (req, res) => {
       return res.status(400).json({ error: 'Chave de API do Lead Gleego não configurada. Peça ao administrador para configurar em Organizações > Configurações.' });
     }
 
-    // Solicitar token ao Lead Extractor (server-side)
-    const response = await fetch('https://api.gleego.com.br/api/auth/token-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, apiKey }),
-    });
+    if (!email) {
+      return res.status(400).json({ error: 'Email do usuário não encontrado' });
+    }
 
-    const data = await response.json();
+    log(`Lead Gleego SSO: calling external API for ${email}`);
+
+    // Solicitar token ao Lead Extractor (server-side)
+    let response;
+    try {
+      response = await fetch('https://api.gleego.com.br/api/auth/token-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, apiKey }),
+      });
+    } catch (fetchErr) {
+      logError('Lead Gleego SSO fetch error (network)', fetchErr);
+      return res.status(502).json({ error: 'Não foi possível conectar ao servidor Lead Gleego. Verifique sua conexão.' });
+    }
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseErr) {
+      logError('Lead Gleego SSO response parse error', parseErr);
+      return res.status(502).json({ error: 'Resposta inválida do servidor Lead Gleego' });
+    }
 
     if (data.token) {
       const redirectUrl = `https://lead.gleego.com.br/login?token=${data.token}`;
       log(`Lead Gleego SSO success for ${email}`);
       return res.json({ url: redirectUrl });
     } else {
-      logError('Lead Gleego SSO failed', { email, response: data });
+      logError('Lead Gleego SSO failed', { email, status: response.status, response: data });
       return res.status(400).json({ error: data.error || 'Usuário não encontrado no Lead Extractor. Verifique se o email está cadastrado.' });
     }
   } catch (err) {
-    logError('Lead Gleego SSO error', err);
-    return res.status(500).json({ error: 'Erro ao autenticar no Lead Gleego' });
+    logError('Lead Gleego SSO unexpected error', err);
+    return res.status(500).json({ error: 'Erro interno ao autenticar no Lead Gleego: ' + (err.message || 'erro desconhecido') });
   }
 });
 
