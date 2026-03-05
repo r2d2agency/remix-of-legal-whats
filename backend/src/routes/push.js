@@ -11,7 +11,12 @@ const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@gleego.com.br';
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+    console.log('[PUSH] VAPID keys configured successfully');
+  } catch (err) {
+    console.error('[PUSH] Invalid VAPID keys - push notifications disabled:', err.message);
+  }
 }
 
 // Get VAPID public key (public endpoint - no auth needed)
