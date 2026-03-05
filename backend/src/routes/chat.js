@@ -589,7 +589,8 @@ router.post('/sync-group-names', authenticate, async (req, res) => {
        JOIN connections conn ON conn.id = conv.connection_id
        WHERE conv.connection_id = ANY($1)
          AND conv.is_group = true
-         AND (conv.group_name IS NULL OR conv.group_name = '' OR conv.group_name = 'Grupo' OR conv.group_name = 'Grupo sem nome')
+         AND (conv.group_name IS NULL OR conv.group_name = '' OR conv.group_name = 'Grupo' OR conv.group_name = 'Grupo sem nome'
+              OR conv.contact_name IS NULL OR conv.contact_name = '' OR conv.contact_name = 'Grupo' OR conv.contact_name = 'Grupo sem nome')
        LIMIT 50`,
       [connectionIds]
     );

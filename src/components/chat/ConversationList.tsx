@@ -232,12 +232,16 @@ export function ConversationList({
 
   // Auto-sync group names for groups without proper names
   const [groupsSynced, setGroupsSynced] = useState(false);
+  const [groupSyncRetries, setGroupSyncRetries] = useState(0);
   useEffect(() => {
     if (groupsSynced) return;
     const groupsWithoutNames = conversations.filter(
       c => c.is_group && (!c.group_name || c.group_name === 'Grupo' || c.group_name === 'Grupo sem nome')
     );
-    if (groupsWithoutNames.length === 0) return;
+    if (groupsWithoutNames.length === 0) {
+      setGroupsSynced(true);
+      return;
+    }
 
     const syncGroupNames = async () => {
       try {
@@ -245,17 +249,27 @@ export function ConversationList({
         if (result.updated > 0) {
           console.log(`[Chat] Synced ${result.updated} group names`);
           onRefresh();
+          setGroupsSynced(true);
+        } else if (groupSyncRetries < 2) {
+          // Retry up to 2 more times with increasing delay
+          setGroupSyncRetries(prev => prev + 1);
+        } else {
+          setGroupsSynced(true);
         }
-        setGroupsSynced(true);
       } catch (e) {
         console.debug('Group name sync failed:', e);
-        setGroupsSynced(true);
+        if (groupSyncRetries < 2) {
+          setGroupSyncRetries(prev => prev + 1);
+        } else {
+          setGroupsSynced(true);
+        }
       }
     };
 
-    const timer = setTimeout(syncGroupNames, 2000);
+    const delay = 2000 + groupSyncRetries * 5000;
+    const timer = setTimeout(syncGroupNames, delay);
     return () => clearTimeout(timer);
-  }, [conversations]);
+  }, [conversations, groupsSynced, groupSyncRetries]);
 
   const handleDeleteConversation = async () => {
     if (!conversationToDelete) return;
