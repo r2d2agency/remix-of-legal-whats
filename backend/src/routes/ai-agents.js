@@ -928,6 +928,18 @@ async function executeManageTasks(organizationId, userId, args) {
       ]);
       const task = result.rows[0];
       logInfo('ai_agents.tool_create_task', { taskId: task.id });
+
+      // Also create kanban card in global board
+      try {
+        const { createTaskCardInGlobalBoard } = await import('../lib/task-card-helper.js');
+        await createTaskCardInGlobalBoard({
+          organizationId, createdBy: userId, assignedTo: userId,
+          title: args.title, description: args.description,
+          priority: args.priority || 'medium', dueDate: args.due_date,
+          sourceModule: 'ai_agent', crmTaskId: task.id,
+        });
+      } catch (e) { /* ignore */ }
+
       return `Tarefa "${task.title}" criada (ID: ${task.id}, prioridade: ${task.priority}, vencimento: ${task.due_date || 'sem data'})`;
     } else {
       const limit = Math.min(args.limit || 10, 20);

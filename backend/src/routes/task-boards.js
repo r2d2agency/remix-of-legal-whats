@@ -136,6 +136,8 @@ router.use(authenticate);
     await query(`CREATE INDEX IF NOT EXISTS idx_checklist_templates_org ON checklist_templates(organization_id)`);
     // Self-heal: add project_id column if missing
     try { await query(`ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS project_id UUID`); } catch {}
+    // Self-heal: add source_module column if missing
+    try { await query(`ALTER TABLE task_cards ADD COLUMN IF NOT EXISTS source_module VARCHAR(50)`); } catch {}
     logInfo('[TaskBoards] Self-healing tables check complete');
   } catch (e) {
     logError('[TaskBoards] Self-healing error', e);
@@ -554,7 +556,7 @@ router.post('/cards', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
 
-    const { board_id, column_id, title, description, assigned_to, due_date, start_date, priority, deal_id, company_id, contact_phone, contact_name, cover_image_url } = req.body;
+    const { board_id, column_id, title, description, assigned_to, due_date, start_date, priority, deal_id, company_id, contact_phone, contact_name, cover_image_url, source_module } = req.body;
 
     // Check board access
     const board = await query(`SELECT * FROM task_boards WHERE id = $1 AND organization_id = $2`, [board_id, org.organization_id]);
@@ -569,10 +571,10 @@ router.post('/cards', async (req, res) => {
     );
 
     const result = await query(
-      `INSERT INTO task_cards (organization_id, board_id, column_id, title, description, position, assigned_to, created_by, due_date, start_date, priority, deal_id, company_id, contact_phone, contact_name, cover_image_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      `INSERT INTO task_cards (organization_id, board_id, column_id, title, description, position, assigned_to, created_by, due_date, start_date, priority, deal_id, company_id, contact_phone, contact_name, cover_image_url, source_module)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
-      [org.organization_id, board_id, column_id, title, description, maxPos.rows[0].next_pos, finalAssignee, req.userId, due_date, start_date, priority || 'medium', deal_id, company_id, contact_phone, contact_name, cover_image_url]
+      [org.organization_id, board_id, column_id, title, description, maxPos.rows[0].next_pos, finalAssignee, req.userId, due_date, start_date, priority || 'medium', deal_id, company_id, contact_phone, contact_name, cover_image_url, source_module || 'manual']
     );
     res.json(result.rows[0]);
   } catch (error) {

@@ -52,6 +52,7 @@ export interface TaskCard {
   project_id?: string;
   project_title?: string;
   project_stage?: string;
+  source_module?: string;
   status: string;
   completed_at?: string;
   checklist_count?: number;

@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS task_cards (
   contact_name VARCHAR(255),
   crm_task_id UUID,
   status VARCHAR(20) DEFAULT 'open',
+  source_module VARCHAR(50),
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
