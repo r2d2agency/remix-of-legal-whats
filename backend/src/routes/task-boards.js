@@ -561,6 +561,8 @@ router.put('/cards/:id', async (req, res) => {
 
     if (status === 'completed') {
       updates.push(`completed_at = NOW()`);
+    } else if (status !== undefined) {
+      updates.push(`completed_at = NULL`);
     }
 
     updates.push('updated_at = NOW()');
@@ -694,7 +696,7 @@ router.post('/checklists/:checklistId/items', async (req, res) => {
 // Toggle checklist item
 router.put('/checklist-items/:id', async (req, res) => {
   try {
-    const { is_completed, title } = req.body;
+    const { is_completed, title, due_date } = req.body;
     const updates = [];
     const params = [];
     let idx = 1;
@@ -708,6 +710,11 @@ router.put('/checklist-items/:id', async (req, res) => {
     if (title !== undefined) {
       updates.push(`title = $${idx}`);
       params.push(title);
+      idx++;
+    }
+    if (due_date !== undefined) {
+      updates.push(`due_date = $${idx}`);
+      params.push(due_date);
       idx++;
     }
 

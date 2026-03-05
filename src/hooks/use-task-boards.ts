@@ -314,13 +314,19 @@ export function useChecklistMutations(cardId: string | null) {
     },
   });
 
+  const updateChecklistItem = useMutation({
+    mutationFn: ({ id, ...data }: { id: string; due_date?: string | null; title?: string }) =>
+      api(`/api/task-boards/checklist-items/${id}`, { method: "PUT", body: data, auth: true }),
+    onSuccess: invalidate,
+  });
+
   const deleteChecklistItem = useMutation({
     mutationFn: (id: string) =>
       api(`/api/task-boards/checklist-items/${id}`, { method: "DELETE", auth: true }),
     onSuccess: invalidate,
   });
 
-  return { addChecklist, deleteChecklist, addChecklistItem, toggleChecklistItem, deleteChecklistItem };
+  return { addChecklist, deleteChecklist, addChecklistItem, toggleChecklistItem, updateChecklistItem, deleteChecklistItem };
 }
 
 export function useTaskAttachmentMutations(cardId: string | null) {

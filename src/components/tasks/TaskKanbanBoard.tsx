@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import {
-  DndContext, DragOverlay, closestCorners, DragStartEvent, DragEndEvent, DragOverEvent,
-  PointerSensor, useSensor, useSensors, MeasuringStrategy
+  DndContext, DragOverlay, closestCenter, DragStartEvent, DragEndEvent, DragOverEvent,
+  PointerSensor, TouchSensor, useSensor, useSensors, MeasuringStrategy
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -47,12 +47,10 @@ function MiniTaskCard({ card, isDragging, onClick }: { card: TaskCard; isDraggin
         card.status === 'completed' && "opacity-60"
       )}
     >
-      {/* Cover image */}
       {card.cover_image_url && (
         <img src={card.cover_image_url} alt="" className="w-full h-24 object-cover rounded-md mb-2" />
       )}
 
-      {/* Title + Status */}
       <div className="flex items-start gap-1.5 mb-1">
         {card.status === 'completed' ? (
           <CheckSquare className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
@@ -60,21 +58,19 @@ function MiniTaskCard({ card, isDragging, onClick }: { card: TaskCard; isDraggin
           <Clock className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
         )}
         <p className={cn(
-          "text-sm font-medium line-clamp-2",
+          "text-sm font-medium line-clamp-2 break-words",
           card.status === 'completed' && "line-through text-muted-foreground"
         )}>
           {card.title}
         </p>
       </div>
 
-      {/* Deal/Company link */}
       {(card.deal_title || card.company_name) && (
         <p className="text-xs text-muted-foreground truncate mb-2">
           {card.deal_title}{card.deal_title && card.company_name && " • "}{card.company_name}
         </p>
       )}
 
-      {/* Checklist progress */}
       {checklistProgress !== null && (
         <div className="mb-2">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
@@ -90,7 +86,6 @@ function MiniTaskCard({ card, isDragging, onClick }: { card: TaskCard; isDraggin
         </div>
       )}
 
-      {/* Footer metadata */}
       <div className="flex items-center justify-between mt-2">
         <div className="flex items-center gap-2 flex-wrap">
           {card.due_date && (
@@ -127,7 +122,7 @@ function MiniTaskCard({ card, isDragging, onClick }: { card: TaskCard; isDraggin
 
 // ========== SORTABLE CARD WRAPPER ==========
 
-function SortableCard({ card, onCardClick, activeId }: { card: TaskCard; onCardClick: (c: TaskCard) => void; activeId: string | null }) {
+function SortableCard({ card, onCardClick }: { card: TaskCard; onCardClick: (c: TaskCard) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
     transition: { duration: 200, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' },
@@ -155,15 +150,15 @@ function TaskColumn({
   column: TaskBoardColumn; cards: TaskCard[];
   onCardClick: (c: TaskCard) => void; activeId: string | null; overId: string | null;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: column.id });
-  const isDraggingOver = isOver || cards.some(c => c.id === overId);
+  const { setNodeRef, isOver } = useDroppable({ id: `column-${column.id}` });
+  const isDraggingOver = isOver || overId === `column-${column.id}`;
   const hasActiveItem = cards.some(c => c.id === activeId);
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col w-[300px] min-w-[300px] max-w-[300px] bg-muted/50 rounded-lg border overflow-hidden",
+        "flex flex-col w-[280px] min-w-[280px] max-w-[280px] bg-muted/50 rounded-lg border overflow-hidden shrink-0",
         "transition-all duration-300",
         isDraggingOver && !hasActiveItem && "ring-2 ring-primary bg-primary/5 shadow-lg scale-[1.02]"
       )}
@@ -172,29 +167,27 @@ function TaskColumn({
       <div className="p-3 border-b flex items-center justify-between"
         style={{ borderTopColor: column.color, borderTopWidth: 4, borderTopLeftRadius: 8, borderTopRightRadius: 8 }}
       >
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-sm">{column.name}</h3>
-          <Badge variant="secondary" className="text-xs">{cards.length}</Badge>
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="font-semibold text-sm truncate">{column.name}</h3>
+          <Badge variant="secondary" className="text-xs shrink-0">{cards.length}</Badge>
         </div>
         {column.is_done_column && <span className="text-xs">✅</span>}
       </div>
 
       {/* Cards */}
-      <ScrollArea className="flex-1 max-h-[calc(100vh-280px)]">
-        <div className="p-2 space-y-2">
-          {isDraggingOver && cards.length === 0 && !hasActiveItem && (
-            <div className="h-20 rounded-lg border-2 border-dashed border-primary/50 bg-primary/10 flex items-center justify-center animate-pulse">
-              <span className="text-sm text-primary font-medium">Soltar aqui</span>
-            </div>
-          )}
-          {cards.length === 0 && !isDraggingOver && (
-            <div className="py-8 text-center text-muted-foreground text-sm">Nenhum card</div>
-          )}
-          {cards.map(card => (
-            <SortableCard key={card.id} card={card} onCardClick={onCardClick} activeId={activeId} />
-          ))}
-        </div>
-      </ScrollArea>
+      <div className="flex-1 max-h-[calc(100vh-280px)] overflow-y-auto p-2 space-y-2">
+        {isDraggingOver && cards.length === 0 && !hasActiveItem && (
+          <div className="h-20 rounded-lg border-2 border-dashed border-primary/50 bg-primary/10 flex items-center justify-center animate-pulse">
+            <span className="text-sm text-primary font-medium">Soltar aqui</span>
+          </div>
+        )}
+        {cards.length === 0 && !isDraggingOver && (
+          <div className="py-8 text-center text-muted-foreground text-sm">Nenhum card</div>
+        )}
+        {cards.map(card => (
+          <SortableCard key={card.id} card={card} onCardClick={onCardClick} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -206,7 +199,8 @@ export function TaskKanbanBoard({ columns, cards, onCardClick, onCardMove }: Tas
   const [overId, setOverId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
   );
 
   const cardsByColumn = useMemo(() => {
@@ -242,14 +236,16 @@ export function TaskKanbanBoard({ columns, cards, onCardClick, onCardMove }: Tas
     const currentColId = findColumnForCard(cardId);
     if (!currentColId) return;
 
-    const isColumn = columns.some(c => c.id === targetId);
+    // Check if dropped on a column droppable (prefixed with "column-")
+    const isColumnDrop = targetId.startsWith("column-");
     let targetColId: string | null = null;
     let targetPosition = 0;
 
-    if (isColumn) {
-      targetColId = targetId;
-      targetPosition = (cardsByColumn[targetId]?.length || 0);
+    if (isColumnDrop) {
+      targetColId = targetId.replace("column-", "");
+      targetPosition = (cardsByColumn[targetColId]?.length || 0);
     } else {
+      // Dropped on a card - find which column that card belongs to
       targetColId = findColumnForCard(targetId);
       const targetCards = cardsByColumn[targetColId!] || [];
       const targetIdx = targetCards.findIndex(c => c.id === targetId);
@@ -263,7 +259,7 @@ export function TaskKanbanBoard({ columns, cards, onCardClick, onCardMove }: Tas
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={closestCenter}
       onDragStart={(e: DragStartEvent) => setActiveId(e.active.id as string)}
       onDragOver={(e: DragOverEvent) => setOverId(e.over?.id as string || null)}
       onDragEnd={handleDragEnd}
@@ -271,7 +267,7 @@ export function TaskKanbanBoard({ columns, cards, onCardClick, onCardMove }: Tas
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
     >
       <ScrollArea className="w-full">
-        <div className="flex gap-4 p-4 min-w-max">
+        <div className="flex gap-3 p-4 min-w-max">
           {columns.map(col => (
             <SortableContext key={col.id} items={(cardsByColumn[col.id] || []).map(c => c.id)} strategy={verticalListSortingStrategy}>
               <TaskColumn column={col} cards={cardsByColumn[col.id] || []} onCardClick={onCardClick} activeId={activeId} overId={overId} />
@@ -283,7 +279,7 @@ export function TaskKanbanBoard({ columns, cards, onCardClick, onCardMove }: Tas
 
       <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' }} style={{ cursor: 'grabbing' }}>
         {activeCard ? (
-          <div className="rotate-2 scale-105 shadow-2xl w-[290px]">
+          <div className="rotate-2 scale-105 shadow-2xl w-[270px]">
             <MiniTaskCard card={activeCard} isDragging onClick={() => {}} />
           </div>
         ) : null}

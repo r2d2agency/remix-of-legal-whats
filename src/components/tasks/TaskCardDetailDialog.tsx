@@ -8,6 +8,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import {
   TaskCardDetail, TaskChecklist, ChecklistTemplate,
   useTaskCardDetail, useTaskCardMutations, useChecklistMutations,
@@ -15,16 +17,17 @@ import {
 } from "@/hooks/use-task-boards";
 import { useUpload } from "@/hooks/use-upload";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCRMDealsSearch, CRMDeal } from "@/hooks/use-crm";
-import { useProjects } from "@/hooks/use-projects";
+import { useCRMDealsSearch, useCRMCompanies, CRMDeal } from "@/hooks/use-crm";
+import { useProjects, Project } from "@/hooks/use-projects";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, differenceInDays, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Calendar, CheckSquare, Paperclip, MessageSquare, User, Trash2, Plus,
   Send, Image, FileText, X, Clock, Star, Upload, ListChecks, Save, Loader2,
-  CircleCheck, Circle, MoreHorizontal, Search, Briefcase, FolderKanban, Phone, Link2
+  CircleCheck, Circle, MoreHorizontal, Search, Briefcase, FolderKanban, Phone, Link2,
+  Building2, GanttChart, PlayCircle, PauseCircle, AlertTriangle, CalendarIcon
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -36,8 +39,6 @@ interface ChatContact {
   connection_id: string;
   connection_name?: string;
 }
-
-import { Project } from "@/hooks/use-projects";
 
 interface TaskCardDetailDialogProps {
   cardId: string | null;
@@ -78,6 +79,11 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
   const { data: dealResults, isLoading: searchingDeals } = useCRMDealsSearch(dealSearch.length >= 2 ? dealSearch : undefined);
   const [showDealSearch, setShowDealSearch] = useState(false);
 
+  // Company search
+  const [companySearch, setCompanySearch] = useState("");
+  const { data: companyResults, isLoading: searchingCompanies } = useCRMCompanies(companySearch.length >= 2 ? companySearch : undefined);
+  const [showCompanySearch, setShowCompanySearch] = useState(false);
+
   // Projects
   const { data: allProjects } = useProjects();
   const [showProjectSearch, setShowProjectSearch] = useState(false);
@@ -115,9 +121,8 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
     });
   };
 
-  const handleToggleStatus = () => {
-    if (!cardId || !card) return;
-    const newStatus = card.status === 'completed' ? 'pending' : 'completed';
+  const handleSetStatus = (newStatus: string) => {
+    if (!cardId) return;
     cardMut.updateCard.mutate({ id: cardId, status: newStatus } as any);
   };
 
@@ -146,6 +151,16 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
 
   const handleUnlinkDeal = () => {
     handleUpdateField('deal_id', null);
+  };
+
+  const handleLinkCompany = (company: any) => {
+    handleUpdateField('company_id', company.id);
+    setShowCompanySearch(false);
+    setCompanySearch("");
+  };
+
+  const handleUnlinkCompany = () => {
+    handleUpdateField('company_id', null);
   };
 
   const handleLinkProject = (project: Project) => {
@@ -202,6 +217,10 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
     }
   };
 
+  const handleUpdateChecklistItemDate = (itemId: string, date: string | null) => {
+    checklistMut.updateChecklistItem.mutate({ id: itemId, due_date: date });
+  };
+
   const priorityOptions = [
     { value: "low", label: "Baixa", color: "text-muted-foreground" },
     { value: "medium", label: "Média", color: "text-yellow-600" },
@@ -209,9 +228,25 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
     { value: "urgent", label: "Urgente", color: "text-red-600" },
   ];
 
+  const statusOptions = [
+    { value: "open", label: "Aberto", icon: Circle, color: "text-muted-foreground" },
+    { value: "in_progress", label: "Em Andamento", icon: PlayCircle, color: "text-blue-500" },
+    { value: "completed", label: "Concluído", icon: CircleCheck, color: "text-green-500" },
+  ];
+
   const filteredProjects = allProjects?.filter(p =>
     !projectSearch || p.title.toLowerCase().includes(projectSearch.toLowerCase())
   ) || [];
+
+  // Mini Gantt from checklist items with dates
+  const ganttItems = card?.checklists?.flatMap(cl =>
+    (cl.items || []).filter(i => i.due_date).map(i => ({
+      ...i,
+      checklistTitle: cl.title,
+    }))
+  ) || [];
+
+  const currentStatus = statusOptions.find(s => s.value === card?.status) || statusOptions[0];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -223,17 +258,26 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
           </div>
         ) : (
           <div className="flex flex-col h-full max-h-[90vh]">
-            {/* Header - pr-10 to avoid overlap with dialog close X */}
+            {/* Header */}
             <DialogHeader className="p-4 pb-2 border-b pr-12">
               <div className="flex items-start gap-3">
-                {/* Status toggle */}
-                <button onClick={handleToggleStatus} className="mt-1 shrink-0" title={card.status === 'completed' ? 'Marcar como pendente' : 'Marcar como concluído'}>
-                  {card.status === 'completed' ? (
-                    <CircleCheck className="h-6 w-6 text-green-500" />
-                  ) : (
-                    <Circle className="h-6 w-6 text-muted-foreground hover:text-green-500 transition-colors" />
-                  )}
-                </button>
+                {/* Status dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="mt-1 shrink-0" title="Alterar status">
+                      <currentStatus.icon className={cn("h-6 w-6", currentStatus.color)} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {statusOptions.map(s => (
+                      <DropdownMenuItem key={s.value} onClick={() => handleSetStatus(s.value)} className="gap-2">
+                        <s.icon className={cn("h-4 w-4", s.color)} />
+                        {s.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 <div className="flex-1 min-w-0">
                   <Input
                     value={editTitle}
@@ -242,8 +286,12 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                     placeholder="Título do card"
                   />
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <Badge variant={card.status === 'completed' ? 'default' : 'secondary'} className={cn("text-xs", card.status === 'completed' && "bg-green-500/10 text-green-600 border-green-500/20")}>
-                      {card.status === 'completed' ? 'Concluído' : 'Pendente'}
+                    <Badge variant={card.status === 'completed' ? 'default' : 'secondary'}
+                      className={cn("text-xs",
+                        card.status === 'completed' && "bg-green-500/10 text-green-600 border-green-500/20",
+                        card.status === 'in_progress' && "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                      )}>
+                      {currentStatus.label}
                     </Badge>
                     {card.deal_title && (
                       <span className="text-xs text-muted-foreground">📋 {card.deal_title}{card.company_name ? ` • ${card.company_name}` : ''}</span>
@@ -325,21 +373,52 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                           </div>
                         )}
                         <div className="space-y-1">
-                          {items.map(item => (
-                            <div key={item.id} className="flex items-center gap-2 group">
-                              <Checkbox
-                                checked={item.is_completed}
-                                onCheckedChange={(checked) => checklistMut.toggleChecklistItem.mutate({ id: item.id, is_completed: !!checked })}
-                              />
-                              <span className={cn("text-sm flex-1", item.is_completed && "line-through text-muted-foreground")}>
-                                {item.title}
-                              </span>
-                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100"
-                                onClick={() => checklistMut.deleteChecklistItem.mutate(item.id)}>
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
+                          {items.map(item => {
+                            const itemOverdue = item.due_date && !item.is_completed && isPast(parseISO(item.due_date));
+                            return (
+                              <div key={item.id} className="flex items-center gap-2 group">
+                                <Checkbox
+                                  checked={item.is_completed}
+                                  onCheckedChange={(checked) => checklistMut.toggleChecklistItem.mutate({ id: item.id, is_completed: !!checked })}
+                                />
+                                <span className={cn("text-sm flex-1", item.is_completed && "line-through text-muted-foreground")}>
+                                  {item.title}
+                                </span>
+                                {/* Item due date */}
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button className={cn(
+                                      "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded hover:bg-muted",
+                                      itemOverdue ? "text-red-500" : item.due_date ? "text-muted-foreground" : "text-muted-foreground/50 opacity-0 group-hover:opacity-100"
+                                    )}>
+                                      {itemOverdue ? <AlertTriangle className="h-3 w-3" /> : <CalendarIcon className="h-3 w-3" />}
+                                      {item.due_date ? format(parseISO(item.due_date), "dd/MM", { locale: ptBR }) : ""}
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="end">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={item.due_date ? parseISO(item.due_date) : undefined}
+                                      onSelect={(d) => handleUpdateChecklistItemDate(item.id, d ? format(d, "yyyy-MM-dd") : null)}
+                                      className="p-3 pointer-events-auto"
+                                      locale={ptBR}
+                                    />
+                                    {item.due_date && (
+                                      <div className="px-3 pb-3">
+                                        <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => handleUpdateChecklistItemDate(item.id, null)}>
+                                          <X className="h-3 w-3 mr-1" /> Remover data
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </PopoverContent>
+                                </Popover>
+                                <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100"
+                                  onClick={() => checklistMut.deleteChecklistItem.mutate(item.id)}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            );
+                          })}
                         </div>
                         <div className="flex gap-2">
                           <Input
@@ -357,6 +436,38 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                       </div>
                     );
                   })}
+
+                  {/* Mini Gantt for checklist items with dates */}
+                  {ganttItems.length > 0 && (
+                    <div className="border rounded-lg p-3 space-y-2">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <GanttChart className="h-4 w-4" /> Cronograma do Checklist
+                      </h4>
+                      <div className="space-y-1">
+                        {ganttItems.sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime()).map(item => {
+                          const dueDate = parseISO(item.due_date!);
+                          const isOverdue = !item.is_completed && isPast(dueDate);
+                          return (
+                            <div key={item.id} className="flex items-center gap-2 text-xs">
+                              <span className={cn("w-4 h-4 rounded-full flex items-center justify-center shrink-0",
+                                item.is_completed ? "bg-green-500/20 text-green-600" :
+                                isOverdue ? "bg-red-500/20 text-red-600" :
+                                "bg-muted text-muted-foreground"
+                              )}>
+                                {item.is_completed ? "✓" : isOverdue ? "!" : "○"}
+                              </span>
+                              <span className={cn("flex-1 truncate", item.is_completed && "line-through text-muted-foreground")}>
+                                {item.title}
+                              </span>
+                              <span className={cn("text-xs shrink-0", isOverdue ? "text-red-500 font-medium" : "text-muted-foreground")}>
+                                {format(dueDate, "dd/MM", { locale: ptBR })}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Add checklist */}
                   {showChecklistForm ? (
@@ -479,6 +590,23 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
 
                 {/* Sidebar */}
                 <div className="space-y-3">
+                  {/* Status */}
+                  <div>
+                    <label className="text-xs text-muted-foreground">Status</label>
+                    <Select value={card.status} onValueChange={v => handleSetStatus(v)}>
+                      <SelectTrigger className="h-8 mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map(s => (
+                          <SelectItem key={s.value} value={s.value}>
+                            <span className={cn("flex items-center gap-1.5", s.color)}>
+                              <s.icon className="h-3.5 w-3.5" />{s.label}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Priority */}
                   <div>
                     <label className="text-xs text-muted-foreground">Prioridade</label>
@@ -549,7 +677,7 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
 
                   <Separator />
 
-                  {/* Contact - searchable from connections */}
+                  {/* Contact */}
                   <div>
                     <label className="text-xs text-muted-foreground flex items-center gap-1">
                       <Phone className="h-3 w-3" /> Contato vinculado
@@ -571,23 +699,15 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                       <div className="mt-1 space-y-1">
                         <div className="relative">
                           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input
-                            value={contactSearch}
-                            onChange={e => setContactSearch(e.target.value)}
-                            placeholder="Buscar por nome ou telefone..."
-                            className="h-8 text-xs pl-7"
-                            autoFocus
-                          />
+                          <Input value={contactSearch} onChange={e => setContactSearch(e.target.value)}
+                            placeholder="Buscar contato..." className="h-8 text-xs pl-7" autoFocus />
                         </div>
                         {searchingContacts && <p className="text-xs text-muted-foreground">Buscando...</p>}
                         {contactResults.length > 0 && (
                           <div className="border rounded-md max-h-32 overflow-y-auto">
                             {contactResults.slice(0, 10).map(c => (
-                              <button
-                                key={c.id}
-                                className="w-full text-left px-2 py-1.5 hover:bg-muted/50 flex items-center gap-2 text-sm"
-                                onClick={() => handleSelectContact(c)}
-                              >
+                              <button key={c.id} className="w-full text-left px-2 py-1.5 hover:bg-muted/50 flex items-center gap-2 text-sm"
+                                onClick={() => handleSelectContact(c)}>
                                 <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs shrink-0">
                                   {(c.name || c.phone).charAt(0).toUpperCase()}
                                 </div>
@@ -599,9 +719,7 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                             ))}
                           </div>
                         )}
-                        <Button variant="ghost" size="sm" className="h-7 text-xs w-full" onClick={() => setShowContactSearch(false)}>
-                          Cancelar
-                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs w-full" onClick={() => setShowContactSearch(false)}>Cancelar</Button>
                       </div>
                     ) : (
                       <Button variant="outline" size="sm" className="w-full h-8 mt-1 text-xs" onClick={() => setShowContactSearch(true)}>
@@ -612,17 +730,16 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
 
                   <Separator />
 
-                  {/* Link Deal */}
+                  {/* Deal */}
                   <div>
                     <label className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Briefcase className="h-3 w-3" /> Negociação vinculada
+                      <Briefcase className="h-3 w-3" /> Negociação
                     </label>
                     {card.deal_id && card.deal_title ? (
                       <div className="mt-1 p-2 border rounded-md flex items-center gap-2">
                         <Briefcase className="h-4 w-4 text-primary shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{card.deal_title}</p>
-                          {card.company_name && <p className="text-xs text-muted-foreground">{card.company_name}</p>}
                         </div>
                         <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleUnlinkDeal}>
                           <X className="h-3 w-3" />
@@ -632,23 +749,15 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                       <div className="mt-1 space-y-1">
                         <div className="relative">
                           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input
-                            value={dealSearch}
-                            onChange={e => setDealSearch(e.target.value)}
-                            placeholder="Buscar negociação..."
-                            className="h-8 text-xs pl-7"
-                            autoFocus
-                          />
+                          <Input value={dealSearch} onChange={e => setDealSearch(e.target.value)}
+                            placeholder="Buscar negociação..." className="h-8 text-xs pl-7" autoFocus />
                         </div>
                         {searchingDeals && <p className="text-xs text-muted-foreground">Buscando...</p>}
                         {dealResults && dealResults.length > 0 && (
                           <div className="border rounded-md max-h-32 overflow-y-auto">
                             {dealResults.slice(0, 8).map((d: CRMDeal) => (
-                              <button
-                                key={d.id}
-                                className="w-full text-left px-2 py-1.5 hover:bg-muted/50 flex items-center gap-2 text-sm"
-                                onClick={() => handleLinkDeal(d)}
-                              >
+                              <button key={d.id} className="w-full text-left px-2 py-1.5 hover:bg-muted/50 flex items-center gap-2 text-sm"
+                                onClick={() => handleLinkDeal(d)}>
                                 <Briefcase className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                 <div className="min-w-0">
                                   <p className="truncate text-xs font-medium">{d.title}</p>
@@ -658,9 +767,7 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                             ))}
                           </div>
                         )}
-                        <Button variant="ghost" size="sm" className="h-7 text-xs w-full" onClick={() => setShowDealSearch(false)}>
-                          Cancelar
-                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs w-full" onClick={() => setShowDealSearch(false)}>Cancelar</Button>
                       </div>
                     ) : (
                       <Button variant="outline" size="sm" className="w-full h-8 mt-1 text-xs" onClick={() => setShowDealSearch(true)}>
@@ -669,42 +776,77 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                     )}
                   </div>
 
-                  {/* Link Project */}
+                  {/* Company */}
                   <div>
                     <label className="text-xs text-muted-foreground flex items-center gap-1">
-                      <FolderKanban className="h-3 w-3" /> Projeto vinculado
+                      <Building2 className="h-3 w-3" /> Empresa
+                    </label>
+                    {card.company_id && card.company_name ? (
+                      <div className="mt-1 p-2 border rounded-md flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-primary shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{card.company_name}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleUnlinkCompany}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : showCompanySearch ? (
+                      <div className="mt-1 space-y-1">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input value={companySearch} onChange={e => setCompanySearch(e.target.value)}
+                            placeholder="Buscar empresa..." className="h-8 text-xs pl-7" autoFocus />
+                        </div>
+                        {searchingCompanies && <p className="text-xs text-muted-foreground">Buscando...</p>}
+                        {companyResults && companyResults.length > 0 && (
+                          <div className="border rounded-md max-h-32 overflow-y-auto">
+                            {companyResults.slice(0, 8).map((c: any) => (
+                              <button key={c.id} className="w-full text-left px-2 py-1.5 hover:bg-muted/50 flex items-center gap-2 text-sm"
+                                onClick={() => handleLinkCompany(c)}>
+                                <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <p className="truncate text-xs font-medium">{c.name}</p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <Button variant="ghost" size="sm" className="h-7 text-xs w-full" onClick={() => setShowCompanySearch(false)}>Cancelar</Button>
+                      </div>
+                    ) : (
+                      <Button variant="outline" size="sm" className="w-full h-8 mt-1 text-xs" onClick={() => setShowCompanySearch(true)}>
+                        <Link2 className="h-3 w-3 mr-1" /> Vincular empresa
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Project */}
+                  <div>
+                    <label className="text-xs text-muted-foreground flex items-center gap-1">
+                      <FolderKanban className="h-3 w-3" /> Projeto
                     </label>
                     {card.project_id && card.project_title ? (
-                        <div className="mt-1 p-2 border rounded-md flex items-center gap-2">
-                          <FolderKanban className="h-4 w-4 text-primary shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{card.project_title}</p>
-                            <p className="text-xs text-muted-foreground">{card.project_stage || 'Sem etapa'}</p>
-                          </div>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleUnlinkProject}>
-                            <X className="h-3 w-3" />
-                          </Button>
+                      <div className="mt-1 p-2 border rounded-md flex items-center gap-2">
+                        <FolderKanban className="h-4 w-4 text-primary shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{card.project_title}</p>
+                          <p className="text-xs text-muted-foreground">{card.project_stage || 'Sem etapa'}</p>
                         </div>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={handleUnlinkProject}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
                     ) : showProjectSearch ? (
                       <div className="mt-1 space-y-1">
                         <div className="relative">
                           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input
-                            value={projectSearch}
-                            onChange={e => setProjectSearch(e.target.value)}
-                            placeholder="Buscar projeto..."
-                            className="h-8 text-xs pl-7"
-                            autoFocus
-                          />
+                          <Input value={projectSearch} onChange={e => setProjectSearch(e.target.value)}
+                            placeholder="Buscar projeto..." className="h-8 text-xs pl-7" autoFocus />
                         </div>
                         {filteredProjects.length > 0 && (
                           <div className="border rounded-md max-h-32 overflow-y-auto">
                             {filteredProjects.slice(0, 8).map((p: any) => (
-                              <button
-                                key={p.id}
-                                className="w-full text-left px-2 py-1.5 hover:bg-muted/50 flex items-center gap-2 text-sm"
-                                onClick={() => handleLinkProject(p)}
-                              >
+                              <button key={p.id} className="w-full text-left px-2 py-1.5 hover:bg-muted/50 flex items-center gap-2 text-sm"
+                                onClick={() => handleLinkProject(p)}>
                                 <FolderKanban className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                 <div className="min-w-0">
                                   <p className="truncate text-xs font-medium">{p.title}</p>
@@ -714,9 +856,7 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                             ))}
                           </div>
                         )}
-                        <Button variant="ghost" size="sm" className="h-7 text-xs w-full" onClick={() => setShowProjectSearch(false)}>
-                          Cancelar
-                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs w-full" onClick={() => setShowProjectSearch(false)}>Cancelar</Button>
                       </div>
                     ) : (
                       <Button variant="outline" size="sm" className="w-full h-8 mt-1 text-xs" onClick={() => setShowProjectSearch(true)}>
