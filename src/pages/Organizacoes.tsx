@@ -500,7 +500,7 @@ export default function Organizacoes() {
 
     if (success) {
       // Also update template assignment
-      const newTemplateId = editMemberTemplateId || null;
+      const newTemplateId = editMemberTemplateId === 'none' ? null : (editMemberTemplateId || null);
       const currentTemplateId = editingMember.permission_template_id || null;
       if (newTemplateId !== currentTemplateId) {
         await handleAssignTemplate(editingMember.user_id, newTemplateId);
@@ -1486,7 +1486,7 @@ export default function Organizacoes() {
                     <SelectValue placeholder="Padrão (baseado no cargo)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Padrão (baseado no cargo)</SelectItem>
+                    <SelectItem value="none">Padrão (baseado no cargo)</SelectItem>
                     {templates.map(tpl => (
                       <SelectItem key={tpl.id} value={tpl.id}>
                         <div className="flex items-center gap-2">
