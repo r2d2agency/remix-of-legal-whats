@@ -51,7 +51,7 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects' | 'lead_gleego';
   adminOnly?: boolean;
   ownerOnly?: boolean;
   superadminOnly?: boolean;
@@ -61,7 +61,7 @@ interface NavSection {
   title: string;
   icon: any;
   items: NavItem[];
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects' | 'lead_gleego';
   adminOnly?: boolean; // Entire section requires admin role
 }
 
@@ -111,7 +111,7 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
       { name: "Fluxos Externos", href: "/fluxos-externos", icon: FileText, adminOnly: true },
       { name: "Webhooks", href: "/lead-webhooks", icon: Webhook, adminOnly: true },
       { name: "CTWA Analytics", href: "/ctwa-analytics", icon: MousePointerClick, adminOnly: true },
-      { name: "Lead Gleego", href: "/lead-gleego", icon: BarChart4 },
+      { name: "Lead Gleego", href: "/lead-gleego", icon: BarChart4, moduleKey: 'lead_gleego' as const },
     ],
   },
   {

@@ -14,6 +14,7 @@ interface ModulesEnabled {
   group_secretary: boolean;
   ghost: boolean;
   projects: boolean;
+  lead_gleego: boolean;
 }
 
 interface User {
@@ -56,6 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     group_secretary: false,
     ghost: true,
     projects: false,
+    lead_gleego: false,
   };
 
   const refreshUser = async () => {

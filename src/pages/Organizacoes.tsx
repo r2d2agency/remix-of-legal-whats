@@ -17,7 +17,7 @@ import { useOrganizations } from '@/hooks/use-organizations';
 import { useSuperadmin } from '@/hooks/use-superadmin';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image } from 'lucide-react';
+import { Building2, Plus, Users, Trash2, UserPlus, Crown, Shield, User, Briefcase, Loader2, Pencil, Link2, Settings, KeyRound, Megaphone, Receipt, UsersRound, CalendarClock, Bot, Layers, MessagesSquare, Upload, Image, BarChart3 } from 'lucide-react';
 import { useUpload } from '@/hooks/use-upload';
 
 interface Organization {
@@ -129,7 +129,10 @@ export default function Organizacoes() {
     group_secretary: false,
     ghost: false,
     projects: false,
+    lead_gleego: false,
   });
+  const [leadGleegoApiKey, setLeadGleegoApiKey] = useState('');
+  const [leadGleegoApiKeyMasked, setLeadGleegoApiKeyMasked] = useState('');
   const [savingModules, setSavingModules] = useState(false);
 
   const { 
@@ -204,9 +207,35 @@ export default function Organizacoes() {
         group_secretary: modules.group_secretary ?? false,
         ghost: modules.ghost ?? false,
         projects: modules.projects ?? false,
+        lead_gleego: modules.lead_gleego ?? false,
       });
     } catch (error) {
       console.error('Error loading modules:', error);
+    }
+    // Load Lead Gleego integration settings
+    try {
+      const settings = await api<any>(`/api/lead-gleego/settings`);
+      setLeadGleegoApiKeyMasked(settings.lead_gleego_api_key_masked || '');
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSaveLeadGleegoKey = async () => {
+    if (!leadGleegoApiKey.trim()) {
+      toast.error('Informe a chave de API');
+      return;
+    }
+    try {
+      await api('/api/lead-gleego/settings', {
+        method: 'PUT',
+        body: { lead_gleego_api_key: leadGleegoApiKey },
+      });
+      toast.success('Chave do Lead Gleego salva!');
+      setLeadGleegoApiKey('');
+      if (selectedOrg) loadModules(selectedOrg.id);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao salvar chave');
     }
   };
 
@@ -1097,6 +1126,54 @@ export default function Organizacoes() {
                             onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, projects: checked }))}
                             disabled={!canManageOrg}
                           />
+                        </div>
+
+                        {/* Lead Gleego Module */}
+                        <div className="rounded-lg border p-4 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                                <BarChart3 className="h-5 w-5 text-emerald-500" />
+                              </div>
+                              <div>
+                                <p className="font-medium">Lead Gleego</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Integração SSO com o Lead Extractor Gleego
+                                </p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={modulesEnabled.lead_gleego}
+                              onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, lead_gleego: checked }))}
+                              disabled={!canManageOrg}
+                            />
+                          </div>
+                          {modulesEnabled.lead_gleego && canManageOrg && (
+                            <div className="space-y-3 pt-2 border-t">
+                              <div>
+                                <Label className="text-sm font-medium flex items-center gap-2">
+                                  <KeyRound className="h-4 w-4" />
+                                  Chave de API (SSO)
+                                </Label>
+                                {leadGleegoApiKeyMasked && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Chave atual: <code className="bg-muted px-1 rounded">{leadGleegoApiKeyMasked}</code>
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="password"
+                                  placeholder="Cole a chave secreta SSO aqui"
+                                  value={leadGleegoApiKey}
+                                  onChange={(e) => setLeadGleegoApiKey(e.target.value)}
+                                />
+                                <Button onClick={handleSaveLeadGleegoKey} size="sm">
+                                  Salvar Chave
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Save Button */}
