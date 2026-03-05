@@ -54,6 +54,7 @@ export default function TarefasKanban() {
   const [newBoardName, setNewBoardName] = useState("");
   const [newBoardGlobal, setNewBoardGlobal] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState("");
+  const [newCardAssignee, setNewCardAssignee] = useState<string>("");
   const [showNewCard, setShowNewCard] = useState(false);
   const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
 
@@ -136,8 +137,10 @@ export default function TarefasKanban() {
       board_id: selectedBoardId,
       column_id: firstCol.id,
       title: newCardTitle,
+      assigned_to: newCardAssignee || undefined,
     } as any);
     setNewCardTitle("");
+    setNewCardAssignee("");
     setShowNewCard(false);
   };
 
@@ -289,6 +292,9 @@ export default function TarefasKanban() {
                 >
                   {board.is_global ? <LayoutGrid className="h-3 w-3" /> : <Kanban className="h-3 w-3" />}
                   {board.name}
+                  {!board.is_global && board.created_by !== user?.id && (
+                    <span className="text-[10px] opacity-70">({board.creator_name?.split(' ')[0]})</span>
+                  )}
                   <Badge variant="secondary" className="text-xs ml-1">{board.card_count || 0}</Badge>
                 </Button>
               ))}
@@ -381,6 +387,7 @@ export default function TarefasKanban() {
           open={cardDetailOpen}
           onOpenChange={setCardDetailOpen}
           orgMembers={orgMembers.map(m => ({ user_id: m.user_id, name: m.name }))}
+          allBoards={(boards || []).map(b => ({ id: b.id, name: b.name, is_global: b.is_global }))}
         />
 
         {/* New Board Dialog */}
@@ -420,6 +427,26 @@ export default function TarefasKanban() {
                 placeholder="Título do card"
                 autoFocus
               />
+              {/* Assignee - on global boards, allow assigning to other users */}
+              {selectedBoard?.is_global && orgMembers.length > 0 && (
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
+                  <Select value={newCardAssignee} onValueChange={setNewCardAssignee}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <Users className="h-3.5 w-3.5 mr-1.5" />
+                      <SelectValue placeholder="Para mim" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Para mim</SelectItem>
+                      {orgMembers.map(m => (
+                        <SelectItem key={m.user_id} value={m.user_id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 O card será criado na primeira coluna do quadro "{selectedBoard?.name}"
               </p>

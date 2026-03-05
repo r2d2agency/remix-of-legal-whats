@@ -157,21 +157,52 @@ function canManage(role) {
 
 // ========== BOARDS ==========
 
-// List boards (global + personal)
+// Helper: get group member user IDs for a manager/supervisor
+async function getGroupMemberIds(userId, orgId) {
+  // Get groups where user is supervisor
+  const groups = await query(
+    `SELECT gm2.user_id FROM crm_user_group_members gm
+     JOIN crm_user_group_members gm2 ON gm2.group_id = gm.group_id
+     WHERE gm.user_id = $1 AND gm.is_supervisor = true`,
+    [userId]
+  );
+  return groups.rows.map(r => r.user_id);
+}
+
+// List boards (global + personal + managed users' boards for managers, all for admins)
 router.get('/boards', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    let boardFilter;
+    let params;
+
+    if (['owner', 'admin'].includes(org.role)) {
+      // Admins see ALL boards in the org
+      boardFilter = `b.organization_id = $1`;
+      params = [org.organization_id];
+    } else if (org.role === 'manager') {
+      // Managers see global + own + group members' boards
+      const memberIds = await getGroupMemberIds(req.userId, org.organization_id);
+      const allIds = [...new Set([req.userId, ...memberIds])];
+      const placeholders = allIds.map((_, i) => `$${i + 2}`).join(',');
+      boardFilter = `b.organization_id = $1 AND (b.is_global = true OR b.created_by IN (${placeholders}))`;
+      params = [org.organization_id, ...allIds];
+    } else {
+      // Regular users: global + own
+      boardFilter = `b.organization_id = $1 AND (b.is_global = true OR b.created_by = $2)`;
+      params = [org.organization_id, req.userId];
+    }
 
     const result = await query(
       `SELECT b.*, u.name as creator_name,
               (SELECT COUNT(*) FROM task_cards tc WHERE tc.board_id = b.id) as card_count
        FROM task_boards b
        LEFT JOIN users u ON u.id = b.created_by
-       WHERE b.organization_id = $1
-         AND (b.is_global = true OR b.created_by = $2)
+       WHERE ${boardFilter}
        ORDER BY b.is_global DESC, b.created_at ASC`,
-      [org.organization_id, req.userId]
+      params
     );
     res.json(result.rows);
   } catch (error) {
@@ -382,9 +413,18 @@ router.get('/boards/:boardId/cards', async (req, res) => {
     );
     if (!board.rows[0]) return res.status(404).json({ error: 'Quadro não encontrado' });
 
-    // Personal boards: only show own cards
+    // Personal boards: admins can see all, managers can see group members', sellers only own
     if (!board.rows[0].is_global && board.rows[0].created_by !== req.userId) {
-      return res.status(403).json({ error: 'Sem acesso a este quadro' });
+      if (['owner', 'admin'].includes(org.role)) {
+        // admins can see all personal boards
+      } else if (org.role === 'manager') {
+        const memberIds = await getGroupMemberIds(req.userId, org.organization_id);
+        if (!memberIds.includes(board.rows[0].created_by)) {
+          return res.status(403).json({ error: 'Sem acesso a este quadro' });
+        }
+      } else {
+        return res.status(403).json({ error: 'Sem acesso a este quadro' });
+      }
     }
 
     const isManagerOrAdmin = canManage(org.role);
@@ -606,6 +646,64 @@ router.post('/cards/:id/move', async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Duplicate card
+router.post('/cards/:id/duplicate', async (req, res) => {
+  try {
+    const { target_board_id } = req.body;
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    // Get original card
+    const original = await query(`SELECT * FROM task_cards WHERE id = $1`, [req.params.id]);
+    if (!original.rows[0]) return res.status(404).json({ error: 'Card não encontrado' });
+
+    const card = original.rows[0];
+    const boardId = target_board_id || card.board_id;
+
+    // Get first column of target board
+    const firstCol = await query(
+      `SELECT id FROM task_board_columns WHERE board_id = $1 ORDER BY position ASC LIMIT 1`,
+      [boardId]
+    );
+    if (!firstCol.rows[0]) return res.status(400).json({ error: 'Quadro sem colunas' });
+
+    const maxPos = await query(
+      `SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM task_cards WHERE column_id = $1`,
+      [firstCol.rows[0].id]
+    );
+
+    const result = await query(
+      `INSERT INTO task_cards (organization_id, board_id, column_id, title, description, position, assigned_to, created_by, due_date, start_date, priority, deal_id, company_id, contact_phone, contact_name, cover_image_url, project_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+       RETURNING *`,
+      [card.organization_id, boardId, firstCol.rows[0].id, card.title + ' (cópia)', card.description, maxPos.rows[0].next_pos,
+       card.assigned_to, req.userId, card.due_date, card.start_date, card.priority, card.deal_id, card.company_id,
+       card.contact_phone, card.contact_name, card.cover_image_url, card.project_id]
+    );
+
+    // Duplicate checklists and items
+    const checklists = await query(`SELECT * FROM task_card_checklists WHERE card_id = $1 ORDER BY position`, [card.id]);
+    for (const cl of checklists.rows) {
+      const newCl = await query(
+        `INSERT INTO task_card_checklists (card_id, title, position, template_id) VALUES ($1, $2, $3, $4) RETURNING id`,
+        [result.rows[0].id, cl.title, cl.position, cl.template_id]
+      );
+      const items = await query(`SELECT * FROM task_card_checklist_items WHERE checklist_id = $1 ORDER BY position`, [cl.id]);
+      for (const item of items.rows) {
+        await query(
+          `INSERT INTO task_card_checklist_items (checklist_id, title, position, due_date) VALUES ($1, $2, $3, $4)`,
+          [newCl.rows[0].id, item.title, item.position, item.due_date]
+        );
+      }
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    logError('[TaskBoards] Duplicate card error', error);
     res.status(500).json({ error: error.message });
   }
 });

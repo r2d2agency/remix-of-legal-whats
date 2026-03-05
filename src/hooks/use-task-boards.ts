@@ -265,8 +265,18 @@ export function useTaskCardMutations(boardId?: string | null) {
       api(`/api/task-boards/cards/${id}/move`, { method: "POST", body: data, auth: true }),
     onSuccess: () => {
       invalidate();
-      // Also invalidate all boards since card might move between boards
       qc.invalidateQueries({ queryKey: ["task-board-cards"] });
+    },
+  });
+
+  const duplicateCard = useMutation({
+    mutationFn: ({ id, target_board_id }: { id: string; target_board_id?: string }) =>
+      api(`/api/task-boards/cards/${id}/duplicate`, { method: "POST", body: { target_board_id }, auth: true }),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["task-board-cards"] });
+      qc.invalidateQueries({ queryKey: ["task-boards"] });
+      toast({ title: "Card duplicado!" });
     },
   });
 
@@ -279,7 +289,7 @@ export function useTaskCardMutations(boardId?: string | null) {
     },
   });
 
-  return { createCard, updateCard, moveCard, deleteCard };
+  return { createCard, updateCard, moveCard, duplicateCard, deleteCard };
 }
 
 export function useChecklistMutations(cardId: string | null) {

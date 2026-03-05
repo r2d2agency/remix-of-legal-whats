@@ -27,7 +27,7 @@ import {
   Calendar, CheckSquare, Paperclip, MessageSquare, User, Trash2, Plus,
   Send, Image, FileText, X, Clock, Star, Upload, ListChecks, Save, Loader2,
   CircleCheck, Circle, MoreHorizontal, Search, Briefcase, FolderKanban, Phone, Link2,
-  Building2, GanttChart, PlayCircle, PauseCircle, AlertTriangle, CalendarIcon
+  Building2, GanttChart, PlayCircle, PauseCircle, AlertTriangle, CalendarIcon, Copy, ArrowRightLeft
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -47,9 +47,10 @@ interface TaskCardDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   orgMembers?: Array<{ user_id: string; name: string }>;
+  allBoards?: Array<{ id: string; name: string; is_global: boolean }>;
 }
 
-export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenChange, orgMembers = [] }: TaskCardDetailDialogProps) {
+export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenChange, orgMembers = [], allBoards = [] }: TaskCardDetailDialogProps) {
   const { data: card, isLoading } = useTaskCardDetail(open ? cardId : null);
   const cardMut = useTaskCardMutations(boardId);
   const checklistMut = useChecklistMutations(cardId);
@@ -310,6 +311,24 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => cardMut.duplicateCard.mutate({ id: cardId })}>
+                        <Copy className="h-4 w-4 mr-2" /> Duplicar card
+                      </DropdownMenuItem>
+                      {allBoards.filter(b => b.id !== boardId).length > 0 && (
+                        <>
+                          <DropdownMenuItem disabled className="text-xs text-muted-foreground font-medium">
+                            <ArrowRightLeft className="h-4 w-4 mr-2" /> Mover para quadro:
+                          </DropdownMenuItem>
+                          {allBoards.filter(b => b.id !== boardId).map(b => (
+                            <DropdownMenuItem key={b.id} onClick={() => {
+                              cardMut.moveCard.mutate({ id: cardId, board_id: b.id });
+                              onOpenChange(false);
+                            }} className="pl-8 text-xs">
+                              {b.is_global ? "🌐" : "📋"} {b.name}
+                            </DropdownMenuItem>
+                          ))}
+                        </>
+                      )}
                       <DropdownMenuItem className="text-destructive" onClick={handleDelete}>
                         <Trash2 className="h-4 w-4 mr-2" /> Excluir card
                       </DropdownMenuItem>
