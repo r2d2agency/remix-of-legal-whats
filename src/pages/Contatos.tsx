@@ -130,8 +130,12 @@ const Contatos = () => {
 
   const loadLists = async () => {
     try {
-      const data = await getLists();
+      const data = await getLists(filterConnectionId || undefined);
       setLists(data);
+      // Reset selected list if it's no longer in the filtered results
+      if (selectedList && !data.find(l => l.id === selectedList)) {
+        setSelectedList(null);
+      }
     } catch (err) {
       toast.error("Erro ao carregar listas");
     }
