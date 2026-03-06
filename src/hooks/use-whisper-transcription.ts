@@ -31,7 +31,8 @@ export function useWhisperTranscription() {
 
     try {
       // Dynamic import to avoid loading the large library on page load
-      const { pipeline } = await import('@xenova/transformers');
+      // @ts-ignore - dynamic import of optional dependency
+      const { pipeline } = await import(/* @vite-ignore */ '@xenova/transformers');
 
       pipelinePromise = pipeline('automatic-speech-recognition', 'Xenova/whisper-small', {
         progress_callback: (progress: any) => {
