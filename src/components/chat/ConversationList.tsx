@@ -771,7 +771,15 @@ export function ConversationList({
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       {/* Connection name - prominent when multiple connections */}
                       {conv.connection_name && connections && connections.length > 1 && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5 border-primary/30 text-primary">
+                        <Badge 
+                          variant="outline" 
+                          className="text-[10px] px-1.5 py-0 gap-0.5"
+                          style={connColor ? { 
+                            borderColor: connColor, 
+                            color: connColor,
+                            backgroundColor: `${connColor}15`
+                          } : undefined}
+                        >
                           <Smartphone className="h-2.5 w-2.5" />
                           {conv.connection_name}
                         </Badge>
