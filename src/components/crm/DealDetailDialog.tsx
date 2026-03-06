@@ -124,6 +124,9 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const { updateDeal, moveDeal, addContact, removeContact } = useCRMDealMutations();
   const { createTask, completeTask, deleteTask } = useCRMTaskMutations();
   const { uploadFile, isUploading } = useUpload();
+  const { data: dealCustomFields = [] } = useCRMCustomFields('deal');
+  const [editCustomFields, setEditCustomFields] = useState<Record<string, any>>({});
+  const [isEditingCustomFields, setIsEditingCustomFields] = useState(false);
   
   // Org members for owner select
   const { data: orgMembers } = useQuery({
