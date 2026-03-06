@@ -436,14 +436,14 @@ router.get('/boards/:boardId/cards', async (req, res) => {
     const params = [req.params.boardId];
     let paramIdx = 2;
 
-    // Role-based filtering for global boards
+    // Role-based filtering
     if (board.rows[0].is_global && !isManagerOrAdmin) {
-      // Sellers: only see cards assigned to them or created by them
+      // Sellers on global boards: only see cards assigned to them or created by them
       extraFilters += ` AND (tc.assigned_to = $${paramIdx} OR tc.created_by = $${paramIdx})`;
       params.push(req.userId);
       paramIdx++;
-    } else if (board.rows[0].is_global && isManagerOrAdmin && filter_user && filter_user !== 'all') {
-      // Admin/manager filtering by specific user
+    } else if (isManagerOrAdmin && filter_user && filter_user !== 'all') {
+      // Admin/manager filtering by specific user (works on any board)
       extraFilters += ` AND (tc.assigned_to = $${paramIdx} OR tc.created_by = $${paramIdx})`;
       params.push(filter_user);
       paramIdx++;

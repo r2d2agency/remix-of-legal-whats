@@ -214,8 +214,8 @@ export default function TarefasKanban() {
 
           {showFilters && (
             <>
-              {/* User filter - only for admin/manager */}
-              {isAdmin && selectedBoard?.is_global && (
+              {/* User filter - for admin/manager on any board */}
+              {isAdmin && (
                 <Select value={filterUser} onValueChange={setFilterUser}>
                   <SelectTrigger className="w-[180px] h-8 text-xs">
                     <Users className="h-3.5 w-3.5 mr-1.5" />
@@ -223,7 +223,7 @@ export default function TarefasKanban() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os usuários</SelectItem>
-                    {orgMembers.map(m => (
+                    {orgMembers.filter(m => m.is_active !== false).map(m => (
                       <SelectItem key={m.user_id} value={m.user_id}>
                         {m.name}
                       </SelectItem>
