@@ -126,6 +126,7 @@ export function CRMAIAgentsSection({
   };
 
   return (
+    <>
     <AccordionItem value="ai-agents" className="border rounded-lg px-3">
       <AccordionTrigger className="py-2 hover:no-underline">
         <div className="flex items-center gap-2 text-sm">
