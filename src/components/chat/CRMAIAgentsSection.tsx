@@ -111,6 +111,7 @@ export function CRMAIAgentsSection({
         auth: true,
       });
       setConsultResponse(data.response || 'Sem resposta');
+      setShowResponseModal(true);
     } catch {
       toast.error("Erro ao consultar agente de IA");
       setConsultResponse("");
