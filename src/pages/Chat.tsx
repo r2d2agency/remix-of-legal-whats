@@ -792,7 +792,7 @@ const Chat = () => {
                 onDeleteConversation={async () => { if (!selectedConversation) return; try { await api(`/api/chat/conversations/${selectedConversation.id}`, { method: 'DELETE' }); toast.success('Conversa excluída'); setSelectedConversation(null); setMessages([]); loadConversations(); } catch (error: any) { toast.error(error.message || 'Erro ao excluir conversa'); } }}
                 onReleaseConversation={handleReleaseConversation} onFinishConversation={() => handleFinishConversation()} onReopenConversation={() => handleReopenConversation()}
                 onDepartmentChange={() => loadConversations()} isMobile={true} onMobileBack={handleMobileBack}
-                onOpenCRM={modulesEnabled.crm ? () => setCrmPanelOpen(true) : undefined}
+                onOpenCRM={() => setCrmPanelOpen(true)}
               />
             )}
             {selectedConversation && modulesEnabled.crm && (
