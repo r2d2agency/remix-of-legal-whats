@@ -3,6 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
@@ -19,6 +27,7 @@ import {
   Trophy,
   ClipboardList,
   Zap,
+  X,
 } from "lucide-react";
 import { useAIAgents, AIAgent } from "@/hooks/use-ai-agents";
 import { api } from "@/lib/api";
@@ -49,6 +58,7 @@ export function CRMAIAgentsSection({
   const [consultPrompt, setConsultPrompt] = useState("");
   const [consultResponse, setConsultResponse] = useState("");
   const [consulting, setConsulting] = useState(false);
+  const [showResponseModal, setShowResponseModal] = useState(false);
 
   useEffect(() => {
     if (isOpen && conversationId) {
@@ -101,6 +111,7 @@ export function CRMAIAgentsSection({
         auth: true,
       });
       setConsultResponse(data.response || 'Sem resposta');
+      setShowResponseModal(true);
     } catch {
       toast.error("Erro ao consultar agente de IA");
       setConsultResponse("");
@@ -115,6 +126,7 @@ export function CRMAIAgentsSection({
   };
 
   return (
+    <>
     <AccordionItem value="ai-agents" className="border rounded-lg px-3">
       <AccordionTrigger className="py-2 hover:no-underline">
         <div className="flex items-center gap-2 text-sm">
@@ -183,14 +195,9 @@ export function CRMAIAgentsSection({
             )}
 
             {consultResponse && !consulting && (
-              <div className="space-y-2">
-                <div className="p-3 rounded-lg bg-muted/50 border text-xs leading-relaxed whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                  {consultResponse}
-                </div>
-                <Button variant="outline" size="sm" className="w-full h-7 text-[10px] gap-1" onClick={handleCopyResponse}>
-                  <Copy className="h-3 w-3" />Copiar resposta
-                </Button>
-              </div>
+              <Button variant="outline" size="sm" className="w-full h-7 text-[10px] gap-1" onClick={() => setShowResponseModal(true)}>
+                <Sparkles className="h-3 w-3" />Ver última resposta
+              </Button>
             )}
 
             <div className="pt-2 border-t">
@@ -225,5 +232,33 @@ export function CRMAIAgentsSection({
         )}
       </AccordionContent>
     </AccordionItem>
+
+    {/* AI Response Modal */}
+    <Dialog open={showResponseModal} onOpenChange={setShowResponseModal}>
+      <DialogContent className="sm:max-w-lg max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-primary" />
+            Resposta da IA
+            {consultAgent && <span className="text-sm font-normal text-muted-foreground">— {consultAgent.name}</span>}
+          </DialogTitle>
+          <DialogDescription>Analise a resposta e copie se necessário</DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="max-h-[60vh]">
+          <div className="p-4 rounded-lg bg-muted/30 border text-sm leading-relaxed whitespace-pre-wrap">
+            {consultResponse}
+          </div>
+        </ScrollArea>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" className="gap-1" onClick={handleCopyResponse}>
+            <Copy className="h-4 w-4" />Copiar
+          </Button>
+          <Button size="sm" onClick={() => setShowResponseModal(false)}>
+            Fechar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
