@@ -82,6 +82,7 @@ import { useCRMDealsByPhone, CRMDeal } from "@/hooks/use-crm";
 import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { AIAgentBanner } from "./AIAgentBanner";
 import { ChatMessageBubble } from "./ChatMessageBubble";
+import { ForwardMessageDialog } from "./ForwardMessageDialog";
 import {
   TransferDialog,
   DepartmentDialog,
