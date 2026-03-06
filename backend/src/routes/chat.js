@@ -24,13 +24,13 @@ function isViewOnlyRole(role) {
 }
 
 // Get user's connections based on their access rights:
-// - Owner/admin/manager: all org connections
-// - Everyone else: ONLY connections assigned via connection_members (empty if none)
+// - Owner: all org connections
+// - Everyone else (admin, manager, etc.): ONLY connections assigned via connection_members
 async function getUserConnections(userId) {
   const org = await getUserOrganization(userId);
 
-  // Owner, admin and manager see all org connections automatically
-  if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
+  // Only owner sees all org connections automatically
+  if (org && org.role === 'owner') {
     const orgResult = await query(
       `SELECT c.id FROM connections c WHERE c.organization_id = $1`,
       [org.organization_id]
