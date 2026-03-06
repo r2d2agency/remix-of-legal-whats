@@ -1768,7 +1768,8 @@ async function handleIncomingMessage(connection, payload) {
           `UPDATE conversations 
            SET last_message_at = NOW(), 
                unread_count = unread_count + 1,
-               contact_name = COALESCE($2, contact_name)
+               contact_name = COALESCE($2, contact_name),
+               attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END
            WHERE id = $1`,
           [conversationId, payload.sender?.pushName || payload.pushName || payload.name]
         );
