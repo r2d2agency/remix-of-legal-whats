@@ -100,6 +100,7 @@ const Contatos = () => {
     const loadConnections = async () => {
       try {
         const connections = await api<SyncConnection[]>('/api/connections');
+        setAllConnections(connections);
         const connectedWapi = connections.filter(
           (c) => (c.provider === 'wapi' || !!c.instance_id) && c.status === 'connected'
         );
@@ -109,6 +110,7 @@ const Contatos = () => {
         setSelectedSyncConnectionId((prev) => prev || connectedWapi[0]?.id || "");
       } catch {
         setSyncConnections([]);
+        setAllConnections([]);
       }
     };
 
