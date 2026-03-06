@@ -686,31 +686,43 @@ export function ChatArea({
             </div>
           )}
 
-          {!isMobile && !conversation.is_group && openDeals.length > 0 && modulesEnabled.crm && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="text-primary border-primary/30 hover:bg-primary/10 relative h-8" title={`${openDeals.length} negociação(ões) aberta(s)`}>
+          {!isMobile && onOpenCRM && modulesEnabled.crm && (
+            <>
+              {!conversation.is_group && openDeals.length > 0 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-primary border-primary/30 hover:bg-primary/10 relative h-8" title={`${openDeals.length} negociação(ões) aberta(s)`}>
+                      <Briefcase className="h-3.5 w-3.5" /><span className="ml-1.5 text-xs">CRM</span>
+                      <Badge variant="secondary" className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 text-[10px] bg-primary text-primary-foreground">{openDeals.length}</Badge>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72 z-[80]">
+                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Negociações abertas</div>
+                    <DropdownMenuSeparator />
+                    {openDeals.slice(0, 5).map(deal => (
+                      <DropdownMenuItem key={deal.id} onClick={() => { setSelectedDeal(deal); setShowDealDetailDialog(true); }} className="flex flex-col items-start gap-1 py-2">
+                        <div className="flex items-center gap-2 w-full">
+                          <span className="font-medium truncate flex-1">{deal.title}</span>
+                          {deal.stage_color && <Badge variant="outline" className="text-[10px] h-5 px-1.5" style={{ borderColor: deal.stage_color, color: deal.stage_color }}>{deal.stage_name}</Badge>}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{deal.company_name}</span><span>•</span>
+                          <span className="font-medium text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deal.value)}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onOpenCRM} className="text-primary">
+                      <Briefcase className="h-4 w-4 mr-2" />Abrir painel CRM completo
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button variant="outline" size="sm" className="text-primary border-primary/30 hover:bg-primary/10 h-8" onClick={onOpenCRM} title="Abrir painel CRM">
                   <Briefcase className="h-3.5 w-3.5" /><span className="ml-1.5 text-xs">CRM</span>
-                  <Badge variant="secondary" className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 text-[10px] bg-primary text-primary-foreground">{openDeals.length}</Badge>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72 z-[80]">
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Negociações abertas</div>
-                <DropdownMenuSeparator />
-                {openDeals.slice(0, 5).map(deal => (
-                  <DropdownMenuItem key={deal.id} onClick={() => { setSelectedDeal(deal); setShowDealDetailDialog(true); }} className="flex flex-col items-start gap-1 py-2">
-                    <div className="flex items-center gap-2 w-full">
-                      <span className="font-medium truncate flex-1">{deal.title}</span>
-                      {deal.stage_color && <Badge variant="outline" className="text-[10px] h-5 px-1.5" style={{ borderColor: deal.stage_color, color: deal.stage_color }}>{deal.stage_name}</Badge>}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{deal.company_name}</span><span>•</span>
-                      <span className="font-medium text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deal.value)}</span>
-                    </div>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              )}
+            </>
           )}
 
           {!isMobile && (
