@@ -30,15 +30,8 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
   const [transcript, setTranscript] = useState<string | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
 
-  // Whisper transcription hook
-  const {
-    isTranscribing,
-    isLoadingModel,
-    progress: modelProgress,
-    transcribe,
-    cancel: cancelTranscription,
-    isModelLoaded,
-  } = useWhisperTranscription();
+  // Server-side transcription state
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   const formatTime = (time: number) => {
     if (!isFinite(time) || isNaN(time)) return "0:00";
