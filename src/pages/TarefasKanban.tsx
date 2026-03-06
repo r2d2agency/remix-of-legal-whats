@@ -432,13 +432,13 @@ export default function TarefasKanban() {
               {selectedBoard?.is_global && orgMembers.length > 0 && (
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
-                  <Select value={newCardAssignee} onValueChange={setNewCardAssignee}>
+                  <Select value={newCardAssignee || "me"} onValueChange={(v) => setNewCardAssignee(v === "me" ? "" : v)}>
                     <SelectTrigger className="h-8 text-xs">
                       <Users className="h-3.5 w-3.5 mr-1.5" />
                       <SelectValue placeholder="Para mim" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Para mim</SelectItem>
+                      <SelectItem value="me">Para mim</SelectItem>
                       {orgMembers.filter(m => m.is_active !== false).map(m => (
                         <SelectItem key={m.user_id} value={m.user_id}>
                           {m.name}
