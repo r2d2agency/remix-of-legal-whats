@@ -111,6 +111,7 @@ export interface CRMDeal {
   contacts?: CRMDealContact[];
   last_activity_at: string;
   last_opened_at: string;
+  custom_fields?: Record<string, any>;
   created_at: string;
 }
 

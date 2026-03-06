@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel, useCRMCompanies } from "@/hooks/use-crm";
+import { useCRMCustomFields, CRMCustomField } from "@/hooks/use-crm-config";
 import { api } from "@/lib/api";
 import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building, Mail, Video, Send, ClipboardList, RefreshCw, Flame } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -123,6 +124,9 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const { updateDeal, moveDeal, addContact, removeContact } = useCRMDealMutations();
   const { createTask, completeTask, deleteTask } = useCRMTaskMutations();
   const { uploadFile, isUploading } = useUpload();
+  const { data: dealCustomFields = [] } = useCRMCustomFields('deal');
+  const [editCustomFields, setEditCustomFields] = useState<Record<string, any>>({});
+  const [isEditingCustomFields, setIsEditingCustomFields] = useState(false);
   
   // Org members for owner select
   const { data: orgMembers } = useQuery({
@@ -769,7 +773,113 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                   )}
                 </Card>
 
-                {/* Lead Score Card */}
+                {/* Custom Fields Card */}
+                {dealCustomFields.length > 0 && (
+                  <Card className="p-4 col-span-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium">Campos Personalizados</h4>
+                      {!isEditingCustomFields ? (
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          setEditCustomFields(currentDeal?.custom_fields || {});
+                          setIsEditingCustomFields(true);
+                        }}>
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setIsEditingCustomFields(false)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            if (currentDeal) {
+                              updateDeal.mutate({ id: currentDeal.id, custom_fields: editCustomFields } as any);
+                              setIsEditingCustomFields(false);
+                            }
+                          }}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {dealCustomFields.filter(f => f.is_active).map(field => {
+                        const fieldValue = isEditingCustomFields 
+                          ? (editCustomFields[field.field_name] ?? '') 
+                          : (currentDeal?.custom_fields?.[field.field_name] ?? '');
+
+                        if (!isEditingCustomFields) {
+                          return (
+                            <div key={field.id} className="space-y-0.5">
+                              <span className="text-xs text-muted-foreground">{field.field_label}</span>
+                              <p className="text-sm">
+                                {field.field_type === 'boolean' 
+                                  ? (fieldValue ? 'Sim' : 'Não')
+                                  : field.field_type === 'date' && fieldValue
+                                    ? format(parseISO(fieldValue), "dd/MM/yyyy")
+                                    : (Array.isArray(fieldValue) ? fieldValue.join(', ') : fieldValue || '—')}
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div key={field.id} className="space-y-1">
+                            <Label className="text-xs">{field.field_label}</Label>
+                            {field.field_type === 'text' && (
+                              <Input
+                                value={fieldValue}
+                                onChange={e => setEditCustomFields(prev => ({ ...prev, [field.field_name]: e.target.value }))}
+                                className="h-8 text-sm"
+                              />
+                            )}
+                            {field.field_type === 'number' && (
+                              <Input
+                                type="number"
+                                value={fieldValue}
+                                onChange={e => setEditCustomFields(prev => ({ ...prev, [field.field_name]: e.target.value }))}
+                                className="h-8 text-sm"
+                              />
+                            )}
+                            {field.field_type === 'date' && (
+                              <Input
+                                type="date"
+                                value={fieldValue}
+                                onChange={e => setEditCustomFields(prev => ({ ...prev, [field.field_name]: e.target.value }))}
+                                className="h-8 text-sm"
+                              />
+                            )}
+                            {field.field_type === 'boolean' && (
+                              <div className="flex items-center gap-2 pt-1">
+                                <Checkbox
+                                  checked={!!fieldValue}
+                                  onCheckedChange={v => setEditCustomFields(prev => ({ ...prev, [field.field_name]: v }))}
+                                />
+                                <span className="text-sm">{fieldValue ? 'Sim' : 'Não'}</span>
+                              </div>
+                            )}
+                            {(field.field_type === 'select' || field.field_type === 'multiselect') && (
+                              <Select
+                                value={Array.isArray(fieldValue) ? fieldValue[0] || '' : fieldValue}
+                                onValueChange={v => setEditCustomFields(prev => ({ ...prev, [field.field_name]: v }))}
+                              >
+                                <SelectTrigger className="h-8 text-sm">
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {field.options?.map(opt => (
+                                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                )}
+
+
                 {dealScore && dealScore.score > 0 && (
                   <Card className="p-4 col-span-2">
                     <div className="flex items-center justify-between mb-3">
