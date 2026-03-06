@@ -77,6 +77,7 @@ const Contatos = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterConnectionId, setFilterConnectionId] = useState<string>("");
   const [isCreateListOpen, setIsCreateListOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
