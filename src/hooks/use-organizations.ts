@@ -29,6 +29,7 @@ interface OrganizationMember {
   role: 'owner' | 'admin' | 'manager' | 'agent';
   assigned_connections: AssignedConnection[];
   assigned_departments: AssignedDepartment[];
+  is_active?: boolean;
   created_at: string;
 }
 
