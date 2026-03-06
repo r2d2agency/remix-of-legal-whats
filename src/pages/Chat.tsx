@@ -15,6 +15,7 @@ import { MessageSquare, Users, Bell, RefreshCw } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { useAuth } from "@/contexts/AuthContext";
 
