@@ -861,7 +861,7 @@ const Chat = () => {
 
             <ResizablePanel defaultSize={selectedConversation && modulesEnabled.crm && crmPanelOpen ? 47 : 72} minSize={30}>
               <ChatArea
-                conversation={selectedConversation} messages={messages} loading={loadingMessages} sending={sendingMessage}
+                conversation={selectedConversation} messages={messages} conversations={conversations} loading={loadingMessages} sending={sendingMessage}
                 tags={tags} team={team} syncingHistory={syncingHistory} isAdmin={isAdmin} userRole={userRole}
                 onSyncHistory={handleSyncHistory} onSendMessage={handleSendMessage} onLoadMore={handleLoadMoreMessages} hasMore={hasMoreMessages}
                 onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} onAssign={handleAssign} onArchive={handleArchive} onTransfer={handleTransfer} onCreateTag={handleCreateTag}
