@@ -437,8 +437,8 @@ router.get('/boards/:boardId/cards', async (req, res) => {
     let paramIdx = 2;
 
     // Role-based filtering
-    if (board.rows[0].is_global && !isManagerOrAdmin) {
-      // Sellers on global boards: only see cards assigned to them or created by them
+    if (!isManagerOrAdmin) {
+      // Basic users (agent/vendedor): only see cards assigned to them or created by them (on ANY board)
       extraFilters += ` AND (tc.assigned_to = $${paramIdx} OR tc.created_by = $${paramIdx})`;
       params.push(req.userId);
       paramIdx++;
