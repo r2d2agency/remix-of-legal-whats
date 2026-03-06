@@ -35,29 +35,20 @@ router.get('/', async (req, res) => {
     let result;
 
     // All users only see connections assigned via connection_members
-    {
-      const specificResult = await query(
-        `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
-        [req.userId]
-      );
-      const connIds = specificResult.rows.map(r => r.connection_id);
-    } else {
-      // Everyone else: only connections assigned via connection_members
-      const specificResult = await query(
-        `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
-        [req.userId]
-      );
-      const connIds = specificResult.rows.map(r => r.connection_id);
+    const specificResult = await query(
+      `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
+      [req.userId]
+    );
+    const connIds = specificResult.rows.map(r => r.connection_id);
 
-      if (connIds.length === 0) {
-        return res.json([]);
-      }
-
-      result = await query(
-        `${connQuery} WHERE c.id = ANY($1) ORDER BY c.created_at DESC`,
-        [connIds]
-      );
+    if (connIds.length === 0) {
+      return res.json([]);
     }
+
+    result = await query(
+      `${connQuery} WHERE c.id = ANY($1) ORDER BY c.created_at DESC`,
+      [connIds]
+    );
     
     res.json(result.rows);
   } catch (error) {
