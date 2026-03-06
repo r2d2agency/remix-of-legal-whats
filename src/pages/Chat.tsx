@@ -871,9 +871,6 @@ const Chat = () => {
             )}
           </ResizablePanelGroup>
         )}
-                conversations={conversations}
-                selectedId={selectedConversation?.id || null}
-                onSelect={handleMobileSelectConversation}
                 tags={tags}
                 team={team}
                 loading={loading}
