@@ -838,19 +838,21 @@ export async function editMessage(instanceId, token, messageId, phone, newText) 
 export async function deleteMessage(instanceId, token, messageId, phone) {
   const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
   try {
+    const params = new URLSearchParams({
+      instanceId,
+      messageId,
+      phone: cleanPhone,
+    });
     const response = await fetch(
-      `${W_API_BASE_URL}/message/delete-message?instanceId=${instanceId}`,
+      `${W_API_BASE_URL}/message/delete-message?${params.toString()}`,
       {
         method: 'DELETE',
         headers: getHeaders(token),
-        body: JSON.stringify({
-          messageId,
-          phone: cleanPhone,
-        }),
       }
     );
     const { data } = await readJsonResponse(response);
     if (!response.ok) {
+      console.error('W-API deleteMessage failed:', response.status, data);
       return { success: false, error: data?.message || 'Failed to delete message' };
     }
     return { success: true };
