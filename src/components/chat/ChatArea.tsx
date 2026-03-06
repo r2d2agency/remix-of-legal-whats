@@ -96,6 +96,7 @@ import { ptBR } from "date-fns/locale";
 interface ChatAreaProps {
   conversation: Conversation | null;
   messages: ChatMessage[];
+  conversations?: Conversation[];
   loading: boolean;
   sending: boolean;
   syncingHistory?: boolean;
@@ -105,6 +106,7 @@ interface ChatAreaProps {
   userRole?: string;
   onSyncHistory?: (days: number) => Promise<void>;
   onSendMessage: (content: string, type?: string, mediaUrl?: string, quotedMessageId?: string, mediaMimetype?: string) => Promise<void>;
+  onForwardMessage?: (targetConversationId: string, message: ChatMessage) => Promise<void>;
   onLoadMore: () => void;
   hasMore: boolean;
   onAddTag: (tagId: string) => void;
