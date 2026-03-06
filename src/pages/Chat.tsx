@@ -414,6 +414,23 @@ const Chat = () => {
           return;
         }
         
+        // Auto-switch attendance tab to match conversation's status
+        const convStatus = (conv as any).attendance_status;
+        if (convStatus && convStatus !== filters.attendance_status) {
+          const mappedStatus = convStatus === 'waiting' ? 'waiting' 
+            : convStatus === 'finished' ? 'finished' 
+            : 'attending';
+          setFilters(prev => ({ ...prev, attendance_status: mappedStatus }));
+        }
+
+        // Auto-switch group/chat tab
+        const isGroup = !!(conv as any).is_group;
+        if (isGroup && activeTab !== 'groups') {
+          setActiveTab('groups');
+        } else if (!isGroup && activeTab !== 'chats') {
+          setActiveTab('chats');
+        }
+        
         await handleSelectConversation(conv);
       } catch (error) {
         console.error('Error opening conversation from URL:', error);
