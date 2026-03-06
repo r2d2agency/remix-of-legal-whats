@@ -128,6 +128,7 @@ interface ChatAreaProps {
 export function ChatArea({
   conversation,
   messages,
+  conversations = [],
   loading,
   sending,
   syncingHistory,
@@ -137,6 +138,7 @@ export function ChatArea({
   userRole,
   onSyncHistory,
   onSendMessage,
+  onForwardMessage,
   onLoadMore,
   hasMore,
   onAddTag,
