@@ -477,7 +477,7 @@ export function Sidebar() {
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen bg-card border-r border-border shadow-card transition-all duration-300 ease-in-out hidden lg:block",
+          "fixed left-0 top-0 z-40 h-screen bg-card border-r border-border shadow-card transition-all duration-300 ease-in-out hidden xl:block",
           isHovered ? expandedWidth : collapsedWidth
         )}
         onMouseEnter={() => setIsHovered(true)}
