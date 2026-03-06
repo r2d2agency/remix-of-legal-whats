@@ -33,6 +33,7 @@ interface ChatMessageBubbleProps {
   isCurrentResult: boolean;
   searchQuery: string;
   onReply: (msg: ChatMessage) => void;
+  onForward?: (msg: ChatMessage) => void;
   onSendMessage: (content: string, type?: string, mediaUrl?: string, quotedMessageId?: string, mediaMimetype?: string) => Promise<void>;
   onEditMessage?: (messageId: string, content: string) => Promise<boolean>;
   onDeleteMessage?: (messageId: string) => Promise<boolean>;
