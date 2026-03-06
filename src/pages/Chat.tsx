@@ -86,15 +86,18 @@ const Chat = () => {
   }, [crmPanelOpen]);
 
   const [attendanceCounts, setAttendanceCounts] = useState<{ waiting: number; attending: number; finished: number }>({ waiting: 0, attending: 0, finished: 0 });
-  const [filters, setFilters] = useState({
-    search: '',
-    tag: 'all',
-    assigned: 'all',
-    archived: false,
-    connection: 'all',
-    is_group: false, // false = individual chats, true = group chats
-    attendance_status: 'attending' as 'waiting' | 'attending' | 'finished',
-    department: 'all',
+  const [filters, setFilters] = useState(() => {
+    const savedConnection = localStorage.getItem('chat_selected_connection') || 'all';
+    return {
+      search: '',
+      tag: 'all',
+      assigned: 'all',
+      archived: false,
+      connection: savedConnection,
+      is_group: false, // false = individual chats, true = group chats
+      attendance_status: 'attending' as 'waiting' | 'attending' | 'finished',
+      department: 'all',
+    };
   });
   const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
 
