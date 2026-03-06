@@ -34,8 +34,8 @@ router.get('/', async (req, res) => {
 
     let result;
 
-    if (org && org.role === 'owner') {
-      // Owner sees ALL org connections
+    if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
+      // Owner/admin/manager sees ALL org connections
       result = await query(
         `${connQuery} WHERE c.organization_id = $1 ORDER BY c.created_at DESC`,
         [org.organization_id]
