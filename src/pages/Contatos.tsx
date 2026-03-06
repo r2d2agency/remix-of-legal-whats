@@ -114,10 +114,10 @@ const Contatos = () => {
     loadConnections();
   }, []);
 
-  // Load lists on mount
+  // Load lists on mount and when connection filter changes
   useEffect(() => {
     loadLists();
-  }, []);
+  }, [filterConnectionId]);
 
   // Load contacts when list changes
   useEffect(() => {
