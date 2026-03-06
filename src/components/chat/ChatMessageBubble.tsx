@@ -368,6 +368,17 @@ export function ChatMessageBubble({
           >
             <Reply className="h-3 w-3" />
           </Button>
+          {onForward && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => onForward(msg)}
+              title="Encaminhar"
+            >
+              <Forward className="h-3 w-3" />
+            </Button>
+          )}
           {canEdit && (
             <Button
               variant="ghost"
