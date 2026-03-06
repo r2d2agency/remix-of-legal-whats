@@ -403,6 +403,9 @@ const Configuracoes = () => {
               {/* Web Push Notifications */}
               <PushNotificationSettings />
 
+              {/* Per-device and per-connection notification settings */}
+              <NotificationConnectionSettings />
+
               {/* PWA Install */}
               <Card className="animate-fade-in shadow-card">
                 <CardHeader>
