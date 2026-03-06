@@ -259,7 +259,7 @@ export function NurturingStepDialog({
               <div className="space-y-2">
                 <Label>Mensagem WhatsApp</Label>
                 <Textarea
-                  placeholder="Olá {{nome}}, tudo bem?&#10;&#10;Gostaria de saber como posso ajudar..."
+                  placeholder="Olá {nome}, tudo bem?&#10;&#10;Gostaria de saber como posso ajudar..."
                   value={whatsappContent}
                   onChange={(e) => setWhatsappContent(e.target.value)}
                   rows={6}
