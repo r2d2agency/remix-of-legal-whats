@@ -375,7 +375,7 @@ export function EmailTemplateEditor({ template, open, onOpenChange }: EmailTempl
           <DialogHeader>
             <DialogTitle>Preview do Email</DialogTitle>
             <DialogDescription>
-              Assunto: {form.subject.replace(/{nome}/g, "João Silva")}
+              Assunto: {form.subject.replace(/\{\{?\s*nome\s*\}\}?/gi, "João Silva")}
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh]">
