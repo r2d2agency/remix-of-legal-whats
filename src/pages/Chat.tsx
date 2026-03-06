@@ -856,7 +856,7 @@ const Chat = () => {
               />
             </ResizablePanel>
 
-            {selectedConversation && modulesEnabled.crm && crmPanelOpen && (
+            {selectedConversation && crmPanelOpen && (
               <>
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={25} minSize={18} maxSize={35} className="overflow-hidden">
