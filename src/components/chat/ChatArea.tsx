@@ -673,11 +673,6 @@ export function ChatArea({
             <Search className={cn(isMobile ? "h-3.5 w-3.5" : "h-4 w-4")} />
           </Button>
 
-          {!isMobile && !!onSyncHistory && (
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSyncDialog(true)} disabled={!!syncingHistory} title="Sincronizar histórico">
-              {syncingHistory ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            </Button>
-          )}
 
           {!isMobile && messages.length > 3 && <SentimentIndicator messages={messages} compact />}
 
@@ -770,7 +765,7 @@ export function ChatArea({
                   {!isViewOnly && onReopenConversation && conversation.attendance_status === 'finished' && (
                     <DropdownMenuItem onClick={onReopenConversation} className="text-blue-600"><RotateCcw className="h-4 w-4 mr-2" />Reabrir conversa</DropdownMenuItem>
                   )}
-                  {!!onSyncHistory && <DropdownMenuItem onClick={() => setShowSyncDialog(true)}><RefreshCw className="h-4 w-4 mr-2" />Sincronizar histórico</DropdownMenuItem>}
+                  
                   <DropdownMenuSeparator />
                 </>
               )}
@@ -1087,7 +1082,7 @@ export function ChatArea({
       <TransferDialog open={showTransferDialog} onOpenChange={setShowTransferDialog} conversation={conversation} team={team} onTransfer={onTransfer} />
       <DepartmentDialog open={showDepartmentDialog} onOpenChange={setShowDepartmentDialog} conversation={conversation} departments={departments} onSave={handleSaveDepartment} saving={savingDepartment} />
       {onDeleteConversation && <DeleteConversationDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog} onDelete={onDeleteConversation} />}
-      {onSyncHistory && <SyncDialog open={showSyncDialog} onOpenChange={setShowSyncDialog} onSync={onSyncHistory} syncing={syncingHistory} />}
+      
       <CreateTagDialog open={showTagDialog} onOpenChange={setShowTagDialog} onCreateTag={onCreateTag} />
       <EditContactDialog open={showEditContactDialog} onOpenChange={setShowEditContactDialog} conversation={conversation} />
       </div>
