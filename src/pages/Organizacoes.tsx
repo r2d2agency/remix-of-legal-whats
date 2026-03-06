@@ -972,6 +972,21 @@ export default function Organizacoes() {
                                       </div>
                                     </TableCell>
                                     <TableCell>
+                                      {member.role === 'owner' ? (
+                                        <Badge variant="secondary" className="bg-primary/10 text-primary text-xs">Ativo</Badge>
+                                      ) : (
+                                        <div className="flex items-center gap-2">
+                                          <Switch
+                                            checked={member.is_active !== false}
+                                            onCheckedChange={() => handleToggleActive(member)}
+                                          />
+                                          <span className={`text-xs ${member.is_active !== false ? 'text-primary' : 'text-muted-foreground'}`}>
+                                            {member.is_active !== false ? 'Ativo' : 'Inativo'}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
                                       <Badge variant="secondary" className={`${roleLabels[member.role].color} text-white`}>
                                         <RoleIcon className="h-3 w-3 mr-1" />
                                         {roleLabels[member.role].label}
