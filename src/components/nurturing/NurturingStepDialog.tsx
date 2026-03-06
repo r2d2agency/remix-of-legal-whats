@@ -266,7 +266,7 @@ export function NurturingStepDialog({
                   className="resize-none"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use {"{{variavel}}"} para personalização. Ex: {"{{nome}}"}, {"{{empresa}}"}
+                  Variáveis: <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code>, <code className="bg-muted px-1 rounded">{'{email}'}</code>, <code className="bg-muted px-1 rounded">{'{empresa}'}</code>
                 </p>
               </div>
 
