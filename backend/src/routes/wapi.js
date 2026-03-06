@@ -1863,13 +1863,21 @@ async function handleIncomingMessage(connection, payload) {
       : null;
 
     // Insert message into chat_messages table
-    await query(
-      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, status, timestamp)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'received', NOW())`,
-      [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone]
-    );
+    try {
+      await query(
+        `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, status, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'received', NOW())`,
+        [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone]
+      );
 
-    console.log('[W-API] Message saved. Type:', messageType, 'MediaURL:', effectiveMediaUrl?.slice?.(0, 100));
+      console.log('[W-API] Message saved. Type:', messageType, 'ConvID:', conversationId, 'MsgID:', messageId, 'MediaURL:', effectiveMediaUrl?.slice?.(0, 100));
+    } catch (insertError) {
+      console.error('[W-API] CRITICAL: Failed to insert message into chat_messages:', insertError.message);
+      console.error('[W-API] Insert params:', { conversationId, messageId, content: content?.slice?.(0, 50), messageType, effectiveMediaUrl: effectiveMediaUrl?.slice?.(0, 80) });
+      // Reset unread_count since the message wasn't saved
+      await query(`UPDATE conversations SET unread_count = GREATEST(unread_count - 1, 0) WHERE id = $1`, [conversationId]).catch(() => {});
+      throw insertError;
+    }
 
     // Pause nurturing sequences on incoming message (fromMe is always false here)
     if (cleanPhone && connection.organization_id) {
