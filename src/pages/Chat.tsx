@@ -73,6 +73,18 @@ const Chat = () => {
   const [syncingGroups, setSyncingGroups] = useState(false);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [crmPanelOpen, setCrmPanelOpen] = useState(false);
+
+  // Escape to close CRM panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && crmPanelOpen) {
+        setCrmPanelOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [crmPanelOpen]);
+
   const [attendanceCounts, setAttendanceCounts] = useState<{ waiting: number; attending: number; finished: number }>({ waiting: 0, attending: 0, finished: 0 });
   const [filters, setFilters] = useState({
     search: '',
