@@ -1130,6 +1130,16 @@ export function ChatArea({
         />
       )}
       <DealDetailDialog deal={selectedDeal} open={showDealDetailDialog} onOpenChange={open => { setShowDealDetailDialog(open); if (!open) setSelectedDeal(null); }} />
+      {onForwardMessage && conversation && (
+        <ForwardMessageDialog
+          open={!!forwardingMessage}
+          onOpenChange={(open) => { if (!open) setForwardingMessage(null); }}
+          message={forwardingMessage}
+          conversations={conversations}
+          currentConversationId={conversation.id}
+          onForward={onForwardMessage}
+        />
+      )}
     </div>
   );
 }
