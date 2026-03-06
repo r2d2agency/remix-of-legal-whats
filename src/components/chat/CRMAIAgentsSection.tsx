@@ -81,9 +81,9 @@ export function CRMAIAgentsSection({
   const handleActivateAgent = async (agent: AIAgent) => {
     setActivatingAgent(agent.id);
     try {
-      await api('/api/ai-agents/' + agent.id + '/sessions', {
+      await api('/api/chat/conversations/' + conversationId + '/agent-session', {
         method: 'POST',
-        body: { conversation_id: conversationId, contact_phone: contactPhone, contact_name: contactName },
+        body: { agent_id: agent.id },
         auth: true,
       });
       toast.success(`Agente "${agent.name}" ativado para esta conversa!`);
