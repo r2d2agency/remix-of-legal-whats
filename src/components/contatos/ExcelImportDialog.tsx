@@ -534,7 +534,7 @@ export function ExcelImportDialog({
 
               <div className="rounded-lg bg-accent/50 p-4">
                 <p className="text-sm text-muted-foreground">
-                  <strong>Dica:</strong> As outras colunas serão salvas como campos personalizados e podem ser usadas como variáveis nas mensagens (ex: {"{{cidade}}"}, {"{{empresa}}"}).
+                  <strong>Dica:</strong> As outras colunas serão salvas como campos personalizados e podem ser usadas como variáveis nas mensagens (ex: {"{cidade}"}, {"{empresa}"}).
                 </p>
               </div>
 

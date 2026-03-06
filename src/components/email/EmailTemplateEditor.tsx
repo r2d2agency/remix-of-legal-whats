@@ -119,17 +119,16 @@ export function EmailTemplateEditor({ template, open, onOpenChange }: EmailTempl
   };
 
   const handlePreview = () => {
-    // Replace variables with example values for preview
+    // Replace variables with example values for preview (supports {var} and {{var}})
     let html = form.body_html;
-    html = html.replace(/{nome}/g, "João Silva");
-    html = html.replace(/{email}/g, "joao@exemplo.com");
-    html = html.replace(/{telefone}/g, "(11) 99999-9999");
-    html = html.replace(/{empresa}/g, "Sua Empresa");
-    html = html.replace(/{deal_title}/g, "Proposta Comercial");
-    html = html.replace(/{valor}/g, "R$ 1.500,00");
-    html = html.replace(/{etapa}/g, "Negociação");
-    html = html.replace(/{funil}/g, "Vendas");
-    html = html.replace(/{data}/g, new Date().toLocaleDateString("pt-BR"));
+    const vars: Record<string, string> = {
+      nome: "João Silva", email: "joao@exemplo.com", telefone: "(11) 99999-9999",
+      empresa: "Sua Empresa", deal_title: "Proposta Comercial", valor: "R$ 1.500,00",
+      etapa: "Negociação", funil: "Vendas", data: new Date().toLocaleDateString("pt-BR"),
+    };
+    for (const [key, val] of Object.entries(vars)) {
+      html = html.replace(new RegExp(`\\{\\{?\\s*${key}\\s*\\}\\}?`, 'gi'), val);
+    }
     setPreviewHtml(html);
     setShowPreview(true);
   };
@@ -376,7 +375,7 @@ export function EmailTemplateEditor({ template, open, onOpenChange }: EmailTempl
           <DialogHeader>
             <DialogTitle>Preview do Email</DialogTitle>
             <DialogDescription>
-              Assunto: {form.subject.replace(/{nome}/g, "João Silva")}
+              Assunto: {form.subject.replace(/\{\{?\s*nome\s*\}\}?/gi, "João Silva")}
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[70vh]">

@@ -259,14 +259,14 @@ export function NurturingStepDialog({
               <div className="space-y-2">
                 <Label>Mensagem WhatsApp</Label>
                 <Textarea
-                  placeholder="Olá {{nome}}, tudo bem?&#10;&#10;Gostaria de saber como posso ajudar..."
+                  placeholder="Olá {nome}, tudo bem?&#10;&#10;Gostaria de saber como posso ajudar..."
                   value={whatsappContent}
                   onChange={(e) => setWhatsappContent(e.target.value)}
                   rows={6}
                   className="resize-none"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use {"{{variavel}}"} para personalização. Ex: {"{{nome}}"}, {"{{empresa}}"}
+                  Variáveis: <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code>, <code className="bg-muted px-1 rounded">{'{email}'}</code>, <code className="bg-muted px-1 rounded">{'{empresa}'}</code>
                 </p>
               </div>
 
@@ -379,7 +379,7 @@ export function NurturingStepDialog({
               <div className="space-y-2">
                 <Label>Assunto do Email</Label>
                 <Input
-                  placeholder="Olá {{nome}}, tenho uma proposta especial..."
+                  placeholder="Olá {nome}, tenho uma proposta especial..."
                   value={emailSubject}
                   onChange={(e) => setEmailSubject(e.target.value)}
                 />
@@ -393,7 +393,7 @@ export function NurturingStepDialog({
                   placeholder="Comece a escrever seu email..."
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use {"{{variavel}}"} para personalização. Ex: {"{{nome}}"}, {"{{empresa}}"}
+                  Variáveis: <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code>, <code className="bg-muted px-1 rounded">{'{email}'}</code>, <code className="bg-muted px-1 rounded">{'{empresa}'}</code>
                 </p>
               </div>
             </div>
