@@ -47,6 +47,7 @@ interface OrganizationMember {
   name: string;
   email: string;
   role: 'owner' | 'admin' | 'manager' | 'agent';
+  is_active?: boolean;
   assigned_connections: AssignedConnection[];
   assigned_departments: AssignedDepartment[];
   permission_template_id?: string;
@@ -527,6 +528,18 @@ export default function Organizacoes() {
     }
   };
 
+  const handleToggleActive = async (member: OrganizationMember) => {
+    if (!selectedOrg || member.role === 'owner') return;
+    const newActive = !(member.is_active !== false);
+    const success = await updateMember(selectedOrg.id, member.user_id, { is_active: newActive });
+    if (success) {
+      toast.success(newActive ? 'Usuário ativado!' : 'Usuário desativado!');
+      loadMembers(selectedOrg.id);
+    } else if (error) {
+      toast.error(error);
+    }
+  };
+
   const handleOpenEditPassword = (member: OrganizationMember) => {
     setEditPasswordMember(member);
     setNewPassword('');
@@ -932,6 +945,7 @@ export default function Organizacoes() {
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Usuário</TableHead>
+                                <TableHead>Status</TableHead>
                                 <TableHead>Função</TableHead>
                                 <TableHead>Permissões</TableHead>
                                 <TableHead>Conexões</TableHead>
@@ -956,6 +970,21 @@ export default function Organizacoes() {
                                           <p className="text-sm text-muted-foreground">{member.email}</p>
                                         </div>
                                       </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      {member.role === 'owner' ? (
+                                        <Badge variant="secondary" className="bg-primary/10 text-primary text-xs">Ativo</Badge>
+                                      ) : (
+                                        <div className="flex items-center gap-2">
+                                          <Switch
+                                            checked={member.is_active !== false}
+                                            onCheckedChange={() => handleToggleActive(member)}
+                                          />
+                                          <span className={`text-xs ${member.is_active !== false ? 'text-primary' : 'text-muted-foreground'}`}>
+                                            {member.is_active !== false ? 'Ativo' : 'Inativo'}
+                                          </span>
+                                        </div>
+                                      )}
                                     </TableCell>
                                     <TableCell>
                                       <Badge variant="secondary" className={`${roleLabels[member.role].color} text-white`}>

@@ -61,6 +61,7 @@ interface UpdateMemberParams {
   role?: string;
   connection_ids?: string[];
   department_ids?: string[];
+  is_active?: boolean;
 }
 
 interface AddMemberResult {

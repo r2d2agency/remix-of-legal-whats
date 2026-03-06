@@ -76,6 +76,7 @@ async function getUserOrganization(userId) {
 router.get('/lists', async (req, res) => {
   try {
     const org = await getUserOrganization(req.userId);
+    const filterConnectionId = typeof req.query.connection_id === 'string' ? req.query.connection_id : null;
 
     let whereClause = 'cl.user_id = $1';
     let params = [req.userId];
@@ -86,6 +87,12 @@ router.get('/lists', async (req, res) => {
         SELECT id FROM connections WHERE organization_id = $2
       ))`;
       params = [req.userId, org.organization_id];
+    }
+
+    // Apply connection filter if provided
+    if (filterConnectionId) {
+      whereClause += ` AND cl.connection_id = $${params.length + 1}`;
+      params.push(filterConnectionId);
     }
 
     const result = await query(

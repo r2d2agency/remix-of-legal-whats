@@ -252,6 +252,7 @@ router.get('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
         om.*, 
         u.name, 
         u.email,
+        COALESCE(om.is_active, true) as is_active,
         pt.name as template_name,
         pt.color as template_color
        FROM organization_members om
@@ -416,7 +417,7 @@ router.post('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
 router.patch('/:id/members/:userId', async (req, res) => {
   try {
     const { id, userId } = req.params;
-    const { role, connection_ids, department_ids } = req.body;
+    const { role, connection_ids, department_ids, is_active } = req.body;
 
     // Check if user is admin/owner
     const memberCheck = await query(
@@ -445,6 +446,23 @@ router.patch('/:id/members/:userId', async (req, res) => {
         `UPDATE organization_members SET role = $1 WHERE organization_id = $2 AND user_id = $3`,
         [role, id, userId]
       );
+    }
+
+    // Update is_active if provided (can't deactivate owner)
+    if (is_active !== undefined && targetCheck.rows[0]?.role !== 'owner') {
+      try {
+        await query(
+          `UPDATE organization_members SET is_active = $1 WHERE organization_id = $2 AND user_id = $3`,
+          [is_active, id, userId]
+        );
+      } catch (e) {
+        // Column may not exist yet, try adding it
+        await query(`ALTER TABLE organization_members ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
+        await query(
+          `UPDATE organization_members SET is_active = $1 WHERE organization_id = $2 AND user_id = $3`,
+          [is_active, id, userId]
+        );
+      }
     }
 
     // Update connection assignments if provided

@@ -3191,6 +3191,7 @@ CREATE TABLE IF NOT EXISTS permission_templates (
 );
 CREATE INDEX IF NOT EXISTS idx_permission_templates_org ON permission_templates(organization_id);
 ALTER TABLE organization_members ADD COLUMN IF NOT EXISTS permission_template_id UUID REFERENCES permission_templates(id) ON DELETE SET NULL;
+ALTER TABLE organization_members ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 `;
 
 // Step 38: Push Notifications

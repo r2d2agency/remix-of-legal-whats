@@ -77,6 +77,7 @@ const Contatos = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterConnectionId, setFilterConnectionId] = useState<string>("");
   const [isCreateListOpen, setIsCreateListOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
@@ -92,12 +93,14 @@ const Contatos = () => {
   const [syncConnections, setSyncConnections] = useState<SyncConnection[]>([]);
   const [selectedSyncConnectionId, setSelectedSyncConnectionId] = useState("");
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
+  const [allConnections, setAllConnections] = useState<SyncConnection[]>([]);
 
   // Load connected W-API connections
   useEffect(() => {
     const loadConnections = async () => {
       try {
         const connections = await api<SyncConnection[]>('/api/connections');
+        setAllConnections(connections);
         const connectedWapi = connections.filter(
           (c) => (c.provider === 'wapi' || !!c.instance_id) && c.status === 'connected'
         );
@@ -107,16 +110,17 @@ const Contatos = () => {
         setSelectedSyncConnectionId((prev) => prev || connectedWapi[0]?.id || "");
       } catch {
         setSyncConnections([]);
+        setAllConnections([]);
       }
     };
 
     loadConnections();
   }, []);
 
-  // Load lists on mount
+  // Load lists on mount and when connection filter changes
   useEffect(() => {
     loadLists();
-  }, []);
+  }, [filterConnectionId]);
 
   // Load contacts when list changes
   useEffect(() => {
@@ -129,8 +133,12 @@ const Contatos = () => {
 
   const loadLists = async () => {
     try {
-      const data = await getLists();
+      const data = await getLists(filterConnectionId || undefined);
       setLists(data);
+      // Reset selected list if it's no longer in the filtered results
+      if (selectedList && !data.find(l => l.id === selectedList)) {
+        setSelectedList(null);
+      }
     } catch (err) {
       toast.error("Erro ao carregar listas");
     }
@@ -458,6 +466,26 @@ const Contatos = () => {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Connection Filter */}
+        {allConnections.length > 1 && (
+          <div className="flex items-center gap-3 animate-fade-in">
+            <Label className="text-sm text-muted-foreground whitespace-nowrap">Filtrar por conta:</Label>
+            <Select value={filterConnectionId || "all"} onValueChange={(v) => setFilterConnectionId(v === "all" ? "" : v)}>
+              <SelectTrigger className="w-[280px]">
+                <SelectValue placeholder="Todas as contas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as contas</SelectItem>
+                {allConnections.map((conn) => (
+                  <SelectItem key={conn.id} value={conn.id}>
+                    {conn.name}{conn.phone_number ? ` (${conn.phone_number})` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <Card className="animate-fade-in">
           <CardHeader>

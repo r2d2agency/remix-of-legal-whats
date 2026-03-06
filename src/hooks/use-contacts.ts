@@ -24,11 +24,12 @@ export const useContacts = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getLists = useCallback(async (): Promise<ContactList[]> => {
+  const getLists = useCallback(async (connectionId?: string): Promise<ContactList[]> => {
     setLoading(true);
     setError(null);
     try {
-      const data = await api<ContactList[]>('/api/contacts/lists');
+      const url = connectionId ? `/api/contacts/lists?connection_id=${connectionId}` : '/api/contacts/lists';
+      const data = await api<ContactList[]>(url);
       return data;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao buscar listas';
