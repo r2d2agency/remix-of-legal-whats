@@ -16,18 +16,17 @@ export function MainLayout({ children }: MainLayoutProps) {
       <Sidebar />
       <TopBar />
       
-      {/* Mobile TopBar with notifications */}
-      <div className="lg:hidden fixed top-0 right-0 left-12 h-14 flex items-center justify-end gap-2 px-3 bg-background/95 backdrop-blur-sm border-b border-border/50 z-50">
+      {/* Mobile/Tablet TopBar with notifications */}
+      <div className="xl:hidden fixed top-0 right-0 left-12 h-14 flex items-center justify-end gap-2 px-3 bg-background/95 backdrop-blur-sm border-b border-border/50 z-50">
         <ConnectionStatusIndicator />
         <div className="h-5 w-px bg-border" />
         <MessageNotifications />
         <CRMAlerts />
       </div>
       
-      {/* Desktop: margin-left for collapsed sidebar + top bar, Mobile: no margin */}
-      {/* Use calc to ensure content fits exactly within available space */}
-      <main className="lg:ml-16 pt-14 lg:pt-12 overflow-x-hidden w-full lg:w-[calc(100vw-4rem)] box-border">
-        <div className="p-2 lg:p-3 xl:p-4 w-full min-w-0 overflow-x-hidden">{children}</div>
+      {/* Desktop: margin-left for collapsed sidebar + top bar, Mobile/Tablet: no margin */}
+      <main className="xl:ml-16 pt-14 xl:pt-12 overflow-x-hidden w-full xl:w-[calc(100vw-4rem)] box-border">
+        <div className="p-2 xl:p-3 2xl:p-4 w-full min-w-0 overflow-x-hidden">{children}</div>
       </main>
       <GroupSecretaryPopup />
     </div>

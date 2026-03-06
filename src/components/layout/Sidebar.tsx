@@ -451,8 +451,8 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile Menu Button - positioned safely above everything */}
-      <div className="fixed top-3 left-3 z-[80] lg:hidden" style={{ isolation: 'isolate' }}>
+      {/* Mobile/Tablet Menu Button - visible until xl breakpoint */}
+      <div className="fixed top-3 left-3 z-[80] xl:hidden" style={{ isolation: 'isolate' }}>
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button 
@@ -477,7 +477,7 @@ export function Sidebar() {
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen bg-card border-r border-border shadow-card transition-all duration-300 ease-in-out hidden lg:block",
+          "fixed left-0 top-0 z-40 h-screen bg-card border-r border-border shadow-card transition-all duration-300 ease-in-out hidden xl:block",
           isHovered ? expandedWidth : collapsedWidth
         )}
         onMouseEnter={() => setIsHovered(true)}
