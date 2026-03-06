@@ -528,6 +528,18 @@ export default function Organizacoes() {
     }
   };
 
+  const handleToggleActive = async (member: OrganizationMember) => {
+    if (!selectedOrg || member.role === 'owner') return;
+    const newActive = !(member.is_active !== false);
+    const success = await updateMember(selectedOrg.id, member.user_id, { is_active: newActive });
+    if (success) {
+      toast.success(newActive ? 'Usuário ativado!' : 'Usuário desativado!');
+      loadMembers(selectedOrg.id);
+    } else if (error) {
+      toast.error(error);
+    }
+  };
+
   const handleOpenEditPassword = (member: OrganizationMember) => {
     setEditPasswordMember(member);
     setNewPassword('');
