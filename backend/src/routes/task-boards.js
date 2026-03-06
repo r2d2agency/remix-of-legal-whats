@@ -443,8 +443,8 @@ router.get('/boards/:boardId/cards', async (req, res) => {
       params.push(req.userId);
       paramIdx++;
     } else if (isManagerOrAdmin && filter_user && filter_user !== 'all') {
-      // Admin/manager filtering by specific user (works on any board)
-      extraFilters += ` AND (tc.assigned_to = $${paramIdx} OR tc.created_by = $${paramIdx})`;
+      // Admin/manager filtering by specific user - only show cards assigned to that user
+      extraFilters += ` AND tc.assigned_to = $${paramIdx}`;
       params.push(filter_user);
       paramIdx++;
     }
