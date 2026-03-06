@@ -3,6 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
@@ -19,6 +27,7 @@ import {
   Trophy,
   ClipboardList,
   Zap,
+  X,
 } from "lucide-react";
 import { useAIAgents, AIAgent } from "@/hooks/use-ai-agents";
 import { api } from "@/lib/api";
