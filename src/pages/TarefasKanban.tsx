@@ -34,6 +34,7 @@ interface OrgMember {
   name: string;
   email: string;
   role: string;
+  is_active?: boolean;
 }
 
 export default function TarefasKanban() {
