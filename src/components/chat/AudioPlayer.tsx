@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, Loader2, Volume2, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { API_URL, getAuthToken } from "@/lib/api";
 
