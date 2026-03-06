@@ -68,6 +68,7 @@ export function ChatMessageBubble({
   isCurrentResult,
   searchQuery,
   onReply,
+  onForward,
   onSendMessage,
   onEditMessage,
   onDeleteMessage,
