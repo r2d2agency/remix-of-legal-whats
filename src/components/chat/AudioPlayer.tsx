@@ -192,16 +192,34 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
     audio.currentTime = percentage * duration;
   };
 
-  // Transcribe audio using Whisper in browser (free)
+  // Transcribe audio using backend AI
   const transcribeAudio = async () => {
+    setIsTranscribing(true);
     try {
-      if (!isModelLoaded) {
-        toast.info("Carregando modelo de transcrição... isso pode levar alguns segundos na primeira vez.");
+      // Fetch audio file as blob
+      const audioResponse = await fetch(src);
+      if (!audioResponse.ok) throw new Error('Erro ao baixar áudio');
+      const audioBlob = await audioResponse.blob();
+
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'audio.ogg');
+
+      const token = getAuthToken();
+      const res = await fetch(`${API_URL}/api/transcribe-audio`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Erro ao transcrever áudio');
       }
-      
-      const result = await transcribe(src);
-      
-      if (result && result.trim()) {
+
+      const data = await res.json();
+      const result = data.transcript?.trim();
+
+      if (result && result !== '[Áudio inaudível]') {
         setTranscript(result);
         setShowTranscript(true);
         toast.success("Transcrição concluída!");
@@ -211,6 +229,8 @@ export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerP
     } catch (error) {
       console.error('Transcription error:', error);
       toast.error(error instanceof Error ? error.message : "Erro ao transcrever áudio");
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
