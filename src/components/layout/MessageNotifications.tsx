@@ -42,7 +42,7 @@ export function MessageNotifications() {
   const previousUnreadRef = useRef<number>(0);
   const previousConversationIdsRef = useRef<Set<string>>(new Set());
   
-  const { playSound, playNewConversationSound, settings } = useNotificationSound();
+  const { playSound, playNewConversationSound, settings, isConnectionMuted } = useNotificationSound();
 
   // Project note notifications
   const { data: projectNotifications = [] } = useProjectNoteNotifications();
