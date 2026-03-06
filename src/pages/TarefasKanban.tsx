@@ -272,7 +272,7 @@ export default function TarefasKanban() {
             </>
           )}
 
-          {!isAdmin && selectedBoard?.is_global && (
+          {!isAdmin && (
             <span className="text-xs text-muted-foreground flex items-center gap-1">
               <Users className="h-3 w-3" /> Exibindo apenas suas tarefas
             </span>
