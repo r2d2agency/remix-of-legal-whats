@@ -231,5 +231,33 @@ export function CRMAIAgentsSection({
         )}
       </AccordionContent>
     </AccordionItem>
+
+    {/* AI Response Modal */}
+    <Dialog open={showResponseModal} onOpenChange={setShowResponseModal}>
+      <DialogContent className="sm:max-w-lg max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-primary" />
+            Resposta da IA
+            {consultAgent && <span className="text-sm font-normal text-muted-foreground">— {consultAgent.name}</span>}
+          </DialogTitle>
+          <DialogDescription>Analise a resposta e copie se necessário</DialogDescription>
+        </DialogHeader>
+        <ScrollArea className="max-h-[60vh]">
+          <div className="p-4 rounded-lg bg-muted/30 border text-sm leading-relaxed whitespace-pre-wrap">
+            {consultResponse}
+          </div>
+        </ScrollArea>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" className="gap-1" onClick={handleCopyResponse}>
+            <Copy className="h-4 w-4" />Copiar
+          </Button>
+          <Button size="sm" onClick={() => setShowResponseModal(false)}>
+            Fechar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
