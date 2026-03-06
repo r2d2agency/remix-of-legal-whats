@@ -252,6 +252,7 @@ router.get('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
         om.*, 
         u.name, 
         u.email,
+        COALESCE(om.is_active, true) as is_active,
         pt.name as template_name,
         pt.color as template_color
        FROM organization_members om
