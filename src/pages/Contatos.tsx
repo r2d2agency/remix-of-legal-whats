@@ -93,6 +93,7 @@ const Contatos = () => {
   const [syncConnections, setSyncConnections] = useState<SyncConnection[]>([]);
   const [selectedSyncConnectionId, setSelectedSyncConnectionId] = useState("");
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
+  const [allConnections, setAllConnections] = useState<SyncConnection[]>([]);
 
   // Load connected W-API connections
   useEffect(() => {
