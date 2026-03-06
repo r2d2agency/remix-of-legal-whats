@@ -459,6 +459,22 @@ const Chat = () => {
     }
   };
 
+  const handleForwardMessage = async (targetConversationId: string, message: ChatMessage) => {
+    try {
+      await sendMessage(targetConversationId, {
+        content: message.content || undefined,
+        message_type: message.message_type,
+        media_url: message.media_url || undefined,
+        media_mimetype: message.media_mimetype || undefined,
+      });
+      toast.success('Mensagem encaminhada!');
+      loadConversations();
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao encaminhar mensagem');
+      throw error;
+    }
+  };
+
   const handleAddTag = async (tagId: string) => {
     if (!selectedConversation) return;
     try {
