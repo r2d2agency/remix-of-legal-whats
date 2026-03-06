@@ -58,6 +58,7 @@ export function CRMAIAgentsSection({
   const [consultPrompt, setConsultPrompt] = useState("");
   const [consultResponse, setConsultResponse] = useState("");
   const [consulting, setConsulting] = useState(false);
+  const [showResponseModal, setShowResponseModal] = useState(false);
 
   useEffect(() => {
     if (isOpen && conversationId) {
