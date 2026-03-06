@@ -439,9 +439,10 @@ router.get('/conversations', authenticate, async (req, res) => {
       const params = [connectionIds];
       let paramIndex = 2;
 
-      // IMPORTANT: Only show conversations with messages (unless explicitly requested)
+      // Show conversations with messages OR with unread count (to handle cases where
+      // message insertion might have failed but unread_count was incremented)
       if (includeEmpty !== 'true') {
-        sql += ` AND EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id)`;
+        sql += ` AND (EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id) OR conv.unread_count > 0)`;
       }
 
       // Filter by group status
