@@ -259,6 +259,7 @@ export function useSendEmail() {
       context_type?: string;
       context_id?: string;
       send_immediately?: boolean;
+      attachments?: Array<{ file_url: string; file_name: string; file_type: string; file_size: number }>;
     }) => {
       return api<{ success: boolean; status: string; queue_id: string }>("/api/email/send", {
         method: "POST",

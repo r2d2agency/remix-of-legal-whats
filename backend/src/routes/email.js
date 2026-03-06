@@ -495,7 +495,8 @@ router.post('/send', async (req, res) => {
       variables,
       context_type,
       context_id,
-      send_immediately
+      send_immediately,
+      attachments
     } = req.body;
 
     if (!to_email) {
