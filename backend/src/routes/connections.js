@@ -221,6 +221,19 @@ router.post('/', async (req, res) => {
 
     const connection = result.rows[0];
 
+    // Auto-add creator to connection_members with full permissions
+    try {
+      await query(
+        `INSERT INTO connection_members (connection_id, user_id, permissions)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        [connection.id, req.userId, JSON.stringify(['view', 'send', 'manage'])]
+      );
+      console.log('[Connections] Auto-added creator to connection_members:', req.userId);
+    } catch (memberError) {
+      console.error('[Connections] Failed to auto-add creator to connection_members:', memberError);
+    }
+
     // Auto-configure webhooks for W-API connections
     if (provider === 'wapi' && finalInstanceId) {
       try {
