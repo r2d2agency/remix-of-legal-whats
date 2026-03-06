@@ -945,6 +945,7 @@ export default function Organizacoes() {
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Usuário</TableHead>
+                                <TableHead>Status</TableHead>
                                 <TableHead>Função</TableHead>
                                 <TableHead>Permissões</TableHead>
                                 <TableHead>Conexões</TableHead>
