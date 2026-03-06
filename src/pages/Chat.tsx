@@ -416,19 +416,25 @@ const Chat = () => {
         
         // Auto-switch attendance tab to match conversation's status
         const convStatus = (conv as any).attendance_status;
-        if (convStatus && convStatus !== filters.attendance_status) {
-          const mappedStatus = convStatus === 'waiting' ? 'waiting' 
-            : convStatus === 'finished' ? 'finished' 
-            : 'attending';
-          setFilters(prev => ({ ...prev, attendance_status: mappedStatus }));
-        }
-
+        const mappedStatus = convStatus === 'waiting' ? 'waiting' 
+          : convStatus === 'finished' ? 'finished' 
+          : 'attending';
+        
         // Auto-switch group/chat tab
         const isGroup = !!(conv as any).is_group;
-        if (isGroup && activeTab !== 'groups') {
-          setActiveTab('groups');
-        } else if (!isGroup && activeTab !== 'chats') {
-          setActiveTab('chats');
+        const newActiveTab = isGroup ? 'groups' : 'chats';
+        
+        // Update filters and tab synchronously
+        if (mappedStatus !== filters.attendance_status || newActiveTab !== activeTab) {
+          setFilters(prev => ({ ...prev, attendance_status: mappedStatus }));
+          setActiveTab(newActiveTab);
+          
+          // Force reload conversations with correct filters after a tick
+          // This bypasses the race condition where initial load blocks the filter-triggered reload
+          setTimeout(() => {
+            isLoadingConversationsRef.current = false; // Reset guard
+            loadConversationsRef.current();
+          }, 300);
         }
         
         await handleSelectConversation(conv);
