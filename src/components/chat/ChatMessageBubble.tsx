@@ -116,17 +116,30 @@ export function ChatMessageBubble({
         msg.from_me ? "justify-end" : "justify-start"
       )}
     >
-      {/* Reply button - left side for received messages */}
+      {/* Action buttons - left side for received messages */}
       {!msg.from_me && msg.message_type !== 'system' && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity self-center mr-1"
-          onClick={() => onReply(msg)}
-          title="Responder"
-        >
-          <Reply className="h-3 w-3" />
-        </Button>
+        <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center mr-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => onReply(msg)}
+            title="Responder"
+          >
+            <Reply className="h-3 w-3" />
+          </Button>
+          {onForward && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => onForward(msg)}
+              title="Encaminhar"
+            >
+              <Forward className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       )}
 
       <div
