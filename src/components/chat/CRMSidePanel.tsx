@@ -611,6 +611,15 @@ export function CRMSidePanel({
             <Plus className="h-3 w-3" />
             Nova
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            onClick={onToggle}
+            title="Fechar painel CRM"
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
