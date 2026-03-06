@@ -4,7 +4,7 @@ import { Play, Pause, Loader2, Volume2, FileText } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useWhisperTranscription } from "@/hooks/use-whisper-transcription";
+import { API_URL, getAuthToken } from "@/lib/api";
 
 interface AudioPlayerProps {
   src: string;
