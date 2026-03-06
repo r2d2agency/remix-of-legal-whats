@@ -765,7 +765,7 @@ export function ChatArea({
                   {!isViewOnly && onReopenConversation && conversation.attendance_status === 'finished' && (
                     <DropdownMenuItem onClick={onReopenConversation} className="text-blue-600"><RotateCcw className="h-4 w-4 mr-2" />Reabrir conversa</DropdownMenuItem>
                   )}
-                  {!!onSyncHistory && <DropdownMenuItem onClick={() => setShowSyncDialog(true)}><RefreshCw className="h-4 w-4 mr-2" />Sincronizar histórico</DropdownMenuItem>}
+                  
                   <DropdownMenuSeparator />
                 </>
               )}
