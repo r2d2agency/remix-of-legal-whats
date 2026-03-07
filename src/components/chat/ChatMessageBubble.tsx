@@ -38,6 +38,8 @@ interface ChatMessageBubbleProps {
   onSendMessage: (content: string, type?: string, mediaUrl?: string, quotedMessageId?: string, mediaMimetype?: string) => Promise<void>;
   onEditMessage?: (messageId: string, content: string) => Promise<boolean>;
   onDeleteMessage?: (messageId: string) => Promise<boolean>;
+  onPinMessage?: (messageId: string | null) => Promise<boolean>;
+  isPinned?: boolean;
   highlightText: (text: string, query: string) => React.ReactNode;
   getDocumentDisplayName: (msg: ChatMessage, resolvedUrl?: string | null) => string;
   looksLikeFilename: (value: string) => boolean;
