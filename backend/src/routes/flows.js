@@ -209,8 +209,8 @@ router.post('/', async (req, res) => {
       `INSERT INTO flows (
         organization_id, name, description, 
         trigger_enabled, trigger_keywords, trigger_match_mode,
-        connection_ids, last_edited_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        connection_ids, category_id, last_edited_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`,
       [
         org.organization_id,
@@ -220,6 +220,7 @@ router.post('/', async (req, res) => {
         trigger_keywords || [],
         trigger_match_mode || 'exact',
         connection_ids || [],
+        category_id || null,
         req.userId
       ]
     );
