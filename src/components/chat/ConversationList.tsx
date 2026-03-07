@@ -177,6 +177,8 @@ export function ConversationList({
   onReopenConversation,
   attendanceCounts,
   onGlobalSearchSelect,
+  onPinConversation,
+  onFavoriteConversation,
 }: ConversationListProps) {
   const isMobile = useIsMobile();
   const [localSearch, setLocalSearch] = useState(filters.search);
