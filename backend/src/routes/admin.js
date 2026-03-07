@@ -40,6 +40,26 @@ router.get('/branding', async (req, res) => {
       branding.logo_topbar = branding.logo_sidebar;
     }
 
+    // If org_id is provided, overlay org-specific theme
+    const orgId = req.query.org_id;
+    if (orgId) {
+      try {
+        const orgResult = await query(
+          `SELECT theme_preset, theme_custom_colors FROM organizations WHERE id = $1`,
+          [orgId]
+        );
+        if (orgResult.rows.length > 0) {
+          const org = orgResult.rows[0];
+          if (org.theme_preset) {
+            branding.theme_preset = org.theme_preset;
+            branding.theme_custom_colors = org.theme_custom_colors;
+          }
+        }
+      } catch (e) {
+        // Columns might not exist yet, ignore
+      }
+    }
+
     res.json(branding);
   } catch (error) {
     console.error('Get branding error:', error);
