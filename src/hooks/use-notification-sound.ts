@@ -139,6 +139,19 @@ export function useNotificationSound() {
     return settings.mutedConnections.includes(connectionId);
   }, [settings.mutedConnections]);
 
+  const isConversationMuted = useCallback((conversationId?: string) => {
+    if (!conversationId) return false;
+    return (settings.mutedConversations || []).includes(conversationId);
+  }, [settings.mutedConversations]);
+
+  const toggleConversationMute = useCallback((conversationId: string) => {
+    const muted = settings.mutedConversations || [];
+    const newMuted = muted.includes(conversationId)
+      ? muted.filter(id => id !== conversationId)
+      : [...muted, conversationId];
+    updateSettings({ mutedConversations: newMuted });
+  }, [settings.mutedConversations, updateSettings]);
+
   const playSound = useCallback((customSoundId?: NotificationSoundId) => {
     if (!isSoundAllowedForDevice()) return;
     
