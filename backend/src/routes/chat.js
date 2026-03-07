@@ -171,7 +171,7 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
 
       const result = await query(`
         SELECT 
-          DATE(COALESCE(conv.last_message_at, conv.updated_at)) as date,
+          TO_CHAR(DATE(COALESCE(conv.last_message_at, conv.updated_at)), 'YYYY-MM-DD') as date,
           COUNT(*) FILTER (WHERE conv.attendance_status = 'waiting') as waiting,
           COUNT(*) FILTER (WHERE conv.attendance_status = 'attending' OR conv.attendance_status IS NULL) as attending,
           COUNT(*) FILTER (WHERE conv.attendance_status = 'finished') as finished
