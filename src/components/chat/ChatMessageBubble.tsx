@@ -144,6 +144,21 @@ export function ChatMessageBubble({
               <Forward className="h-3 w-3" />
             </Button>
           )}
+          {onPinMessage && !msg.is_deleted && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-6 w-6", isPinned && "text-primary")}
+              onClick={async () => {
+                const ok = await onPinMessage(isPinned ? null : msg.id);
+                if (ok) toast.success(isPinned ? "Mensagem desafixada" : "Mensagem fixada");
+                else toast.error("Falha ao fixar mensagem");
+              }}
+              title={isPinned ? "Desafixar" : "Fixar mensagem"}
+            >
+              <Pin className="h-3 w-3" />
+            </Button>
+          )}
         </div>
       )}
 
