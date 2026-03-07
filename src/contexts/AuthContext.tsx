@@ -98,11 +98,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const { user, token } = await authApi.login(email, password);
+    const { user: userData, token } = await authApi.login(email, password);
     setAuthToken(token);
-    setUser(user);
-    if (user.organization_id) {
-      sessionStorage.setItem('user_org_id', user.organization_id);
+    const u = userData as any;
+    setUser(u);
+    if (u.organization_id) {
+      sessionStorage.setItem('user_org_id', u.organization_id);
     }
     toast({ title: 'Login realizado com sucesso!' });
   };
