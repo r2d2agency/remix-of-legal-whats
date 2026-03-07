@@ -95,9 +95,10 @@ const Chat = () => {
       assigned: 'all',
       archived: false,
       connection: savedConnection,
-      is_group: false, // false = individual chats, true = group chats
+      is_group: false,
       attendance_status: 'attending' as 'waiting' | 'attending' | 'finished',
       department: 'all',
+      favorite: false,
     };
   });
   const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
