@@ -696,6 +696,36 @@ export async function getQRCode(instanceId, token) {
 }
 
 /**
+ * Get pairing code for phone-based connection (no QR needed)
+ * W-API endpoint: GET /instance/pairing-code?instanceId=ID&phoneNumber=PHONE
+ */
+export async function getPairingCode(instanceId, token, phoneNumber) {
+  try {
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    const url = `${W_API_BASE_URL}/instance/pairing-code?instanceId=${encodeURIComponent(instanceId)}&phoneNumber=${encodeURIComponent(cleanPhone)}`;
+    logInfo('wapi.pairing_code_request', { instance_id: instanceId, phone: cleanPhone });
+
+    const response = await fetch(url, { headers: getHeaders(token) });
+    const data = await readJsonResponse(response);
+
+    if (!response.ok) {
+      const errMsg = data?.message || data?.error || `HTTP ${response.status}`;
+      logWarn('wapi.pairing_code_failed', { instance_id: instanceId, status: response.status, error: errMsg });
+      return { success: false, error: errMsg };
+    }
+
+    // Extract pairing code from response
+    const code = data?.code || data?.pairingCode || data?.pairing_code || data?.data?.code || data?.data?.pairingCode || null;
+
+    logInfo('wapi.pairing_code_success', { instance_id: instanceId, has_code: Boolean(code) });
+    return { success: true, code };
+  } catch (error) {
+    logError('wapi.pairing_code_exception', error, { instance_id: instanceId });
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Disconnect/Logout instance
  */
 export async function disconnect(instanceId, token) {
