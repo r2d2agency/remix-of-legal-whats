@@ -800,6 +800,11 @@ export function ConversationList({
                         </Badge>
                       )}
 
+                      {/* Muted indicator */}
+                      {isConversationMuted(conv.id) && (
+                        <BellOff className="h-3 w-3 text-muted-foreground" />
+                      )}
+
                       {/* Unread count */}
                       {conv.unread_count > 0 && (
                         <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 min-w-[20px] justify-center">
