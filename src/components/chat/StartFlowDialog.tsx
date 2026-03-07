@@ -103,7 +103,7 @@ export function StartFlowDialog({
     });
   };
 
-  const handleStartFlow = async (flow: Flow) => {
+  const handleStartFlow = async (flow: FlowWithCategory) => {
     setStarting(flow.id);
     try {
       const result = await api<{ success: boolean; execution?: { success: boolean; error?: string; nodesProcessed?: number } }>(
