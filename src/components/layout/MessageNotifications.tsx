@@ -71,7 +71,7 @@ export function MessageNotifications() {
       // Check if new conversations are from non-muted connections
       const hasUnmutedNewConversations = hasNewConversations && newConversationIds.some(id => {
         const conv = data.find(c => c.id === id);
-        return conv && !isConnectionMuted(conv.connection_id);
+        return conv && !isConnectionMuted(conv.connection_id) && !isConversationMuted(conv.id);
       });
       
       // Check for new messages in existing conversations
