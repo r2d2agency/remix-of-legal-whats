@@ -252,6 +252,16 @@ export function ChatArea({
     handleSelectMember, closeSuggestions,
   } = useMentions({ text: messageText, setText: setMessageText, team, textareaRef });
 
+  // Load pinned message
+  useEffect(() => {
+    if (conversation?.pinned_message_id && messages.length > 0) {
+      const pinned = messages.find(m => m.id === conversation.pinned_message_id);
+      setPinnedMessage(pinned || null);
+    } else {
+      setPinnedMessage(null);
+    }
+  }, [conversation?.pinned_message_id, messages]);
+
   // Load notes count
   useEffect(() => {
     if (conversation?.id) {
