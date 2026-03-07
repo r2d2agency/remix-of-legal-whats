@@ -422,7 +422,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       return res.json([]);
     }
 
-    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department } = req.query;
+    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department, favorite } = req.query;
 
     // Get user's role and department membership
     const userOrg = await getUserOrganization(req.userId);
