@@ -1293,6 +1293,31 @@ CREATE INDEX IF NOT EXISTS idx_flow_versions_flow ON flow_versions(flow_id);
 -- Vincular chatbot a um fluxo
 ALTER TABLE chatbots ADD COLUMN IF NOT EXISTS linked_flow_id UUID REFERENCES flows(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_chatbots_linked_flow ON chatbots(linked_flow_id);
+
+-- Categorias de fluxos
+CREATE TABLE IF NOT EXISTS flow_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  color VARCHAR(20) DEFAULT '#6366f1',
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_flow_categories_org ON flow_categories(organization_id);
+
+-- Categoria no fluxo
+ALTER TABLE flows ADD COLUMN IF NOT EXISTS category_id UUID REFERENCES flow_categories(id) ON DELETE SET NULL;
+
+-- Membros com acesso ao fluxo
+CREATE TABLE IF NOT EXISTS flow_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  flow_id UUID NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(flow_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_flow_members_flow ON flow_members(flow_id);
+CREATE INDEX IF NOT EXISTS idx_flow_members_user ON flow_members(user_id);
 `;
 
 // Step 18: CRM System
