@@ -28,8 +28,8 @@ export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, sav
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [waveformData, setWaveformData] = useState<number[]>([]);
-  const [transcript, setTranscript] = useState<string | null>(null);
-  const [showTranscript, setShowTranscript] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(savedTranscript || null);
+  const [showTranscript, setShowTranscript] = useState(!!savedTranscript);
 
   // Server-side transcription state
   const [isTranscribing, setIsTranscribing] = useState(false);
