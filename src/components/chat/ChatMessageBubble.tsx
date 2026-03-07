@@ -167,7 +167,7 @@ export function ChatMessageBubble({
         )}
 
         {/* Forwarded indicator */}
-        {msg.is_forwarded && (
+        {msg.is_forwarded && !msg.from_me && (
           <div className="flex items-center gap-1 text-[10px] text-muted-foreground italic mb-1">
             <Forward className="h-3 w-3" />
             <span>Encaminhada</span>
