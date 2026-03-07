@@ -3,6 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { AttendanceChart } from "@/components/dashboard/AttendanceChart";
+import { HourlyChart } from "@/components/dashboard/HourlyChart";
 import { DashboardWidget } from "@/components/dashboard/DashboardWidget";
 import { MetricRing } from "@/components/dashboard/MetricRing";
 import { QuickActionsGrid } from "@/components/dashboard/QuickActionsGrid";
@@ -303,6 +304,12 @@ const Index = () => {
                 attending: stats.conversationsAttending,
                 finished: stats.conversationsFinished,
               }}
+            />
+
+            {/* Hourly Distribution Chart */}
+            <HourlyChart 
+              className="animate-fade-in" 
+              connections={connections}
             />
           </div>
 

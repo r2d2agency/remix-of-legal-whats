@@ -207,7 +207,53 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
   }
 });
 
-// Get average attendance time per user
+// Get hourly distribution of conversations
+router.get('/conversations/hourly-stats', authenticate, async (req, res) => {
+  try {
+    let connectionIds = await getUserConnections(req.userId);
+    if (connectionIds.length === 0) return res.json({ hourly_stats: [] });
+
+    const { connection_id, date } = req.query;
+    if (connection_id && connectionIds.includes(connection_id)) {
+      connectionIds = [connection_id];
+    }
+
+    // If specific date, count conversations per hour for that day
+    // Otherwise, average across last 30 days
+    const dateFilter = date
+      ? `AND DATE(COALESCE(conv.last_message_at, conv.updated_at)) = '${date}'::date`
+      : `AND COALESCE(conv.last_message_at, conv.updated_at) >= NOW() - INTERVAL '30 days'`;
+
+    const divisor = date ? '1' : 'GREATEST(COUNT(DISTINCT DATE(COALESCE(conv.last_message_at, conv.updated_at))), 1)';
+
+    const result = await query(`
+      SELECT 
+        EXTRACT(HOUR FROM COALESCE(conv.last_message_at, conv.updated_at)) AS hour,
+        ROUND(COUNT(*)::numeric / ${divisor}, 1) AS count
+      FROM conversations conv
+      WHERE conv.connection_id = ANY($1)
+        AND conv.is_archived = false
+        ${dateFilter}
+      GROUP BY EXTRACT(HOUR FROM COALESCE(conv.last_message_at, conv.updated_at))
+      ORDER BY hour
+    `, [connectionIds]);
+
+    // Fill all 24 hours
+    const hourMap = new Map(result.rows.map(r => [parseInt(r.hour), parseFloat(r.count)]));
+    const hourly_stats = Array.from({ length: 24 }, (_, h) => ({
+      hour: h,
+      label: `${String(h).padStart(2, '0')}:00`,
+      count: hourMap.get(h) || 0
+    }));
+
+    res.json({ hourly_stats });
+  } catch (error) {
+    console.error('Get hourly stats error:', error);
+    res.status(500).json({ error: 'Erro ao buscar estatísticas por hora' });
+  }
+});
+
+
 router.get('/conversations/user-avg-time', authenticate, async (req, res) => {
   try {
     let connectionIds = await getUserConnections(req.userId);
