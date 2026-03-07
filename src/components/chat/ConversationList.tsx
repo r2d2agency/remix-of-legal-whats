@@ -99,7 +99,8 @@ interface ConversationListProps {
   }) => void;
   isAdmin?: boolean;
   connections?: Connection[];
-  onPinConversation?: (id: string, pinned: boolean) => void;
+  onPinConversation?: (id: string, pinned: boolean) => Promise<void>;
+  onFavoriteConversation?: (id: string, favorite: boolean) => Promise<void>;
   onNewConversation?: () => void;
   onAcceptConversation?: (id: string) => Promise<void>;
   onReleaseConversation?: (id: string) => Promise<void>;
