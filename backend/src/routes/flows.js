@@ -559,7 +559,7 @@ router.post('/:id/duplicate', async (req, res) => {
 // FLOWS PARA CHAT (independente de chatbots)
 // ============================================
 
-// Listar fluxos disponíveis para uma conexão específica
+// Listar fluxos disponíveis para uma conexão específica (filtrado por membro)
 router.get('/available/:connectionId', async (req, res) => {
   try {
     const org = await getUserOrganization(req.userId);
@@ -568,8 +568,9 @@ router.get('/available/:connectionId', async (req, res) => {
     }
 
     const { connectionId } = req.params;
+    const isAdminUser = isAdmin(org.role);
 
-    // Buscar fluxos ativos que incluem esta conexão ou que não têm conexão definida (funcionam em todas)
+    // Buscar fluxos ativos, filtrados por conexão e por membro (se não admin)
     const result = await query(
       `SELECT 
         f.id,
@@ -578,8 +579,12 @@ router.get('/available/:connectionId', async (req, res) => {
         f.trigger_enabled,
         f.trigger_keywords,
         f.is_active,
+        f.category_id,
+        fc.name as category_name,
+        fc.color as category_color,
         (SELECT COUNT(*) FROM flow_nodes WHERE flow_id = f.id) as node_count
        FROM flows f
+       LEFT JOIN flow_categories fc ON fc.id = f.category_id
        WHERE f.organization_id = $1
          AND f.is_active = true
          AND (
@@ -587,8 +592,13 @@ router.get('/available/:connectionId', async (req, res) => {
            OR f.connection_ids = '{}'
            OR $2 = ANY(f.connection_ids)
          )
-       ORDER BY f.name`,
-      [org.organization_id, connectionId]
+         AND (
+           $3 = true
+           OR NOT EXISTS (SELECT 1 FROM flow_members fm2 WHERE fm2.flow_id = f.id)
+           OR EXISTS (SELECT 1 FROM flow_members fm3 WHERE fm3.flow_id = f.id AND fm3.user_id = $4)
+         )
+       ORDER BY fc.sort_order NULLS LAST, fc.name NULLS LAST, f.name`,
+      [org.organization_id, connectionId, isAdminUser, req.userId]
     );
 
     res.json(result.rows);
