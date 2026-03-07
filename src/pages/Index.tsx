@@ -140,6 +140,21 @@ const Index = () => {
       setLoading(false);
     }
   };
+  const firstConnection = connections[0];
+  const connectionStatus = firstConnection?.status === 'connected' ? 'connected' : 'disconnected';
+  const connectionName = firstConnection?.name || "Nenhuma conexão";
+  const connectionPhone = firstConnection?.phoneNumber;
+  const totalAttendance = stats.conversationsWaiting + stats.conversationsAttending + stats.conversationsFinished;
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
