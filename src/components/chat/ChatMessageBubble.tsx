@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Pencil,
   Trash2,
+  Pin,
   X,
   Send,
   Forward,
