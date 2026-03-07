@@ -582,9 +582,11 @@ export function ChatArea({
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-muted/30 text-muted-foreground">
         <div className="text-center">
-          <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <Send className="h-10 w-10 text-primary" />
-          </div>
+          <img 
+            src="/icons/gleego-logo.png" 
+            alt="Logo" 
+            className="h-20 w-auto mx-auto mb-6 opacity-80"
+          />
           <h3 className="text-lg font-medium text-foreground mb-2">Selecione uma conversa</h3>
           <p className="text-sm max-w-[300px]">Escolha uma conversa na lista à esquerda para começar a atender</p>
         </div>
