@@ -400,11 +400,11 @@ const Configuracoes = () => {
                 </CardContent>
               </Card>
 
-              {/* Web Push Notifications */}
-              <PushNotificationSettings />
-
               {/* Per-device and per-connection notification settings */}
               <NotificationConnectionSettings />
+
+              {/* Web Push Notifications */}
+              <PushNotificationSettings />
 
               {/* PWA Install */}
               <Card className="animate-fade-in shadow-card">
