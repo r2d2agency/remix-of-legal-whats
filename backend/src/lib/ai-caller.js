@@ -119,9 +119,26 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
 // ==================== OpenAI ====================
 
 async function callOpenAI(config, messages, options) {
+  // Sanitize messages: OpenAI chat API only supports 'text' and 'image_url' content types
+  const sanitizedMessages = messages.map(msg => {
+    if (Array.isArray(msg.content)) {
+      const filtered = msg.content.filter(part => 
+        part.type === 'text' || part.type === 'image_url'
+      );
+      // If input_audio was present, add a placeholder
+      const hadAudio = msg.content.some(p => p.type === 'input_audio');
+      if (hadAudio && !filtered.some(p => p.type === 'text' && p.text?.includes('áudio'))) {
+        filtered.push({ type: 'text', text: '[Conteúdo de áudio não suportado neste modelo]' });
+      }
+      if (filtered.length === 0) filtered.push({ type: 'text', text: '' });
+      return { ...msg, content: filtered };
+    }
+    return msg;
+  });
+
   const body = {
     model: config.model || 'gpt-4o-mini',
-    messages,
+    messages: sanitizedMessages,
     temperature: typeof options.temperature === 'number' ? options.temperature : parseFloat(options.temperature) || 0.7,
     max_tokens: typeof options.maxTokens === 'number' ? options.maxTokens : parseInt(options.maxTokens, 10) || 1000,
   };
