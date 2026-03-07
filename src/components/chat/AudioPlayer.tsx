@@ -14,7 +14,7 @@ interface AudioPlayerProps {
   savedTranscript?: string | null;
 }
 
-export function AudioPlayer({ src, mimetype, className, isFromMe }: AudioPlayerProps) {
+export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, savedTranscript }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
