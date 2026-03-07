@@ -54,6 +54,8 @@ import {
   Building2,
   Smartphone,
   BellOff,
+  Pin,
+  Star,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -84,6 +86,7 @@ interface ConversationListProps {
     is_group: boolean;
     attendance_status: 'waiting' | 'attending' | 'finished';
     department: string;
+    favorite: boolean;
   };
   onFiltersChange: (filters: {
     search: string;
@@ -94,10 +97,12 @@ interface ConversationListProps {
     is_group: boolean;
     attendance_status: 'waiting' | 'attending' | 'finished';
     department: string;
+    favorite: boolean;
   }) => void;
   isAdmin?: boolean;
   connections?: Connection[];
-  onPinConversation?: (id: string, pinned: boolean) => void;
+  onPinConversation?: (id: string, pinned: boolean) => Promise<void>;
+  onFavoriteConversation?: (id: string, favorite: boolean) => Promise<void>;
   onNewConversation?: () => void;
   onAcceptConversation?: (id: string) => Promise<void>;
   onReleaseConversation?: (id: string) => Promise<void>;
@@ -172,6 +177,8 @@ export function ConversationList({
   onReopenConversation,
   attendanceCounts,
   onGlobalSearchSelect,
+  onPinConversation,
+  onFavoriteConversation,
 }: ConversationListProps) {
   const isMobile = useIsMobile();
   const [localSearch, setLocalSearch] = useState(filters.search);
@@ -621,6 +628,20 @@ export function ConversationList({
             </Select>
           )}
 
+          {/* Favorite filter toggle */}
+          <Button
+            variant={filters.favorite ? "default" : "ghost"}
+            size="icon"
+            className={cn(
+              "h-8 w-8 flex-shrink-0 transition-colors",
+              filters.favorite && "bg-yellow-500 hover:bg-yellow-600 text-white"
+            )}
+            onClick={() => onFiltersChange({ ...filters, favorite: !filters.favorite })}
+            title={filters.favorite ? "Ver todas" : "Ver favoritas"}
+          >
+            <Star className={cn("h-3 w-3", filters.favorite && "fill-current")} />
+          </Button>
+
           {/* Archive toggle */}
           <Button
             variant={filters.archived ? "default" : "ghost"}
@@ -708,7 +729,9 @@ export function ConversationList({
                   {/* Content */}
                   <div className="flex-1 min-w-0" onClick={() => onSelect(conv)}>
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium truncate flex-1 min-w-0">
+                      <span className="font-medium truncate flex-1 min-w-0 flex items-center gap-1">
+                        {conv.is_pinned && <Pin className="h-3 w-3 text-primary flex-shrink-0" />}
+                        {conv.is_favorite && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />}
                         {conv.is_group 
                           ? (conv.group_name || 'Grupo sem nome')
                           : (conv.contact_name || conv.contact_phone || 'Desconhecido')}
@@ -853,8 +876,8 @@ export function ConversationList({
                     )}
                   </div>
 
-                  {/* Admin actions - only on desktop */}
-                  {!isMobile && isAdmin && (
+                  {/* Actions dropdown - desktop only */}
+                  {!isMobile && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -867,17 +890,41 @@ export function ConversationList({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setConversationToDelete(conv);
-                            setDeleteDialogOpen(true);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir conversa
-                        </DropdownMenuItem>
+                        {onPinConversation && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPinConversation(conv.id, !conv.is_pinned);
+                            }}
+                          >
+                            <Pin className={cn("h-4 w-4 mr-2", conv.is_pinned && "text-primary")} />
+                            {conv.is_pinned ? 'Desafixar' : 'Fixar no topo'}
+                          </DropdownMenuItem>
+                        )}
+                        {onFavoriteConversation && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onFavoriteConversation(conv.id, !conv.is_favorite);
+                            }}
+                          >
+                            <Star className={cn("h-4 w-4 mr-2", conv.is_favorite && "text-yellow-500 fill-yellow-500")} />
+                            {conv.is_favorite ? 'Remover favorito' : 'Favoritar'}
+                          </DropdownMenuItem>
+                        )}
+                        {isAdmin && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConversationToDelete(conv);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir conversa
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}

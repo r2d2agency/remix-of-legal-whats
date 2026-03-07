@@ -422,7 +422,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       return res.json([]);
     }
 
-    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department } = req.query;
+    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department, favorite } = req.query;
 
     // Get user's role and department membership
     const userOrg = await getUserOrganization(req.userId);
@@ -578,6 +578,11 @@ router.get('/conversations', authenticate, async (req, res) => {
         sql += ` AND conv.department_id = ANY($${paramIndex}::uuid[])`;
         params.push(filterDepartmentIds);
         paramIndex++;
+      }
+
+      // Filter by favorite
+      if (favorite === 'true') {
+        sql += ` AND COALESCE(conv.is_favorite, false) = true`;
       }
 
       // Order by pinned first, then by last_message_at
@@ -1008,6 +1013,34 @@ router.post('/conversations/:id/pin', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Pin conversation error:', error);
     res.status(500).json({ error: 'Erro ao fixar conversa' });
+  }
+});
+
+// Favorite/Unfavorite conversation
+router.post('/conversations/:id/favorite', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { favorite } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    const check = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    await query(
+      `UPDATE conversations SET is_favorite = COALESCE($1, false), updated_at = NOW() WHERE id = $2`,
+      [favorite, id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Favorite conversation error:', error);
+    res.status(500).json({ error: 'Erro ao favoritar conversa' });
   }
 });
 

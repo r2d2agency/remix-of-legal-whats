@@ -37,6 +37,7 @@ const Chat = () => {
     markAsRead,
     transferConversation,
     pinConversation,
+    favoriteConversation,
     acceptConversation,
     releaseConversation,
     finishConversation,
@@ -94,9 +95,10 @@ const Chat = () => {
       assigned: 'all',
       archived: false,
       connection: savedConnection,
-      is_group: false, // false = individual chats, true = group chats
+      is_group: false,
       attendance_status: 'attending' as 'waiting' | 'attending' | 'finished',
       department: 'all',
+      favorite: false,
     };
   });
   const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
@@ -244,6 +246,7 @@ const Chat = () => {
       filterParams.archived = filters.archived;
       filterParams.is_group = activeTab === 'groups' ? 'true' : 'false';
       filterParams.attendance_status = filters.attendance_status;
+      if (filters.favorite) filterParams.favorite = 'true';
 
       const data = await getConversations(filterParams);
 
@@ -287,7 +290,7 @@ const Chat = () => {
       isLoadingConversationsRef.current = false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab, loadAttendanceCounts]);
+  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, filters.favorite, activeTab, loadAttendanceCounts]);
 
   // Keep ref pointing to the latest loadConversations (used by intervals above)
   useEffect(() => {
@@ -304,7 +307,7 @@ const Chat = () => {
   useEffect(() => {
     loadConversations();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, activeTab]);
+  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, filters.favorite, activeTab]);
 
   const loadTags = async () => {
     try {
@@ -827,6 +830,12 @@ const Chat = () => {
                   onFinishConversation={async (id) => { await handleFinishConversation(id); }}
                   onReopenConversation={async (id) => { await handleReopenConversation(id); }}
                   attendanceCounts={attendanceCounts}
+                  onPinConversation={async (id, pinned) => {
+                    try { await pinConversation(id, pinned); loadConversations(); toast.success(pinned ? 'Conversa fixada' : 'Conversa desafixada'); } catch (error: any) { toast.error(error.message || 'Erro ao fixar conversa'); }
+                  }}
+                  onFavoriteConversation={async (id, favorite) => {
+                    try { await favoriteConversation(id, favorite); loadConversations(); toast.success(favorite ? 'Conversa favoritada' : 'Favorito removido'); } catch (error: any) { toast.error(error.message || 'Erro ao favoritar conversa'); }
+                  }}
                   onGlobalSearchSelect={async (conversationId, messageId) => {
                     try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                   }}
@@ -885,6 +894,12 @@ const Chat = () => {
                 onFinishConversation={async (id) => { await handleFinishConversation(id); }}
                 onReopenConversation={async (id) => { await handleReopenConversation(id); }}
                 attendanceCounts={attendanceCounts}
+                onPinConversation={async (id, pinned) => {
+                  try { await pinConversation(id, pinned); loadConversations(); toast.success(pinned ? 'Conversa fixada' : 'Conversa desafixada'); } catch (error: any) { toast.error(error.message || 'Erro ao fixar conversa'); }
+                }}
+                onFavoriteConversation={async (id, favorite) => {
+                  try { await favoriteConversation(id, favorite); loadConversations(); toast.success(favorite ? 'Conversa favoritada' : 'Favorito removido'); } catch (error: any) { toast.error(error.message || 'Erro ao favoritar conversa'); }
+                }}
                 onGlobalSearchSelect={async (conversationId, messageId) => {
                   try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                 }}
