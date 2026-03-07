@@ -2856,7 +2856,7 @@ router.get('/contacts', authenticate, async (req, res) => {
       paramIndex++;
     }
 
-    sql += ` ORDER BY cc.name ASC NULLS LAST LIMIT 200`;
+    sql += ` ORDER BY cc.name ASC NULLS LAST LIMIT 10000`;
 
     const result = await query(sql, params);
     res.json(result.rows);
