@@ -77,35 +77,53 @@ router.post('/', authenticate, upload.single('audio'), async (req, res) => {
       audioFormat,
     });
 
-    const messages = [
-      {
-        role: 'system',
-        content: 'Você é um transcritor de áudio profissional. Transcreva o áudio fornecido com precisão, mantendo pontuação adequada. Retorne APENAS o texto transcrito, sem explicações ou comentários adicionais. Se o áudio estiver vazio ou inaudível, retorne "[Áudio inaudível]".'
-      },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: 'Transcreva o seguinte áudio em português:'
-          },
-          {
-            type: 'input_audio',
-            input_audio: {
-              data: base64Audio,
-              format: audioFormat
-            }
-          }
-        ]
+    let transcript;
+
+    if (aiConfig.provider === 'openai') {
+      // OpenAI: use Whisper API for transcription
+      const formData = new FormData();
+      const blob = new Blob([audioFile.buffer], { type: mimeType });
+      // Whisper accepts mp3, mp4, mpeg, mpga, m4a, wav, webm
+      const ext = mimeType.includes('wav') ? 'wav' : mimeType.includes('webm') ? 'webm' : 'mp3';
+      formData.append('file', blob, `audio.${ext}`);
+      formData.append('model', 'whisper-1');
+      formData.append('language', 'pt');
+
+      const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${aiConfig.apiKey}` },
+        body: formData,
+      });
+
+      if (!whisperRes.ok) {
+        const errText = await whisperRes.text();
+        throw new Error(`Whisper API error ${whisperRes.status}: ${errText}`);
       }
-    ];
 
-    const result = await callAI(aiConfig, messages, {
-      temperature: 0.1,
-      maxTokens: 4000,
-    });
+      const whisperData = await whisperRes.json();
+      transcript = whisperData.text?.trim() || '[Áudio inaudível]';
+    } else {
+      // Gemini: use multimodal chat with inline audio
+      const messages = [
+        {
+          role: 'system',
+          content: 'Você é um transcritor de áudio profissional. Transcreva o áudio fornecido com precisão, mantendo pontuação adequada. Retorne APENAS o texto transcrito, sem explicações ou comentários adicionais. Se o áudio estiver vazio ou inaudível, retorne "[Áudio inaudível]".'
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Transcreva o seguinte áudio em português:' },
+            {
+              type: 'input_audio',
+              input_audio: { data: base64Audio, format: audioFormat }
+            }
+          ]
+        }
+      ];
 
-    const transcript = result.content?.trim() || '[Áudio inaudível]';
+      const result = await callAI(aiConfig, messages, { temperature: 0.1, maxTokens: 4000 });
+      transcript = result.content?.trim() || '[Áudio inaudível]';
+    }
 
     log('info', 'transcribe.success', {
       transcriptLength: transcript.length,
