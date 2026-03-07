@@ -624,7 +624,11 @@ const ContatosChat = () => {
                     <p className="text-sm text-muted-foreground">Total de Contatos</p>
                     <p className="text-2xl font-bold">{chatContacts.length}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button variant="default" size="sm" onClick={() => setShowAddChatContactDialog(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Contato
+                    </Button>
                     <Dialog open={showChatImportDialog} onOpenChange={(open) => {
                       setShowChatImportDialog(open);
                       if (!open) setSelectedConnectionForImport("");
