@@ -3,10 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { THEME_PRESETS, ThemeColors, applyThemeColors } from '@/hooks/use-branding';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { THEME_PRESETS, ThemeColors, ThemeModeColors, applyThemeColors, parseThemeColors } from '@/hooks/use-branding';
 import { toast } from 'sonner';
-import { Check, Loader2, Palette, RotateCcw, Save, Paintbrush } from 'lucide-react';
+import { Check, Loader2, Palette, RotateCcw, Save, Paintbrush, Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ThemeCustomizerProps {
@@ -54,11 +54,78 @@ function hexToHsl(hex: string): string {
   return `${Math.round(h)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
 
+const DEFAULT_LIGHT: ThemeModeColors = THEME_PRESETS.default.colors.light;
+const DEFAULT_DARK: ThemeModeColors = THEME_PRESETS.default.colors.dark;
+
+function ColorPickerGroup({ colors, onChange, mode }: {
+  colors: ThemeModeColors;
+  onChange: (field: keyof ThemeModeColors, hex: string) => void;
+  mode: 'light' | 'dark';
+}) {
+  const fields: { key: keyof ThemeModeColors; label: string }[] = [
+    { key: 'primary', label: 'Cor Principal' },
+    { key: 'secondary', label: 'Secundária' },
+    { key: 'accent', label: 'Destaque' },
+    { key: 'sidebar', label: 'Sidebar' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {fields.map(({ key, label }) => (
+          <div key={key} className="space-y-2">
+            <Label className="text-xs">{label}</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={hslToHex(colors[key])}
+                onChange={(e) => onChange(key, e.target.value)}
+                className="w-10 h-10 rounded-md cursor-pointer border-2 border-border"
+              />
+              <Input
+                value={hslToHex(colors[key])}
+                onChange={(e) => {
+                  if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
+                    onChange(key, e.target.value);
+                  }
+                }}
+                className="h-8 text-xs font-mono"
+                placeholder="#000000"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Preview */}
+      <div className={cn(
+        "rounded-lg border p-4 space-y-2",
+        mode === 'dark' ? "bg-[#1a1a2e]" : "bg-[#f5f5f5]"
+      )}>
+        <Label className={cn("text-xs", mode === 'dark' ? "text-gray-400" : "text-gray-500")}>
+          Pré-visualização ({mode === 'dark' ? 'Escuro' : 'Claro'})
+        </Label>
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg" style={{ backgroundColor: `hsl(${colors.primary})` }} />
+          <div className="h-10 w-10 rounded-lg" style={{ backgroundColor: `hsl(${colors.secondary})` }} />
+          <div className="h-10 w-10 rounded-lg" style={{ backgroundColor: `hsl(${colors.accent})` }} />
+          <div className="h-10 w-10 rounded-lg" style={{ backgroundColor: `hsl(${colors.sidebar})` }} />
+          <div className="flex-1 space-y-1">
+            <div className="h-2 rounded-full w-3/4" style={{ backgroundColor: `hsl(${colors.primary})` }} />
+            <div className="h-2 rounded-full w-1/2" style={{ backgroundColor: `hsl(${colors.secondary})` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ThemeCustomizer({ currentPreset, currentCustomColors, onSave }: ThemeCustomizerProps) {
   const [selectedPreset, setSelectedPreset] = useState(currentPreset || 'default');
   const [customColors, setCustomColors] = useState<ThemeColors>(() => {
     if (currentCustomColors) {
-      try { return JSON.parse(currentCustomColors); } catch { /* ignore */ }
+      const parsed = parseThemeColors(currentCustomColors);
+      if (parsed) return parsed;
     }
     return THEME_PRESETS.default.colors;
   });
@@ -69,25 +136,28 @@ export function ThemeCustomizer({ currentPreset, currentCustomColors, onSave }: 
     setSelectedPreset(currentPreset || 'default');
     setShowCustom(currentPreset === 'custom');
     if (currentCustomColors) {
-      try { setCustomColors(JSON.parse(currentCustomColors)); } catch { /* ignore */ }
+      const parsed = parseThemeColors(currentCustomColors);
+      if (parsed) setCustomColors(parsed);
     }
   }, [currentPreset, currentCustomColors]);
 
   const handlePresetClick = (key: string) => {
     setSelectedPreset(key);
     setShowCustom(false);
-    // Preview immediately
     applyThemeColors(key, null);
   };
 
-  const handleCustomColorChange = (field: keyof ThemeColors, hex: string) => {
+  const handleCustomColorChange = (mode: 'light' | 'dark', field: keyof ThemeModeColors, hex: string) => {
     const hsl = hexToHsl(hex);
-    const updated = { ...customColors, [field]: hsl };
-    if (field === 'primary') {
-      updated.sidebar = hsl;
-    }
+    const updated = {
+      ...customColors,
+      [mode]: {
+        ...customColors[mode],
+        [field]: hsl,
+        ...(field === 'primary' ? { sidebar: hsl } : {}),
+      },
+    };
     setCustomColors(updated);
-    // Preview immediately
     applyThemeColors('custom', JSON.stringify(updated));
   };
 
@@ -162,7 +232,7 @@ export function ThemeCustomizer({ currentPreset, currentCustomColors, onSave }: 
                 <Paintbrush className="h-4 w-4" />
                 Cores Personalizadas
               </CardTitle>
-              <CardDescription>Escolha suas próprias cores</CardDescription>
+              <CardDescription>Escolha cores separadas para tema claro e escuro</CardDescription>
             </div>
             <Button
               variant={showCustom ? "default" : "outline"}
@@ -179,108 +249,33 @@ export function ThemeCustomizer({ currentPreset, currentCustomColors, onSave }: 
           </div>
         </CardHeader>
         {showCustom && (
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs">Cor Principal</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={hslToHex(customColors.primary)}
-                    onChange={(e) => handleCustomColorChange('primary', e.target.value)}
-                    className="w-10 h-10 rounded-md cursor-pointer border-2 border-border"
-                  />
-                  <Input
-                    value={hslToHex(customColors.primary)}
-                    onChange={(e) => {
-                      if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                        handleCustomColorChange('primary', e.target.value);
-                      }
-                    }}
-                    className="h-8 text-xs font-mono"
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Secundária</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={hslToHex(customColors.secondary)}
-                    onChange={(e) => handleCustomColorChange('secondary', e.target.value)}
-                    className="w-10 h-10 rounded-md cursor-pointer border-2 border-border"
-                  />
-                  <Input
-                    value={hslToHex(customColors.secondary)}
-                    onChange={(e) => {
-                      if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                        handleCustomColorChange('secondary', e.target.value);
-                      }
-                    }}
-                    className="h-8 text-xs font-mono"
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Destaque</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={hslToHex(customColors.accent)}
-                    onChange={(e) => handleCustomColorChange('accent', e.target.value)}
-                    className="w-10 h-10 rounded-md cursor-pointer border-2 border-border"
-                  />
-                  <Input
-                    value={hslToHex(customColors.accent)}
-                    onChange={(e) => {
-                      if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                        handleCustomColorChange('accent', e.target.value);
-                      }
-                    }}
-                    className="h-8 text-xs font-mono"
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Sidebar</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={hslToHex(customColors.sidebar)}
-                    onChange={(e) => handleCustomColorChange('sidebar', e.target.value)}
-                    className="w-10 h-10 rounded-md cursor-pointer border-2 border-border"
-                  />
-                  <Input
-                    value={hslToHex(customColors.sidebar)}
-                    onChange={(e) => {
-                      if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                        handleCustomColorChange('sidebar', e.target.value);
-                      }
-                    }}
-                    className="h-8 text-xs font-mono"
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Live Preview */}
-            <div className="rounded-lg border p-4 space-y-2">
-              <Label className="text-xs text-muted-foreground">Pré-visualização</Label>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg" style={{ backgroundColor: `hsl(${customColors.primary})` }} />
-                <div className="h-10 w-10 rounded-lg" style={{ backgroundColor: `hsl(${customColors.secondary})` }} />
-                <div className="h-10 w-10 rounded-lg" style={{ backgroundColor: `hsl(${customColors.accent})` }} />
-                <div className="h-10 w-10 rounded-lg" style={{ backgroundColor: `hsl(${customColors.sidebar})` }} />
-                <div className="flex-1 space-y-1">
-                  <div className="h-2 rounded-full w-3/4" style={{ backgroundColor: `hsl(${customColors.primary})` }} />
-                  <div className="h-2 rounded-full w-1/2" style={{ backgroundColor: `hsl(${customColors.secondary})` }} />
-                </div>
-              </div>
-            </div>
+          <CardContent>
+            <Tabs defaultValue="light" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="light" className="flex items-center gap-2">
+                  <Sun className="h-4 w-4" />
+                  Tema Claro
+                </TabsTrigger>
+                <TabsTrigger value="dark" className="flex items-center gap-2">
+                  <Moon className="h-4 w-4" />
+                  Tema Escuro
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="light">
+                <ColorPickerGroup
+                  colors={customColors.light}
+                  onChange={(field, hex) => handleCustomColorChange('light', field, hex)}
+                  mode="light"
+                />
+              </TabsContent>
+              <TabsContent value="dark">
+                <ColorPickerGroup
+                  colors={customColors.dark}
+                  onChange={(field, hex) => handleCustomColorChange('dark', field, hex)}
+                  mode="dark"
+                />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         )}
       </Card>
