@@ -594,8 +594,8 @@ export function ChatArea({
 
   if (!conversation) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-muted/30 text-muted-foreground">
-        <div className="flex flex-col items-center justify-center text-center">
+      <div className="flex-1 flex flex-col items-center justify-center bg-muted/30 text-muted-foreground h-full min-h-0">
+        <div className="flex flex-col items-center justify-center text-center -mt-12">
           <img 
             src="/icons/gleego-logo.png" 
             alt="Logo" 
