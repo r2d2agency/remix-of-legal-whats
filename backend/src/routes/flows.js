@@ -199,7 +199,7 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: 'Sem permissão para criar fluxos' });
     }
 
-    const { name, description, trigger_enabled, trigger_keywords, trigger_match_mode, connection_ids } = req.body;
+    const { name, description, trigger_enabled, trigger_keywords, trigger_match_mode, connection_ids, category_id } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Nome é obrigatório' });
