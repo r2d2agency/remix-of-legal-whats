@@ -36,7 +36,22 @@ const Configuracoes = () => {
     isPushSupported,
   } = useNotificationSound();
 
-  // Profile state
+  const isAdminOrOwner = user?.role === 'owner' || user?.role === 'admin';
+  const [orgThemePreset, setOrgThemePreset] = useState<string | null>(null);
+  const [orgThemeCustom, setOrgThemeCustom] = useState<string | null>(null);
+
+  // Load org theme on mount
+  useState(() => {
+    if (isAdminOrOwner && user?.organization_id) {
+      apiCall<{ theme_preset: string | null; theme_custom_colors: string | null }>(
+        `/api/organizations/${user.organization_id}/theme`
+      ).then(data => {
+        setOrgThemePreset(data.theme_preset);
+        setOrgThemeCustom(data.theme_custom_colors);
+      }).catch(() => {});
+    }
+  });
+
   const [displayName, setDisplayName] = useState(user?.name || "");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
