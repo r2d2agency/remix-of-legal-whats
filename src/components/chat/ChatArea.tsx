@@ -219,7 +219,8 @@ export function ChatArea({
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
-  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, editMessage, deleteMessage: deleteMessageFn } = useChat();
+  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, editMessage, deleteMessage: deleteMessageFn, pinMessage } = useChat();
+  const [pinnedMessage, setPinnedMessage] = useState<ChatMessage | null>(null);
   
   const finishWithSummary = useFinishWithSummary();
   const generateSummary = useGenerateSummary();
