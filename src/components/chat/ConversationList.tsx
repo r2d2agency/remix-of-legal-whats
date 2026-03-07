@@ -65,6 +65,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SwipeableConversationItem } from "./SwipeableConversationItem";
 import { GlobalSearchDialog } from "./GlobalSearchDialog";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
 
 interface ConversationListProps {
   conversations: Conversation[];
