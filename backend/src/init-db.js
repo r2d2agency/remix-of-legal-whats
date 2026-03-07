@@ -141,6 +141,8 @@ DO $$ BEGIN
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_provider VARCHAR(20) DEFAULT 'none';
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_model VARCHAR(100);
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS ai_api_key TEXT;
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS theme_preset VARCHAR(50);
+    ALTER TABLE organizations ADD COLUMN IF NOT EXISTS theme_custom_colors TEXT;
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 
 -- Organização: horário de trabalho para agendamento inteligente
