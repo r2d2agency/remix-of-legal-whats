@@ -56,10 +56,25 @@ router.post('/', authenticate, upload.single('audio'), async (req, res) => {
     const base64Audio = audioFile.buffer.toString('base64');
     const mimeType = audioFile.mimetype || 'audio/ogg';
 
+    // Determine audio format - OpenAI only supports 'wav' and 'mp3'
+    // Gemini supports more formats
+    let audioFormat;
+    if (aiConfig.provider === 'openai') {
+      // OpenAI: only wav and mp3 supported, default to mp3 for unsupported formats
+      audioFormat = mimeType.includes('wav') ? 'wav' : 'mp3';
+    } else {
+      // Gemini: supports ogg, webm, mp3, wav
+      audioFormat = mimeType.includes('mp3') ? 'mp3' :
+                    mimeType.includes('wav') ? 'wav' :
+                    mimeType.includes('ogg') ? 'ogg' :
+                    mimeType.includes('webm') ? 'webm' : 'mp3';
+    }
+
     log('info', 'transcribe.start', {
       size: audioFile.size,
       mimetype: mimeType,
       provider: aiConfig.provider,
+      audioFormat,
     });
 
     const messages = [
@@ -78,10 +93,7 @@ router.post('/', authenticate, upload.single('audio'), async (req, res) => {
             type: 'input_audio',
             input_audio: {
               data: base64Audio,
-              format: mimeType.includes('mp3') ? 'mp3' :
-                      mimeType.includes('wav') ? 'wav' :
-                      mimeType.includes('ogg') ? 'ogg' :
-                      mimeType.includes('webm') ? 'webm' : 'mp3'
+              format: audioFormat
             }
           }
         ]
