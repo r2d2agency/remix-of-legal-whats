@@ -266,6 +266,14 @@ export const useChat = () => {
     });
   }, []);
 
+  // Favorite/unfavorite conversation
+  const favoriteConversation = useCallback(async (id: string, favorite: boolean): Promise<void> => {
+    await api(`/api/chat/conversations/${id}/favorite`, {
+      method: 'POST',
+      body: { favorite },
+    });
+  }, []);
+
   // Accept conversation (move to attending)
   const acceptConversation = useCallback(async (id: string): Promise<void> => {
     await api(`/api/chat/conversations/${id}/accept`, { method: 'POST' });
