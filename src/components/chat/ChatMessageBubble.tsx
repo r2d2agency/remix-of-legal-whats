@@ -75,6 +75,8 @@ export function ChatMessageBubble({
   onSendMessage,
   onEditMessage,
   onDeleteMessage,
+  onPinMessage,
+  isPinned,
   highlightText,
   getDocumentDisplayName,
   looksLikeFilename,
