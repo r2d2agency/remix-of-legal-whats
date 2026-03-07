@@ -20,7 +20,6 @@ export interface Conversation {
   is_pinned: boolean;
   is_favorite: boolean;
   pinned_message_id: string | null;
-  pinned_message_id: string | null;
   is_group: boolean;
   group_name: string | null;
   assigned_to: string | null;
