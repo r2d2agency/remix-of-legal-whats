@@ -101,8 +101,20 @@ export function useNotificationSound() {
     setSettingsState(prev => {
       const newSettings = { ...prev, ...updates };
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
+      // Notify other hook instances in the same tab
+      window.dispatchEvent(new CustomEvent('notification-settings-changed', { detail: newSettings }));
       return newSettings;
     });
+  }, []);
+
+  // Sync state when another hook instance updates settings
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setSettingsState(detail);
+    };
+    window.addEventListener('notification-settings-changed', handler);
+    return () => window.removeEventListener('notification-settings-changed', handler);
   }, []);
 
   const requestPushPermission = useCallback(async (): Promise<boolean> => {
