@@ -98,11 +98,11 @@ const Index = () => {
         attendancePromise,
       ]);
 
-      const totalContacts = listsData.reduce((sum, list) => sum + Number(list.contact_count || 0), 0);
+      const totalContacts = (listsData as any[]).reduce((sum: number, list: any) => sum + Number(list.contact_count || 0), 0);
       const totalMessages = messagesData.length;
-      const activeCampaigns = campaignsData.filter(c => c.status === 'running').length;
-      const scheduledCampaigns = campaignsData.filter(c => c.status === 'pending').length;
-      const sentMessages = campaignsData.reduce((sum, c) => sum + c.sent_count, 0);
+      const activeCampaigns = (campaignsData as any[]).filter((c: any) => c.status === 'running').length;
+      const scheduledCampaigns = (campaignsData as any[]).filter((c: any) => c.status === 'pending').length;
+      const sentMessages = (campaignsData as any[]).reduce((sum: number, c: any) => sum + (c.sent_count || 0), 0);
 
       const assigned = chatStats?.conversations_by_status?.find(s => s.status === 'assigned')?.count ?? 0;
       const unassigned = chatStats?.conversations_by_status?.find(s => s.status === 'unassigned')?.count ?? 0;
