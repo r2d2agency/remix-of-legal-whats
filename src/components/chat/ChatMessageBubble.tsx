@@ -229,7 +229,7 @@ export function ChatMessageBubble({
         {(msg.message_type === 'audio' || msg.message_type === 'ptt' || (msg.media_mimetype?.startsWith('audio/') ?? false)) && (
           mediaUrl ? (
             <div className="mb-2">
-              <AudioPlayer src={mediaUrl} mimetype={msg.media_mimetype || undefined} isFromMe={msg.from_me} />
+              <AudioPlayer src={mediaUrl} mimetype={msg.media_mimetype || undefined} isFromMe={msg.from_me} messageId={msg.id} savedTranscript={msg.transcript} />
             </div>
           ) : (
             <div className="flex items-center gap-2 text-sm opacity-70 mb-2 p-3 rounded-lg bg-background/30">
