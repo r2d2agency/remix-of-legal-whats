@@ -258,7 +258,7 @@ router.patch('/:id', async (req, res) => {
 
     const allowedFields = [
       'name', 'description', 'trigger_enabled', 'trigger_keywords', 
-      'trigger_match_mode', 'is_active', 'is_draft', 'connection_ids'
+      'trigger_match_mode', 'is_active', 'is_draft', 'connection_ids', 'category_id'
     ];
 
     const updates = [];
