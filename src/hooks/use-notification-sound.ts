@@ -39,6 +39,7 @@ interface NotificationSoundSettings {
   pushEnabled: boolean;
   volume: number;
   mutedConnections: string[]; // connection IDs that are muted
+  mutedConversations: string[]; // conversation IDs that are muted
 }
 
 const SETTINGS_KEY = 'notification-sound-settings';
