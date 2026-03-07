@@ -131,6 +131,20 @@ router.post('/', authenticate, upload.single('audio'), async (req, res) => {
       provider: aiConfig.provider,
     });
 
+    // Save transcript to message if messageId provided
+    const messageId = req.body?.messageId || req.query?.messageId;
+    if (messageId && transcript && transcript !== '[Áudio inaudível]') {
+      try {
+        await query(
+          `UPDATE chat_messages SET transcript = $1 WHERE id = $2`,
+          [transcript, messageId]
+        );
+        log('info', 'transcribe.saved_to_db', { messageId });
+      } catch (dbErr) {
+        logError('transcribe.save_db_error', dbErr);
+      }
+    }
+
     res.json({ transcript });
   } catch (error) {
     logError('transcribe.error', error);
