@@ -617,6 +617,7 @@ export const useChat = () => {
     sendMessage,
     editMessage,
     deleteMessage: deleteMessageFn,
+    pinMessage,
     // Tags
     getTags,
     createTag,
