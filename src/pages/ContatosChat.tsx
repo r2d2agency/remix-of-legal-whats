@@ -582,6 +582,9 @@ const ContatosChat = () => {
     return matchesSearch && matchesConnection;
   });
 
+  const paginatedContacts = filteredChatContacts.slice(0, visibleCount);
+  const hasMore = filteredChatContacts.length > visibleCount;
+
 
   return (
     <MainLayout>
