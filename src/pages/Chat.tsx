@@ -894,6 +894,12 @@ const Chat = () => {
                 onFinishConversation={async (id) => { await handleFinishConversation(id); }}
                 onReopenConversation={async (id) => { await handleReopenConversation(id); }}
                 attendanceCounts={attendanceCounts}
+                onPinConversation={async (id, pinned) => {
+                  try { await pinConversation(id, pinned); loadConversations(); toast.success(pinned ? 'Conversa fixada' : 'Conversa desafixada'); } catch (error: any) { toast.error(error.message || 'Erro ao fixar conversa'); }
+                }}
+                onFavoriteConversation={async (id, favorite) => {
+                  try { await favoriteConversation(id, favorite); loadConversations(); toast.success(favorite ? 'Conversa favoritada' : 'Favorito removido'); } catch (error: any) { toast.error(error.message || 'Erro ao favoritar conversa'); }
+                }}
                 onGlobalSearchSelect={async (conversationId, messageId) => {
                   try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                 }}
