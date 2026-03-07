@@ -37,6 +37,7 @@ const Chat = () => {
     markAsRead,
     transferConversation,
     pinConversation,
+    favoriteConversation,
     acceptConversation,
     releaseConversation,
     finishConversation,
