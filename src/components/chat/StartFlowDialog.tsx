@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { Flow } from "@/hooks/use-flows";
 import { api } from "@/lib/api";
 
-interface FlowWithCategory extends Flow {
+interface FlowWithCategory extends Omit<Flow, 'node_count'> {
   node_count?: number;
   category_name?: string | null;
   category_color?: string | null;
