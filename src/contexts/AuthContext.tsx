@@ -100,6 +100,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { user, token } = await authApi.login(email, password);
     setAuthToken(token);
     setUser(user);
+    if (user.organization_id) {
+      sessionStorage.setItem('user_org_id', user.organization_id);
+    }
     toast({ title: 'Login realizado com sucesso!' });
   };
 
