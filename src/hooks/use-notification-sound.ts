@@ -247,6 +247,8 @@ export function useNotificationSound() {
     showPushNotification,
     notify,
     isConnectionMuted,
+    isConversationMuted,
+    toggleConversationMute,
     isMobileDevice: isMobileDevice(),
     isPushSupported: typeof window !== 'undefined' && 'Notification' in window,
   };
