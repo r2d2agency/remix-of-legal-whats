@@ -110,7 +110,23 @@ export function useBranding() {
 
   const fetchBranding = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/api/admin/branding`);
+      // Try to get org_id from stored user data
+      let orgParam = '';
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          // We'll get org_id from the API response, but also try cached
+        }
+      } catch { /* ignore */ }
+
+      // Check for cached org_id
+      const cachedOrgId = sessionStorage.getItem('user_org_id');
+      if (cachedOrgId) {
+        orgParam = `?org_id=${cachedOrgId}`;
+      }
+
+      const response = await fetch(`${API_URL}/api/admin/branding${orgParam}`);
       if (response.ok) {
         const data = await response.json();
         setBranding(data);
