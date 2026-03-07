@@ -859,15 +859,36 @@ export function ChatArea({
             </>
           )}
           {!isViewOnly && (
-            <>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1 flex-shrink-0" onClick={() => setShowTransferDialog(true)}><ArrowLeftRight className="h-3 w-3" />Transferir</Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1 flex-shrink-0" onClick={() => setShowDepartmentDialog(true)}><Building2 className="h-3 w-3" />Depto</Button>
-            </>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1 flex-shrink-0" onClick={() => setShowTransferDialog(true)}><ArrowLeftRight className="h-3 w-3" />Transferir</Button>
           )}
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1 flex-shrink-0" onClick={() => setShowNotes(!showNotes)}>
-            <StickyNote className="h-3 w-3" />Notas
-            {notesCount > 0 && <Badge variant="secondary" className="h-4 px-1 text-[9px] ml-0.5">{notesCount}</Badge>}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1 flex-shrink-0">
+                <Tag className="h-3 w-3" />Tags
+                {conversation.tags.length > 0 && <Badge variant="secondary" className="h-4 px-1 text-[9px] ml-0.5">{conversation.tags.length}</Badge>}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="z-[80] max-h-60 overflow-y-auto">
+              {tags.filter(t => !conversation.tags.some(ct => ct.id === t.id)).map(tag => (
+                <DropdownMenuItem key={tag.id} onClick={() => onAddTag(tag.id)}>
+                  <div className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: tag.color }} />{tag.name}
+                </DropdownMenuItem>
+              ))}
+              {conversation.tags.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[10px] text-muted-foreground">Remover tag</DropdownMenuLabel>
+                  {conversation.tags.map(tag => (
+                    <DropdownMenuItem key={tag.id} onClick={() => onRemoveTag(tag.id)}>
+                      <div className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: tag.color }} />{tag.name}<X className="h-3 w-3 ml-auto text-muted-foreground" />
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowTagDialog(true)}><Plus className="h-4 w-4 mr-2" />Nova tag</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
 
