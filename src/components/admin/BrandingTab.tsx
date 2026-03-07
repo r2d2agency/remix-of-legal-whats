@@ -4,10 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAdminSettings } from '@/hooks/use-branding';
+import { useAdminSettings, applyThemeColors } from '@/hooks/use-branding';
 import { useUpload } from '@/hooks/use-upload';
 import { toast } from 'sonner';
 import { Upload, Loader2, Trash2, Image, Layout, Star, Save, Building2 } from 'lucide-react';
+import { ThemeCustomizer } from './ThemeCustomizer';
 
 interface LogoUploaderProps {
   label: string;
@@ -244,13 +245,27 @@ export function BrandingTab() {
         </div>
       </div>
 
+      {/* Theme Colors Section */}
+      <div>
+        <h3 className="text-sm font-medium text-muted-foreground mb-3">Cores e Tema</h3>
+        <ThemeCustomizer
+          currentPreset={getSetting('theme_preset')}
+          currentCustomColors={getSetting('theme_custom_colors')}
+          onSave={async (preset, customColors) => {
+            await handleUpdate('theme_preset', preset);
+            await handleUpdate('theme_custom_colors', customColors);
+            applyThemeColors(preset, customColors);
+          }}
+        />
+      </div>
+
       <Card className="border-amber-500/30 bg-amber-500/5">
         <CardContent className="flex items-start gap-3 py-4">
           <Star className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
           <div className="text-sm">
             <p className="font-medium text-amber-500">Dica</p>
             <p className="text-muted-foreground">
-              Após alterar as logos, os usuários precisam atualizar a página (F5) para ver as mudanças.
+              Após alterar as logos ou cores, os usuários precisam atualizar a página (F5) para ver as mudanças.
               O favicon pode demorar um pouco mais para atualizar devido ao cache do navegador.
             </p>
           </div>
