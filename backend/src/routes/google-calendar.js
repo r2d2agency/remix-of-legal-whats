@@ -211,13 +211,14 @@ async function getValidAccessToken(userId) {
 
   // Check if token is expired or about to expire (5 min buffer)
   if (new Date(token.expires_at) <= new Date(Date.now() + 300000)) {
+    const config = getConfig();
     // Refresh the token
     const refreshResponse = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
         refresh_token: token.refresh_token,
         grant_type: 'refresh_token',
       }),
