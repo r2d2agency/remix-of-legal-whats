@@ -6,18 +6,15 @@ import { logInfo, logError } from '../logger.js';
 
 const router = express.Router();
 
-// Google OAuth configuration
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/google-calendar/callback';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-// Debug: log loaded config on startup
-console.log('[Google Calendar] Config loaded:', {
-  clientId: GOOGLE_CLIENT_ID ? `${GOOGLE_CLIENT_ID.substring(0, 20)}...` : 'NOT SET',
-  redirectUri: GOOGLE_REDIRECT_URI,
-  frontendUrl: FRONTEND_URL,
-});
+// Google OAuth configuration - read lazily to ensure dotenv has loaded
+function getConfig() {
+  return {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/google-calendar/callback',
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  };
+}
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
