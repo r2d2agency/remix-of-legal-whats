@@ -550,6 +550,11 @@ const Configuracoes = () => {
               </Card>
             </div>
 
+            {/* Google Calendar - conexão pessoal */}
+            <div className="mt-6">
+              <GoogleCalendarPanel />
+            </div>
+
             <div className="flex justify-end mt-6">
               <Button variant="gradient" size="lg">
                 <Save className="h-4 w-4" />
