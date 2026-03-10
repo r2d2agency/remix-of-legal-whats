@@ -1,8 +1,6 @@
 import 'dotenv/config'; // Preload — side-effect import, loads .env BEFORE other modules
 
 import express from 'express';
-
-import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import cron from 'node-cron';
