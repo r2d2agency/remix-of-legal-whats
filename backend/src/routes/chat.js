@@ -2948,43 +2948,79 @@ router.get('/contacts', authenticate, async (req, res) => {
       console.warn('Auto-populate chat contacts failed (non-critical):', autoPopulateError.message);
     }
 
-    let sql = `
-      SELECT 
-        cc.id,
-        cc.name,
-        cc.phone,
-        cc.jid,
-        cc.connection_id,
-        c.name as connection_name,
-        EXISTS (
-          SELECT 1 FROM conversations conv 
-          WHERE conv.connection_id = cc.connection_id
-            AND (conv.contact_phone = cc.phone OR conv.remote_jid = cc.jid)
-        ) as has_conversation,
-        cc.created_at
-      FROM chat_contacts cc
-      JOIN connections c ON c.id = cc.connection_id
-      WHERE cc.connection_id = ANY($1)
-        AND COALESCE(cc.is_deleted, false) = false
-        AND (cc.jid IS NULL OR cc.jid NOT LIKE '%@g.us')
-    `;
-
+    // Build filter conditions
     const params = [connectionIds];
     let paramIndex = 2;
+    let connectionFilter = '';
+    let searchFilter = '';
 
     if (connection && connection !== 'all') {
-      sql += ` AND cc.connection_id = $${paramIndex}`;
+      connectionFilter = ` AND cc.connection_id = $${paramIndex}`;
       params.push(connection);
       paramIndex++;
     }
 
     if (search) {
-      sql += ` AND (cc.name ILIKE $${paramIndex} OR cc.phone ILIKE $${paramIndex})`;
+      searchFilter = ` AND (cc.name ILIKE $${paramIndex} OR cc.phone ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
       paramIndex++;
     }
 
-    sql += ` ORDER BY cc.name ASC NULLS LAST LIMIT 10000`;
+    // Union chat_contacts + contacts from contact_lists (campaign lists)
+    let sql = `
+      SELECT DISTINCT ON (combined.phone, combined.connection_id)
+        combined.*
+      FROM (
+        -- Source 1: chat_contacts (from conversations auto-populate + manual adds)
+        SELECT 
+          cc.id,
+          cc.name,
+          cc.phone,
+          cc.jid,
+          cc.connection_id,
+          c.name as connection_name,
+          EXISTS (
+            SELECT 1 FROM conversations conv 
+            WHERE conv.connection_id = cc.connection_id
+              AND (conv.contact_phone = cc.phone OR conv.remote_jid = cc.jid)
+          ) as has_conversation,
+          cc.created_at
+        FROM chat_contacts cc
+        JOIN connections c ON c.id = cc.connection_id
+        WHERE cc.connection_id = ANY($1)
+          AND COALESCE(cc.is_deleted, false) = false
+          AND (cc.jid IS NULL OR cc.jid NOT LIKE '%@g.us')
+          ${connectionFilter}
+          ${searchFilter}
+
+        UNION ALL
+
+        -- Source 2: contacts from contact_lists (linked via connection or user ownership)
+        SELECT 
+          ct.id,
+          ct.name,
+          ct.phone,
+          NULL as jid,
+          cl.connection_id,
+          cn.name as connection_name,
+          EXISTS (
+            SELECT 1 FROM conversations conv 
+            WHERE conv.connection_id = cl.connection_id
+              AND conv.contact_phone = ct.phone
+          ) as has_conversation,
+          ct.created_at
+        FROM contacts ct
+        JOIN contact_lists cl ON cl.id = ct.list_id
+        JOIN connections cn ON cn.id = cl.connection_id
+        WHERE cl.connection_id = ANY($1)
+          AND ct.phone IS NOT NULL
+          AND ct.phone <> ''
+          ${connectionFilter ? connectionFilter.replace(/cc\./g, 'cl.') : ''}
+          ${searchFilter ? searchFilter.replace(/cc\./g, 'ct.') : ''}
+      ) combined
+      ORDER BY combined.phone, combined.connection_id, combined.has_conversation DESC, combined.name ASC NULLS LAST
+      LIMIT 10000
+    `;
 
     const result = await query(sql, params);
     res.json(result.rows);
