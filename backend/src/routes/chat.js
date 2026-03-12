@@ -855,11 +855,11 @@ router.get('/conversations/by-phone/:phone', authenticate, async (req, res) => {
     }
 
     const activeConnectionId = activeConnResult.rows[0].id;
-    let phone = normalizedPhone;
-    if (!phone.startsWith('55') && phone.length <= 11) {
-      phone = '55' + phone;
+    let createPhone = normalizedPhone;
+    if (!createPhone.startsWith('55') && createPhone.length <= 11) {
+      createPhone = '55' + createPhone;
     }
-    const remoteJid = `${phone}@s.whatsapp.net`;
+    const remoteJid = `${createPhone}@s.whatsapp.net`;
 
     // Create new conversation assigned to the current user
     const newConv = await query(
