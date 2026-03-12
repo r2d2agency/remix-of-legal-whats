@@ -837,14 +837,70 @@ router.get('/conversations/by-phone/:phone', authenticate, async (req, res) => {
       [connectionIds, needle]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Conversa não encontrada para este telefone' });
+    if (result.rows.length > 0) {
+      return res.json(result.rows[0]);
     }
 
-    res.json(result.rows[0]);
+    // Auto-create conversation: find user's first active connection
+    const activeConnResult = await query(
+      `SELECT c.id FROM connections c
+       WHERE c.id = ANY($1) AND (c.status = 'connected' OR c.instance_id IS NOT NULL)
+       ORDER BY c.updated_at DESC
+       LIMIT 1`,
+      [connectionIds]
+    );
+
+    if (activeConnResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Nenhuma conexão ativa encontrada para criar a conversa' });
+    }
+
+    const activeConnectionId = activeConnResult.rows[0].id;
+    let phone = normalizedPhone;
+    if (!phone.startsWith('55') && phone.length <= 11) {
+      phone = '55' + phone;
+    }
+    const remoteJid = `${phone}@s.whatsapp.net`;
+
+    // Create new conversation assigned to the current user
+    const newConv = await query(
+      `INSERT INTO conversations 
+        (connection_id, remote_jid, contact_phone, contact_name, assigned_to, is_archived, unread_count, attendance_status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, false, 0, 'attending', NOW(), NOW())
+       RETURNING *`,
+      [activeConnectionId, remoteJid, phone, phone, req.userId]
+    );
+
+    // Try to find contact name from contacts/chat_contacts
+    const contactNameResult = await query(
+      `SELECT name FROM chat_contacts WHERE regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') LIKE '%' || $1 || '%' AND connection_id = $2 LIMIT 1`,
+      [needle, activeConnectionId]
+    );
+    if (contactNameResult.rows.length > 0 && contactNameResult.rows[0].name) {
+      await query(
+        `UPDATE conversations SET contact_name = $1 WHERE id = $2`,
+        [contactNameResult.rows[0].name, newConv.rows[0].id]
+      );
+    }
+
+    // Return full conversation
+    const fullConv = await query(
+      `SELECT 
+        conv.*,
+        conn.name as connection_name,
+        conn.phone_number as connection_phone,
+        u.name as assigned_name,
+        '[]'::json as tags
+      FROM conversations conv
+      JOIN connections conn ON conn.id = conv.connection_id
+      LEFT JOIN users u ON u.id = conv.assigned_to
+      WHERE conv.id = $1`,
+      [newConv.rows[0].id]
+    );
+
+    res.status(201).json(fullConv.rows[0]);
   } catch (error) {
-    console.error('Get conversation by phone error:', error);
-    res.status(500).json({ error: 'Erro ao buscar conversa' });
+    console.error('Get/create conversation by phone error:', error);
+    res.status(500).json({ error: 'Erro ao buscar/criar conversa' });
   }
 });
 
