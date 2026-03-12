@@ -2246,20 +2246,41 @@ function extractMessageContent(payload) {
   let mediaMimetype = null;
   let waMediaKey = null; // For encrypted WhatsApp media
 
-  let msgContent = payload.msgContent || {};
+  let msgContent = payload.msgContent || payload.message || {};
 
-  // Unwrap nested wrappers (documentWithCaptionMessage, viewOnceMessageV2, etc.)
-  if (msgContent.documentWithCaptionMessage?.message) {
-    console.log('[W-API Extract] Unwrapping documentWithCaptionMessage');
-    msgContent = { ...msgContent, ...msgContent.documentWithCaptionMessage.message };
+  // Log raw msgContent keys for debugging document issues
+  const rawKeys = Object.keys(msgContent);
+  if (rawKeys.length > 0) {
+    console.log('[W-API Extract] msgContent keys:', rawKeys.join(', '));
   }
-  if (msgContent.viewOnceMessageV2?.message) {
-    console.log('[W-API Extract] Unwrapping viewOnceMessageV2');
-    msgContent = { ...msgContent, ...msgContent.viewOnceMessageV2.message };
+
+  // Unwrap ALL known nested wrappers recursively
+  // WhatsApp/Baileys wraps messages in various containers
+  const unwrappers = [
+    'documentWithCaptionMessage',
+    'viewOnceMessageV2',
+    'viewOnceMessage',
+    'viewOnceMessageV2Extension',
+    'ephemeralMessage',
+    'templateMessage',
+    'buttonsMessage',
+    'listMessage',
+    'editedMessage',
+  ];
+  
+  for (const wrapper of unwrappers) {
+    if (msgContent[wrapper]?.message) {
+      console.log(`[W-API Extract] Unwrapping ${wrapper}`);
+      msgContent = { ...msgContent, ...msgContent[wrapper].message };
+    }
   }
-  if (msgContent.viewOnceMessage?.message) {
-    console.log('[W-API Extract] Unwrapping viewOnceMessage');
-    msgContent = { ...msgContent, ...msgContent.viewOnceMessage.message };
+  
+  // Some wrappers nest deeper (e.g., ephemeralMessage > viewOnceMessageV2 > message)
+  for (const wrapper of unwrappers) {
+    if (msgContent[wrapper]?.message) {
+      console.log(`[W-API Extract] Unwrapping nested ${wrapper} (2nd pass)`);
+      msgContent = { ...msgContent, ...msgContent[wrapper].message };
+    }
   }
 
   // Helper to extract mediaKey from various locations
