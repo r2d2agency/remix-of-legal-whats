@@ -40,10 +40,11 @@ interface TransferDialogProps {
   onOpenChange: (open: boolean) => void;
   conversation: Conversation | null;
   team: TeamMember[];
+  availableConnections?: Array<{ id: string; name: string; status?: string; phone_number?: string | null }>;
   onTransfer: (userId: string | null, note?: string) => void;
 }
 
-export function TransferDialog({ open, onOpenChange, conversation, team, onTransfer }: TransferDialogProps) {
+export function TransferDialog({ open, onOpenChange, conversation, team, availableConnections = [], onTransfer }: TransferDialogProps) {
   const [transferTo, setTransferTo] = useState("");
   const [transferNote, setTransferNote] = useState("");
   const [transferMode, setTransferMode] = useState<'human' | 'ai' | 'connection'>('human');

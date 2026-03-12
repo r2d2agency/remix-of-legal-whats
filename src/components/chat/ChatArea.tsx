@@ -59,7 +59,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ChatMessage, Conversation, ConversationTag, TeamMember } from "@/hooks/use-chat";
+import { ChatMessage, Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
 import { useChat } from "@/hooks/use-chat";
 import { useDepartments, Department } from "@/hooks/use-departments";
 import { useUpload } from "@/hooks/use-upload";
