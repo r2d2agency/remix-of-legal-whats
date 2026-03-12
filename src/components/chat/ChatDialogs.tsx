@@ -27,6 +27,7 @@ import {
   Building2,
   Loader2,
   UserPlus,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Conversation, TeamMember } from "@/hooks/use-chat";
 import { Department } from "@/hooks/use-departments";
