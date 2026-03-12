@@ -2308,10 +2308,19 @@ router.post('/conversations/:id/transfer-connection', authenticate, async (req, 
         if (targetList.rows.length === 0) {
           const targetConnName = await query(`SELECT name FROM connections WHERE id = $1`, [targetConnectionId]);
           const listName = `Contatos - ${targetConnName.rows[0]?.name || 'Conexão'}`;
-          targetList = await query(
-            `INSERT INTO contact_lists (name, user_id, connection_id) VALUES ($1, $2, $3) RETURNING id`,
-            [listName, req.userId, targetConnectionId]
-          );
+          // Try with user_id first, fallback without it
+          try {
+            targetList = await query(
+              `INSERT INTO contact_lists (name, user_id, connection_id) VALUES ($1, $2, $3) RETURNING id`,
+              [listName, req.userId, targetConnectionId]
+            );
+          } catch (insertErr) {
+            // user_id column may not exist, try without it
+            targetList = await query(
+              `INSERT INTO contact_lists (name, connection_id) VALUES ($1, $2) RETURNING id`,
+              [listName, targetConnectionId]
+            );
+          }
         }
 
         const listId = targetList.rows[0].id;
