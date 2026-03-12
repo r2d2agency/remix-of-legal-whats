@@ -2269,7 +2269,9 @@ router.post('/conversations/:id/transfer-connection', authenticate, async (req, 
 
     // Check user has access to the conversation (including orphaned ones with null connection_id)
     const check = await query(
-      `SELECT id, connection_id, contact_name, contact_phone FROM conversations WHERE id = $1 AND (connection_id = ANY($2) OR connection_id IS NULL)`,
+      `SELECT c.id, c.connection_id, c.contact_name, c.contact_phone 
+       FROM conversations c 
+       WHERE c.id = $1 AND (c.connection_id = ANY($2) OR c.connection_id IS NULL)`,
       [id, connectionIds]
     );
 
@@ -2277,9 +2279,16 @@ router.post('/conversations/:id/transfer-connection', authenticate, async (req, 
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
 
-    // Check user has access to target connection
-    if (!connectionIds.includes(targetConnectionId)) {
-      return res.status(403).json({ error: 'Sem acesso à conexão de destino' });
+    // Verify target connection exists in the same organization
+    const targetCheck = await query(
+      `SELECT co.id FROM connections co
+       WHERE co.id = $1 AND co.organization_id = (
+         SELECT om.organization_id FROM organization_members om WHERE om.user_id = $2 LIMIT 1
+       )`,
+      [targetConnectionId, req.userId]
+    );
+    if (targetCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Conexão de destino não encontrada na organização' });
     }
 
     const conversation = check.rows[0];
