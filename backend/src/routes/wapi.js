@@ -2430,6 +2430,47 @@ function extractMessageContent(payload) {
     waMediaKey = extractMediaKey(payload.stickerMessage) || extractMediaKey(payload);
   }
 
+  // FINAL FALLBACK: If we still have no content/media, check for any media indicators
+  // This catches unknown wrapper formats and edge cases
+  if (!content && !mediaUrl && messageType === 'text') {
+    // Check if payload has media indicators we missed
+    const hasMediaIndicator = payload.hasMedia || payload.mediaUrl || payload.url || payload.fileUrl || 
+                               payload.downloadUrl || payload.media || payload.base64 || payload.data;
+    const payloadMime = payload.mimetype || payload.mediaMimetype || payload.mimeType || null;
+    
+    if (hasMediaIndicator || payloadMime) {
+      // Detect type from mimetype
+      const mimeStr = (payloadMime || '').toLowerCase();
+      if (mimeStr.startsWith('image/')) messageType = 'image';
+      else if (mimeStr.startsWith('audio/')) messageType = 'audio';
+      else if (mimeStr.startsWith('video/')) messageType = 'video';
+      else messageType = 'document';
+      
+      mediaUrl = typeof hasMediaIndicator === 'string' ? hasMediaIndicator : null;
+      mediaMimetype = payloadMime;
+      content = payload.fileName || payload.caption || (messageType === 'audio' ? '[Áudio]' : '[Documento]');
+      waMediaKey = extractMediaKey(payload);
+      
+      console.log('[W-API Extract] FALLBACK media detection:', { messageType, mediaMimetype, hasUrl: Boolean(mediaUrl), content });
+    }
+    
+    // Also scan msgContent for any *Message key we might have missed
+    if (!content && !mediaUrl) {
+      const msgKeys = Object.keys(msgContent);
+      const mediaKey = msgKeys.find(k => k.endsWith('Message') && typeof msgContent[k] === 'object' && msgContent[k] !== null);
+      if (mediaKey) {
+        const mediaObj = msgContent[mediaKey];
+        messageType = 'document';
+        mediaMimetype = pickMime(mediaObj) || payloadMime;
+        mediaUrl = pickFirstString(mediaObj, ['url', 'fileUrl', 'mediaUrl', 'link', 'downloadUrl', 'base64', 'data']);
+        content = mediaObj.fileName || mediaObj.caption || `[${mediaKey.replace('Message', '')}]`;
+        waMediaKey = extractMediaKey(mediaObj);
+        
+        console.log(`[W-API Extract] FALLBACK caught unknown message type via key "${mediaKey}":`, { messageType, mediaMimetype, content });
+      }
+    }
+  }
+
   return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
 }
 
