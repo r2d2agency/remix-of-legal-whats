@@ -1195,7 +1195,7 @@ export function ChatArea({
 
       {conversation && <StartFlowDialog open={showStartFlowDialog} onClose={() => setShowStartFlowDialog(false)} conversationId={conversation.id} connectionId={conversation.connection_id} onFlowStarted={() => {}} />}
 
-      <TransferDialog open={showTransferDialog} onOpenChange={setShowTransferDialog} conversation={conversation} team={team} onTransfer={onTransfer} />
+      <TransferDialog open={showTransferDialog} onOpenChange={setShowTransferDialog} conversation={conversation} team={team} availableConnections={connections} onTransfer={onTransfer} />
       <DepartmentDialog open={showDepartmentDialog} onOpenChange={setShowDepartmentDialog} conversation={conversation} departments={departments} onSave={handleSaveDepartment} saving={savingDepartment} />
       {onDeleteConversation && <DeleteConversationDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog} onDelete={onDeleteConversation} />}
       

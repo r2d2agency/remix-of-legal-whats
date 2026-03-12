@@ -87,10 +87,10 @@ export function NewConversationDialog({
   const [agendaContacts, setAgendaContacts] = useState<ChatContact[]>([]);
   const [loadingAgenda, setLoadingAgenda] = useState(false);
 
-  const activeConnections = useMemo(
-    () => connections.filter((c) => c.status === 'connected'),
-    [connections]
-  );
+  const activeConnections = useMemo(() => {
+    const connectedLike = connections.filter((c) => ['connected', 'open', 'online'].includes(String(c.status || '').toLowerCase()));
+    return connectedLike.length > 0 ? connectedLike : connections;
+  }, [connections]);
   
   const { toast } = useToast();
 

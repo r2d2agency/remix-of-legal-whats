@@ -104,11 +104,15 @@ export function TransferDialog({ open, onOpenChange, conversation, team, availab
       setLoadingConnections(true);
       api<Array<{ id: string; name: string; status: string; phone_number?: string }>>('/api/connections', { auth: true })
         .then(data => {
-          // Filter out the current connection and only show connected ones
-          const available = (data || []).filter(c => c.id !== conversation?.connection_id);
-          setConnections(available);
+          const fromApi = (data || []).filter(c => c.id !== conversation?.connection_id);
+          const fromProps = (availableConnections || []).filter(c => c.id !== conversation?.connection_id);
+          setConnections(fromApi.length > 0 ? fromApi : fromProps as Array<{ id: string; name: string; status: string; phone_number?: string }>);
         })
-        .catch(err => console.error('[TransferDialog] Erro ao carregar conexões:', err))
+        .catch(err => {
+          console.error('[TransferDialog] Erro ao carregar conexões:', err);
+          const fromProps = (availableConnections || []).filter(c => c.id !== conversation?.connection_id);
+          setConnections(fromProps as Array<{ id: string; name: string; status: string; phone_number?: string }>);
+        })
         .finally(() => setLoadingConnections(false));
     };
 
