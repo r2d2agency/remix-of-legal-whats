@@ -104,7 +104,7 @@ export function TransferDialog({ open, onOpenChange, conversation, team, onTrans
       api<Array<{ id: string; name: string; status: string; phone_number?: string }>>('/api/connections', { auth: true })
         .then(data => {
           // Filter out the current connection and only show connected ones
-          const available = (data || []).filter(c => c.id !== conversation?.connection_id && c.status === 'connected');
+          const available = (data || []).filter(c => c.id !== conversation?.connection_id);
           setConnections(available);
         })
         .catch(err => console.error('[TransferDialog] Erro ao carregar conexões:', err))
