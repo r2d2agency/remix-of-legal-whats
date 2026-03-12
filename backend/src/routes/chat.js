@@ -867,7 +867,7 @@ router.get('/conversations/by-phone/:phone', authenticate, async (req, res) => {
         (connection_id, remote_jid, contact_phone, contact_name, assigned_to, is_archived, unread_count, attendance_status, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, false, 0, 'attending', NOW(), NOW())
        RETURNING *`,
-      [activeConnectionId, remoteJid, phone, phone, req.userId]
+      [activeConnectionId, remoteJid, createPhone, createPhone, req.userId]
     );
 
     // Try to find contact name from contacts/chat_contacts
