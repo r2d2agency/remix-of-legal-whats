@@ -2283,6 +2283,81 @@ function extractMessageContent(payload) {
     }
   }
 
+  // ---- Template message handling (official WhatsApp Business API) ----
+  // Templates arrive as templateMessage with hydratedTemplate containing the rendered content
+  const hydratedTemplate = msgContent.hydratedTemplate 
+    || msgContent.hydratedFourRowTemplate 
+    || msgContent.templateMessage?.hydratedTemplate
+    || msgContent.templateMessage?.hydratedFourRowTemplate
+    || null;
+
+  if (hydratedTemplate) {
+    const parts = [];
+    if (hydratedTemplate.hydratedContentText) parts.push(hydratedTemplate.hydratedContentText);
+    if (hydratedTemplate.hydratedTitleText) parts.unshift(hydratedTemplate.hydratedTitleText);
+    if (hydratedTemplate.hydratedFooterText) parts.push(hydratedTemplate.hydratedFooterText);
+    
+    // Some templates have buttons – append button labels
+    const buttons = hydratedTemplate.hydratedButtons || [];
+    for (const btn of buttons) {
+      const label = btn.quickReplyButton?.displayText 
+        || btn.urlButton?.displayText 
+        || btn.callButton?.displayText 
+        || null;
+      if (label) parts.push(`[${label}]`);
+    }
+
+    // Check for media in the template (header image/video/document)
+    if (hydratedTemplate.imageMessage) {
+      console.log('[W-API Extract] Template with image header');
+      return {
+        messageType: 'image',
+        content: parts.join('\n') || '',
+        mediaUrl: hydratedTemplate.imageMessage.url || hydratedTemplate.imageMessage.fileUrl || null,
+        mediaMimetype: hydratedTemplate.imageMessage.mimetype || null,
+        waMediaKey: hydratedTemplate.imageMessage.mediaKey || null,
+      };
+    }
+    if (hydratedTemplate.videoMessage) {
+      console.log('[W-API Extract] Template with video header');
+      return {
+        messageType: 'video',
+        content: parts.join('\n') || '',
+        mediaUrl: hydratedTemplate.videoMessage.url || hydratedTemplate.videoMessage.fileUrl || null,
+        mediaMimetype: hydratedTemplate.videoMessage.mimetype || null,
+        waMediaKey: hydratedTemplate.videoMessage.mediaKey || null,
+      };
+    }
+    if (hydratedTemplate.documentMessage) {
+      console.log('[W-API Extract] Template with document header');
+      return {
+        messageType: 'document',
+        content: hydratedTemplate.documentMessage.fileName || parts.join('\n') || '[Documento]',
+        mediaUrl: hydratedTemplate.documentMessage.url || hydratedTemplate.documentMessage.fileUrl || null,
+        mediaMimetype: hydratedTemplate.documentMessage.mimetype || null,
+        waMediaKey: hydratedTemplate.documentMessage.mediaKey || null,
+      };
+    }
+
+    const templateText = parts.join('\n').trim();
+    if (templateText) {
+      console.log('[W-API Extract] Template message extracted:', templateText.slice(0, 100));
+      return { messageType: 'text', content: templateText, mediaUrl: null, mediaMimetype: null, waMediaKey: null };
+    }
+  }
+
+  // Also handle highlyStructuredMessage (older template format)
+  if (msgContent.highlyStructuredMessage) {
+    const hsm = msgContent.highlyStructuredMessage;
+    const namespace = hsm.namespace || '';
+    const elementName = hsm.elementName || '';
+    const params = (hsm.params || []).map(p => p.default || p).join(', ');
+    const hsmText = hsm.hydratedHsm?.hydratedTemplate?.hydratedContentText 
+      || `[Template: ${elementName || namespace}${params ? ' - ' + params : ''}]`;
+    console.log('[W-API Extract] HSM template message:', hsmText.slice(0, 100));
+    return { messageType: 'text', content: hsmText, mediaUrl: null, mediaMimetype: null, waMediaKey: null };
+  }
+
   // Helper to extract mediaKey from various locations
   const extractMediaKey = (obj) => {
     if (!obj) return null;
