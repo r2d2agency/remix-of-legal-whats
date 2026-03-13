@@ -293,6 +293,7 @@ export default function AgentesIACliente() {
         client_ai_api_key: clientAiApiKey || undefined,
         custom_name: customName || undefined,
         prompt_additions: fullPromptAdditions || undefined,
+        selected_model: selectedModel || undefined,
       });
       setTestMessages(prev => [...prev, {
         id: `a-${Date.now()}`,
