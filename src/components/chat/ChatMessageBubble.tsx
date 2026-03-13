@@ -151,6 +151,11 @@ export function ChatMessageBubble({
     }
   };
 
+  // Hide protocol/system messages that shouldn't be displayed
+  if (msg.message_type === 'protocol' || (msg.content === '[protocol]' && !msg.media_url)) {
+    return null;
+  }
+
   return (
     <div
       ref={messageRef}

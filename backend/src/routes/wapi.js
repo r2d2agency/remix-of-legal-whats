@@ -2248,6 +2248,16 @@ function extractMessageContent(payload) {
 
   let msgContent = payload.msgContent || payload.message || {};
 
+  // Skip protocol messages (system-level: edits, deletes, ephemeral settings, reactions, etc.)
+  if (msgContent.protocolMessage || msgContent.reactionMessage || msgContent.pollUpdateMessage || msgContent.pollCreationMessage) {
+    const skipType = msgContent.protocolMessage ? 'protocolMessage' 
+      : msgContent.reactionMessage ? 'reactionMessage'
+      : msgContent.pollUpdateMessage ? 'pollUpdateMessage'
+      : 'pollCreationMessage';
+    console.log(`[W-API Extract] Skipping ${skipType} - not a user message`);
+    return { messageType: 'protocol', content: '', mediaUrl: null, mediaMimetype: null, waMediaKey: null };
+  }
+
   // Log raw msgContent keys for debugging document issues
   const rawKeys = Object.keys(msgContent);
   if (rawKeys.length > 0) {
