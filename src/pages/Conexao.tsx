@@ -1149,12 +1149,16 @@ const handleGetQRCode = async (connection: Connection) => {
                       <Pencil className="h-4 w-4" />
                     </Button>
                     
-                    {/* Recover orphaned conversations */}
+                    {/* Migrate conversations from another connection */}
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleMigrateConversations(connection)}
-                      title="Recuperar conversas de conexão anterior"
+                      onClick={() => {
+                        setMigrateTargetConnection(connection);
+                        setMigrateSourceId("");
+                        setMigrateDialogOpen(true);
+                      }}
+                      title="Migrar conversas de outra conexão"
                     >
                       <History className="h-4 w-4 text-primary" />
                     </Button>
