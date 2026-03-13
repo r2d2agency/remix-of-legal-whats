@@ -40,8 +40,9 @@ const CAPABILITY_ICONS: Record<string, { icon: typeof Bot; label: string }> = {
 interface Connection {
   id: string;
   name: string;
-  phone: string;
+  phone_number?: string;
   status: string;
+  provider?: string;
 }
 
 interface TestMessage {
