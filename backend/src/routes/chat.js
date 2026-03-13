@@ -36,6 +36,21 @@ async function getUserConnections(userId) {
   return specificResult.rows.map(r => r.id);
 }
 
+async function hasColumn(tableName, columnName) {
+  const result = await query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = $1
+         AND column_name = $2
+     ) AS exists_column`,
+    [tableName, columnName]
+  );
+
+  return Boolean(result.rows[0]?.exists_column);
+}
+
 // ==========================================
 // CONVERSATIONS
 // ==========================================
