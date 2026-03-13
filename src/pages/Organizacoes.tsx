@@ -146,6 +146,7 @@ export default function Organizacoes() {
     ghost: false,
     projects: false,
     lead_gleego: false,
+    shared_conversations: false,
   });
   const [leadGleegoApiKey, setLeadGleegoApiKey] = useState('');
   const [leadGleegoApiKeyMasked, setLeadGleegoApiKeyMasked] = useState('');
