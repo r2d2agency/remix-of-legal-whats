@@ -711,7 +711,7 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="plans" className="space-y-6">
-          <TabsList className="grid w-full max-w-4xl grid-cols-6">
+          <TabsList className="grid w-full max-w-5xl grid-cols-7">
             <TabsTrigger value="plans" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               Planos
@@ -723,6 +723,10 @@ export default function Admin() {
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Usuários
+            </TabsTrigger>
+            <TabsTrigger value="global-agents" className="flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              IA Global
             </TabsTrigger>
             <TabsTrigger value="wapi-instances" className="flex items-center gap-2">
               <Server className="h-4 w-4" />
