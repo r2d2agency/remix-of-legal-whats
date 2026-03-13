@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { API_URL, getAuthToken } from '@/lib/api';
 import { toast } from 'sonner';
-import { Bot, Plus, Trash2, Loader2, Pencil, Building2, X, Brain, MessageSquare, Send, Sparkles, FileText, BookOpen, Shield, Clock, Headphones, Target } from 'lucide-react';
+import { Bot, Plus, Trash2, Loader2, Pencil, Building2, X, Brain, MessageSquare, Send, Sparkles, FileText, BookOpen, Shield, Clock, Headphones, Target, Upload } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface GlobalAgent {
@@ -489,6 +489,51 @@ export function GlobalAgentsTab() {
     } finally { setAddingKnowledge(false); }
   };
 
+  const handleUploadKnowledgeFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedAgentId) return;
+    
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/plain',
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Tipo de arquivo não suportado. Use PDF, DOCX ou TXT.');
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error('Arquivo muito grande. Máximo 20MB.');
+      return;
+    }
+
+    setAddingKnowledge(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', file.name);
+
+      const token = getAuthToken();
+      const res = await fetch(`${API_URL}/api/global-agents/admin/${selectedAgentId}/knowledge/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Erro ao enviar arquivo');
+      }
+      toast.success(`Arquivo "${file.name}" processado com sucesso!`);
+      loadKnowledge(selectedAgentId);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setAddingKnowledge(false);
+      e.target.value = '';
+    }
+  };
+
   const handleDeleteKnowledge = async (sourceId: string) => {
     if (!selectedAgentId) return;
     try {
@@ -856,12 +901,24 @@ export function GlobalAgentsTab() {
           <div className="flex-1 overflow-y-auto space-y-4">
             {/* Add buttons */}
             {!addKnowledgeMode && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" onClick={() => setAddKnowledgeMode('text')} className="gap-1.5">
                   <FileText className="h-3.5 w-3.5" /> Texto
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setAddKnowledgeMode('url')} className="gap-1.5">
                   <BookOpen className="h-3.5 w-3.5" /> URL
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5 relative" disabled={addingKnowledge} asChild>
+                  <label>
+                    <Upload className="h-3.5 w-3.5" />
+                    {addingKnowledge ? 'Processando...' : 'PDF / DOCX / TXT'}
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt"
+                      className="sr-only"
+                      onChange={handleUploadKnowledgeFile}
+                    />
+                  </label>
                 </Button>
               </div>
             )}

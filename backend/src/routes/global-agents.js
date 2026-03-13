@@ -3,6 +3,11 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { callAI } from '../lib/ai-caller.js';
 import { searchKnowledge } from '../lib/knowledge-processor.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import pdfParse from 'pdf-parse';
+import mammoth from 'mammoth';
 
 const router = Router();
 router.use(authenticate);
@@ -200,6 +205,72 @@ router.post('/admin/:id/knowledge', requireSuperadmin, async (req, res) => {
   } catch (err) {
     console.error('Error adding knowledge:', err);
     res.status(500).json({ error: 'Erro ao adicionar fonte' });
+  }
+});
+
+// Upload file as knowledge source (PDF/DOCX/TXT)
+const knowledgeUpload = multer({
+  dest: path.join(process.cwd(), 'uploads', 'knowledge-tmp'),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+  fileFilter: (req, file, cb) => {
+    const allowed = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/plain',
+    ];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Tipo de arquivo não suportado. Use PDF, DOCX ou TXT.'));
+  }
+});
+
+router.post('/admin/:id/knowledge/upload', requireSuperadmin, knowledgeUpload.single('file'), async (req, res) => {
+  const filePath = req.file?.path;
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+
+    const name = req.body.name || req.file.originalname;
+    const mime = req.file.mimetype;
+    let extractedText = '';
+
+    if (mime === 'application/pdf') {
+      const dataBuffer = fs.readFileSync(filePath);
+      const pdfData = await pdfParse(dataBuffer);
+      extractedText = pdfData.text;
+    } else if (
+      mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      mime === 'application/msword'
+    ) {
+      const result = await mammoth.extractRawText({ path: filePath });
+      extractedText = result.value;
+    } else if (mime === 'text/plain') {
+      extractedText = fs.readFileSync(filePath, 'utf-8');
+    }
+
+    if (!extractedText || extractedText.trim().length < 10) {
+      return res.status(400).json({ error: 'Não foi possível extrair texto do arquivo. Verifique se o documento contém texto legível.' });
+    }
+
+    const fileExt = path.extname(req.file.originalname).replace('.', '').toUpperCase();
+
+    const result = await query(`
+      INSERT INTO global_agent_knowledge_sources (global_agent_id, source_type, name, description, source_content, file_type, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [req.params.id, 'file', name, `Extraído de ${fileExt} (${(req.file.size / 1024).toFixed(0)} KB)`, extractedText, fileExt, req.userId]);
+
+    const sourceId = result.rows[0].id;
+    processGlobalKnowledgeSource(sourceId).catch(err => {
+      console.error('Error processing uploaded knowledge source:', err);
+    });
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error uploading knowledge file:', err);
+    res.status(500).json({ error: err.message || 'Erro ao processar arquivo' });
+  } finally {
+    // Clean up temp file
+    if (filePath) try { fs.unlinkSync(filePath); } catch {}
   }
 });
 
