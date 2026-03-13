@@ -1599,6 +1599,60 @@ async function handleIncomingMessage(connection, payload) {
       return;
     }
 
+    // Handle protocolMessage (edits/deletes) before content extraction
+    const msgContentRaw = payload.msgContent || payload.message || {};
+    if (msgContentRaw.protocolMessage) {
+      const proto = msgContentRaw.protocolMessage;
+      const editedMsg = proto.editedMessage;
+      const protoType = proto.type;
+      
+      console.log('[W-API] protocolMessage detected. type:', protoType, 'hasEditedMsg:', !!editedMsg, 'proto.key:', JSON.stringify(proto.key));
+      
+      // Handle message edit
+      if (editedMsg) {
+        const editedMessageId = proto.key?.id;
+        if (editedMessageId) {
+          const newContent = editedMsg?.message?.conversation 
+            || editedMsg?.message?.extendedTextMessage?.text 
+            || editedMsg?.conversation
+            || editedMsg?.extendedTextMessage?.text
+            || '';
+          console.log('[W-API] Message edited:', editedMessageId, 'new content:', newContent?.slice(0, 100));
+          if (newContent) {
+            await query(
+              `UPDATE chat_messages SET content = $1, is_edited = true WHERE message_id = $2 RETURNING id`,
+              [newContent, editedMessageId]
+            );
+          }
+        }
+        return;
+      }
+      
+      // Handle message deletion (REVOKE)
+      if (protoType === 0 || protoType === 'REVOKE' || proto.key?.id) {
+        const deletedMessageId = proto.key?.id;
+        if (deletedMessageId) {
+          console.log('[W-API] Message deleted by sender:', deletedMessageId);
+          const delResult = await query(
+            `UPDATE chat_messages SET is_deleted = true WHERE message_id = $1 RETURNING id`,
+            [deletedMessageId]
+          );
+          console.log('[W-API] Delete matched', delResult.rowCount, 'rows');
+          if (delResult.rowCount === 0) {
+            // Broad match
+            await query(
+              `UPDATE chat_messages SET is_deleted = true WHERE message_id LIKE $1 RETURNING id`,
+              [`%${deletedMessageId}%`]
+            );
+          }
+        }
+        return;
+      }
+      
+      // Other protocol messages - skip
+      return;
+    }
+
     // IMPORTANT: Extract message content BEFORE creating conversation
     // This prevents creating empty conversations when message is invalid/empty
     const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype, waMediaKey } = extractMessageContent(payload);
