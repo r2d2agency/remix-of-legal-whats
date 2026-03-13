@@ -240,6 +240,7 @@ export default function Organizacoes() {
         ghost: modules.ghost ?? false,
         projects: modules.projects ?? false,
         lead_gleego: modules.lead_gleego ?? false,
+        shared_conversations: modules.shared_conversations ?? false,
       });
     } catch (error) {
       console.error('Error loading modules:', error);
