@@ -558,14 +558,55 @@ async function findGlobalAgentForConnection(connectionId) {
         // Build a virtual agent object compatible with the existing flow
         let systemPrompt = agent.system_prompt || '';
         
-        // Inject custom field values
+        // Inject custom field values (replace {{key}} placeholders)
         const fieldValues = agent.custom_field_values || {};
         for (const [key, value] of Object.entries(fieldValues)) {
-          if (value) {
+          if (value && !key.startsWith('_')) {
             systemPrompt = systemPrompt.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
           }
         }
+
+        // Inject current date/time variables
+        const now = new Date();
+        const daysOfWeek = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+        const currentDay = daysOfWeek[now.getDay()];
+        const currentTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+        const currentDate = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
         
+        systemPrompt = systemPrompt
+          .replace(/\{\{current_day\}\}/gi, currentDay)
+          .replace(/\{\{current_time\}\}/gi, currentTime)
+          .replace(/\{\{current_date\}\}/gi, currentDate)
+          .replace(/\{\{dia_atual\}\}/gi, currentDay)
+          .replace(/\{\{hora_atual\}\}/gi, currentTime)
+          .replace(/\{\{data_atual\}\}/gi, currentDate);
+
+        // Build personalization from client settings
+        const customName = fieldValues._custom_name;
+        const voiceTone = fieldValues._voice_tone;
+        const voiceGender = fieldValues._voice_gender;
+        const personalizationParts = [];
+
+        if (customName) {
+          personalizationParts.push(`Seu nome é "${customName}". Sempre se apresente com esse nome.`);
+        }
+        if (voiceTone && voiceTone !== 'professional') {
+          const toneLabels = { friendly: 'amigável', casual: 'casual', formal: 'formal', enthusiastic: 'entusiástico', empathetic: 'empático' };
+          personalizationParts.push(`Use um tom de voz ${toneLabels[voiceTone] || voiceTone}.`);
+        }
+        if (voiceGender === 'male') {
+          personalizationParts.push('Você é um assistente masculino. Use linguagem no gênero masculino.');
+        } else if (voiceGender === 'female') {
+          personalizationParts.push('Você é uma assistente feminina. Use linguagem no gênero feminino.');
+        }
+
+        if (personalizationParts.length > 0) {
+          systemPrompt = personalizationParts.join(' ') + '\n\n' + systemPrompt;
+        }
+
+        // Always inject context about current date/time even if not in template
+        systemPrompt += `\n\nInformações de contexto:\n- Data atual: ${currentDate} (${currentDay})\n- Hora atual: ${currentTime} (horário de Brasília)`;
+
         // Add prompt additions
         if (agent.prompt_additions) {
           systemPrompt += '\n\n' + agent.prompt_additions;
