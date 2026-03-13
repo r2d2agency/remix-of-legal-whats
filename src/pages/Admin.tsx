@@ -197,6 +197,11 @@ export default function Admin() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState('agent');
 
+  // Change password dialog
+  const [changePasswordDialogOpen, setChangePasswordDialogOpen] = useState(false);
+  const [changePasswordUser, setChangePasswordUser] = useState<User | null>(null);
+  const [changePasswordValue, setChangePasswordValue] = useState('');
+
   const { 
     loading: actionLoading,
     error,
