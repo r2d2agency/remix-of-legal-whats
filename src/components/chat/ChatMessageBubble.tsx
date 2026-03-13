@@ -374,9 +374,14 @@ export function ChatMessageBubble({
             </div>
           </div>
         ) : msg.content && msg.message_type !== 'call_log' && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) ? (
-          <p className="text-sm whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-            {searchQuery ? highlightText(msg.content, searchQuery) : msg.content}
-          </p>
+          <>
+            <p className="text-sm whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+              {renderTextWithLinks(msg.content, searchQuery, highlightText)}
+            </p>
+            {extractUrls(msg.content).slice(0, 1).map((url) => (
+              <LinkPreview key={url} url={url} />
+            ))}
+          </>
         ) : null}
 
         {/* Timestamp and status */}
