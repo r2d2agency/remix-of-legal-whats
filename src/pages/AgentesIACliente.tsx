@@ -95,8 +95,10 @@ export default function AgentesIACliente() {
   const isAdmin = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) {
+      loadData();
+    }
+  }, [user]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
