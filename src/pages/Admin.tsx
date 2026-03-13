@@ -1879,6 +1879,9 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          {/* Global Agents Tab */}
+          <GlobalAgentsTab />
+
           {/* Branding Tab */}
           <BrandingTab />
         </Tabs>
