@@ -121,17 +121,28 @@ export function useGlobalAgents() {
     }
   }, []);
 
-  const deleteActivation = useCallback(async (id: string): Promise<boolean> => {
-    setLoading(true);
+  const getAIModels = useCallback(async () => {
     try {
-      await api(`/api/global-agents/activation/${id}`, { method: 'DELETE', auth: true });
-      return true;
+      return await api<Record<string, { id: string; name: string; description: string }[]>>('/api/global-agents/models', { auth: true });
     } catch {
-      return false;
-    } finally {
-      setLoading(false);
+      return { openai: [], gemini: [] };
     }
   }, []);
 
-  return { loading, error, getAvailableAgents, activateAgent, updateActivation, deactivateAgent, deleteActivation };
+  const testAgent = useCallback(async (agentId: string, data: {
+    message: string;
+    history?: { role: string; content: string }[];
+    client_ai_api_key?: string;
+    custom_name?: string;
+    prompt_additions?: string;
+  }) => {
+    const result = await api<{ response: string; tokens: number; model: string }>(`/api/global-agents/test/${agentId}`, {
+      method: 'POST',
+      body: data,
+      auth: true,
+    });
+    return result;
+  }, []);
+
+  return { loading, error, getAvailableAgents, activateAgent, updateActivation, deactivateAgent, deleteActivation, getAIModels, testAgent };
 }
