@@ -1230,7 +1230,7 @@ export function ChatArea({
             <div className="flex items-end gap-2 flex-1">
               <div className="relative flex-1">
                 <Textarea ref={textareaRef} placeholder="Digite uma mensagem... Use @ para mencionar" value={messageText} onChange={e => setMessageText(e.target.value)}
-                  onKeyDown={e => { if (showMentionSuggestions && ['Enter', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.key)) return; handleKeyPress(e); }}
+                  onKeyDown={e => { if ((showMentionSuggestions || (slashQuery !== null && slashReplies.length > 0)) && ['Enter', 'Tab', 'ArrowUp', 'ArrowDown', 'Escape'].includes(e.key)) { handleKeyPress(e); return; } handleKeyPress(e); }}
                   onPaste={handlePaste}
                    className={cn("resize-none", isMobile ? "!min-h-[80px] max-h-[160px] text-base leading-6" : "min-h-[40px] max-h-[120px]")}
                    rows={isMobile ? 3 : 1}
