@@ -457,120 +457,28 @@ router.get('/conversations', authenticate, async (req, res) => {
       filterDepartmentIds = [department];
     }
 
+    // Check if org has shared_conversations enabled (must be outside buildQuery which is sync)
+    let sharedConversations = false;
+    if (userOrg) {
+      try {
+        const orgResult = await query(
+          `SELECT modules_enabled FROM organizations WHERE id = $1`,
+          [userOrg.organization_id]
+        );
+        if (orgResult.rows[0]?.modules_enabled?.shared_conversations) {
+          sharedConversations = true;
+        }
+      } catch {}
+    }
+
     const buildQuery = (supportsAttendance = true, supportsDepartment = true) => {
       let sql = `
-        SELECT 
-          conv.*,
-          conn.name as connection_name,
-          conn.phone_number as connection_phone,
-          u.name as assigned_name,
-          ${supportsAttendance ? 'ua.name as accepted_by_name,' : ''}
-          ${supportsDepartment ? 'd.name as department_name,' : ''}
-          COALESCE(
-            (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
-             FROM conversation_tag_links ctl
-             JOIN conversation_tags t ON t.id = ctl.tag_id
-             WHERE ctl.conversation_id = conv.id
-            ), '[]'::json
-          ) as tags,
-          (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message,
-          (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type
-        FROM conversations conv
-        JOIN connections conn ON conn.id = conv.connection_id
-        LEFT JOIN users u ON u.id = conv.assigned_to
-        ${supportsAttendance ? 'LEFT JOIN users ua ON ua.id = conv.accepted_by' : ''}
-        ${supportsDepartment ? 'LEFT JOIN departments d ON d.id = conv.department_id' : ''}
-        WHERE conv.connection_id = ANY($1)
-      `;
-
-      const params = [connectionIds];
-      let paramIndex = 2;
-
-      // Show conversations with messages OR with unread count (to handle cases where
-      // message insertion might have failed but unread_count was incremented)
-      if (includeEmpty !== 'true') {
-        sql += ` AND (EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id) OR conv.unread_count > 0)`;
-      }
-
-      // Filter by group status
-      if (is_group === 'true') {
-        sql += ` AND COALESCE(conv.is_group, false) = true`;
-      } else if (is_group === 'false') {
-        sql += ` AND COALESCE(conv.is_group, false) = false`;
-      }
-
-      // Filter by archived status
-      if (archived === 'true') {
-        sql += ` AND conv.is_archived = true`;
-      } else {
-        sql += ` AND conv.is_archived = false`;
-      }
-
-      // Filter by connection
-      if (connection && connection !== 'all') {
-        sql += ` AND conv.connection_id = $${paramIndex}`;
-        params.push(connection);
-        paramIndex++;
-      }
-
-      // Filter by search
-      if (search) {
-        sql += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex} OR conv.group_name ILIKE $${paramIndex})`;
-        params.push(`%${search}%`);
-        paramIndex++;
-      }
-
-      // Filter by tag
-      if (tag) {
-        sql += ` AND EXISTS (
-          SELECT 1 FROM conversation_tag_links ctl 
-          WHERE ctl.conversation_id = conv.id AND ctl.tag_id = $${paramIndex}
-        )`;
-        params.push(tag);
-        paramIndex++;
-      }
-
-      // Filter by assigned user
-      if (assigned === 'me') {
-        sql += ` AND conv.assigned_to = $${paramIndex}`;
-        params.push(req.userId);
-        paramIndex++;
-      } else if (assigned === 'unassigned') {
-        sql += ` AND conv.assigned_to IS NULL`;
-      } else if (assigned && assigned !== 'all') {
-        sql += ` AND conv.assigned_to = $${paramIndex}`;
-        params.push(assigned);
-        paramIndex++;
-      }
-
-      // Filter by attendance status - strict filtering per tab
-      if (supportsAttendance) {
-        if (attendance_status === 'waiting') {
-          sql += ` AND conv.attendance_status = 'waiting'`;
-        } else if (attendance_status === 'attending') {
-          sql += ` AND (conv.attendance_status = 'attending' OR conv.attendance_status IS NULL)`;
-        } else if (attendance_status === 'finished') {
-          sql += ` AND conv.attendance_status = 'finished'`;
-        }
+...
       }
 
       // ========================================
       // DEPARTMENT-BASED VISIBILITY FILTER
       // ========================================
-      // Check if org has shared_conversations enabled
-      let sharedConversations = false;
-      if (userOrg) {
-        try {
-          const orgResult = await query(
-            `SELECT modules_enabled FROM organizations WHERE id = $1`,
-            [userOrg.organization_id]
-          );
-          if (orgResult.rows[0]?.modules_enabled?.shared_conversations) {
-            sharedConversations = true;
-          }
-        } catch {}
-      }
-
       // Logic:
       // 1. If shared_conversations is enabled -> all connection members see everything
       // 2. If assigned_to = current user -> can see (my conversation)
