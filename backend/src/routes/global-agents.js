@@ -493,7 +493,8 @@ router.get('/available', async (req, res) => {
 
     const result = await query(`
       SELECT ga.id, ga.name, ga.description, ga.avatar_url, ga.custom_fields, ga.is_active,
-        ga.system_prompt, ga.greeting_message,
+        ga.system_prompt, ga.greeting_message, ga.ai_provider, ga.ai_model, ga.capabilities,
+        ga.has_knowledge_base,
         act.id as activation_id, act.is_active as activation_active, 
         act.schedule_mode, act.schedule_windows, act.custom_field_values,
         act.prompt_additions, act.connection_id, act.client_ai_api_key
@@ -515,6 +516,10 @@ router.get('/available', async (req, res) => {
           custom_fields: row.custom_fields,
           system_prompt: row.system_prompt,
           greeting_message: row.greeting_message,
+          ai_provider: row.ai_provider,
+          ai_model: row.ai_model,
+          capabilities: row.capabilities,
+          has_knowledge_base: row.has_knowledge_base,
           activations: []
         });
       }
@@ -660,6 +665,109 @@ router.delete('/activation/:id', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao remover' });
+  }
+});
+
+// =============================================
+// CLIENT - AI Models list
+// =============================================
+router.get('/models', async (req, res) => {
+  res.json({
+    openai: [
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Rápido e econômico' },
+      { id: 'gpt-4o', name: 'GPT-4o', description: 'Alta qualidade, multimodal' },
+      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Potente e rápido' },
+      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Econômico e rápido' },
+    ],
+    gemini: [
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Rápido e multimodal' },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Econômico e rápido' },
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Alta qualidade' },
+    ],
+  });
+});
+
+// =============================================
+// CLIENT - Test chat (validate AI before linking)
+// =============================================
+router.post('/test/:id', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+    if (!isAdmin(org.role)) return res.status(403).json({ error: 'Apenas admins' });
+
+    // Check agent is assigned to this org
+    const assignment = await query(
+      `SELECT 1 FROM global_agent_org_assignments WHERE global_agent_id = $1 AND organization_id = $2`,
+      [req.params.id, org.organization_id]
+    );
+    if (assignment.rows.length === 0) return res.status(403).json({ error: 'Agente não disponível' });
+
+    const agentResult = await query(`SELECT * FROM global_ai_agents WHERE id = $1`, [req.params.id]);
+    const agent = agentResult.rows[0];
+    if (!agent) return res.status(404).json({ error: 'Agente não encontrado' });
+
+    const { message, history, client_ai_api_key, custom_name, prompt_additions } = req.body;
+
+    // Resolve API key: client provided > agent key > org key
+    let apiKey = client_ai_api_key || agent.ai_api_key;
+    let provider = agent.ai_provider;
+    if (!apiKey) {
+      const configResult = await query(`SELECT ai_api_key, ai_provider FROM organizations WHERE id = $1`, [org.organization_id]);
+      if (configResult.rows[0]?.ai_api_key) {
+        apiKey = configResult.rows[0].ai_api_key;
+        if (!provider || provider === 'none') provider = configResult.rows[0].ai_provider;
+      }
+    }
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'Nenhuma API key configurada. Informe sua chave na aba API Key.' });
+    }
+
+    // Build system prompt
+    let systemPrompt = agent.system_prompt || 'Você é um assistente virtual profissional.';
+    if (custom_name) {
+      systemPrompt = `Seu nome é "${custom_name}". ` + systemPrompt;
+    }
+    if (prompt_additions) {
+      systemPrompt += `\n\nInstruções adicionais do cliente:\n${prompt_additions}`;
+    }
+
+    // Include knowledge base
+    if (agent.has_knowledge_base) {
+      try {
+        const knowledgeResult = await query(`
+          SELECT source_content, name FROM global_agent_knowledge_sources 
+          WHERE global_agent_id = $1 AND status = 'completed'
+          ORDER BY created_at DESC LIMIT 5
+        `, [agent.id]);
+        if (knowledgeResult.rows.length > 0) {
+          systemPrompt += '\n\n=== BASE DE CONHECIMENTO ===\n';
+          for (const src of knowledgeResult.rows) {
+            systemPrompt += `\n--- ${src.name} ---\n${src.source_content.substring(0, 3000)}\n`;
+          }
+        }
+      } catch (e) {
+        console.error('Error loading knowledge for client test:', e);
+      }
+    }
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...(history || []).map(m => ({ role: m.role, content: m.content })),
+      { role: 'user', content: message },
+    ];
+
+    const result = await callAI(
+      { provider, apiKey, model: agent.ai_model },
+      messages,
+      { temperature: agent.temperature || 0.7, maxTokens: agent.max_tokens || 1000 }
+    );
+
+    res.json({ response: result.content, tokens: result.tokensUsed, model: result.model });
+  } catch (err) {
+    console.error('Error client testing global agent:', err);
+    res.status(500).json({ error: err.message || 'Erro ao testar agente' });
   }
 });
 

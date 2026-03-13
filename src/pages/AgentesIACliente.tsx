@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,11 +10,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useGlobalAgents, GlobalAgentForClient, GlobalAgentActivation, ScheduleWindow } from '@/hooks/use-global-agents';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Bot, Clock, Plug, Plus, Trash2, Settings, Power, PowerOff, Loader2, Calendar, Key } from 'lucide-react';
+import { Bot, Clock, Plug, Plus, Trash2, Settings, Loader2, Calendar, Key, MessageSquare, Send, Mic, Image, Brain, Sparkles, FileText } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Dom' },
@@ -26,6 +28,15 @@ const DAYS_OF_WEEK = [
   { value: 6, label: 'Sáb' },
 ];
 
+const CAPABILITY_ICONS: Record<string, { icon: typeof Bot; label: string }> = {
+  respond_messages: { icon: MessageSquare, label: 'Responder mensagens' },
+  transcribe_audio: { icon: Mic, label: 'Ouvir áudios' },
+  analyze_images: { icon: Image, label: 'Analisar imagens' },
+  read_files: { icon: FileText, label: 'Ler arquivos' },
+  schedule_meetings: { icon: Calendar, label: 'Agendar reuniões' },
+  generate_content: { icon: Sparkles, label: 'Gerar conteúdo' },
+};
+
 interface Connection {
   id: string;
   name: string;
@@ -33,11 +44,18 @@ interface Connection {
   status: string;
 }
 
+interface TestMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
 export default function AgentesIACliente() {
   const { user } = useAuth();
-  const { loading, getAvailableAgents, activateAgent, updateActivation, deactivateAgent, deleteActivation } = useGlobalAgents();
+  const { loading, getAvailableAgents, activateAgent, updateActivation, deactivateAgent, deleteActivation, getAIModels, testAgent } = useGlobalAgents();
   const [agents, setAgents] = useState<GlobalAgentForClient[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [aiModels, setAiModels] = useState<Record<string, { id: string; name: string; description: string }[]>>({});
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<GlobalAgentForClient | null>(null);
   const [selectedActivation, setSelectedActivation] = useState<GlobalAgentActivation | null>(null);
@@ -49,7 +67,16 @@ export default function AgentesIACliente() {
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [promptAdditions, setPromptAdditions] = useState('');
   const [clientAiApiKey, setClientAiApiKey] = useState('');
+  const [customName, setCustomName] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Test chat state
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [testAgentData, setTestAgentData] = useState<GlobalAgentForClient | null>(null);
+  const [testMessages, setTestMessages] = useState<TestMessage[]>([]);
+  const [testInput, setTestInput] = useState('');
+  const [testLoading, setTestLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
 
@@ -57,13 +84,19 @@ export default function AgentesIACliente() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [testMessages]);
+
   const loadData = async () => {
-    const [agentsData, connsData] = await Promise.all([
+    const [agentsData, connsData, modelsData] = await Promise.all([
       getAvailableAgents(),
-      api<Connection[]>('/api/connections', { auth: true }).catch(() => [])
+      api<Connection[]>('/api/connections', { auth: true }).catch(() => []),
+      getAIModels(),
     ]);
     setAgents(agentsData);
     setConnections(connsData);
+    setAiModels(modelsData);
   };
 
   const handleOpenConfig = (agent: GlobalAgentForClient, activation?: GlobalAgentActivation) => {
@@ -75,6 +108,7 @@ export default function AgentesIACliente() {
     setCustomFieldValues(activation?.custom_field_values || {});
     setPromptAdditions(activation?.prompt_additions || '');
     setClientAiApiKey(activation?.client_ai_api_key || '');
+    setCustomName('');
     setConfigDialogOpen(true);
   };
 
@@ -176,6 +210,51 @@ export default function AgentesIACliente() {
     return 'Sem horários';
   };
 
+  // Test chat functions
+  const handleOpenTest = (agent: GlobalAgentForClient) => {
+    setTestAgentData(agent);
+    setTestMessages([{
+      id: 'welcome',
+      role: 'system',
+      content: `Ambiente de teste do agente "${agent.name}". Envie uma mensagem para testar a IA antes de vincular a uma conexão.`
+    }]);
+    setTestInput('');
+    setTestDialogOpen(true);
+  };
+
+  const handleSendTest = async () => {
+    if (!testInput.trim() || !testAgentData || testLoading) return;
+    const userMsg: TestMessage = { id: `u-${Date.now()}`, role: 'user', content: testInput.trim() };
+    setTestMessages(prev => [...prev, userMsg]);
+    setTestInput('');
+    setTestLoading(true);
+
+    try {
+      const history = testMessages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
+      const result = await testAgent(testAgentData.id, {
+        message: userMsg.content,
+        history,
+        client_ai_api_key: clientAiApiKey || undefined,
+        custom_name: customName || undefined,
+        prompt_additions: promptAdditions || undefined,
+      });
+      setTestMessages(prev => [...prev, {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: result.response,
+      }]);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao testar');
+      setTestMessages(prev => [...prev, {
+        id: `e-${Date.now()}`,
+        role: 'system',
+        content: `❌ Erro: ${err.message || 'Falha ao obter resposta'}`,
+      }]);
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
   if (loading && agents.length === 0) {
     return (
       <MainLayout>
@@ -231,6 +310,42 @@ export default function AgentesIACliente() {
                       </div>
                     </div>
                   </div>
+                  {/* Provider/model badge + capabilities */}
+                  <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                    {agent.ai_provider && (
+                      <Badge variant="outline" className="text-[10px] h-5">
+                        {agent.ai_provider === 'openai' ? 'OpenAI' : 'Gemini'} — {agent.ai_model}
+                      </Badge>
+                    )}
+                    {agent.has_knowledge_base && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Badge variant="secondary" className="h-5 w-5 p-0 flex items-center justify-center">
+                              <Brain className="h-3 w-3" />
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>Base de conhecimento ativa</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    <TooltipProvider>
+                      {(agent.capabilities || []).filter(c => CAPABILITY_ICONS[c]).map(cap => {
+                        const info = CAPABILITY_ICONS[cap];
+                        const Icon = info.icon;
+                        return (
+                          <Tooltip key={cap}>
+                            <TooltipTrigger>
+                              <Badge variant="secondary" className="h-5 w-5 p-0 flex items-center justify-center">
+                                <Icon className="h-3 w-3" />
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>{info.label}</TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </TooltipProvider>
+                  </div>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-3">
                   {/* Existing activations */}
@@ -282,17 +397,28 @@ export default function AgentesIACliente() {
                     </div>
                   )}
 
-                  {/* Add to connection button */}
+                  {/* Action buttons */}
                   {isAdmin && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full gap-2"
-                      onClick={() => handleOpenConfig(agent)}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Ativar em Conexão
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-2"
+                        onClick={() => handleOpenTest(agent)}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Testar IA
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-2"
+                        onClick={() => handleOpenConfig(agent)}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Ativar em Conexão
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -313,22 +439,26 @@ export default function AgentesIACliente() {
             </DialogHeader>
 
             <Tabs defaultValue="connection" className="flex-1 overflow-hidden flex flex-col">
-              <TabsList className="grid grid-cols-4 shrink-0">
-                <TabsTrigger value="connection" className="gap-1.5">
+              <TabsList className="grid grid-cols-5 shrink-0">
+                <TabsTrigger value="connection" className="gap-1 text-xs">
                   <Plug className="h-3.5 w-3.5" />
                   Conexão
                 </TabsTrigger>
-                <TabsTrigger value="schedule" className="gap-1.5">
+                <TabsTrigger value="schedule" className="gap-1 text-xs">
                   <Clock className="h-3.5 w-3.5" />
                   Horários
                 </TabsTrigger>
-                <TabsTrigger value="customize" className="gap-1.5">
+                <TabsTrigger value="customize" className="gap-1 text-xs">
                   <Settings className="h-3.5 w-3.5" />
                   Personalizar
                 </TabsTrigger>
-                <TabsTrigger value="apikey" className="gap-1.5">
+                <TabsTrigger value="apikey" className="gap-1 text-xs">
                   <Key className="h-3.5 w-3.5" />
                   API Key
+                </TabsTrigger>
+                <TabsTrigger value="test" className="gap-1 text-xs">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Testar
                 </TabsTrigger>
               </TabsList>
 
@@ -462,6 +592,19 @@ export default function AgentesIACliente() {
 
                 {/* Customize Tab */}
                 <TabsContent value="customize" className="m-0 space-y-4">
+                  {/* Custom AI Name */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Nome personalizado da IA</Label>
+                    <Input
+                      placeholder={`Ex: Assistente da Empresa, ${selectedAgent?.name || 'Sofia'}...`}
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Defina como a IA se apresentará. Se vazio, usará o nome padrão do agente.
+                    </p>
+                  </div>
+
                   {selectedAgent?.custom_fields && selectedAgent.custom_fields.length > 0 && (
                     <div className="space-y-3">
                       <Label className="text-sm font-medium">Informações da sua empresa</Label>
@@ -534,6 +677,23 @@ export default function AgentesIACliente() {
                       value={clientAiApiKey}
                       onChange={(e) => setClientAiApiKey(e.target.value)}
                     />
+
+                    {/* Show available models */}
+                    {selectedAgent?.ai_provider && aiModels[selectedAgent.ai_provider] && (
+                      <div className="bg-muted/50 rounded-lg p-3 text-xs space-y-1.5">
+                        <p className="font-medium text-foreground">Modelos disponíveis ({selectedAgent.ai_provider === 'openai' ? 'OpenAI' : 'Gemini'}):</p>
+                        {aiModels[selectedAgent.ai_provider].map(m => (
+                          <div key={m.id} className="flex items-center gap-2">
+                            <Badge variant={m.id === selectedAgent.ai_model ? 'default' : 'outline'} className="text-[10px] h-4 px-1.5">
+                              {m.name}
+                            </Badge>
+                            <span className="text-muted-foreground">{m.description}</span>
+                            {m.id === selectedAgent.ai_model && <span className="text-primary font-medium">(em uso)</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground space-y-1.5">
                       <p className="font-medium">Como obter sua chave:</p>
                       <p>• <strong>OpenAI:</strong> Acesse platform.openai.com → API Keys</p>
@@ -541,6 +701,49 @@ export default function AgentesIACliente() {
                       <p className="mt-2 text-[11px]">Sua chave é armazenada de forma segura e usada apenas para este agente.</p>
                     </div>
                   </Card>
+                </TabsContent>
+
+                {/* Test Tab (inline in config dialog) */}
+                <TabsContent value="test" className="m-0 space-y-3">
+                  <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
+                    <p>Teste a IA com suas configurações atuais (nome, instruções, API key) antes de vincular a uma conexão.</p>
+                  </div>
+                  <div className="border rounded-lg h-64 flex flex-col">
+                    <ScrollArea className="flex-1 p-3">
+                      {testMessages.map(msg => (
+                        <div key={msg.id} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
+                          <span className={`inline-block px-3 py-1.5 rounded-lg text-sm max-w-[85%] ${
+                            msg.role === 'user' ? 'bg-primary text-primary-foreground' :
+                            msg.role === 'system' ? 'bg-muted text-muted-foreground text-xs italic' :
+                            'bg-card border text-card-foreground'
+                          }`}>
+                            {msg.content}
+                          </span>
+                        </div>
+                      ))}
+                      {testLoading && (
+                        <div className="mb-2">
+                          <span className="inline-block px-3 py-1.5 rounded-lg bg-card border text-sm">
+                            <Loader2 className="h-4 w-4 animate-spin inline" /> Pensando...
+                          </span>
+                        </div>
+                      )}
+                      <div ref={chatEndRef} />
+                    </ScrollArea>
+                    <div className="border-t p-2 flex gap-2">
+                      <Input
+                        placeholder="Digite uma mensagem de teste..."
+                        value={testInput}
+                        onChange={(e) => setTestInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendTest()}
+                        disabled={testLoading}
+                        className="text-sm"
+                      />
+                      <Button size="icon" onClick={handleSendTest} disabled={testLoading || !testInput.trim()}>
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </TabsContent>
               </div>
             </Tabs>
@@ -552,6 +755,81 @@ export default function AgentesIACliente() {
                 {selectedActivation ? 'Salvar' : 'Ativar Agente'}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Standalone Test Chat Dialog */}
+        <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
+          <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col" aria-describedby="test-dialog-desc">
+            <DialogHeader className="shrink-0">
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" />
+                Testar — {testAgentData?.name}
+              </DialogTitle>
+              <DialogDescription id="test-dialog-desc">
+                Valide a IA antes de vincular a uma conexão
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Custom name for test */}
+            <div className="space-y-1.5 shrink-0">
+              <Label className="text-xs">Nome da IA (opcional)</Label>
+              <Input
+                placeholder="Ex: Sofia, Assistente Virtual..."
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+
+            {/* API Key for test */}
+            <div className="space-y-1.5 shrink-0">
+              <Label className="text-xs">API Key (para teste)</Label>
+              <Input
+                type="password"
+                placeholder="sk-... ou AIza... (opcional)"
+                value={clientAiApiKey}
+                onChange={(e) => setClientAiApiKey(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+
+            <div className="border rounded-lg flex-1 min-h-[250px] flex flex-col">
+              <ScrollArea className="flex-1 p-3">
+                {testMessages.map(msg => (
+                  <div key={msg.id} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
+                    <span className={`inline-block px-3 py-1.5 rounded-lg text-sm max-w-[85%] ${
+                      msg.role === 'user' ? 'bg-primary text-primary-foreground' :
+                      msg.role === 'system' ? 'bg-muted text-muted-foreground text-xs italic' :
+                      'bg-card border text-card-foreground'
+                    }`}>
+                      {msg.content}
+                    </span>
+                  </div>
+                ))}
+                {testLoading && (
+                  <div className="mb-2">
+                    <span className="inline-block px-3 py-1.5 rounded-lg bg-card border text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin inline" /> Pensando...
+                    </span>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </ScrollArea>
+              <div className="border-t p-2 flex gap-2">
+                <Input
+                  placeholder="Digite uma mensagem..."
+                  value={testInput}
+                  onChange={(e) => setTestInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendTest()}
+                  disabled={testLoading}
+                  className="text-sm"
+                />
+                <Button size="icon" onClick={handleSendTest} disabled={testLoading || !testInput.trim()}>
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
