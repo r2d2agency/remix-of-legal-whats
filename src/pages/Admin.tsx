@@ -212,6 +212,7 @@ export default function Admin() {
     deletePlan,
     setSuperadmin,
     deleteUser,
+    changeUserPassword,
     searchUserByEmail,
     deleteUserByEmail,
     getOrganizationMembers,
