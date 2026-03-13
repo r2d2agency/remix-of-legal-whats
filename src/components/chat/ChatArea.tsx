@@ -323,16 +323,33 @@ export function ChatArea({
   useEffect(() => {
     if (!messages.length) return;
     if (isInitialLoadRef.current) {
-      setTimeout(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); isInitialLoadRef.current = false; }, 50);
+      // Use multiple attempts to ensure scroll works after render
+      const attempts = [50, 150, 300];
+      attempts.forEach((delay) => {
+        setTimeout(() => {
+          if (isInitialLoadRef.current || delay === attempts[attempts.length - 1]) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+            isInitialLoadRef.current = false;
+          }
+        }, delay);
+      });
       return;
     }
     if (showSearch) return;
     const container = scrollContainerRef.current;
-    if (!container) { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); return; }
+    if (!container) { 
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+      return; 
+    }
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    if (distanceFromBottom < 150 && !isUserScrollingRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Auto-scroll if user is near bottom or if it's a new sent message
+    const lastMsg = messages[messages.length - 1];
+    const isOwnMessage = lastMsg?.from_me;
+    if (isOwnMessage || (distanceFromBottom < 200 && !isUserScrollingRef.current)) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 30);
     }
   }, [messages, showSearch]);
 
