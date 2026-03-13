@@ -74,6 +74,7 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
       ...(hasConnections ? [{ name: "Chat", href: "/chat", icon: MessagesSquare, pageKey: 'chat', moduleKey: 'chat' as const }] : []),
       ...(hasConnections ? [{ name: "Secretária IA", href: "/secretaria-grupos", icon: Bot, pageKey: 'secretaria_ia', moduleKey: 'group_secretary' as const, adminOnly: true }] : []),
       { name: "Agentes IA", href: "/agentes-ia", icon: Sparkles, pageKey: 'agentes_ia', superadminOnly: true },
+      { name: "IA Assistentes", href: "/agentes-ia-cliente", icon: Bot, pageKey: 'ia_assistentes', moduleKey: 'ai_agents' as const },
       ...(hasConnections ? [{ name: "Chatbots", href: "/chatbots", icon: Bot, pageKey: 'chatbots', moduleKey: 'chatbots' as const, adminOnly: true }] : []),
       ...(hasConnections ? [{ name: "Fluxos", href: "/fluxos", icon: GitBranch, pageKey: 'fluxos', moduleKey: 'chatbots' as const, adminOnly: true }] : []),
       { name: "Departamentos", href: "/departamentos", icon: Building2, pageKey: 'departamentos', adminOnly: true },
