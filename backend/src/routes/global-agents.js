@@ -516,6 +516,10 @@ router.get('/available', async (req, res) => {
           custom_fields: row.custom_fields,
           system_prompt: row.system_prompt,
           greeting_message: row.greeting_message,
+          ai_provider: row.ai_provider,
+          ai_model: row.ai_model,
+          capabilities: row.capabilities,
+          has_knowledge_base: row.has_knowledge_base,
           activations: []
         });
       }
