@@ -319,34 +319,42 @@ export function ChatArea({
     setShowScrollButton(false);
   }, [conversation?.id]);
 
-  // Scroll to bottom
+  // Scroll to bottom - only on initial load or new incoming/sent messages
+  const prevMessageCountRef = useRef(0);
+  
   useEffect(() => {
-    if (!messages.length) return;
+    if (!messages.length) { prevMessageCountRef.current = 0; return; }
+    
     if (isInitialLoadRef.current) {
-      // Use multiple attempts to ensure scroll works after render
       const attempts = [50, 150, 300];
       attempts.forEach((delay) => {
         setTimeout(() => {
-          if (isInitialLoadRef.current || delay === attempts[attempts.length - 1]) {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-            isInitialLoadRef.current = false;
-          }
+          messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+          if (delay === attempts[attempts.length - 1]) isInitialLoadRef.current = false;
         }, delay);
       });
+      prevMessageCountRef.current = messages.length;
       return;
     }
-    if (showSearch) return;
-    const container = scrollContainerRef.current;
-    if (!container) { 
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
-      return; 
-    }
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    // Auto-scroll if user is near bottom or if it's a new sent message
+    
+    if (showSearch) { prevMessageCountRef.current = messages.length; return; }
+    
+    // Only auto-scroll when new messages arrive (count increased)
+    const hasNewMessages = messages.length > prevMessageCountRef.current;
+    prevMessageCountRef.current = messages.length;
+    
+    if (!hasNewMessages) return;
+    
     const lastMsg = messages[messages.length - 1];
     const isOwnMessage = lastMsg?.from_me;
-    if (isOwnMessage || (distanceFromBottom < 200 && !isUserScrollingRef.current)) {
+    
+    // Always scroll for own messages; for received messages, only if user is NOT scrolled up
+    if (isOwnMessage) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        isUserScrollingRef.current = false;
+      }, 30);
+    } else if (!isUserScrollingRef.current) {
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 30);
