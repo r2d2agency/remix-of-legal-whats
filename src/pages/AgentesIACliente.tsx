@@ -47,6 +47,8 @@ const TONE_OPTIONS = [
   { value: 'persuasive', label: 'Persuasivo' },
 ];
 
+const INTERNAL_CUSTOM_FIELDS = ['_voice_tone', '_voice_gender', '_custom_name', '_selected_model'] as const;
+
 interface Connection {
   id: string;
   name: string;
@@ -60,6 +62,85 @@ interface TestMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
 }
+
+const normalizeCustomFieldValues = (values: unknown): Record<string, string> => {
+  let parsed = values;
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return {};
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {};
+  }
+
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (value === null || value === undefined) continue;
+    normalized[key] = typeof value === 'string' ? value : String(value);
+  }
+
+  return normalized;
+};
+
+const normalizeScheduleWindows = (windows: unknown): ScheduleWindow[] => {
+  let parsed = windows;
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed
+    .map((window): ScheduleWindow | null => {
+      if (!window || typeof window !== 'object') return null;
+      const raw = window as Record<string, unknown>;
+
+      return {
+        days: Array.isArray(raw.days)
+          ? raw.days.filter((day): day is number => typeof day === 'number' && day >= 0 && day <= 6)
+          : [],
+        start: typeof raw.start === 'string' ? raw.start : '08:00',
+        end: typeof raw.end === 'string' ? raw.end : '18:00',
+      };
+    })
+    .filter((window): window is ScheduleWindow => Boolean(window));
+};
+
+const extractActivationSettings = (activation?: GlobalAgentActivation | null) => {
+  const normalizedFields = normalizeCustomFieldValues(activation?.custom_field_values);
+  const visibleCustomFields: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(normalizedFields)) {
+    if (!INTERNAL_CUSTOM_FIELDS.includes(key as typeof INTERNAL_CUSTOM_FIELDS[number])) {
+      visibleCustomFields[key] = value;
+    }
+  }
+
+  const tone = normalizedFields._voice_tone;
+  const gender = normalizedFields._voice_gender;
+
+  return {
+    scheduleMode: (activation?.schedule_mode as 'always' | 'scheduled' | 'manual') || 'manual',
+    scheduleWindows: normalizeScheduleWindows(activation?.schedule_windows),
+    customFieldValues: visibleCustomFields,
+    customName: normalizedFields._custom_name || '',
+    voiceTone: TONE_OPTIONS.some((option) => option.value === tone) ? tone : 'professional',
+    voiceGender: gender === 'male' ? 'male' : 'female',
+    selectedModel: normalizedFields._selected_model || '',
+  };
+};
 
 export default function AgentesIACliente() {
   const { user } = useAuth();
