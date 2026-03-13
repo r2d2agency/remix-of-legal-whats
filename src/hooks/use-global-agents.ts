@@ -121,6 +121,18 @@ export function useGlobalAgents() {
     }
   }, []);
 
+  const deleteActivation = useCallback(async (id: string): Promise<boolean> => {
+    setLoading(true);
+    try {
+      await api(`/api/global-agents/activation/${id}`, { method: 'DELETE', auth: true });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const getAIModels = useCallback(async () => {
     try {
       return await api<Record<string, { id: string; name: string; description: string }[]>>('/api/global-agents/models', { auth: true });
