@@ -69,6 +69,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { QuickRepliesPanel } from "./QuickRepliesPanel";
+import { useQuickReplies, QuickReply } from "@/hooks/use-quick-replies";
 import { ConversationSummaryPanel, SummaryBadge } from "./ConversationSummaryPanel";
 import { SentimentIndicator } from "./SentimentIndicator";
 import { ActionSuggestions } from "./ActionSuggestions";
@@ -182,6 +183,10 @@ export function ChatArea({
     return saved === 'true';
   });
   const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [slashReplies, setSlashReplies] = useState<QuickReply[]>([]);
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+  const { getQuickReplies: fetchQuickRepliesForSlash } = useQuickReplies();
   const [showNotes, setShowNotes] = useState(false);
   const [notesCount, setNotesCount] = useState(0);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
@@ -443,7 +448,52 @@ export function ChatArea({
     catch { setMessageText(messageText.trim()); }
   };
 
+  // Slash command: detect /shortcut and load quick replies
+  const slashCacheRef = useRef<QuickReply[]>([]);
+  
+  useEffect(() => {
+    if (messageText.startsWith('/') && messageText.length >= 1) {
+      const query = messageText.slice(1).toLowerCase();
+      setSlashQuery(query);
+      
+      const loadAndFilter = async () => {
+        if (slashCacheRef.current.length === 0) {
+          try {
+            const all = await fetchQuickRepliesForSlash();
+            slashCacheRef.current = all;
+          } catch { slashCacheRef.current = []; }
+        }
+        const filtered = slashCacheRef.current.filter(r => {
+          const shortcut = (r.shortcut || '').toLowerCase();
+          const title = (r.title || '').toLowerCase();
+          return !query || shortcut.includes(query) || title.includes(query);
+        }).slice(0, 8);
+        setSlashReplies(filtered);
+        setSlashSelectedIndex(0);
+      };
+      loadAndFilter();
+    } else {
+      setSlashQuery(null);
+      setSlashReplies([]);
+    }
+  }, [messageText, fetchQuickRepliesForSlash]);
+
+  const handleSlashSelect = useCallback((reply: QuickReply) => {
+    const contactName = conversation?.contact_name || '';
+    setMessageText(reply.content.replace(/\{nome\}/gi, contactName));
+    setSlashQuery(null);
+    setSlashReplies([]);
+    textareaRef.current?.focus();
+  }, [conversation?.contact_name]);
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
+    // Handle slash suggestions navigation
+    if (slashQuery !== null && slashReplies.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSlashSelectedIndex(i => (i + 1) % slashReplies.length); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setSlashSelectedIndex(i => (i - 1 + slashReplies.length) % slashReplies.length); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); handleSlashSelect(slashReplies[slashSelectedIndex]); return; }
+      if (e.key === 'Escape') { e.preventDefault(); setSlashQuery(null); setSlashReplies([]); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
@@ -1180,12 +1230,33 @@ export function ChatArea({
             <div className="flex items-end gap-2 flex-1">
               <div className="relative flex-1">
                 <Textarea ref={textareaRef} placeholder="Digite uma mensagem... Use @ para mencionar" value={messageText} onChange={e => setMessageText(e.target.value)}
-                  onKeyDown={e => { if (showMentionSuggestions && ['Enter', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.key)) return; handleKeyPress(e); }}
+                  onKeyDown={e => { if ((showMentionSuggestions || (slashQuery !== null && slashReplies.length > 0)) && ['Enter', 'Tab', 'ArrowUp', 'ArrowDown', 'Escape'].includes(e.key)) { handleKeyPress(e); return; } handleKeyPress(e); }}
                   onPaste={handlePaste}
                    className={cn("resize-none", isMobile ? "!min-h-[80px] max-h-[160px] text-base leading-6" : "min-h-[40px] max-h-[120px]")}
                    rows={isMobile ? 3 : 1}
                    style={isMobile ? { height: 'auto', minHeight: '80px' } : undefined} />
                 {showMentionSuggestions && <MentionSuggestions query={mentionQuery} team={team} onSelect={handleSelectMember} onClose={closeSuggestions} position={suggestionPosition} />}
+                {slashQuery !== null && slashReplies.length > 0 && (
+                  <div className="absolute bottom-full left-0 right-0 mb-1 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                    <div className="p-1">
+                      <div className="px-2 py-1 text-xs text-muted-foreground font-medium">Respostas rápidas</div>
+                      {slashReplies.map((reply, idx) => (
+                        <button
+                          key={reply.id}
+                          className={cn(
+                            "w-full text-left px-3 py-2 rounded-md text-sm flex flex-col gap-0.5 transition-colors",
+                            idx === slashSelectedIndex ? "bg-accent text-accent-foreground" : "hover:bg-muted"
+                          )}
+                          onMouseDown={(e) => { e.preventDefault(); handleSlashSelect(reply); }}
+                          onMouseEnter={() => setSlashSelectedIndex(idx)}
+                        >
+                          <span className="font-medium">/{reply.shortcut || reply.title}</span>
+                          <span className="text-xs text-muted-foreground line-clamp-1">{reply.content}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               {messageText.trim() ? (
                 <Button size="icon" className="h-10 w-10 flex-shrink-0" onClick={handleSend} disabled={!messageText.trim() || sending}>
