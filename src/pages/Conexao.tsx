@@ -1578,6 +1578,66 @@ const handleGetQRCode = async (connection: Connection) => {
           onOpenChange={setLeadDistributionDialogOpen}
           connection={leadDistributionConnection}
         />
+
+        {/* Migrate Conversations Dialog */}
+        <Dialog open={migrateDialogOpen} onOpenChange={setMigrateDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Migrar Conversas</DialogTitle>
+              <DialogDescription>
+                Transfira todas as conversas de outra conexão (ou conversas órfãs) para <strong>{migrateTargetConnection?.name}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Origem das conversas</Label>
+                <Select value={migrateSourceId} onValueChange={setMigrateSourceId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a origem..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="orphaned">🔄 Conversas órfãs (conexão excluída)</SelectItem>
+                    {connections
+                      .filter(c => c.id !== migrateTargetConnection?.id)
+                      .map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} {c.phone_number ? `(${c.phone_number})` : ''} {c.status === 'connected' ? '🟢' : '🔴'}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                ⚠️ Todas as conversas da origem selecionada serão movidas para esta conexão. O histórico de mensagens será preservado.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMigrateDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (migrateTargetConnection) {
+                    handleMigrateConversations(
+                      migrateTargetConnection, 
+                      migrateSourceId === 'orphaned' ? undefined : migrateSourceId
+                    );
+                  }
+                }}
+                disabled={!migrateSourceId || migrating}
+              >
+                {migrating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Migrando...
+                  </>
+                ) : (
+                  'Migrar Conversas'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
