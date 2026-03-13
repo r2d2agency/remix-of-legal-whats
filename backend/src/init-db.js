@@ -3344,6 +3344,7 @@ const migrationSteps = [
   { name: 'Projects Module', sql: step36Projects, critical: false },
   { name: 'Permission Templates', sql: step37PermissionTemplates, critical: false },
   { name: 'Push Notifications', sql: step38PushNotifications, critical: false },
+  { name: 'Global AI Agents', sql: step39GlobalAgents, critical: false },
 ];
 
 export async function initDatabase() {
