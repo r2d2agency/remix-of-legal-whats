@@ -398,20 +398,55 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Migrate orphaned conversations to a specific connection
+// Also supports migrating from a specific source connection via ?from=<connection_id>
 router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
+    const { from } = req.query; // optional: source connection_id to migrate FROM
     const org = await getUserOrganization(req.userId);
     const connResult = await query(`SELECT id, organization_id FROM connections WHERE id = $1`, [id]);
     if (connResult.rows.length === 0) return res.status(404).json({ error: 'Conexão não encontrada' });
     const connection = connResult.rows[0];
     if (org && connection.organization_id !== org.organization_id) return res.status(403).json({ error: 'Sem permissão' });
-    const migrateResult = await query(`
-      UPDATE conversations SET connection_id = $1, updated_at = NOW()
-      WHERE connection_id NOT IN (SELECT id FROM connections)
-      RETURNING id, contact_name, contact_phone
-    `, [id]);
-    console.log(`[Connections] Manual migration: ${migrateResult.rowCount} conversations migrated to ${id}`);
+
+    let migrateResult;
+
+    if (from) {
+      // Migrate all conversations from a specific source connection to the target
+      // Also migrate conversations with NULL connection_id (orphaned from deleted connections)
+      migrateResult = await query(`
+        UPDATE conversations SET connection_id = $1, updated_at = NOW()
+        WHERE (connection_id = $2 OR connection_id IS NULL)
+          AND id != ALL(COALESCE((SELECT array_agg(id) FROM conversations WHERE connection_id = $1), ARRAY[]::uuid[]))
+        RETURNING id, contact_name, contact_phone
+      `, [id, from]);
+
+      // Also update chat_messages connection_id
+      if (migrateResult.rowCount > 0) {
+        const migratedIds = migrateResult.rows.map(r => r.id);
+        await query(`UPDATE chat_messages SET connection_id = $1 WHERE conversation_id = ANY($2)`, [id, migratedIds]);
+        
+        // Also update chat_contacts
+        await query(`UPDATE chat_contacts SET connection_id = $1 WHERE connection_id = $2`, [id, from]);
+      }
+
+      console.log(`[Connections] Bulk migration from ${from}: ${migrateResult.rowCount} conversations migrated to ${id}`);
+    } else {
+      // Original behavior: migrate only orphaned conversations
+      migrateResult = await query(`
+        UPDATE conversations SET connection_id = $1, updated_at = NOW()
+        WHERE connection_id NOT IN (SELECT id FROM connections)
+        RETURNING id, contact_name, contact_phone
+      `, [id]);
+
+      if (migrateResult.rowCount > 0) {
+        const migratedIds = migrateResult.rows.map(r => r.id);
+        await query(`UPDATE chat_messages SET connection_id = $1 WHERE conversation_id = ANY($2)`, [id, migratedIds]);
+      }
+
+      console.log(`[Connections] Manual migration: ${migrateResult.rowCount} conversations migrated to ${id}`);
+    }
+
     res.json({ success: true, migrated: migrateResult.rowCount, conversations: migrateResult.rows });
   } catch (error) {
     console.error('Migrate conversations error:', error);
