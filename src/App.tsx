@@ -51,6 +51,7 @@ import ModuloFantasma from "./pages/ModuloFantasma";
 import Projetos from "./pages/Projetos";
 import TarefasKanban from "./pages/TarefasKanban";
 import LeadGleego from "./pages/LeadGleego";
+import AgentesIACliente from "./pages/AgentesIACliente";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
