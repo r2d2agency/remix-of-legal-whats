@@ -69,12 +69,26 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
       groupFilter = ` AND COALESCE(conv.is_group, false) = false`;
     }
 
+    // Check if org has shared_conversations enabled
+    let sharedConversations = false;
+    if (userOrg) {
+      try {
+        const orgResult = await query(
+          `SELECT modules_enabled FROM organizations WHERE id = $1`,
+          [userOrg.organization_id]
+        );
+        if (orgResult.rows[0]?.modules_enabled?.shared_conversations) {
+          sharedConversations = true;
+        }
+      } catch {}
+    }
+
     // Build visibility filter based on user role
     let visibilityFilter = '';
     const params = [connectionIds];
     let paramIndex = 2;
 
-    if (!isAdminOrSupervisor && !isSupervisorInAnyDept) {
+    if (!sharedConversations && !isAdminOrSupervisor && !isSupervisorInAnyDept) {
       if (userDepartmentIds.length > 0) {
         visibilityFilter = ` AND (
           conv.assigned_to = $${paramIndex}
