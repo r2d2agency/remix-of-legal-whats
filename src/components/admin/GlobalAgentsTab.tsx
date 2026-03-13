@@ -660,16 +660,19 @@ export function GlobalAgentsTab() {
                     </Badge>
                   )}
                 </div>
+                {/* Capability icons */}
                 {agent.capabilities && agent.capabilities.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {agent.capabilities.slice(0, 4).map(cap => (
-                      <Badge key={cap} variant="outline" className="text-[10px] h-4">
-                        {ALL_CAPABILITIES.find(c => c.id === cap)?.label || cap}
-                      </Badge>
-                    ))}
-                    {agent.capabilities.length > 4 && (
-                      <Badge variant="outline" className="text-[10px] h-4">+{agent.capabilities.length - 4}</Badge>
-                    )}
+                  <div className="flex items-center gap-1.5">
+                    {agent.capabilities.map(cap => {
+                      const capInfo = ALL_CAPABILITIES.find(c => c.id === cap);
+                      if (!capInfo) return null;
+                      const Icon = capInfo.icon;
+                      return (
+                        <div key={cap} className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center" title={capInfo.label}>
+                          <Icon className="h-3.5 w-3.5 text-primary" />
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 <div className="flex items-center gap-4 text-xs">
@@ -688,6 +691,9 @@ export function GlobalAgentsTab() {
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => handleOpenKnowledge(agent)}>
                     <Brain className="h-3.5 w-3.5 mr-1" /> Cérebro
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleOpenStats(agent.id)}>
+                    <BarChart3 className="h-3.5 w-3.5 mr-1" /> Stats
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => handleOpenTest(agent)}>
                     <MessageSquare className="h-3.5 w-3.5 mr-1" /> Testar
