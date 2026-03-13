@@ -18,6 +18,26 @@ async function getUserOrganization(userId) {
   return result.rows[0] || null;
 }
 
+async function hasTable(tableName) {
+  const result = await query(`SELECT to_regclass($1) AS table_ref`, [`public.${tableName}`]);
+  return Boolean(result.rows[0]?.table_ref);
+}
+
+async function hasColumn(tableName, columnName) {
+  const result = await query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = $1
+         AND column_name = $2
+     ) AS exists_column`,
+    [tableName, columnName]
+  );
+
+  return Boolean(result.rows[0]?.exists_column);
+}
+
 // List connections (owner sees all; others only assigned via connection_members)
 router.get('/', async (req, res) => {
   try {
@@ -414,20 +434,34 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
     if (from) {
       // Migrate all conversations from a specific source connection to the target
       // Also migrate conversations with NULL connection_id (orphaned from deleted connections)
+      // Skip conversations that would violate UNIQUE(connection_id, remote_jid)
       migrateResult = await query(`
-        UPDATE conversations SET connection_id = $1, updated_at = NOW()
+        UPDATE conversations 
+        SET connection_id = $1, updated_at = NOW()
         WHERE (connection_id = $2 OR connection_id IS NULL)
-          AND id != ALL(COALESCE((SELECT array_agg(id) FROM conversations WHERE connection_id = $1), ARRAY[]::uuid[]))
+          AND NOT EXISTS (
+            SELECT 1
+            FROM conversations target
+            WHERE target.connection_id = $1
+              AND target.remote_jid = conversations.remote_jid
+              AND target.id <> conversations.id
+          )
         RETURNING id, contact_name, contact_phone
       `, [id, from]);
 
-      // Also update chat_messages connection_id
+      // Also update chat_messages connection_id when this legacy column exists
       if (migrateResult.rowCount > 0) {
         const migratedIds = migrateResult.rows.map(r => r.id);
-        await query(`UPDATE chat_messages SET connection_id = $1 WHERE conversation_id = ANY($2)`, [id, migratedIds]);
-        
-        // Also update chat_contacts
-        await query(`UPDATE chat_contacts SET connection_id = $1 WHERE connection_id = $2`, [id, from]);
+        const chatMessagesHasConnectionId = await hasColumn('chat_messages', 'connection_id');
+
+        if (chatMessagesHasConnectionId) {
+          await query(`UPDATE chat_messages SET connection_id = $1 WHERE conversation_id = ANY($2)`, [id, migratedIds]);
+        }
+
+        const chatContactsTableExists = await hasTable('chat_contacts');
+        if (chatContactsTableExists) {
+          await query(`UPDATE chat_contacts SET connection_id = $1 WHERE connection_id = $2`, [id, from]);
+        }
       }
 
       console.log(`[Connections] Bulk migration from ${from}: ${migrateResult.rowCount} conversations migrated to ${id}`);
@@ -441,7 +475,11 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
 
       if (migrateResult.rowCount > 0) {
         const migratedIds = migrateResult.rows.map(r => r.id);
-        await query(`UPDATE chat_messages SET connection_id = $1 WHERE conversation_id = ANY($2)`, [id, migratedIds]);
+        const chatMessagesHasConnectionId = await hasColumn('chat_messages', 'connection_id');
+
+        if (chatMessagesHasConnectionId) {
+          await query(`UPDATE chat_messages SET connection_id = $1 WHERE conversation_id = ANY($2)`, [id, migratedIds]);
+        }
       }
 
       console.log(`[Connections] Manual migration: ${migrateResult.rowCount} conversations migrated to ${id}`);
