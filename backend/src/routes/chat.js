@@ -2295,11 +2295,16 @@ router.post('/conversations/:id/transfer-connection', authenticate, async (req, 
 
     const connectionIds = await getUserConnections(req.userId);
 
-    // Check user has access to the conversation (including orphaned ones with null connection_id)
+    // Check user has access to the conversation
+    // Include: conversations on user's connections, orphaned (NULL), or on deleted connections
     const check = await query(
       `SELECT c.id, c.connection_id, c.contact_name, c.contact_phone 
        FROM conversations c 
-       WHERE c.id = $1 AND (c.connection_id = ANY($2) OR c.connection_id IS NULL)`,
+       WHERE c.id = $1 AND (
+         c.connection_id = ANY($2) 
+         OR c.connection_id IS NULL
+         OR c.connection_id NOT IN (SELECT id FROM connections)
+       )`,
       [id, connectionIds]
     );
 
