@@ -18,6 +18,26 @@ async function getUserOrganization(userId) {
   return result.rows[0] || null;
 }
 
+async function hasTable(tableName) {
+  const result = await query(`SELECT to_regclass($1) AS table_ref`, [`public.${tableName}`]);
+  return Boolean(result.rows[0]?.table_ref);
+}
+
+async function hasColumn(tableName, columnName) {
+  const result = await query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = $1
+         AND column_name = $2
+     ) AS exists_column`,
+    [tableName, columnName]
+  );
+
+  return Boolean(result.rows[0]?.exists_column);
+}
+
 // List connections (owner sees all; others only assigned via connection_members)
 router.get('/', async (req, res) => {
   try {
