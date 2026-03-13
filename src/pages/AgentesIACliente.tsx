@@ -12,11 +12,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useGlobalAgents, GlobalAgentForClient, GlobalAgentActivation, ScheduleWindow } from '@/hooks/use-global-agents';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Bot, Clock, Plug, Plus, Trash2, Settings, Loader2, Calendar, Key, MessageSquare, Send, Mic, Image, Brain, Sparkles, FileText } from 'lucide-react';
+import { Bot, Clock, Plug, Plus, Trash2, Settings, Loader2, Calendar, Key, MessageSquare, Send, Mic, Image, Brain, Sparkles, FileText, User } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Dom' },
@@ -36,6 +37,15 @@ const CAPABILITY_ICONS: Record<string, { icon: typeof Bot; label: string }> = {
   schedule_meetings: { icon: Calendar, label: 'Agendar reuniões' },
   generate_content: { icon: Sparkles, label: 'Gerar conteúdo' },
 };
+
+const TONE_OPTIONS = [
+  { value: 'professional', label: 'Profissional' },
+  { value: 'friendly', label: 'Amigável' },
+  { value: 'formal', label: 'Formal' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'empathetic', label: 'Empático' },
+  { value: 'persuasive', label: 'Persuasivo' },
+];
 
 interface Connection {
   id: string;
@@ -69,6 +79,9 @@ export default function AgentesIACliente() {
   const [promptAdditions, setPromptAdditions] = useState('');
   const [clientAiApiKey, setClientAiApiKey] = useState('');
   const [customName, setCustomName] = useState('');
+  const [voiceTone, setVoiceTone] = useState('professional');
+  const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female');
+  const [selectedModel, setSelectedModel] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Test chat state
@@ -110,6 +123,16 @@ export default function AgentesIACliente() {
     setPromptAdditions(activation?.prompt_additions || '');
     setClientAiApiKey(activation?.client_ai_api_key || '');
     setCustomName('');
+    setVoiceTone('professional');
+    setVoiceGender('female');
+    setSelectedModel(agent.ai_model || '');
+    // Reset test messages for inline test tab
+    setTestMessages([{
+      id: 'welcome',
+      role: 'system',
+      content: `Ambiente de teste do agente "${agent.name}". Envie uma mensagem para testar.`
+    }]);
+    setTestInput('');
     setConfigDialogOpen(true);
   };
 
@@ -147,25 +170,29 @@ export default function AgentesIACliente() {
 
     setSaving(true);
     try {
+      const payload: any = {
+        schedule_mode: scheduleMode,
+        schedule_windows: scheduleWindows,
+        custom_field_values: {
+          ...customFieldValues,
+          _voice_tone: voiceTone,
+          _voice_gender: voiceGender,
+          _custom_name: customName,
+          _selected_model: selectedModel,
+        },
+        prompt_additions: promptAdditions,
+        client_ai_api_key: clientAiApiKey,
+      };
+
       if (selectedActivation) {
-        await updateActivation(selectedActivation.id, {
-          schedule_mode: scheduleMode,
-          schedule_windows: scheduleWindows,
-          custom_field_values: customFieldValues,
-          prompt_additions: promptAdditions,
-          client_ai_api_key: clientAiApiKey,
-        } as any);
+        await updateActivation(selectedActivation.id, payload);
         toast.success('Configuração atualizada!');
       } else {
         await activateAgent({
           global_agent_id: selectedAgent.id,
           connection_id: selectedConnection,
-          schedule_mode: scheduleMode,
-          schedule_windows: scheduleWindows,
-          custom_field_values: customFieldValues,
-          prompt_additions: promptAdditions,
-          client_ai_api_key: clientAiApiKey,
-        } as any);
+          ...payload,
+        });
         toast.success('Agente ativado!');
       }
       setConfigDialogOpen(false);
@@ -211,6 +238,21 @@ export default function AgentesIACliente() {
     return 'Sem horários';
   };
 
+  // Build tone/gender instructions for test
+  const buildPersonalizationPrompt = () => {
+    const parts: string[] = [];
+    if (voiceTone && voiceTone !== 'professional') {
+      const toneLabel = TONE_OPTIONS.find(t => t.value === voiceTone)?.label || voiceTone;
+      parts.push(`Use um tom de voz ${toneLabel.toLowerCase()}.`);
+    }
+    if (voiceGender === 'male') {
+      parts.push('Você é um assistente masculino. Use linguagem no gênero masculino.');
+    } else {
+      parts.push('Você é uma assistente feminina. Use linguagem no gênero feminino.');
+    }
+    return parts.join(' ');
+  };
+
   // Test chat functions
   const handleOpenTest = (agent: GlobalAgentForClient) => {
     setTestAgentData(agent);
@@ -220,24 +262,37 @@ export default function AgentesIACliente() {
       content: `Ambiente de teste do agente "${agent.name}". Envie uma mensagem para testar a IA antes de vincular a uma conexão.`
     }]);
     setTestInput('');
+    setCustomName('');
+    setVoiceTone('professional');
+    setVoiceGender('female');
+    setSelectedModel(agent.ai_model || '');
+    setClientAiApiKey('');
     setTestDialogOpen(true);
   };
 
   const handleSendTest = async () => {
-    if (!testInput.trim() || !testAgentData || testLoading) return;
-    const userMsg: TestMessage = { id: `u-${Date.now()}`, role: 'user', content: testInput.trim() };
+    const input = testInput.trim();
+    if (!input || testLoading) return;
+    
+    const agentData = testDialogOpen ? testAgentData : selectedAgent;
+    if (!agentData) return;
+    
+    const userMsg: TestMessage = { id: `u-${Date.now()}`, role: 'user', content: input };
     setTestMessages(prev => [...prev, userMsg]);
     setTestInput('');
     setTestLoading(true);
 
     try {
       const history = testMessages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
-      const result = await testAgent(testAgentData.id, {
+      const personalization = buildPersonalizationPrompt();
+      const fullPromptAdditions = [promptAdditions, personalization].filter(Boolean).join('\n\n');
+      
+      const result = await testAgent(agentData.id, {
         message: userMsg.content,
         history,
         client_ai_api_key: clientAiApiKey || undefined,
         custom_name: customName || undefined,
-        prompt_additions: promptAdditions || undefined,
+        prompt_additions: fullPromptAdditions || undefined,
       });
       setTestMessages(prev => [...prev, {
         id: `a-${Date.now()}`,
@@ -245,16 +300,23 @@ export default function AgentesIACliente() {
         content: result.response,
       }]);
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao testar');
+      const errorMsg = err.message || 'Falha ao obter resposta';
+      toast.error(errorMsg);
       setTestMessages(prev => [...prev, {
         id: `e-${Date.now()}`,
         role: 'system',
-        content: `❌ Erro: ${err.message || 'Falha ao obter resposta'}`,
+        content: `❌ Erro: ${errorMsg}`,
       }]);
     } finally {
       setTestLoading(false);
     }
   };
+
+  // All available models from both providers
+  const allModels = [
+    ...(aiModels.openai || []).map(m => ({ ...m, provider: 'openai' as const })),
+    ...(aiModels.gemini || []).map(m => ({ ...m, provider: 'gemini' as const })),
+  ];
 
   if (loading && agents.length === 0) {
     return (
@@ -265,6 +327,157 @@ export default function AgentesIACliente() {
       </MainLayout>
     );
   }
+
+  // Shared test chat UI component
+  const renderTestChat = () => (
+    <div className="border rounded-lg h-64 flex flex-col">
+      <ScrollArea className="flex-1 p-3">
+        {testMessages.map(msg => (
+          <div key={msg.id} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
+            <span className={`inline-block px-3 py-1.5 rounded-lg text-sm max-w-[85%] ${
+              msg.role === 'user' ? 'bg-primary text-primary-foreground' :
+              msg.role === 'system' ? 'bg-muted text-muted-foreground text-xs italic' :
+              'bg-card border text-card-foreground'
+            }`}>
+              {msg.content}
+            </span>
+          </div>
+        ))}
+        {testLoading && (
+          <div className="mb-2">
+            <span className="inline-block px-3 py-1.5 rounded-lg bg-card border text-sm">
+              <Loader2 className="h-4 w-4 animate-spin inline" /> Pensando...
+            </span>
+          </div>
+        )}
+        <div ref={chatEndRef} />
+      </ScrollArea>
+      <div className="border-t p-2 flex gap-2">
+        <Input
+          placeholder="Digite uma mensagem de teste..."
+          value={testInput}
+          onChange={(e) => setTestInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSendTest();
+            }
+          }}
+          disabled={testLoading}
+          className="text-sm"
+        />
+        <Button size="icon" onClick={handleSendTest} disabled={testLoading || !testInput.trim()}>
+          <Send className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  // Shared personalization fields
+  const renderPersonalizationFields = (compact = false) => (
+    <div className="space-y-4">
+      {/* Custom AI Name */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Nome da IA</Label>
+        <Input
+          placeholder={`Ex: Sofia, Assistente Virtual, ${selectedAgent?.name || 'Lia'}...`}
+          value={customName}
+          onChange={(e) => setCustomName(e.target.value)}
+          className="text-sm"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Como a IA vai se apresentar ao cliente.
+        </p>
+      </div>
+
+      {/* Voice Gender */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium">Gênero da voz</Label>
+        <RadioGroup value={voiceGender} onValueChange={(v) => setVoiceGender(v as 'female' | 'male')} className="flex gap-4">
+          <div className="flex items-center gap-2">
+            <RadioGroupItem value="female" id="gender-female" />
+            <Label htmlFor="gender-female" className="text-sm cursor-pointer flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5" /> Feminino
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <RadioGroupItem value="male" id="gender-male" />
+            <Label htmlFor="gender-male" className="text-sm cursor-pointer flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5" /> Masculino
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      {/* Voice Tone */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Tom de voz</Label>
+        <Select value={voiceTone} onValueChange={setVoiceTone}>
+          <SelectTrigger className="text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TONE_OPTIONS.map(t => (
+              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Model Selection */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-medium">Modelo de IA</Label>
+        <Select value={selectedModel} onValueChange={setSelectedModel}>
+          <SelectTrigger className="text-sm">
+            <SelectValue placeholder="Modelo padrão do agente" />
+          </SelectTrigger>
+          <SelectContent>
+            {allModels.length > 0 ? (
+              <>
+                {(aiModels.openai || []).length > 0 && (
+                  <>
+                    <SelectItem value="_label_openai" disabled>— OpenAI —</SelectItem>
+                    {(aiModels.openai || []).map(m => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name} — {m.description}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+                {(aiModels.gemini || []).length > 0 && (
+                  <>
+                    <SelectItem value="_label_gemini" disabled>— Gemini —</SelectItem>
+                    {(aiModels.gemini || []).map(m => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name} — {m.description}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+              </>
+            ) : (
+              <SelectItem value="" disabled>Carregando modelos...</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">
+          Se vazio, usará o modelo padrão do agente ({selectedAgent?.ai_model || testAgentData?.ai_model || 'não definido'}).
+        </p>
+      </div>
+
+      {!compact && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Instruções adicionais para a IA</Label>
+          <Textarea
+            placeholder="Ex: Sempre mencione nosso horário de atendimento, foque em vender o plano premium..."
+            value={promptAdditions}
+            onChange={(e) => setPromptAdditions(e.target.value)}
+            rows={3}
+          />
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <MainLayout>
@@ -311,7 +524,6 @@ export default function AgentesIACliente() {
                       </div>
                     </div>
                   </div>
-                  {/* Provider/model badge + capabilities */}
                   <div className="flex items-center gap-1.5 flex-wrap mt-2">
                     {agent.ai_provider && (
                       <Badge variant="outline" className="text-[10px] h-5">
@@ -349,7 +561,6 @@ export default function AgentesIACliente() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-3">
-                  {/* Existing activations */}
                   {agent.activations.length > 0 && (
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Conexões ativas:</Label>
@@ -398,7 +609,6 @@ export default function AgentesIACliente() {
                     </div>
                   )}
 
-                  {/* Action buttons */}
                   {isAdmin && (
                     <div className="flex gap-2">
                       <Button
@@ -594,18 +804,7 @@ export default function AgentesIACliente() {
 
                 {/* Customize Tab */}
                 <TabsContent value="customize" className="m-0 space-y-4">
-                  {/* Custom AI Name */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium">Nome personalizado da IA</Label>
-                    <Input
-                      placeholder={`Ex: Assistente da Empresa, ${selectedAgent?.name || 'Sofia'}...`}
-                      value={customName}
-                      onChange={(e) => setCustomName(e.target.value)}
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Defina como a IA se apresentará. Se vazio, usará o nome padrão do agente.
-                    </p>
-                  </div>
+                  {renderPersonalizationFields()}
 
                   {selectedAgent?.custom_fields && selectedAgent.custom_fields.length > 0 && (
                     <div className="space-y-3">
@@ -647,19 +846,6 @@ export default function AgentesIACliente() {
                       ))}
                     </div>
                   )}
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Instruções adicionais para a IA</Label>
-                    <Textarea
-                      placeholder="Ex: Sempre mencione nosso horário de atendimento, foque em vender o plano premium..."
-                      value={promptAdditions}
-                      onChange={(e) => setPromptAdditions(e.target.value)}
-                      rows={4}
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Essas instruções serão adicionadas ao prompt base do agente.
-                    </p>
-                  </div>
                 </TabsContent>
 
                 {/* API Key Tab */}
@@ -680,22 +866,6 @@ export default function AgentesIACliente() {
                       onChange={(e) => setClientAiApiKey(e.target.value)}
                     />
 
-                    {/* Show available models */}
-                    {selectedAgent?.ai_provider && aiModels[selectedAgent.ai_provider] && (
-                      <div className="bg-muted/50 rounded-lg p-3 text-xs space-y-1.5">
-                        <p className="font-medium text-foreground">Modelos disponíveis ({selectedAgent.ai_provider === 'openai' ? 'OpenAI' : 'Gemini'}):</p>
-                        {aiModels[selectedAgent.ai_provider].map(m => (
-                          <div key={m.id} className="flex items-center gap-2">
-                            <Badge variant={m.id === selectedAgent.ai_model ? 'default' : 'outline'} className="text-[10px] h-4 px-1.5">
-                              {m.name}
-                            </Badge>
-                            <span className="text-muted-foreground">{m.description}</span>
-                            {m.id === selectedAgent.ai_model && <span className="text-primary font-medium">(em uso)</span>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
                     <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground space-y-1.5">
                       <p className="font-medium">Como obter sua chave:</p>
                       <p>• <strong>OpenAI:</strong> Acesse platform.openai.com → API Keys</p>
@@ -708,44 +878,9 @@ export default function AgentesIACliente() {
                 {/* Test Tab (inline in config dialog) */}
                 <TabsContent value="test" className="m-0 space-y-3">
                   <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
-                    <p>Teste a IA com suas configurações atuais (nome, instruções, API key) antes de vincular a uma conexão.</p>
+                    <p>Teste a IA com suas configurações atuais (nome, tom, gênero, modelo, instruções, API key).</p>
                   </div>
-                  <div className="border rounded-lg h-64 flex flex-col">
-                    <ScrollArea className="flex-1 p-3">
-                      {testMessages.map(msg => (
-                        <div key={msg.id} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                          <span className={`inline-block px-3 py-1.5 rounded-lg text-sm max-w-[85%] ${
-                            msg.role === 'user' ? 'bg-primary text-primary-foreground' :
-                            msg.role === 'system' ? 'bg-muted text-muted-foreground text-xs italic' :
-                            'bg-card border text-card-foreground'
-                          }`}>
-                            {msg.content}
-                          </span>
-                        </div>
-                      ))}
-                      {testLoading && (
-                        <div className="mb-2">
-                          <span className="inline-block px-3 py-1.5 rounded-lg bg-card border text-sm">
-                            <Loader2 className="h-4 w-4 animate-spin inline" /> Pensando...
-                          </span>
-                        </div>
-                      )}
-                      <div ref={chatEndRef} />
-                    </ScrollArea>
-                    <div className="border-t p-2 flex gap-2">
-                      <Input
-                        placeholder="Digite uma mensagem de teste..."
-                        value={testInput}
-                        onChange={(e) => setTestInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendTest()}
-                        disabled={testLoading}
-                        className="text-sm"
-                      />
-                      <Button size="icon" onClick={handleSendTest} disabled={testLoading || !testInput.trim()}>
-                        <Send className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+                  {renderTestChat()}
                 </TabsContent>
               </div>
             </Tabs>
@@ -762,7 +897,7 @@ export default function AgentesIACliente() {
 
         {/* Standalone Test Chat Dialog */}
         <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-          <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col" aria-describedby="test-dialog-desc">
+          <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col" aria-describedby="test-dialog-desc">
             <DialogHeader className="shrink-0">
               <DialogTitle className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5 text-primary" />
@@ -773,65 +908,25 @@ export default function AgentesIACliente() {
               </DialogDescription>
             </DialogHeader>
 
-            {/* Custom name for test */}
-            <div className="space-y-1.5 shrink-0">
-              <Label className="text-xs">Nome da IA (opcional)</Label>
-              <Input
-                placeholder="Ex: Sofia, Assistente Virtual..."
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
-                className="text-sm"
-              />
-            </div>
+            <ScrollArea className="flex-1 pr-2">
+              <div className="space-y-4">
+                {renderPersonalizationFields(true)}
 
-            {/* API Key for test */}
-            <div className="space-y-1.5 shrink-0">
-              <Label className="text-xs">API Key (para teste)</Label>
-              <Input
-                type="password"
-                placeholder="sk-... ou AIza... (opcional)"
-                value={clientAiApiKey}
-                onChange={(e) => setClientAiApiKey(e.target.value)}
-                className="text-sm"
-              />
-            </div>
+                {/* API Key for test */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">API Key (para teste)</Label>
+                  <Input
+                    type="password"
+                    placeholder="sk-... ou AIza... (opcional)"
+                    value={clientAiApiKey}
+                    onChange={(e) => setClientAiApiKey(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
 
-            <div className="border rounded-lg flex-1 min-h-[250px] flex flex-col">
-              <ScrollArea className="flex-1 p-3">
-                {testMessages.map(msg => (
-                  <div key={msg.id} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                    <span className={`inline-block px-3 py-1.5 rounded-lg text-sm max-w-[85%] ${
-                      msg.role === 'user' ? 'bg-primary text-primary-foreground' :
-                      msg.role === 'system' ? 'bg-muted text-muted-foreground text-xs italic' :
-                      'bg-card border text-card-foreground'
-                    }`}>
-                      {msg.content}
-                    </span>
-                  </div>
-                ))}
-                {testLoading && (
-                  <div className="mb-2">
-                    <span className="inline-block px-3 py-1.5 rounded-lg bg-card border text-sm">
-                      <Loader2 className="h-4 w-4 animate-spin inline" /> Pensando...
-                    </span>
-                  </div>
-                )}
-                <div ref={chatEndRef} />
-              </ScrollArea>
-              <div className="border-t p-2 flex gap-2">
-                <Input
-                  placeholder="Digite uma mensagem..."
-                  value={testInput}
-                  onChange={(e) => setTestInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendTest()}
-                  disabled={testLoading}
-                  className="text-sm"
-                />
-                <Button size="icon" onClick={handleSendTest} disabled={testLoading || !testInput.trim()}>
-                  <Send className="h-4 w-4" />
-                </Button>
+                {renderTestChat()}
               </div>
-            </div>
+            </ScrollArea>
           </DialogContent>
         </Dialog>
       </div>

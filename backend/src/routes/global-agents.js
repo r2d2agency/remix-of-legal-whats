@@ -707,7 +707,7 @@ router.post('/test/:id', async (req, res) => {
     const agent = agentResult.rows[0];
     if (!agent) return res.status(404).json({ error: 'Agente não encontrado' });
 
-    const { message, history, client_ai_api_key, custom_name, prompt_additions } = req.body;
+    const { message, history, client_ai_api_key, custom_name, prompt_additions, selected_model } = req.body;
 
     // Resolve API key: client provided > agent key > org key
     let apiKey = client_ai_api_key || agent.ai_api_key;
@@ -722,6 +722,15 @@ router.post('/test/:id', async (req, res) => {
 
     if (!apiKey) {
       return res.status(400).json({ error: 'Nenhuma API key configurada. Informe sua chave na aba API Key.' });
+    }
+
+    // Determine model: client override > agent default
+    let modelToUse = agent.ai_model;
+    if (selected_model && selected_model !== '' && !selected_model.startsWith('_label_')) {
+      modelToUse = selected_model;
+      // Detect provider from model name
+      if (selected_model.startsWith('gpt-')) provider = 'openai';
+      else if (selected_model.startsWith('gemini-')) provider = 'gemini';
     }
 
     // Build system prompt
@@ -759,7 +768,7 @@ router.post('/test/:id', async (req, res) => {
     ];
 
     const result = await callAI(
-      { provider, apiKey, model: agent.ai_model },
+      { provider, apiKey, model: modelToUse },
       messages,
       { temperature: agent.temperature || 0.7, maxTokens: agent.max_tokens || 1000 }
     );
