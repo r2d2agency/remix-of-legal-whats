@@ -489,6 +489,51 @@ export function GlobalAgentsTab() {
     } finally { setAddingKnowledge(false); }
   };
 
+  const handleUploadKnowledgeFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedAgentId) return;
+    
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/plain',
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Tipo de arquivo não suportado. Use PDF, DOCX ou TXT.');
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error('Arquivo muito grande. Máximo 20MB.');
+      return;
+    }
+
+    setAddingKnowledge(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('name', file.name);
+
+      const token = getAuthToken();
+      const res = await fetch(`${API_URL}/api/global-agents/admin/${selectedAgentId}/knowledge/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Erro ao enviar arquivo');
+      }
+      toast.success(`Arquivo "${file.name}" processado com sucesso!`);
+      loadKnowledge(selectedAgentId);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setAddingKnowledge(false);
+      e.target.value = '';
+    }
+  };
+
   const handleDeleteKnowledge = async (sourceId: string) => {
     if (!selectedAgentId) return;
     try {
