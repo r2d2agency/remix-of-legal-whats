@@ -66,6 +66,7 @@ export function useGlobalAgents() {
     schedule_windows: ScheduleWindow[];
     custom_field_values: Record<string, string>;
     prompt_additions?: string;
+    client_ai_api_key?: string;
   }): Promise<GlobalAgentActivation | null> => {
     setLoading(true);
     setError(null);
