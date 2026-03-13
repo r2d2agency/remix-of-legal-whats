@@ -286,6 +286,78 @@ router.delete('/admin/:id/knowledge/:sourceId', requireSuperadmin, async (req, r
 });
 
 // =============================================
+// SUPERADMIN - Agent Stats (tokens, sessions)
+// =============================================
+
+router.get('/admin/:id/stats', requireSuperadmin, async (req, res) => {
+  try {
+    const agentId = req.params.id;
+    const { days = 30 } = req.query;
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - parseInt(days));
+
+    // Total sessions and messages
+    const totals = await query(`
+      SELECT 
+        COUNT(DISTINCT s.id) as total_sessions,
+        COUNT(m.id) as total_messages,
+        COALESCE(SUM(m.total_tokens), 0) as total_tokens,
+        COALESCE(SUM(m.prompt_tokens), 0) as total_prompt_tokens,
+        COALESCE(SUM(m.completion_tokens), 0) as total_completion_tokens,
+        COUNT(DISTINCT s.contact_phone) as unique_contacts,
+        COUNT(CASE WHEN s.handoff_requested = true THEN 1 END) as handoff_count
+      FROM ai_agent_sessions s
+      LEFT JOIN ai_agent_messages m ON m.session_id = s.id
+      WHERE s.agent_id = $1 AND s.started_at >= $2
+    `, [agentId, sinceDate.toISOString()]);
+
+    // Daily breakdown for chart
+    const daily = await query(`
+      SELECT 
+        DATE(s.started_at) as date,
+        COUNT(DISTINCT s.id) as sessions,
+        COUNT(m.id) as messages,
+        COALESCE(SUM(m.total_tokens), 0) as tokens
+      FROM ai_agent_sessions s
+      LEFT JOIN ai_agent_messages m ON m.session_id = s.id
+      WHERE s.agent_id = $1 AND s.started_at >= $2
+      GROUP BY DATE(s.started_at)
+      ORDER BY date ASC
+    `, [agentId, sinceDate.toISOString()]);
+
+    // Per-org breakdown
+    const perOrg = await query(`
+      SELECT 
+        act.organization_id,
+        o.name as org_name,
+        COUNT(DISTINCT s.id) as sessions,
+        COALESCE(SUM(m.total_tokens), 0) as tokens
+      FROM global_agent_activations act
+      JOIN organizations o ON o.id = act.organization_id
+      LEFT JOIN connections c ON c.id = act.connection_id
+      LEFT JOIN ai_agent_sessions s ON s.agent_id = $1 
+        AND s.conversation_id IN (
+          SELECT cv.id FROM conversations cv WHERE cv.connection_id = c.id
+        )
+        AND s.started_at >= $2
+      LEFT JOIN ai_agent_messages m ON m.session_id = s.id
+      WHERE act.global_agent_id = $1
+      GROUP BY act.organization_id, o.name
+      ORDER BY tokens DESC
+    `, [agentId, sinceDate.toISOString()]);
+
+    res.json({
+      totals: totals.rows[0] || {},
+      daily: daily.rows,
+      perOrg: perOrg.rows,
+    });
+  } catch (err) {
+    console.error('Error fetching agent stats:', err);
+    res.status(500).json({ error: 'Erro ao buscar estatísticas' });
+  }
+});
+
+// =============================================
 // SUPERADMIN - Test Chat
 // =============================================
 
