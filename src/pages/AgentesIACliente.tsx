@@ -47,6 +47,8 @@ const TONE_OPTIONS = [
   { value: 'persuasive', label: 'Persuasivo' },
 ];
 
+const INTERNAL_CUSTOM_FIELDS = ['_voice_tone', '_voice_gender', '_custom_name', '_selected_model'] as const;
+
 interface Connection {
   id: string;
   name: string;
@@ -60,6 +62,95 @@ interface TestMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
 }
+
+const normalizeCustomFieldValues = (values: unknown): Record<string, string> => {
+  let parsed = values;
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return {};
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {};
+  }
+
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (value === null || value === undefined) continue;
+    normalized[key] = typeof value === 'string' ? value : String(value);
+  }
+
+  return normalized;
+};
+
+const normalizeScheduleWindows = (windows: unknown): ScheduleWindow[] => {
+  let parsed = windows;
+
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed
+    .map((window): ScheduleWindow | null => {
+      if (!window || typeof window !== 'object') return null;
+      const raw = window as Record<string, unknown>;
+
+      return {
+        days: Array.isArray(raw.days)
+          ? raw.days.filter((day): day is number => typeof day === 'number' && day >= 0 && day <= 6)
+          : [],
+        start: typeof raw.start === 'string' ? raw.start : '08:00',
+        end: typeof raw.end === 'string' ? raw.end : '18:00',
+      };
+    })
+    .filter((window): window is ScheduleWindow => Boolean(window));
+};
+
+type ActivationSettings = {
+  scheduleMode: 'always' | 'scheduled' | 'manual';
+  scheduleWindows: ScheduleWindow[];
+  customFieldValues: Record<string, string>;
+  customName: string;
+  voiceTone: string;
+  voiceGender: 'female' | 'male';
+  selectedModel: string;
+};
+
+const extractActivationSettings = (activation?: GlobalAgentActivation | null): ActivationSettings => {
+  const normalizedFields = normalizeCustomFieldValues(activation?.custom_field_values);
+  const visibleCustomFields: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(normalizedFields)) {
+    if (!INTERNAL_CUSTOM_FIELDS.includes(key as typeof INTERNAL_CUSTOM_FIELDS[number])) {
+      visibleCustomFields[key] = value;
+    }
+  }
+
+  const tone = normalizedFields._voice_tone;
+  const gender = normalizedFields._voice_gender;
+
+  return {
+    scheduleMode: (activation?.schedule_mode as 'always' | 'scheduled' | 'manual') || 'manual',
+    scheduleWindows: normalizeScheduleWindows(activation?.schedule_windows),
+    customFieldValues: visibleCustomFields,
+    customName: normalizedFields._custom_name || '',
+    voiceTone: TONE_OPTIONS.some((option) => option.value === tone) ? tone : 'professional',
+    voiceGender: gender === 'male' ? 'male' : 'female',
+    selectedModel: normalizedFields._selected_model || '',
+  };
+};
 
 export default function AgentesIACliente() {
   const { user } = useAuth();
@@ -115,13 +206,23 @@ export default function AgentesIACliente() {
         : Promise.resolve([] as Connection[]),
     ]);
 
+    const normalizedAgents = (agentsData || []).map((agent) => ({
+      ...agent,
+      activations: (agent.activations || []).map((activation) => ({
+        ...activation,
+        schedule_mode: (activation.schedule_mode as 'always' | 'scheduled' | 'manual') || 'manual',
+        schedule_windows: normalizeScheduleWindows(activation.schedule_windows),
+        custom_field_values: normalizeCustomFieldValues(activation.custom_field_values),
+      })),
+    }));
+
     const mergedConnectionsMap = new Map<string, Connection>();
     [...orgScopedConns, ...assignedConns, ...orgDirectConns].forEach((conn) => {
       mergedConnectionsMap.set(conn.id, conn);
     });
 
     // Garante que conexões já ativadas continuem selecionáveis mesmo se alguma API falhar
-    agentsData.forEach((agent) => {
+    normalizedAgents.forEach((agent) => {
       agent.activations.forEach((activation) => {
         if (!activation.connection_id || mergedConnectionsMap.has(activation.connection_id)) return;
 
@@ -134,24 +235,26 @@ export default function AgentesIACliente() {
       });
     });
 
-    setAgents(agentsData);
+    setAgents(normalizedAgents);
     setConnections(Array.from(mergedConnectionsMap.values()));
     setAiModels(modelsData);
   };
 
   const handleOpenConfig = (agent: GlobalAgentForClient, activation?: GlobalAgentActivation) => {
+    const settings = extractActivationSettings(activation);
+
     setSelectedAgent(agent);
     setSelectedActivation(activation || null);
     setSelectedConnection(activation?.connection_id || '');
-    setScheduleMode(activation?.schedule_mode || 'manual');
-    setScheduleWindows(activation?.schedule_windows || []);
-    setCustomFieldValues(activation?.custom_field_values || {});
+    setScheduleMode(settings.scheduleMode);
+    setScheduleWindows(settings.scheduleWindows);
+    setCustomFieldValues(settings.customFieldValues);
     setPromptAdditions(activation?.prompt_additions || '');
-    setClientAiApiKey(activation?.client_ai_api_key || '');
-    setCustomName('');
-    setVoiceTone('professional');
-    setVoiceGender('female');
-    setSelectedModel(agent.ai_model || '');
+    setClientAiApiKey(activation?.client_ai_api_key ? '***' : '');
+    setCustomName(settings.customName);
+    setVoiceTone(settings.voiceTone);
+    setVoiceGender(settings.voiceGender);
+    setSelectedModel(settings.selectedModel || agent.ai_model || '');
     // Reset test messages for inline test tab
     setTestMessages([{
       id: 'welcome',
@@ -196,33 +299,48 @@ export default function AgentesIACliente() {
 
     setSaving(true);
     try {
+      const normalizedCustomName = customName.trim();
+      const normalizedSelectedModel = selectedModel?.trim();
+      const customFieldPayload: Record<string, string> = {
+        ...customFieldValues,
+        _voice_tone: voiceTone,
+        _voice_gender: voiceGender,
+      };
+
+      if (normalizedCustomName) customFieldPayload._custom_name = normalizedCustomName;
+      if (normalizedSelectedModel && !normalizedSelectedModel.startsWith('_label_')) {
+        customFieldPayload._selected_model = normalizedSelectedModel;
+      }
+
       const payload: any = {
         schedule_mode: scheduleMode,
         schedule_windows: scheduleWindows,
-        custom_field_values: {
-          ...customFieldValues,
-          _voice_tone: voiceTone,
-          _voice_gender: voiceGender,
-          _custom_name: customName,
-          _selected_model: selectedModel,
-        },
+        custom_field_values: customFieldPayload,
         prompt_additions: promptAdditions,
-        client_ai_api_key: clientAiApiKey,
       };
 
+      const keepingMaskedApiKey = selectedActivation && clientAiApiKey === '***';
+      if (!keepingMaskedApiKey) {
+        const normalizedApiKey = clientAiApiKey.trim();
+        payload.client_ai_api_key = normalizedApiKey || null;
+      }
+
       if (selectedActivation) {
-        await updateActivation(selectedActivation.id, payload);
+        const updated = await updateActivation(selectedActivation.id, payload);
+        if (!updated) throw new Error('Não foi possível atualizar a configuração.');
         toast.success('Configuração atualizada!');
       } else {
-        await activateAgent({
+        const activated = await activateAgent({
           global_agent_id: selectedAgent.id,
           connection_id: selectedConnection,
           ...payload,
         });
+        if (!activated) throw new Error('Não foi possível ativar o agente.');
         toast.success('Agente ativado!');
       }
+
+      await loadData();
       setConfigDialogOpen(false);
-      loadData();
     } catch (err: any) {
       toast.error(err.message || 'Erro ao salvar');
     } finally {
