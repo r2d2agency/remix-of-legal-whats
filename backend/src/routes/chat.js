@@ -457,6 +457,20 @@ router.get('/conversations', authenticate, async (req, res) => {
       filterDepartmentIds = [department];
     }
 
+    // Check if org has shared_conversations enabled (must be outside buildQuery which is sync)
+    let sharedConversations = false;
+    if (userOrg) {
+      try {
+        const orgResult = await query(
+          `SELECT modules_enabled FROM organizations WHERE id = $1`,
+          [userOrg.organization_id]
+        );
+        if (orgResult.rows[0]?.modules_enabled?.shared_conversations) {
+          sharedConversations = true;
+        }
+      } catch {}
+    }
+
     const buildQuery = (supportsAttendance = true, supportsDepartment = true) => {
       let sql = `
         SELECT 
@@ -486,8 +500,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       const params = [connectionIds];
       let paramIndex = 2;
 
-      // Show conversations with messages OR with unread count (to handle cases where
-      // message insertion might have failed but unread_count was incremented)
+      // Show conversations with messages OR with unread count
       if (includeEmpty !== 'true') {
         sql += ` AND (EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.conversation_id = conv.id) OR conv.unread_count > 0)`;
       }
@@ -543,7 +556,7 @@ router.get('/conversations', authenticate, async (req, res) => {
         paramIndex++;
       }
 
-      // Filter by attendance status - strict filtering per tab
+      // Filter by attendance status
       if (supportsAttendance) {
         if (attendance_status === 'waiting') {
           sql += ` AND conv.attendance_status = 'waiting'`;
@@ -557,20 +570,6 @@ router.get('/conversations', authenticate, async (req, res) => {
       // ========================================
       // DEPARTMENT-BASED VISIBILITY FILTER
       // ========================================
-      // Check if org has shared_conversations enabled
-      let sharedConversations = false;
-      if (userOrg) {
-        try {
-          const orgResult = await query(
-            `SELECT modules_enabled FROM organizations WHERE id = $1`,
-            [userOrg.organization_id]
-          );
-          if (orgResult.rows[0]?.modules_enabled?.shared_conversations) {
-            sharedConversations = true;
-          }
-        } catch {}
-      }
-
       // Logic:
       // 1. If shared_conversations is enabled -> all connection members see everything
       // 2. If assigned_to = current user -> can see (my conversation)
