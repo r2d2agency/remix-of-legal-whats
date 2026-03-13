@@ -901,12 +901,24 @@ export function GlobalAgentsTab() {
           <div className="flex-1 overflow-y-auto space-y-4">
             {/* Add buttons */}
             {!addKnowledgeMode && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" onClick={() => setAddKnowledgeMode('text')} className="gap-1.5">
                   <FileText className="h-3.5 w-3.5" /> Texto
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setAddKnowledgeMode('url')} className="gap-1.5">
                   <BookOpen className="h-3.5 w-3.5" /> URL
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5 relative" disabled={addingKnowledge} asChild>
+                  <label>
+                    <Upload className="h-3.5 w-3.5" />
+                    {addingKnowledge ? 'Processando...' : 'PDF / DOCX / TXT'}
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt"
+                      className="sr-only"
+                      onChange={handleUploadKnowledgeFile}
+                    />
+                  </label>
                 </Button>
               </div>
             )}
