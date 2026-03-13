@@ -544,7 +544,7 @@ async function findGlobalAgentForConnection(connectionId) {
   try {
     const result = await query(
       `SELECT ga.*, act.schedule_mode, act.schedule_windows, 
-              act.custom_field_values, act.prompt_additions
+              act.custom_field_values, act.prompt_additions, act.client_ai_api_key
        FROM global_agent_activations act
        JOIN global_ai_agents ga ON ga.id = act.global_agent_id AND ga.is_active = true
        WHERE act.connection_id = $1 AND act.is_active = true
@@ -556,7 +556,6 @@ async function findGlobalAgentForConnection(connectionId) {
     for (const agent of result.rows) {
       if (isGlobalAgentActive(agent)) {
         // Build a virtual agent object compatible with the existing flow
-        // Merge custom field values into the system prompt
         let systemPrompt = agent.system_prompt || '';
         
         // Inject custom field values
@@ -572,8 +571,33 @@ async function findGlobalAgentForConnection(connectionId) {
           systemPrompt += '\n\n' + agent.prompt_additions;
         }
 
+        // Load knowledge base content if enabled
+        if (agent.has_knowledge_base) {
+          try {
+            const kbResult = await query(`
+              SELECT source_content, name FROM global_agent_knowledge_sources 
+              WHERE global_agent_id = $1 AND status = 'completed' AND is_active = true
+              ORDER BY created_at DESC LIMIT 5
+            `, [agent.id]);
+            if (kbResult.rows.length > 0) {
+              systemPrompt += '\n\n=== BASE DE CONHECIMENTO ===\n';
+              for (const src of kbResult.rows) {
+                systemPrompt += `\n--- ${src.name} ---\n${src.source_content.substring(0, 3000)}\n`;
+              }
+            }
+          } catch (e) {
+            console.error('Error loading global agent knowledge:', e);
+          }
+        }
+
         agent.system_prompt = systemPrompt;
         agent._isGlobalAgent = true;
+        
+        // Use client API key if provided, otherwise fall back to agent key
+        if (agent.client_ai_api_key) {
+          agent.ai_api_key = agent.client_ai_api_key;
+        }
+        
         return agent;
       }
     }

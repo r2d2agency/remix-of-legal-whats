@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS global_ai_agents (
   context_window INTEGER DEFAULT 20,
   
   -- Structured fields the client can customize (JSON schema)
-  -- e.g. [{ "key": "company_name", "label": "Nome da Empresa", "type": "text", "required": true }]
   custom_fields JSONB DEFAULT '[]'::jsonb,
   
   -- Capabilities
@@ -28,9 +27,13 @@ CREATE TABLE IF NOT EXISTS global_ai_agents (
   -- Handoff config
   handoff_message TEXT DEFAULT 'Vou transferir você para um atendente humano. Aguarde um momento.',
   handoff_keywords TEXT[] DEFAULT ARRAY['humano', 'atendente', 'pessoa']::TEXT[],
+  fallback_message TEXT DEFAULT 'Desculpe, não consegui entender. Pode reformular sua pergunta?',
   
   -- Greeting
   greeting_message TEXT,
+  
+  -- Knowledge base
+  has_knowledge_base BOOLEAN DEFAULT false,
   
   is_active BOOLEAN DEFAULT true,
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -57,23 +60,17 @@ CREATE TABLE IF NOT EXISTS global_agent_activations (
   
   is_active BOOLEAN DEFAULT true,
   
-  -- Client-customized prompt fields (filled from custom_fields schema)
-  -- e.g. { "company_name": "Acme Corp", "products": "Software" }
+  -- Client-customized prompt fields
   custom_field_values JSONB DEFAULT '{}'::jsonb,
   
   -- Client-customized prompt additions
   prompt_additions TEXT,
   
-  -- Flexible schedule: array of time windows
-  -- e.g. [
-  --   { "days": [1,2,3,4,5], "start": "00:00", "end": "07:00" },
-  --   { "days": [1,2,3,4,5], "start": "17:30", "end": "23:59" },
-  --   { "days": [6], "start": "08:00", "end": "18:00" },
-  --   { "days": [0], "start": "00:00", "end": "23:59" }
-  -- ]
-  schedule_windows JSONB DEFAULT '[]'::jsonb,
+  -- Client's own AI API key (overrides agent/org key)
+  client_ai_api_key TEXT,
   
-  -- Schedule mode: 'always' | 'scheduled' | 'manual'
+  -- Flexible schedule
+  schedule_windows JSONB DEFAULT '[]'::jsonb,
   schedule_mode VARCHAR(20) DEFAULT 'manual',
   
   activated_by UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -83,14 +80,60 @@ CREATE TABLE IF NOT EXISTS global_agent_activations (
   UNIQUE(global_agent_id, connection_id)
 );
 
+-- Knowledge sources for global agents (managed by superadmin)
+CREATE TABLE IF NOT EXISTS global_agent_knowledge_sources (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  global_agent_id UUID NOT NULL REFERENCES global_ai_agents(id) ON DELETE CASCADE,
+  
+  source_type VARCHAR(20) NOT NULL DEFAULT 'text',
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  source_content TEXT NOT NULL,
+  
+  file_type VARCHAR(50),
+  file_size INTEGER,
+  original_filename VARCHAR(255),
+  
+  status VARCHAR(20) DEFAULT 'pending',
+  error_message TEXT,
+  processed_at TIMESTAMPTZ,
+  
+  chunk_count INTEGER DEFAULT 0,
+  total_tokens INTEGER DEFAULT 0,
+  
+  is_active BOOLEAN DEFAULT true,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Knowledge chunks for global agents
+CREATE TABLE IF NOT EXISTS global_agent_knowledge_chunks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_id UUID NOT NULL REFERENCES global_agent_knowledge_sources(id) ON DELETE CASCADE,
+  
+  content TEXT NOT NULL,
+  chunk_index INTEGER NOT NULL,
+  
+  metadata JSONB DEFAULT '{}',
+  embedding JSONB,
+  
+  token_count INTEGER,
+  char_count INTEGER,
+  
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_global_agent_org_assignments_org ON global_agent_org_assignments(organization_id);
 CREATE INDEX IF NOT EXISTS idx_global_agent_org_assignments_agent ON global_agent_org_assignments(global_agent_id);
 CREATE INDEX IF NOT EXISTS idx_global_agent_activations_org ON global_agent_activations(organization_id);
 CREATE INDEX IF NOT EXISTS idx_global_agent_activations_conn ON global_agent_activations(connection_id);
 CREATE INDEX IF NOT EXISTS idx_global_agent_activations_active ON global_agent_activations(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_global_agent_knowledge_sources_agent ON global_agent_knowledge_sources(global_agent_id);
+CREATE INDEX IF NOT EXISTS idx_global_agent_knowledge_chunks_source ON global_agent_knowledge_chunks(source_id);
 
--- Trigger for updated_at
+-- Triggers
 CREATE OR REPLACE FUNCTION update_global_agent_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN

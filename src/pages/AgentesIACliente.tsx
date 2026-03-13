@@ -14,7 +14,7 @@ import { useGlobalAgents, GlobalAgentForClient, GlobalAgentActivation, ScheduleW
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Bot, Clock, Plug, Plus, Trash2, Settings, Power, PowerOff, Loader2, Calendar } from 'lucide-react';
+import { Bot, Clock, Plug, Plus, Trash2, Settings, Power, PowerOff, Loader2, Calendar, Key } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Dom' },
@@ -48,6 +48,7 @@ export default function AgentesIACliente() {
   const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [promptAdditions, setPromptAdditions] = useState('');
+  const [clientAiApiKey, setClientAiApiKey] = useState('');
   const [saving, setSaving] = useState(false);
 
   const isAdmin = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
@@ -73,6 +74,7 @@ export default function AgentesIACliente() {
     setScheduleWindows(activation?.schedule_windows || []);
     setCustomFieldValues(activation?.custom_field_values || {});
     setPromptAdditions(activation?.prompt_additions || '');
+    setClientAiApiKey(activation?.client_ai_api_key || '');
     setConfigDialogOpen(true);
   };
 
@@ -116,6 +118,7 @@ export default function AgentesIACliente() {
           schedule_windows: scheduleWindows,
           custom_field_values: customFieldValues,
           prompt_additions: promptAdditions,
+          client_ai_api_key: clientAiApiKey,
         } as any);
         toast.success('Configuração atualizada!');
       } else {
@@ -126,7 +129,8 @@ export default function AgentesIACliente() {
           schedule_windows: scheduleWindows,
           custom_field_values: customFieldValues,
           prompt_additions: promptAdditions,
-        });
+          client_ai_api_key: clientAiApiKey,
+        } as any);
         toast.success('Agente ativado!');
       }
       setConfigDialogOpen(false);
@@ -309,7 +313,7 @@ export default function AgentesIACliente() {
             </DialogHeader>
 
             <Tabs defaultValue="connection" className="flex-1 overflow-hidden flex flex-col">
-              <TabsList className="grid grid-cols-3 shrink-0">
+              <TabsList className="grid grid-cols-4 shrink-0">
                 <TabsTrigger value="connection" className="gap-1.5">
                   <Plug className="h-3.5 w-3.5" />
                   Conexão
@@ -321,6 +325,10 @@ export default function AgentesIACliente() {
                 <TabsTrigger value="customize" className="gap-1.5">
                   <Settings className="h-3.5 w-3.5" />
                   Personalizar
+                </TabsTrigger>
+                <TabsTrigger value="apikey" className="gap-1.5">
+                  <Key className="h-3.5 w-3.5" />
+                  API Key
                 </TabsTrigger>
               </TabsList>
 
@@ -400,7 +408,6 @@ export default function AgentesIACliente() {
                             </Button>
                           </div>
 
-                          {/* Days selector */}
                           <div className="space-y-1.5">
                             <Label className="text-xs text-muted-foreground">Dias da semana</Label>
                             <div className="flex gap-1 flex-wrap">
@@ -418,7 +425,6 @@ export default function AgentesIACliente() {
                             </div>
                           </div>
 
-                          {/* Time range */}
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <Label className="text-xs text-muted-foreground">Início</Label>
@@ -456,7 +462,6 @@ export default function AgentesIACliente() {
 
                 {/* Customize Tab */}
                 <TabsContent value="customize" className="m-0 space-y-4">
-                  {/* Custom fields from agent schema */}
                   {selectedAgent?.custom_fields && selectedAgent.custom_fields.length > 0 && (
                     <div className="space-y-3">
                       <Label className="text-sm font-medium">Informações da sua empresa</Label>
@@ -510,6 +515,32 @@ export default function AgentesIACliente() {
                       Essas instruções serão adicionadas ao prompt base do agente.
                     </p>
                   </div>
+                </TabsContent>
+
+                {/* API Key Tab */}
+                <TabsContent value="apikey" className="m-0 space-y-4">
+                  <Card className="p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Key className="h-5 w-5 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Chave de API da IA</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Informe sua chave de API do provedor de IA (OpenAI ou Google Gemini). 
+                      Se não informar, será usada a chave padrão do sistema (se disponível).
+                    </p>
+                    <Input
+                      type="password"
+                      placeholder="sk-... ou AIza..."
+                      value={clientAiApiKey}
+                      onChange={(e) => setClientAiApiKey(e.target.value)}
+                    />
+                    <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground space-y-1.5">
+                      <p className="font-medium">Como obter sua chave:</p>
+                      <p>• <strong>OpenAI:</strong> Acesse platform.openai.com → API Keys</p>
+                      <p>• <strong>Google Gemini:</strong> Acesse aistudio.google.com → Get API Key</p>
+                      <p className="mt-2 text-[11px]">Sua chave é armazenada de forma segura e usada apenas para este agente.</p>
+                    </div>
+                  </Card>
                 </TabsContent>
               </div>
             </Tabs>
