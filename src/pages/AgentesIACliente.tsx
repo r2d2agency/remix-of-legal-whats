@@ -83,7 +83,7 @@ export default function AgentesIACliente() {
   const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female');
   const [selectedModel, setSelectedModel] = useState('');
   const [saving, setSaving] = useState(false);
-
+  const [showTestSettings, setShowTestSettings] = useState(false);
   // Test chat state
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testAgentData, setTestAgentData] = useState<GlobalAgentForClient | null>(null);
@@ -293,6 +293,7 @@ export default function AgentesIACliente() {
         client_ai_api_key: clientAiApiKey || undefined,
         custom_name: customName || undefined,
         prompt_additions: fullPromptAdditions || undefined,
+        selected_model: selectedModel || undefined,
       });
       setTestMessages(prev => [...prev, {
         id: `a-${Date.now()}`,
@@ -895,38 +896,196 @@ export default function AgentesIACliente() {
           </DialogContent>
         </Dialog>
 
-        {/* Standalone Test Chat Dialog */}
+        {/* Standalone Test Chat Dialog - Clean chat-first interface */}
         <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-          <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col" aria-describedby="test-dialog-desc">
-            <DialogHeader className="shrink-0">
-              <DialogTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-primary" />
-                Testar — {testAgentData?.name}
-              </DialogTitle>
-              <DialogDescription id="test-dialog-desc">
-                Valide a IA antes de vincular a uma conexão
-              </DialogDescription>
+          <DialogContent className="sm:max-w-2xl h-[85vh] flex flex-col p-0" aria-describedby="test-dialog-desc">
+            <DialogHeader className="p-4 pb-3 border-b shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Bot className="h-5 w-5 text-primary" />
+                    Testar — {testAgentData?.name}
+                  </DialogTitle>
+                  <DialogDescription id="test-dialog-desc" className="text-xs mt-1">
+                    Valide a IA antes de vincular a uma conexão
+                  </DialogDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowTestSettings(prev => !prev)}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                    Configurar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setTestMessages([{
+                        id: 'welcome',
+                        role: 'system',
+                        content: `Chat reiniciado. Envie uma nova mensagem para testar "${testAgentData?.name}".`
+                      }]);
+                    }}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Resetar
+                  </Button>
+                </div>
+              </div>
+
+              {/* Collapsible settings panel */}
+              {showTestSettings && (
+                <div className="mt-3 pt-3 border-t space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Nome da IA</Label>
+                      <Input
+                        placeholder="Ex: Sofia"
+                        value={customName}
+                        onChange={(e) => setCustomName(e.target.value)}
+                        className="text-sm h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Tom de voz</Label>
+                      <Select value={voiceTone} onValueChange={setVoiceTone}>
+                        <SelectTrigger className="text-sm h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TONE_OPTIONS.map(t => (
+                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Gênero</Label>
+                      <Select value={voiceGender} onValueChange={(v) => setVoiceGender(v as 'female' | 'male')}>
+                        <SelectTrigger className="text-sm h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="female">Feminino</SelectItem>
+                          <SelectItem value="male">Masculino</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Modelo</Label>
+                      <Select value={selectedModel} onValueChange={setSelectedModel}>
+                        <SelectTrigger className="text-sm h-8">
+                          <SelectValue placeholder="Padrão do agente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(aiModels.openai || []).length > 0 && (
+                            <>
+                              <SelectItem value="_label_openai" disabled>— OpenAI —</SelectItem>
+                              {(aiModels.openai || []).map(m => (
+                                <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                              ))}
+                            </>
+                          )}
+                          {(aiModels.gemini || []).length > 0 && (
+                            <>
+                              <SelectItem value="_label_gemini" disabled>— Gemini —</SelectItem>
+                              {(aiModels.gemini || []).map(m => (
+                                <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                              ))}
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <form onSubmit={(e) => e.preventDefault()}>
+                    <div className="space-y-1">
+                      <Label className="text-xs">API Key (opcional)</Label>
+                      <Input
+                        type="password"
+                        placeholder="sk-... ou AIza..."
+                        value={clientAiApiKey}
+                        onChange={(e) => setClientAiApiKey(e.target.value)}
+                        className="text-sm h-8"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </form>
+                </div>
+              )}
             </DialogHeader>
 
-            <ScrollArea className="flex-1 pr-2">
-              <div className="space-y-4">
-                {renderPersonalizationFields(true)}
-
-                {/* API Key for test */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">API Key (para teste)</Label>
-                  <Input
-                    type="password"
-                    placeholder="sk-... ou AIza... (opcional)"
-                    value={clientAiApiKey}
-                    onChange={(e) => setClientAiApiKey(e.target.value)}
-                    className="text-sm"
-                  />
-                </div>
-
-                {renderTestChat()}
+            {/* Chat messages area */}
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-3">
+                {testMessages.map(msg => (
+                  <div key={msg.id} className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {msg.role !== 'user' && (
+                      <div className={`p-1.5 rounded-lg shrink-0 ${msg.role === 'system' ? 'bg-muted' : 'bg-primary/10'}`}>
+                        {msg.role === 'system' ? (
+                          <Sparkles className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Bot className="h-4 w-4 text-primary" />
+                        )}
+                      </div>
+                    )}
+                    <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                      msg.role === 'user' ? 'bg-primary text-primary-foreground' :
+                      msg.role === 'system' ? 'bg-muted text-muted-foreground text-xs italic' :
+                      'bg-card border text-card-foreground'
+                    }`}>
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                    {msg.role === 'user' && (
+                      <div className="p-1.5 rounded-lg bg-primary/10 shrink-0">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {testLoading && (
+                  <div className="flex gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-primary/10">
+                      <Bot className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="bg-card border rounded-lg px-3 py-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
               </div>
             </ScrollArea>
+
+            {/* Input area */}
+            <div className="p-3 border-t shrink-0">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Digite uma mensagem..."
+                  value={testInput}
+                  onChange={(e) => setTestInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendTest();
+                    }
+                  }}
+                  disabled={testLoading}
+                  className="flex-1"
+                  autoFocus
+                />
+                <Button onClick={handleSendTest} disabled={testLoading || !testInput.trim()}>
+                  {testLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

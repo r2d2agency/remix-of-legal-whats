@@ -147,6 +147,7 @@ export function useGlobalAgents() {
     client_ai_api_key?: string;
     custom_name?: string;
     prompt_additions?: string;
+    selected_model?: string;
   }) => {
     const result = await api<{ response: string; tokens: number; model: string }>(`/api/global-agents/test/${agentId}`, {
       method: 'POST',
