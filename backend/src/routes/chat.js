@@ -36,6 +36,21 @@ async function getUserConnections(userId) {
   return specificResult.rows.map(r => r.id);
 }
 
+async function hasColumn(tableName, columnName) {
+  const result = await query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = $1
+         AND column_name = $2
+     ) AS exists_column`,
+    [tableName, columnName]
+  );
+
+  return Boolean(result.rows[0]?.exists_column);
+}
+
 // ==========================================
 // CONVERSATIONS
 // ==========================================
@@ -2298,7 +2313,7 @@ router.post('/conversations/:id/transfer-connection', authenticate, async (req, 
     // Check user has access to the conversation
     // Include: conversations on user's connections, orphaned (NULL), or on deleted connections
     const check = await query(
-      `SELECT c.id, c.connection_id, c.contact_name, c.contact_phone 
+      `SELECT c.id, c.connection_id, c.remote_jid, c.contact_name, c.contact_phone 
        FROM conversations c 
        WHERE c.id = $1 AND (
          c.connection_id = ANY($2) 
@@ -2327,6 +2342,26 @@ router.post('/conversations/:id/transfer-connection', authenticate, async (req, 
     const conversation = check.rows[0];
     const contactPhone = conversation.contact_phone;
     const contactName = conversation.contact_name;
+
+    // Prevent unique conflict before transfer: (connection_id, remote_jid)
+    if (conversation.remote_jid) {
+      const conflict = await query(
+        `SELECT id
+         FROM conversations
+         WHERE connection_id = $1
+           AND remote_jid = $2
+           AND id <> $3
+         LIMIT 1`,
+        [targetConnectionId, conversation.remote_jid, id]
+      );
+
+      if (conflict.rows.length > 0) {
+        return res.status(409).json({
+          error: 'Já existe uma conversa deste contato na conexão de destino. Mescle ou remova a conversa duplicada antes de transferir.',
+          conflict_conversation_id: conflict.rows[0].id,
+        });
+      }
+    }
 
     // Auto-create contact in target connection if not exists
     if (contactPhone) {
@@ -2380,28 +2415,49 @@ router.post('/conversations/:id/transfer-connection', authenticate, async (req, 
     }
 
     // Update conversation connection
-    await query(
-      `UPDATE conversations SET connection_id = $1, updated_at = NOW() WHERE id = $2`,
-      [targetConnectionId, id]
-    );
+    try {
+      await query(
+        `UPDATE conversations SET connection_id = $1, updated_at = NOW() WHERE id = $2`,
+        [targetConnectionId, id]
+      );
+    } catch (updateError) {
+      if (updateError?.code === '23505') {
+        return res.status(409).json({
+          error: 'Conflito ao transferir: já existe conversa para este contato na conexão de destino.',
+        });
+      }
+      throw updateError;
+    }
 
-    // Update related chat_messages connection_id
-    await query(
-      `UPDATE chat_messages SET connection_id = $1 WHERE conversation_id = $2`,
-      [targetConnectionId, id]
-    );
+    // Update related chat_messages connection_id only when legacy column exists
+    const chatMessagesHasConnectionId = await hasColumn('chat_messages', 'connection_id');
+    if (chatMessagesHasConnectionId) {
+      await query(
+        `UPDATE chat_messages SET connection_id = $1 WHERE conversation_id = $2`,
+        [targetConnectionId, id]
+      );
+    }
 
     // Add system message
     const targetConn = await query(`SELECT name FROM connections WHERE id = $1`, [targetConnectionId]);
     const fromUser = await query(`SELECT name FROM users WHERE id = $1`, [req.userId]);
     const systemMsg = `🔄 Conversa transferida para conexão "${targetConn.rows[0]?.name || 'Nova conexão'}" por ${fromUser.rows[0]?.name || 'Sistema'}`;
 
-    await query(
-      `INSERT INTO chat_messages 
-        (conversation_id, connection_id, from_me, content, message_type, status, timestamp)
-       VALUES ($1, $2, true, $3, 'system', 'sent', NOW())`,
-      [id, targetConnectionId, systemMsg]
-    );
+    if (chatMessagesHasConnectionId) {
+      await query(
+        `INSERT INTO chat_messages 
+          (conversation_id, connection_id, from_me, content, message_type, status, timestamp)
+         VALUES ($1, $2, true, $3, 'system', 'sent', NOW())`,
+        [id, targetConnectionId, systemMsg]
+      );
+    } else {
+      await query(
+        `INSERT INTO chat_messages 
+          (conversation_id, from_me, content, message_type, status, timestamp)
+         VALUES ($1, true, $2, 'system', 'sent', NOW())`,
+        [id, systemMsg]
+      );
+    }
 
     res.json({ success: true, message: 'Conversa transferida para outra conexão' });
   } catch (error) {
