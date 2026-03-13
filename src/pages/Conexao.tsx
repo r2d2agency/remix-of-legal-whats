@@ -102,6 +102,12 @@ const Conexao = () => {
   const [leadDistributionDialogOpen, setLeadDistributionDialogOpen] = useState(false);
   const [leadDistributionConnection, setLeadDistributionConnection] = useState<Connection | null>(null);
 
+  // Migration dialog state
+  const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
+  const [migrateTargetConnection, setMigrateTargetConnection] = useState<Connection | null>(null);
+  const [migrateSourceId, setMigrateSourceId] = useState<string>("");
+  const [migrating, setMigrating] = useState(false);
+
   useEffect(() => {
     if (authLoading) return;
 
