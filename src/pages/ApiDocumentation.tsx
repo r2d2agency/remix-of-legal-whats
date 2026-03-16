@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +67,7 @@ function CodeBlock({ language, code, title }: { language: string; code: string; 
 }
 
 export default function ApiDocumentation() {
+  const { isAuthenticated } = useAuth();
   const { data: webhooks = [], isLoading } = useLeadWebhooks();
   const { data: funnels = [] } = useCRMFunnels();
   const { createWebhook, deleteWebhook, regenerateToken } = useLeadWebhookMutations();
@@ -205,9 +207,13 @@ print(response.json())`;
   const firstWebhook = webhooks[0];
   const exampleToken = firstWebhook?.webhook_token || "SEU_TOKEN_AQUI";
 
+  const Wrapper = isAuthenticated ? MainLayout : ({ children }: { children: React.ReactNode }) => (
+    <div className="min-h-screen bg-background">{children}</div>
+  );
+
   return (
-    <MainLayout>
-      <div className="space-y-6 p-4 md:p-6">
+    <Wrapper>
+      <div className="space-y-6 p-4 md:p-6 max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
@@ -219,18 +225,22 @@ print(response.json())`;
               Documentação e tokens para integrar sistemas externos ao seu CRM
             </p>
           </div>
-          <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Gerar Novo Token
-          </Button>
+          {isAuthenticated && (
+            <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Gerar Novo Token
+            </Button>
+          )}
         </div>
 
-        <Tabs defaultValue="tokens" className="space-y-6">
+        <Tabs defaultValue={isAuthenticated ? "tokens" : "docs"} className="space-y-6">
           <TabsList>
-            <TabsTrigger value="tokens" className="gap-2">
-              <Key className="h-4 w-4" />
-              Tokens API
-            </TabsTrigger>
+            {isAuthenticated && (
+              <TabsTrigger value="tokens" className="gap-2">
+                <Key className="h-4 w-4" />
+                Tokens API
+              </TabsTrigger>
+            )}
             <TabsTrigger value="docs" className="gap-2">
               <BookOpen className="h-4 w-4" />
               Documentação
@@ -242,6 +252,7 @@ print(response.json())`;
           </TabsList>
 
           {/* ========== TOKENS TAB ========== */}
+          {isAuthenticated && (
           <TabsContent value="tokens" className="space-y-4">
             <Card>
               <CardHeader>
@@ -393,6 +404,7 @@ print(response.json())`;
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
           {/* ========== DOCS TAB ========== */}
           <TabsContent value="docs" className="space-y-6">
@@ -809,7 +821,7 @@ print(response.json())`;
           onOpenChange={setShowLogsDialog}
         />
       </div>
-    </MainLayout>
+    </Wrapper>
   );
 }
 
