@@ -746,36 +746,30 @@ router.get('/users/search-email', requireSuperadmin, async (req, res) => {
 router.delete('/users/by-email/:email', requireSuperadmin, async (req, res) => {
   try {
     const { email } = req.params;
-    
-    // Find user by email
+
     const userCheck = await query(`SELECT id, email FROM users WHERE email = $1`, [email]);
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    
+
     const userId = userCheck.rows[0].id;
-    
-    // Can't delete yourself
     if (userId === req.userId) {
       return res.status(400).json({ error: 'Não é possível excluir sua própria conta' });
     }
-    
-    // Delete all related data in order (respecting foreign keys)
-    await query(`DELETE FROM organization_members WHERE user_id = $1`, [userId]);
-    await query(`DELETE FROM department_members WHERE user_id = $1`, [userId]);
-    await query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
-    await query(`UPDATE conversations SET assigned_user_id = NULL WHERE assigned_user_id = $1`, [userId]);
-    
-    const result = await query(`DELETE FROM users WHERE id = $1 RETURNING id, email`, [userId]);
-    
+
+    const result = await deleteUserWithCleanup(userId);
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Erro ao excluir usuário' });
     }
-    
+
     console.log(`User ${email} deleted by superadmin ${req.userId}`);
     res.json({ success: true, deleted_email: email });
   } catch (error) {
     console.error('Delete user by email error:', error);
+    if (error?.code === '23503') {
+      return res.status(409).json({ error: 'Usuário possui vínculos que impedem exclusão', details: error.detail || error.message });
+    }
     res.status(500).json({ error: 'Erro ao excluir usuário', details: error.message });
   }
 });
