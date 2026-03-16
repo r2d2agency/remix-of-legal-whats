@@ -67,6 +67,7 @@ function CodeBlock({ language, code, title }: { language: string; code: string; 
 }
 
 export default function ApiDocumentation() {
+  const { isAuthenticated } = useAuth();
   const { data: webhooks = [], isLoading } = useLeadWebhooks();
   const { data: funnels = [] } = useCRMFunnels();
   const { createWebhook, deleteWebhook, regenerateToken } = useLeadWebhookMutations();
