@@ -819,7 +819,7 @@ print(response.json())`;
           onOpenChange={setShowLogsDialog}
         />
       </div>
-    </MainLayout>
+    </Wrapper>
   );
 }
 
