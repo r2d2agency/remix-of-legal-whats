@@ -79,6 +79,7 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
       ...(hasConnections ? [{ name: "Fluxos", href: "/fluxos", icon: GitBranch, pageKey: 'fluxos', moduleKey: 'chatbots' as const, adminOnly: true }] : []),
       { name: "Departamentos", href: "/departamentos", icon: Building2, pageKey: 'departamentos', adminOnly: true },
       { name: "Agendamentos", href: "/agendamentos", icon: Bell, pageKey: 'agendamentos', moduleKey: 'scheduled_messages' as const },
+      { name: "Respostas Rápidas", href: "/respostas-rapidas", icon: MessageSquare, pageKey: 'respostas_rapidas' },
       { name: "Tags", href: "/tags", icon: Receipt, pageKey: 'tags' },
       { name: "Contatos", href: "/contatos-chat", icon: Users, pageKey: 'contatos' },
     ],
