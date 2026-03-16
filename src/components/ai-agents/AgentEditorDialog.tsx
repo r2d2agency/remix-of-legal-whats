@@ -309,7 +309,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     }));
   };
 
-  const currentModels = formData.ai_provider === 'openai' ? models.openai : models.gemini;
+  const currentModels = formData.ai_provider === 'openai' ? models.openai : formData.ai_provider === 'gemini' ? models.gemini : (models as any).openrouter || models.openai;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
