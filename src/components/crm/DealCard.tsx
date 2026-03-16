@@ -161,10 +161,16 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
           </Badge>
         </div>
 
-        {/* Company */}
+        {/* Company & Source */}
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
           <Building2 className="h-3 w-3" />
           <span className="truncate">{deal.company_name}</span>
+          {deal.source && (
+            <Badge variant="outline" className="ml-auto text-[10px] px-1 py-0 gap-0.5 shrink-0">
+              <Webhook className="h-2.5 w-2.5" />
+              {deal.source.replace('Webhook: ', '')}
+            </Badge>
+          )}
         </div>
 
         {/* Contact */}
