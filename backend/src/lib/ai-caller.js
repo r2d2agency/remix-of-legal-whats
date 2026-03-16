@@ -81,7 +81,7 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
       });
 
       // Add tool call and result to messages for next iteration
-      if (config.provider === 'openai') {
+      if (config.provider === 'openai' || config.provider === 'openrouter') {
         currentMessages.push({
           role: 'assistant',
           content: null,
