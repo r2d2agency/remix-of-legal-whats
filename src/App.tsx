@@ -53,6 +53,7 @@ import TarefasKanban from "./pages/TarefasKanban";
 import LeadGleego from "./pages/LeadGleego";
 import AgentesIACliente from "./pages/AgentesIACliente";
 import RespostasRapidas from "./pages/RespostasRapidas";
+import ApiDocumentation from "./pages/ApiDocumentation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
