@@ -138,7 +138,29 @@ const Index = () => {
       console.error('Error loading dashboard:', err);
       setLoading(false);
     }
-  };
+  }, [getLists, getMessages, getCampaigns, getChatStats]);
+
+  // Auto-refresh every 30s + listen for chat events
+  useEffect(() => {
+    loadDashboardData();
+    
+    refreshTimerRef.current = setInterval(() => {
+      loadDashboardData(true);
+    }, 30000);
+
+    const unsubNewMsg = chatEvents.subscribe('new_message', () => {
+      loadDashboardData(true);
+    });
+    const unsubConvUpdate = chatEvents.subscribe('conversation_update', () => {
+      loadDashboardData(true);
+    });
+
+    return () => {
+      clearInterval(refreshTimerRef.current);
+      unsubNewMsg();
+      unsubConvUpdate();
+    };
+  }, [loadDashboardData]);
   const firstConnection = connections[0];
   const connectionStatus = firstConnection?.status === 'connected' ? 'connected' : 'disconnected';
   const connectionName = firstConnection?.name || "Nenhuma conexão";
