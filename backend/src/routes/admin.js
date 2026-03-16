@@ -273,6 +273,98 @@ const requireSuperadmin = async (req, res, next) => {
   }
 };
 
+// Dynamic cleanup helper for user deletion (prevents FK-related 500s)
+const quoteIdentifier = (value) => `"${String(value).replace(/"/g, '""')}"`;
+
+async function cleanupDynamicUserReferences(userId) {
+  const refsResult = await query(
+    `SELECT tc.table_name, kcu.column_name, cols.is_nullable, rc.delete_rule
+     FROM information_schema.table_constraints tc
+     JOIN information_schema.key_column_usage kcu
+       ON tc.constraint_name = kcu.constraint_name
+      AND tc.table_schema = kcu.table_schema
+     JOIN information_schema.constraint_column_usage ccu
+       ON ccu.constraint_name = tc.constraint_name
+      AND ccu.table_schema = tc.table_schema
+     JOIN information_schema.referential_constraints rc
+       ON rc.constraint_name = tc.constraint_name
+      AND rc.constraint_schema = tc.table_schema
+     JOIN information_schema.columns cols
+       ON cols.table_schema = kcu.table_schema
+      AND cols.table_name = kcu.table_name
+      AND cols.column_name = kcu.column_name
+     WHERE tc.constraint_type = 'FOREIGN KEY'
+       AND tc.table_schema = 'public'
+       AND ccu.table_name = 'users'
+       AND ccu.column_name = 'id'`
+  );
+
+  // Handled explicitly before dynamic cleanup
+  const alreadyHandled = new Set(['organization_members', 'department_members', 'user_roles']);
+
+  for (const ref of refsResult.rows) {
+    const tableName = ref.table_name;
+    const columnName = ref.column_name;
+
+    if (!tableName || !columnName || tableName === 'users' || alreadyHandled.has(tableName)) {
+      continue;
+    }
+
+    // CASCADE relations are handled automatically by Postgres
+    if (ref.delete_rule === 'CASCADE') {
+      continue;
+    }
+
+    const tableSql = quoteIdentifier(tableName);
+    const columnSql = quoteIdentifier(columnName);
+    const cleanupSql =
+      ref.is_nullable === 'YES'
+        ? `UPDATE ${tableSql} SET ${columnSql} = NULL WHERE ${columnSql} = $1`
+        : `DELETE FROM ${tableSql} WHERE ${columnSql} = $1`;
+
+    try {
+      await query(cleanupSql, [userId]);
+    } catch (err) {
+      // ignore missing table/column during partial deploys
+      if (err.code !== '42P01' && err.code !== '42703') {
+        console.warn(`[Delete user] Dynamic cleanup warning on ${tableName}.${columnName}: ${err.message}`);
+      }
+    }
+  }
+}
+
+async function deleteUserWithCleanup(userId) {
+  // Explicit high-priority cleanup for hot tables
+  const cleanupQueries = [
+    `DELETE FROM organization_members WHERE user_id = $1`,
+    `DELETE FROM department_members WHERE user_id = $1`,
+    `DELETE FROM user_roles WHERE user_id = $1`,
+    `DELETE FROM crm_user_group_members WHERE user_id = $1`,
+    `UPDATE crm_deals SET responsible_user_id = NULL WHERE responsible_user_id = $1`,
+    `UPDATE crm_tasks SET assigned_user_id = NULL WHERE assigned_user_id = $1`,
+    `UPDATE crm_prospects SET responsible_user_id = NULL WHERE responsible_user_id = $1`,
+    `UPDATE conversations SET assigned_user_id = NULL WHERE assigned_user_id = $1`,
+    `DELETE FROM conversation_notes WHERE user_id = $1`,
+    `UPDATE chatbots SET created_by = NULL WHERE created_by = $1`,
+    `DELETE FROM sessions WHERE user_id = $1`,
+  ];
+
+  for (const sql of cleanupQueries) {
+    try {
+      await query(sql, [userId]);
+    } catch (err) {
+      if (err.code !== '42P01' && err.code !== '42703') {
+        console.warn(`[Delete user] Cleanup warning: ${err.message}`);
+      }
+    }
+  }
+
+  // Catch any remaining FK references discovered from schema metadata
+  await cleanupDynamicUserReferences(userId);
+
+  return query(`DELETE FROM users WHERE id = $1 RETURNING id, email`, [userId]);
+}
+
 // Check if current user is superadmin
 router.get('/check', async (req, res) => {
   try {
@@ -654,36 +746,30 @@ router.get('/users/search-email', requireSuperadmin, async (req, res) => {
 router.delete('/users/by-email/:email', requireSuperadmin, async (req, res) => {
   try {
     const { email } = req.params;
-    
-    // Find user by email
+
     const userCheck = await query(`SELECT id, email FROM users WHERE email = $1`, [email]);
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    
+
     const userId = userCheck.rows[0].id;
-    
-    // Can't delete yourself
     if (userId === req.userId) {
       return res.status(400).json({ error: 'Não é possível excluir sua própria conta' });
     }
-    
-    // Delete all related data in order (respecting foreign keys)
-    await query(`DELETE FROM organization_members WHERE user_id = $1`, [userId]);
-    await query(`DELETE FROM department_members WHERE user_id = $1`, [userId]);
-    await query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
-    await query(`UPDATE conversations SET assigned_user_id = NULL WHERE assigned_user_id = $1`, [userId]);
-    
-    const result = await query(`DELETE FROM users WHERE id = $1 RETURNING id, email`, [userId]);
-    
+
+    const result = await deleteUserWithCleanup(userId);
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Erro ao excluir usuário' });
     }
-    
+
     console.log(`User ${email} deleted by superadmin ${req.userId}`);
     res.json({ success: true, deleted_email: email });
   } catch (error) {
     console.error('Delete user by email error:', error);
+    if (error?.code === '23503') {
+      return res.status(409).json({ error: 'Usuário possui vínculos que impedem exclusão', details: error.detail || error.message });
+    }
     res.status(500).json({ error: 'Erro ao excluir usuário', details: error.message });
   }
 });
@@ -693,67 +779,17 @@ router.delete('/users/:id', requireSuperadmin, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Can't delete yourself
     if (id === req.userId) {
       return res.status(400).json({ error: 'Não é possível excluir sua própria conta' });
     }
 
-    // Check if user exists
     const userCheck = await query(`SELECT id, email FROM users WHERE id = $1`, [id]);
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado' });
     }
 
     const userEmail = userCheck.rows[0].email;
-
-    // Delete all related data in order (respecting foreign keys)
-    // Use try-catch for each to handle missing tables gracefully
-    const cleanupQueries = [
-      // Memberships
-      `DELETE FROM organization_members WHERE user_id = $1`,
-      `DELETE FROM department_members WHERE user_id = $1`,
-      `DELETE FROM user_roles WHERE user_id = $1`,
-      // CRM relations
-      `DELETE FROM crm_user_group_members WHERE user_id = $1`,
-      `UPDATE crm_deals SET responsible_user_id = NULL WHERE responsible_user_id = $1`,
-      `UPDATE crm_tasks SET assigned_user_id = NULL WHERE assigned_user_id = $1`,
-      `UPDATE crm_prospects SET responsible_user_id = NULL WHERE responsible_user_id = $1`,
-      // Chat relations
-      `UPDATE conversations SET assigned_user_id = NULL WHERE assigned_user_id = $1`,
-      `DELETE FROM conversation_notes WHERE user_id = $1`,
-      // Chatbot relations
-      `UPDATE chatbots SET created_by = NULL WHERE created_by = $1`,
-      // Session tokens
-      `DELETE FROM sessions WHERE user_id = $1`,
-      // Additional relations that may block deletion
-      `DELETE FROM scheduled_messages WHERE user_id = $1`,
-      `DELETE FROM quick_replies WHERE user_id = $1`,
-      `DELETE FROM campaign_messages WHERE user_id = $1`,
-      `DELETE FROM notification_preferences WHERE user_id = $1`,
-      `DELETE FROM push_subscriptions WHERE user_id = $1`,
-      `DELETE FROM ai_agent_conversations WHERE user_id = $1`,
-      `DELETE FROM conversation_summaries WHERE user_id = $1`,
-      `UPDATE nurturing_sequences SET created_by = NULL WHERE created_by = $1`,
-      `UPDATE nurturing_enrollments SET enrolled_by = NULL WHERE enrolled_by = $1`,
-      `UPDATE lead_webhooks SET created_by = NULL WHERE created_by = $1`,
-      `DELETE FROM crm_activities WHERE user_id = $1`,
-      `UPDATE messages SET user_id = NULL WHERE user_id = $1`,
-      `DELETE FROM email_queue WHERE user_id = $1`,
-    ];
-
-    for (const sql of cleanupQueries) {
-      try {
-        await query(sql, [id]);
-      } catch (err) {
-        // Ignore errors for missing tables/columns (42P01, 42703)
-        if (err.code !== '42P01' && err.code !== '42703') {
-          console.warn(`Cleanup query warning: ${err.message}`);
-        }
-      }
-    }
-    
-    // Finally delete the user
-    const result = await query(`DELETE FROM users WHERE id = $1 RETURNING id, email`, [id]);
+    const result = await deleteUserWithCleanup(id);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Erro ao excluir usuário' });
@@ -763,6 +799,9 @@ router.delete('/users/:id', requireSuperadmin, async (req, res) => {
     res.json({ success: true, deleted_email: userEmail });
   } catch (error) {
     console.error('Delete user error:', error);
+    if (error?.code === '23503') {
+      return res.status(409).json({ error: 'Usuário possui vínculos que impedem exclusão', details: error.detail || error.message });
+    }
     res.status(500).json({ error: 'Erro ao excluir usuário', details: error.message });
   }
 });
