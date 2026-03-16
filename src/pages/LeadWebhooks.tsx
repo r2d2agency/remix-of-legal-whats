@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useLeadWebhooks, useLeadWebhookMutations, useWebhookLogs, useWebhookDistribution, getWebhookUrl, LeadWebhook } from "@/hooks/use-lead-webhooks";
+import { useLeadWebhooks, useLeadWebhookMutations, useWebhookLogs, useWebhookDistribution, getWebhookUrl, LeadWebhook, WebhookLog } from "@/hooks/use-lead-webhooks";
 import { useCRMFunnels } from "@/hooks/use-crm";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -31,12 +31,41 @@ import {
   Code,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   Eye,
   Users,
-  UserPlus
+  UserPlus,
+  Search,
+  Wand2
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+// Helper: flatten nested object keys for payload inspection
+function flattenKeys(obj: any, prefix = ""): string[] {
+  if (!obj || typeof obj !== "object") return [];
+  const keys: string[] = [];
+  for (const key of Object.keys(obj)) {
+    const fullKey = prefix ? `${prefix}.${key}` : key;
+    keys.push(fullKey);
+    if (typeof obj[key] === "object" && obj[key] !== null && !Array.isArray(obj[key])) {
+      keys.push(...flattenKeys(obj[key], fullKey));
+    }
+  }
+  return keys;
+}
+
+// Helper: get nested value from object using dot notation
+function getNestedPreview(obj: any, path: string): string {
+  const parts = path.split(".");
+  let val = obj;
+  for (const part of parts) {
+    if (val === null || val === undefined) return "";
+    val = val[part];
+  }
+  if (val === null || val === undefined) return "";
+  return String(val);
+}
 
 export default function LeadWebhooks() {
   const { data: webhooks = [], isLoading } = useLeadWebhooks();
@@ -155,7 +184,7 @@ export default function LeadWebhooks() {
               Webhooks de Leads
             </h1>
             <p className="text-muted-foreground">
-              Receba leads de integrações externas (Zapier, Make, Meta Lead Ads, n8n, etc.)
+              Receba leads de integrações externas (Zapier, Make, Meta Lead Ads, n8n, FormGleego, etc.)
             </p>
           </div>
           <Button onClick={handleCreate} className="gap-2">
@@ -189,14 +218,19 @@ export default function LeadWebhooks() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <h3 className="font-semibold truncate">{webhook.name}</h3>
                         <Badge variant={webhook.is_active ? "default" : "secondary"}>
                           {webhook.is_active ? "Ativo" : "Inativo"}
                         </Badge>
-                        {webhook.funnel_name && (
-                          <Badge variant="outline">
-                            {webhook.funnel_name} → {webhook.stage_name}
+                        {webhook.funnel_name ? (
+                          <Badge variant="outline" className="text-green-600 border-green-300">
+                            CRM: {webhook.funnel_name} → {webhook.stage_name}
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Sem funil (vai para Prospect)
                           </Badge>
                         )}
                         {webhook.distribution_enabled && (
@@ -242,7 +276,7 @@ export default function LeadWebhooks() {
                         variant="outline" 
                         size="sm"
                         onClick={() => handleViewLogs(webhook.id)}
-                        title="Ver logs"
+                        title="Ver logs e payloads"
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
@@ -304,6 +338,16 @@ export default function LeadWebhooks() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+              <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Importante: Configure o Funil e Etapa
+              </p>
+              <p className="text-sm text-yellow-600 dark:text-yellow-500 mt-1">
+                Para que os leads entrem diretamente no CRM (Kanban), é obrigatório selecionar um <strong>Funil</strong> e uma <strong>Etapa</strong> no webhook. 
+                Sem essa configuração, os leads serão criados apenas como Prospects.
+              </p>
+            </div>
             <div>
               <h4 className="font-medium mb-2">Enviar leads via POST</h4>
               <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
@@ -327,9 +371,17 @@ Content-Type: application/json
               </div>
             </div>
             <div>
+              <h4 className="font-medium mb-2">Dica: Use o inspetor de payload</h4>
+              <p className="text-sm text-muted-foreground">
+                Clique no ícone <Eye className="h-3 w-3 inline" /> de um webhook para ver os logs. 
+                Lá você pode inspecionar o payload completo que chegou e usar o botão 
+                <Wand2 className="h-3 w-3 inline mx-1" /> para auto-detectar os campos e criar mapeamentos.
+              </p>
+            </div>
+            <div>
               <h4 className="font-medium mb-2">Integrações compatíveis</h4>
               <div className="flex flex-wrap gap-2">
-                {["Zapier", "Make (Integromat)", "n8n", "Meta Lead Ads", "Pabbly", "Albato", "Integrately"].map(tool => (
+                {["FormGleego", "Zapier", "Make (Integromat)", "n8n", "Meta Lead Ads", "Pabbly", "Albato", "Integrately"].map(tool => (
                   <Badge key={tool} variant="secondary">{tool}</Badge>
                 ))}
               </div>
@@ -364,7 +416,7 @@ Content-Type: application/json
                     id="name"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="Ex: Leads do Facebook"
+                    placeholder="Ex: Leads do FormGleego"
                   />
                 </div>
 
@@ -381,12 +433,12 @@ Content-Type: application/json
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Funil de destino</Label>
+                    <Label>Funil de destino *</Label>
                     <Select 
                       value={form.funnel_id} 
                       onValueChange={(v) => setForm({ ...form, funnel_id: v === "none" ? "" : v, stage_id: "" })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={!form.funnel_id ? "border-yellow-500" : ""}>
                         <SelectValue placeholder="Selecione um funil" />
                       </SelectTrigger>
                       <SelectContent>
@@ -401,13 +453,13 @@ Content-Type: application/json
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Etapa inicial</Label>
+                    <Label>Etapa inicial *</Label>
                     <Select 
                       value={form.stage_id} 
                       onValueChange={(v) => setForm({ ...form, stage_id: v })}
                       disabled={!form.funnel_id}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={form.funnel_id && !form.stage_id ? "border-yellow-500" : ""}>
                         <SelectValue placeholder="Selecione uma etapa" />
                       </SelectTrigger>
                       <SelectContent>
@@ -420,6 +472,24 @@ Content-Type: application/json
                     </Select>
                   </div>
                 </div>
+
+                {!form.funnel_id && (
+                  <div className="flex items-center gap-2 p-3 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 rounded-lg text-sm">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                    <span>
+                      <strong>Atenção:</strong> Sem funil selecionado, os leads serão criados como <strong>Prospect</strong> e NÃO aparecerão no Kanban do CRM.
+                    </span>
+                  </div>
+                )}
+
+                {form.funnel_id && form.stage_id && (
+                  <div className="flex items-center gap-2 p-3 bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg text-sm">
+                    <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>
+                      Os leads serão criados diretamente no <strong>CRM (Kanban)</strong> e terão conversa atribuída no <strong>Chat</strong>.
+                    </span>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Responsável padrão</Label>
@@ -439,6 +509,9 @@ Content-Type: application/json
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Se a distribuição automática estiver ativa, este campo é ignorado (round-robin).
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -487,9 +560,17 @@ Content-Type: application/json
                   <p className="text-sm text-muted-foreground">
                     <AlertCircle className="h-4 w-4 inline mr-1" />
                     O mapeamento de campos é opcional. O sistema detecta automaticamente campos comuns 
-                    como name, email, phone, company.
+                    como name, email, phone, company. Use o <strong>Inspetor de Payload</strong> nos logs para ver exatamente o que está chegando.
                   </p>
                 </div>
+
+                {/* Auto-detect from last payload */}
+                {editingWebhook && (
+                  <AutoDetectMappingButton 
+                    webhookId={editingWebhook.id} 
+                    onApplyMapping={(mapping) => setForm({ ...form, field_mapping: { ...form.field_mapping, ...mapping } })}
+                  />
+                )}
 
                 <div className="space-y-3">
                   <Label>Mapeamento personalizado</Label>
@@ -605,6 +686,52 @@ Content-Type: application/json
   );
 }
 
+// Auto-detect mapping from last payload
+function AutoDetectMappingButton({ webhookId, onApplyMapping }: { webhookId: string; onApplyMapping: (mapping: Record<string, string>) => void }) {
+  const { data: logs = [] } = useWebhookLogs(webhookId);
+  
+  const lastPayload = logs.length > 0 ? logs[0]?.request_body : null;
+
+  if (!lastPayload) return null;
+
+  const handleAutoDetect = () => {
+    const keys = flattenKeys(lastPayload);
+    const mapping: Record<string, string> = {};
+
+    const namePatterns = ["name", "full_name", "nome", "firstName", "first_name", "contact_name", "lead_name"];
+    const emailPatterns = ["email", "email_address", "e_mail", "contact_email"];
+    const phonePatterns = ["phone", "telefone", "whatsapp", "phone_number", "cellphone", "celular", "contact_phone", "mobile"];
+    const companyPatterns = ["company", "empresa", "company_name", "organization"];
+
+    for (const key of keys) {
+      const lowerKey = key.toLowerCase().split(".").pop() || "";
+      if (namePatterns.includes(lowerKey) && !mapping[key]) {
+        mapping[key] = "name";
+      } else if (emailPatterns.includes(lowerKey)) {
+        mapping[key] = "email";
+      } else if (phonePatterns.includes(lowerKey)) {
+        mapping[key] = "phone";
+      } else if (companyPatterns.includes(lowerKey)) {
+        mapping[key] = "company_name";
+      }
+    }
+
+    if (Object.keys(mapping).length > 0) {
+      onApplyMapping(mapping);
+      toast.success(`${Object.keys(mapping).length} campo(s) detectado(s) e mapeado(s)`);
+    } else {
+      toast.info("Nenhum campo reconhecido automaticamente. Mapeie manualmente.");
+    }
+  };
+
+  return (
+    <Button variant="outline" size="sm" className="gap-2 w-full" onClick={handleAutoDetect}>
+      <Wand2 className="h-4 w-4" />
+      Auto-detectar campos do último payload recebido
+    </Button>
+  );
+}
+
 function WebhookLogsDialog({ 
   webhookId, 
   open, 
@@ -615,68 +742,100 @@ function WebhookLogsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { data: logs = [], isLoading } = useWebhookLogs(webhookId);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh]" aria-describedby={undefined}>
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setExpandedLogId(null); }}>
+      <DialogContent className="max-w-5xl max-h-[90vh]" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle>Logs do Webhook</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Logs & Inspetor de Payload
+          </DialogTitle>
           <DialogDescription>
-            Histórico de requisições recebidas por este webhook.
+            Veja o que está chegando no webhook. Clique em uma linha para inspecionar o payload completo.
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[60vh]">
+        <ScrollArea className="max-h-[65vh]">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : logs.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              Nenhum log encontrado
+              <Webhook className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>Nenhum log encontrado</p>
+              <p className="text-xs mt-1">Envie um lead de teste para ver o payload aqui</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Mensagem</TableHead>
-                  <TableHead>IP</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Payload</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>
-                      {log.response_status === 200 ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-red-500" />
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {log.response_message}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {log.source_ip}
-                    </TableCell>
-                    <TableCell className="text-xs">
+            <div className="space-y-2">
+              {logs.map((log) => (
+                <div key={log.id} className="border rounded-lg overflow-hidden">
+                  {/* Log row */}
+                  <div 
+                    className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
+                  >
+                    {log.response_status === 200 ? (
+                      <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                    )}
+                    <span className="text-sm flex-1 truncate">{log.response_message}</span>
+                    {log.assigned_to && (
+                      <Badge variant="outline" className="text-xs">
+                        Atribuído
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
                       {formatDistanceToNow(new Date(log.created_at), {
                         addSuffix: true,
                         locale: ptBR
                       })}
-                    </TableCell>
-                    <TableCell>
-                      <code className="text-xs bg-muted px-2 py-1 rounded max-w-[200px] block truncate">
-                        {JSON.stringify(log.request_body).slice(0, 50)}...
-                      </code>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </span>
+                    <span className="text-xs text-muted-foreground">{log.source_ip}</span>
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  </div>
+
+                  {/* Expanded payload */}
+                  {expandedLogId === log.id && (
+                    <div className="border-t p-4 bg-muted/30 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold">Payload completo recebido:</Label>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs"
+                          onClick={() => {
+                            navigator.clipboard.writeText(JSON.stringify(log.request_body, null, 2));
+                            toast.success("Payload copiado");
+                          }}
+                        >
+                          <Copy className="h-3 w-3" />
+                          Copiar
+                        </Button>
+                      </div>
+                      <pre className="bg-background p-3 rounded-md text-xs overflow-auto max-h-[300px] border">
+                        {JSON.stringify(log.request_body, null, 2)}
+                      </pre>
+                      
+                      {/* Field explorer */}
+                      <div>
+                        <Label className="text-sm font-semibold">Campos detectados:</Label>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {flattenKeys(log.request_body).map(key => (
+                            <Badge key={key} variant="outline" className="text-xs font-mono gap-1">
+                              {key}: <span className="text-muted-foreground max-w-[120px] truncate inline-block align-bottom">{getNestedPreview(log.request_body, key)}</span>
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </ScrollArea>
       </DialogContent>
@@ -736,7 +895,7 @@ function DistributionDialog({
             Distribuição de Leads
           </DialogTitle>
           <DialogDescription>
-            Distribua os leads automaticamente entre os usuários selecionados (round-robin).
+            Distribua os leads automaticamente entre os vendedores (round-robin). O lead aparece no CRM e no Chat do mesmo vendedor.
           </DialogDescription>
         </DialogHeader>
 
