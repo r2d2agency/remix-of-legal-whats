@@ -250,10 +250,10 @@ router.post('/receive/:token', async (req, res) => {
           [dealId, contactId]
         );
 
-        // Assign conversation in chat if exists (distribute to same user)
+        // Assign or create conversation in chat and assign to distributed user
         if (assignedOwnerId) {
           try {
-            // Find conversations matching this phone across org connections
+            // Find existing conversations matching this phone across org connections
             const convResult = await query(
               `SELECT c.id, c.connection_id FROM conversations c
                JOIN connections conn ON conn.id = c.connection_id
@@ -267,16 +267,45 @@ router.post('/receive/:token', async (req, res) => {
               // Assign all matching conversations to the distributed user
               for (const conv of convResult.rows) {
                 await query(
-                  `UPDATE conversations SET assigned_to = $1, updated_at = NOW() WHERE id = $2`,
+                  `UPDATE conversations SET assigned_to = $1, attendance_status = 'attending', updated_at = NOW() WHERE id = $2`,
                   [assignedOwnerId, conv.id]
                 );
               }
               logInfo(`[Lead Webhook] Assigned ${convResult.rows.length} conversation(s) to user ${assignedOwnerId}`, {
                 phone: cleanPhone, dealId
               });
+            } else {
+              // No conversation exists yet — create one on the first active WhatsApp connection
+              const connResult = await query(
+                `SELECT id FROM connections 
+                 WHERE organization_id = $1 AND status = 'connected'
+                 ORDER BY created_at ASC LIMIT 1`,
+                [webhook.organization_id]
+              );
+
+              if (connResult.rows.length > 0) {
+                const connectionId = connResult.rows[0].id;
+                // Build remote_jid: use Brazilian format with @s.whatsapp.net
+                const jid = cleanPhone.startsWith('55') ? `${cleanPhone}@s.whatsapp.net` : `55${cleanPhone}@s.whatsapp.net`;
+
+                const newConv = await query(
+                  `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, assigned_to, attendance_status, last_message_at)
+                   VALUES ($1, $2, $3, $4, $5, 'attending', NOW())
+                   ON CONFLICT (connection_id, remote_jid) 
+                   DO UPDATE SET assigned_to = $5, attendance_status = 'attending', updated_at = NOW()
+                   RETURNING id`,
+                  [connectionId, jid, mappedData.name, cleanPhone, assignedOwnerId]
+                );
+
+                logInfo(`[Lead Webhook] Created/assigned conversation for phone ${cleanPhone}`, {
+                  conversationId: newConv.rows[0]?.id, connectionId, assignedTo: assignedOwnerId, dealId
+                });
+              } else {
+                logInfo(`[Lead Webhook] No active connection found to create conversation for ${cleanPhone}`);
+              }
             }
           } catch (convErr) {
-            logError('[Lead Webhook] Error assigning conversation', convErr);
+            logError('[Lead Webhook] Error assigning/creating conversation', convErr);
           }
         }
       }
