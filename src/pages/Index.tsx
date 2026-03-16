@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
@@ -27,6 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { Button } from "@/components/ui/button";
 import { Rocket } from "lucide-react";
+import { chatEvents } from "@/lib/chat-events";
 
 interface DashboardStats {
   totalContacts: number;
@@ -79,12 +80,10 @@ const Index = () => {
   const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval>>();
 
-  const loadDashboardData = async () => {
-    setLoading(true);
+  const loadDashboardData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       // Load critical data first (fast)
       const attendancePromise = api<{ waiting: number; attending: number; finished: number }>('/api/chat/conversations/attendance-counts?is_group=false').catch(() => ({ waiting: 0, attending: 0, finished: 0 }));
@@ -139,7 +138,29 @@ const Index = () => {
       console.error('Error loading dashboard:', err);
       setLoading(false);
     }
-  };
+  }, [getLists, getMessages, getCampaigns, getChatStats]);
+
+  // Auto-refresh every 30s + listen for chat events
+  useEffect(() => {
+    loadDashboardData();
+    
+    refreshTimerRef.current = setInterval(() => {
+      loadDashboardData(true);
+    }, 30000);
+
+    const unsubNewMsg = chatEvents.subscribe('new_message', () => {
+      loadDashboardData(true);
+    });
+    const unsubConvUpdate = chatEvents.subscribe('conversation_update', () => {
+      loadDashboardData(true);
+    });
+
+    return () => {
+      clearInterval(refreshTimerRef.current);
+      unsubNewMsg();
+      unsubConvUpdate();
+    };
+  }, [loadDashboardData]);
   const firstConnection = connections[0];
   const connectionStatus = firstConnection?.status === 'connected' ? 'connected' : 'disconnected';
   const connectionName = firstConnection?.name || "Nenhuma conexão";
