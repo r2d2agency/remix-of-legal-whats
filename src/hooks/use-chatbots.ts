@@ -102,6 +102,7 @@ export interface AIModel {
 export interface AIModels {
   gemini: AIModel[];
   openai: AIModel[];
+  openrouter?: AIModel[];
 }
 
 export const useChatbots = () => {

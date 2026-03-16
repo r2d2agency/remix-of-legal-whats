@@ -210,6 +210,7 @@ export interface AIModel {
 export interface AIModels {
   openai: AIModel[];
   gemini: AIModel[];
+  openrouter?: AIModel[];
 }
 
 export interface PromptTemplate {
