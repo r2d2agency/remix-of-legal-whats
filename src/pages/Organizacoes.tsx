@@ -260,10 +260,21 @@ export default function Organizacoes() {
     } catch {
       // ignore
     }
-    // Load funnels for Gleego config
+    // Load funnels with stages for Gleego config
     try {
       const funnels = await api<any[]>(`/api/crm/funnels`);
-      setGleegoFunnels(funnels || []);
+      // Load stages for each funnel
+      const funnelsWithStages = await Promise.all(
+        (funnels || []).map(async (f: any) => {
+          try {
+            const detail = await api<any>(`/api/crm/funnels/${f.id}`);
+            return { ...f, stages: detail.stages || [] };
+          } catch {
+            return { ...f, stages: [] };
+          }
+        })
+      );
+      setGleegoFunnels(funnelsWithStages);
     } catch { }
     // Load webhooks for distribution selection
     try {
