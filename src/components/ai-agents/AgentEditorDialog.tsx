@@ -112,7 +112,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     name: '',
     description: '',
     avatar_url: '',
-    ai_provider: 'openai' as 'openai' | 'gemini',
+    ai_provider: 'openai' as 'openai' | 'gemini' | 'openrouter',
     ai_model: 'gpt-4o-mini',
     ai_api_key: '',
     system_prompt: DEFAULT_SYSTEM_PROMPT,
@@ -309,7 +309,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     }));
   };
 
-  const currentModels = formData.ai_provider === 'openai' ? models.openai : models.gemini;
+  const currentModels = formData.ai_provider === 'openai' ? models.openai : formData.ai_provider === 'gemini' ? models.gemini : (models as any).openrouter || models.openai;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -409,11 +409,12 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                       <Label>Provedor de IA</Label>
                       <Select
                         value={formData.ai_provider}
-                        onValueChange={(value: 'openai' | 'gemini') => {
+                        onValueChange={(value: 'openai' | 'gemini' | 'openrouter') => {
+                          const defaultModel = value === 'openai' ? 'gpt-4o-mini' : value === 'gemini' ? 'gemini-1.5-flash' : 'openai/gpt-4o-mini';
                           setFormData(prev => ({
                             ...prev,
                             ai_provider: value,
-                            ai_model: value === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash'
+                            ai_model: defaultModel
                           }));
                         }}
                       >
@@ -431,6 +432,12 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                             <div className="flex items-center gap-2">
                               <Brain className="h-4 w-4 text-blue-500" />
                               Google Gemini
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="openrouter">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-purple-500" />
+                              OpenRouter
                             </div>
                           </SelectItem>
                         </SelectContent>

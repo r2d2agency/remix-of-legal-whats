@@ -672,7 +672,7 @@ export default function AgentesIACliente() {
                   <div className="flex items-center gap-1.5 flex-wrap mt-2">
                     {agent.ai_provider && (
                       <Badge variant="outline" className="text-[10px] h-5">
-                        {agent.ai_provider === 'openai' ? 'OpenAI' : 'Gemini'} — {agent.ai_model}
+                        {agent.ai_provider === 'openai' ? 'OpenAI' : agent.ai_provider === 'gemini' ? 'Gemini' : 'OpenRouter'} — {agent.ai_model}
                       </Badge>
                     )}
                     {agent.has_knowledge_base && (

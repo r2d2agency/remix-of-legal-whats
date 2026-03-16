@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 
-export type AIProvider = 'gemini' | 'openai' | 'none';
+export type AIProvider = 'gemini' | 'openai' | 'openrouter' | 'none';
 export type ChatbotMode = 'always' | 'business_hours' | 'outside_hours' | 'pre_service';
 export type ChatbotType = 'flow' | 'traditional' | 'ai' | 'hybrid';
 export type FlowNodeType = 'start' | 'message' | 'menu' | 'input' | 'condition' | 'action' | 'transfer' | 'ai_response' | 'end';
@@ -102,6 +102,7 @@ export interface AIModel {
 export interface AIModels {
   gemini: AIModel[];
   openai: AIModel[];
+  openrouter?: AIModel[];
 }
 
 export const useChatbots = () => {

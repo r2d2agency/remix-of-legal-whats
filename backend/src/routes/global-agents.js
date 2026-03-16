@@ -684,6 +684,15 @@ router.get('/models', async (req, res) => {
       { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Econômico e rápido' },
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Alta qualidade' },
     ],
+    openrouter: [
+      { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', description: 'Multimodal poderoso' },
+      { id: 'openai/gpt-4o-mini', name: 'OpenAI GPT-4o Mini', description: 'Econômico' },
+      { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', description: 'Excelente raciocínio' },
+      { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', description: 'Rápido e econômico' },
+      { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', description: 'Google via OpenRouter' },
+      { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', description: 'Open source poderoso' },
+      { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', description: 'Custo-benefício' },
+    ],
   });
 });
 

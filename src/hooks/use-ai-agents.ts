@@ -56,7 +56,7 @@ function normalizeAgent(agent: AIAgent): AIAgent {
   };
 }
 
-export type AIProvider = 'openai' | 'gemini';
+export type AIProvider = 'openai' | 'gemini' | 'openrouter';
 export type KnowledgeSourceType = 'file' | 'url' | 'text';
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
@@ -210,6 +210,7 @@ export interface AIModel {
 export interface AIModels {
   openai: AIModel[];
   gemini: AIModel[];
+  openrouter?: AIModel[];
 }
 
 export interface PromptTemplate {
