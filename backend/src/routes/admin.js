@@ -720,11 +720,25 @@ router.delete('/users/:id', requireSuperadmin, async (req, res) => {
       `UPDATE crm_prospects SET responsible_user_id = NULL WHERE responsible_user_id = $1`,
       // Chat relations
       `UPDATE conversations SET assigned_user_id = NULL WHERE assigned_user_id = $1`,
-      `UPDATE conversation_notes SET user_id = NULL WHERE user_id = $1`,
+      `DELETE FROM conversation_notes WHERE user_id = $1`,
       // Chatbot relations
       `UPDATE chatbots SET created_by = NULL WHERE created_by = $1`,
       // Session tokens
       `DELETE FROM sessions WHERE user_id = $1`,
+      // Additional relations that may block deletion
+      `DELETE FROM scheduled_messages WHERE user_id = $1`,
+      `DELETE FROM quick_replies WHERE user_id = $1`,
+      `DELETE FROM campaign_messages WHERE user_id = $1`,
+      `DELETE FROM notification_preferences WHERE user_id = $1`,
+      `DELETE FROM push_subscriptions WHERE user_id = $1`,
+      `DELETE FROM ai_agent_conversations WHERE user_id = $1`,
+      `DELETE FROM conversation_summaries WHERE user_id = $1`,
+      `UPDATE nurturing_sequences SET created_by = NULL WHERE created_by = $1`,
+      `UPDATE nurturing_enrollments SET enrolled_by = NULL WHERE enrolled_by = $1`,
+      `UPDATE lead_webhooks SET created_by = NULL WHERE created_by = $1`,
+      `DELETE FROM crm_activities WHERE user_id = $1`,
+      `UPDATE messages SET user_id = NULL WHERE user_id = $1`,
+      `DELETE FROM email_queue WHERE user_id = $1`,
     ];
 
     for (const sql of cleanupQueries) {
