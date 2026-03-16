@@ -3405,6 +3405,65 @@ DO $$ BEGIN ALTER TABLE global_ai_agents ADD COLUMN IF NOT EXISTS has_knowledge_
 DO $$ BEGIN ALTER TABLE global_agent_activations ADD COLUMN IF NOT EXISTS client_ai_api_key TEXT; EXCEPTION WHEN others THEN NULL; END $$;
 `;
 
+// ============================================
+// STEP 40: LEAD WEBHOOKS
+// ============================================
+const step40LeadWebhooks = `
+CREATE TABLE IF NOT EXISTS lead_webhooks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    webhook_token VARCHAR(64) NOT NULL UNIQUE,
+    is_active BOOLEAN DEFAULT true,
+    funnel_id UUID REFERENCES crm_funnels(id) ON DELETE SET NULL,
+    stage_id UUID REFERENCES crm_stages(id) ON DELETE SET NULL,
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    distribution_enabled BOOLEAN DEFAULT false,
+    distribution_last_index INTEGER DEFAULT 0,
+    field_mapping JSONB DEFAULT '{}',
+    default_value DECIMAL(15,2) DEFAULT 0,
+    default_probability INTEGER DEFAULT 10,
+    total_leads INTEGER DEFAULT 0,
+    last_lead_at TIMESTAMP WITH TIME ZONE,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS lead_webhook_distribution (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    webhook_id UUID NOT NULL REFERENCES lead_webhooks(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT true,
+    max_leads_per_day INTEGER DEFAULT NULL,
+    leads_today INTEGER DEFAULT 0,
+    last_lead_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(webhook_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS lead_webhook_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    webhook_id UUID NOT NULL REFERENCES lead_webhooks(id) ON DELETE CASCADE,
+    request_body JSONB,
+    response_status INTEGER,
+    response_message TEXT,
+    deal_id UUID REFERENCES crm_deals(id) ON DELETE SET NULL,
+    prospect_id UUID REFERENCES crm_prospects(id) ON DELETE SET NULL,
+    assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
+    source_ip VARCHAR(50),
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lead_webhooks_org ON lead_webhooks(organization_id);
+CREATE INDEX IF NOT EXISTS idx_lead_webhooks_token ON lead_webhooks(webhook_token);
+CREATE INDEX IF NOT EXISTS idx_lead_webhook_distribution_webhook ON lead_webhook_distribution(webhook_id);
+CREATE INDEX IF NOT EXISTS idx_lead_webhook_logs_webhook ON lead_webhook_logs(webhook_id);
+CREATE INDEX IF NOT EXISTS idx_lead_webhook_logs_created ON lead_webhook_logs(created_at DESC);
+`;
+
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
   { name: 'Core Tables (users, plans)', sql: step2CoreTables, critical: true },
@@ -3446,6 +3505,7 @@ const migrationSteps = [
   { name: 'Permission Templates', sql: step37PermissionTemplates, critical: false },
   { name: 'Push Notifications', sql: step38PushNotifications, critical: false },
   { name: 'Global AI Agents', sql: step39GlobalAgents, critical: false },
+  { name: 'Lead Webhooks', sql: step40LeadWebhooks, critical: false },
 ];
 
 export async function initDatabase() {
