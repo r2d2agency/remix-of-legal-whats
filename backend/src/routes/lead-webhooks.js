@@ -6,6 +6,25 @@ import { logInfo, logError } from '../logger.js';
 
 const router = express.Router();
 
+// ── Self-healing: ensure required prospects columns for webhook ingestion ──
+(async () => {
+  const cols = [
+    { name: 'email', type: 'VARCHAR(255)' },
+    { name: 'company_name', type: 'VARCHAR(255)' },
+    { name: 'notes', type: 'TEXT' },
+  ];
+
+  for (const col of cols) {
+    try {
+      await query(`ALTER TABLE crm_prospects ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`);
+    } catch (_) {
+      // ignore if table doesn't exist yet during partial deploy/startup
+    }
+  }
+
+  logInfo('[Lead Webhooks] Self-healing crm_prospects columns check complete');
+})();
+
 // Helper: Get user's organization
 async function getUserOrg(userId) {
   const result = await query(
