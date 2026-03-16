@@ -24,6 +24,8 @@ export async function callAI(config, messages, options = {}) {
     return callOpenAI(config, messages, { temperature, maxTokens, tools, toolChoice, responseFormat });
   } else if (config.provider === 'gemini') {
     return callGemini(config, messages, { temperature, maxTokens, tools, responseFormat });
+  } else if (config.provider === 'openrouter') {
+    return callOpenRouter(config, messages, { temperature, maxTokens, tools, toolChoice, responseFormat });
   }
 
   throw new Error(`Provedor de IA não suportado: ${config.provider}`);
