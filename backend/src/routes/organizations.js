@@ -863,6 +863,21 @@ router.post('/ai-config/test', async (req, res) => {
           }),
         }
       );
+    } else if (ai_provider === 'openrouter') {
+      testResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${actualApiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.APP_URL || 'https://gleego.app',
+          'X-Title': 'Glee-go Whats',
+        },
+        body: JSON.stringify({
+          model: ai_model || 'openai/gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Diga apenas "OK"' }],
+          max_tokens: 5,
+        }),
+      });
     } else {
       return res.status(400).json({ error: 'Provedor não suportado' });
     }

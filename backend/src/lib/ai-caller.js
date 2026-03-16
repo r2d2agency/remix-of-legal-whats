@@ -320,3 +320,71 @@ async function callGemini(config, messages, options) {
     model,
   };
 }
+
+// ==================== OpenRouter ====================
+
+async function callOpenRouter(config, messages, options) {
+  // OpenRouter uses the same format as OpenAI
+  const sanitizedMessages = messages.map(msg => {
+    if (Array.isArray(msg.content)) {
+      const filtered = msg.content.filter(part => 
+        part.type === 'text' || part.type === 'image_url'
+      );
+      const hadAudio = msg.content.some(p => p.type === 'input_audio');
+      if (hadAudio && !filtered.some(p => p.type === 'text' && p.text?.includes('áudio'))) {
+        filtered.push({ type: 'text', text: '[Conteúdo de áudio não suportado neste modelo]' });
+      }
+      if (filtered.length === 0) filtered.push({ type: 'text', text: '' });
+      return { ...msg, content: filtered };
+    }
+    return msg;
+  });
+
+  const body = {
+    model: config.model || 'openai/gpt-4o-mini',
+    messages: sanitizedMessages,
+    temperature: typeof options.temperature === 'number' ? options.temperature : parseFloat(options.temperature) || 0.7,
+    max_tokens: typeof options.maxTokens === 'number' ? options.maxTokens : parseInt(options.maxTokens, 10) || 1000,
+  };
+
+  if (options.tools) {
+    body.tools = options.tools;
+    body.tool_choice = options.toolChoice;
+  }
+
+  if (options.responseFormat) {
+    body.response_format = options.responseFormat;
+  }
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.APP_URL || 'https://gleego.app',
+      'X-Title': 'Glee-go Whats',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenRouter API error ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json();
+  const choice = data.choices?.[0];
+
+  const toolCalls = choice?.message?.tool_calls?.map(tc => ({
+    id: tc.id,
+    name: tc.function.name,
+    arguments: JSON.parse(tc.function.arguments || '{}'),
+  })) || [];
+
+  return {
+    content: choice?.message?.content || '',
+    toolCalls,
+    tokensUsed: data.usage?.total_tokens || 0,
+    model: data.model || config.model,
+  };
+}

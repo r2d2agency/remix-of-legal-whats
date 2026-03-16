@@ -10,7 +10,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 interface AIConfig {
-  ai_provider: 'none' | 'openai' | 'gemini';
+  ai_provider: 'none' | 'openai' | 'gemini' | 'openrouter';
   ai_model: string;
   ai_api_key: string;
 }
@@ -26,6 +26,24 @@ const AI_MODELS = {
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Mais recente e equilibrado' },
     { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Alta capacidade e contexto longo' },
   ],
+  openrouter: [
+    { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', description: 'Via OpenRouter - Multimodal poderoso' },
+    { id: 'openai/gpt-4o-mini', name: 'OpenAI GPT-4o Mini', description: 'Via OpenRouter - Econômico' },
+    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', description: 'Anthropic - Excelente raciocínio' },
+    { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', description: 'Anthropic - Rápido e econômico' },
+    { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', description: 'Google via OpenRouter' },
+    { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', description: 'Meta - Open source poderoso' },
+    { id: 'meta-llama/llama-3.1-8b-instruct', name: 'Llama 3.1 8B', description: 'Meta - Leve e rápido' },
+    { id: 'mistralai/mistral-large-latest', name: 'Mistral Large', description: 'Mistral - Alta capacidade' },
+    { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', description: 'DeepSeek - Custo-benefício' },
+    { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', description: 'Alibaba - Multilingue' },
+  ],
+};
+
+const PROVIDER_INFO: Record<string, { placeholder: string; link: string; linkLabel: string; color: string }> = {
+  openai: { placeholder: 'sk-...', link: 'https://platform.openai.com/api-keys', linkLabel: 'platform.openai.com', color: 'text-green-500' },
+  gemini: { placeholder: 'AIza...', link: 'https://aistudio.google.com/apikey', linkLabel: 'aistudio.google.com', color: 'text-blue-500' },
+  openrouter: { placeholder: 'sk-or-v1-...', link: 'https://openrouter.ai/keys', linkLabel: 'openrouter.ai/keys', color: 'text-purple-500' },
 };
 
 export function AIConfigPanel() {
@@ -98,11 +116,15 @@ export function AIConfigPanel() {
     }
   };
 
-  const currentModels = config.ai_provider === 'openai' 
-    ? AI_MODELS.openai 
-    : config.ai_provider === 'gemini' 
-      ? AI_MODELS.gemini 
-      : [];
+  const getDefaultModel = (provider: string) => {
+    if (provider === 'openai') return 'gpt-4o-mini';
+    if (provider === 'gemini') return 'gemini-2.0-flash';
+    if (provider === 'openrouter') return 'openai/gpt-4o-mini';
+    return '';
+  };
+
+  const currentModels = AI_MODELS[config.ai_provider as keyof typeof AI_MODELS] || [];
+  const providerInfo = PROVIDER_INFO[config.ai_provider];
 
   if (loading) {
     return (
@@ -132,11 +154,11 @@ export function AIConfigPanel() {
           <Label>Provedor de IA</Label>
           <Select
             value={config.ai_provider}
-            onValueChange={(value: 'none' | 'openai' | 'gemini') => {
+            onValueChange={(value: AIConfig['ai_provider']) => {
               setConfig(prev => ({
                 ...prev,
                 ai_provider: value,
-                ai_model: value === 'openai' ? 'gpt-4o-mini' : value === 'gemini' ? 'gemini-2.0-flash' : '',
+                ai_model: getDefaultModel(value),
               }));
               setTestResult(null);
             }}
@@ -160,11 +182,22 @@ export function AIConfigPanel() {
                   Google Gemini
                 </div>
               </SelectItem>
+              <SelectItem value="openrouter">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-purple-500" />
+                  OpenRouter (Multi-modelo)
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
+          {config.ai_provider === 'openrouter' && (
+            <p className="text-xs text-muted-foreground">
+              OpenRouter dá acesso a centenas de modelos (OpenAI, Anthropic, Google, Meta, etc.) com uma única API Key.
+            </p>
+          )}
         </div>
 
-        {config.ai_provider !== 'none' && (
+        {config.ai_provider !== 'none' && providerInfo && (
           <>
             {/* Model Selection */}
             <div className="space-y-2">
@@ -187,7 +220,27 @@ export function AIConfigPanel() {
                   ))}
                 </SelectContent>
               </Select>
+              {config.ai_provider === 'openrouter' && (
+                <p className="text-xs text-muted-foreground">
+                  Você também pode digitar qualquer modelo disponível no{' '}
+                  <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    catálogo do OpenRouter
+                  </a>
+                </p>
+              )}
             </div>
+
+            {/* Custom model input for OpenRouter */}
+            {config.ai_provider === 'openrouter' && (
+              <div className="space-y-2">
+                <Label>Ou digite o ID do modelo manualmente</Label>
+                <Input
+                  placeholder="ex: anthropic/claude-3.5-sonnet"
+                  value={config.ai_model}
+                  onChange={(e) => setConfig(prev => ({ ...prev, ai_model: e.target.value }))}
+                />
+              </div>
+            )}
 
             {/* API Key */}
             <div className="space-y-2">
@@ -200,7 +253,7 @@ export function AIConfigPanel() {
                     setConfig(prev => ({ ...prev, ai_api_key: e.target.value }));
                     setTestResult(null);
                   }}
-                  placeholder={config.ai_provider === 'openai' ? 'sk-...' : 'AIza...'}
+                  placeholder={providerInfo.placeholder}
                   className="pr-10"
                 />
                 <Button
@@ -214,31 +267,15 @@ export function AIConfigPanel() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                {config.ai_provider === 'openai' ? (
-                  <>
-                    Obtenha em:{' '}
-                    <a 
-                      href="https://platform.openai.com/api-keys" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline inline-flex items-center gap-1"
-                    >
-                      platform.openai.com <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </>
-                ) : (
-                  <>
-                    Obtenha em:{' '}
-                    <a 
-                      href="https://aistudio.google.com/apikey" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline inline-flex items-center gap-1"
-                    >
-                      aistudio.google.com <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </>
-                )}
+                Obtenha em:{' '}
+                <a 
+                  href={providerInfo.link}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  {providerInfo.linkLabel} <ExternalLink className="h-3 w-3" />
+                </a>
               </p>
             </div>
 
