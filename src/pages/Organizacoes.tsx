@@ -254,9 +254,22 @@ export default function Organizacoes() {
     try {
       const settings = await api<any>(`/api/lead-gleego/settings`);
       setLeadGleegoApiKeyMasked(settings.lead_gleego_api_key_masked || '');
+      setGleegoFunnelId(settings.lead_gleego_funnel_id || '');
+      setGleegoStageId(settings.lead_gleego_stage_id || '');
+      setGleegoWebhookId(settings.lead_gleego_webhook_id || '');
     } catch {
       // ignore
     }
+    // Load funnels for Gleego config
+    try {
+      const funnels = await api<any[]>(`/api/crm/funnels`);
+      setGleegoFunnels(funnels || []);
+    } catch { }
+    // Load webhooks for distribution selection
+    try {
+      const webhooks = await api<any[]>(`/api/lead-webhooks`);
+      setGleegoWebhooks(webhooks || []);
+    } catch { }
   };
 
   const loadTemplates = async (orgId: string) => {
