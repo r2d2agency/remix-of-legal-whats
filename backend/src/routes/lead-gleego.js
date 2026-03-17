@@ -64,6 +64,7 @@ router.post('/receive', async (req, res) => {
     const stageId = settings.lead_gleego_stage_id;
     const distributionWebhookId = settings.lead_gleego_webhook_id; // optional: reuse webhook distribution
     const defaultOwnerId = settings.lead_gleego_owner_id;
+    const dealTitleTemplate = settings.lead_gleego_deal_title_template || '{nome}';
 
     // Extract lead data with common field names
     const mappedData = {
