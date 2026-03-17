@@ -555,6 +555,7 @@ Content-Type: application/json
                   />
                 </div>
 
+                {editingWebhook && (
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div>
                       <p className="font-medium text-sm">Status do Webhook</p>
