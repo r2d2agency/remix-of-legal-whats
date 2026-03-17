@@ -73,16 +73,15 @@ function CodeBlock({ language, code, title }: { language: string; code: string; 
 }
 
 export default function ApiDocumentation() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { data: webhooks = [], isLoading } = useLeadWebhooks();
   const { data: funnels = [] } = useCRMFunnels();
   const { data: members = [] } = useQuery({
-    queryKey: ["org-members-for-api-tokens"],
+    queryKey: ["org-members-for-api-tokens", user?.organization_id],
     queryFn: async () => {
-      const response = await api<{ members: Array<{ user_id: string; name: string; email: string; role: string }> }>("/api/organizations/current");
-      return response.members || [];
+      return api<Array<{ user_id: string; name: string; email: string; role: string }>>(`/api/organizations/${user?.organization_id}/members`);
     },
-    enabled: isAuthenticated,
+    enabled: !!user?.organization_id,
   });
   const { createWebhook, updateWebhook, deleteWebhook, regenerateToken, toggleDistribution, addDistributionMember, removeDistributionMember } = useLeadWebhookMutations();
 
