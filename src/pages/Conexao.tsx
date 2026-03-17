@@ -165,6 +165,10 @@ const Conexao = () => {
     setNewConnectionName('');
     setNewConnectionInstanceId('');
     setNewConnectionWapiToken('');
+    setNewConnectionProvider('wapi');
+    setNewMetaToken('');
+    setNewMetaPhoneNumberId('');
+    setNewMetaWabaId('');
   };
 
   const handleCreateConnection = async () => {
