@@ -1531,6 +1531,19 @@ export default function Organizacoes() {
                                 </Select>
                               </div>
 
+                              {/* Deal Title Template */}
+                              <div className="space-y-3 pt-3 border-t border-border/50">
+                                <p className="text-sm font-medium">📝 Título da Negociação</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Use variáveis como <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{email}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code>, <code className="bg-muted px-1 rounded">{'{empresa}'}</code>. Ex: <code className="bg-muted px-1 rounded">{'{nome}'} | Orçamento</code>
+                                </p>
+                                <Input
+                                  placeholder="{nome}"
+                                  value={gleegoDealTitleTemplate}
+                                  onChange={(e) => setGleegoDealTitleTemplate(e.target.value)}
+                                />
+                              </div>
+
                               <Button onClick={handleSaveLeadGleegoSettings} size="sm" className="w-full">
                                 Salvar Configurações do Gleego
                               </Button>

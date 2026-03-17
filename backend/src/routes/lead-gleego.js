@@ -449,6 +449,7 @@ router.put('/settings', async (req, res) => {
     if (lead_gleego_webhook_id !== undefined) updateObj.lead_gleego_webhook_id = lead_gleego_webhook_id;
     if (lead_gleego_owner_id !== undefined) updateObj.lead_gleego_owner_id = lead_gleego_owner_id;
     if (lead_gleego_field_mapping !== undefined) updateObj.lead_gleego_field_mapping = lead_gleego_field_mapping;
+    if (lead_gleego_deal_title_template !== undefined) updateObj.lead_gleego_deal_title_template = lead_gleego_deal_title_template;
 
     await query(
       `UPDATE organizations 
