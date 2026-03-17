@@ -248,9 +248,15 @@ router.post('/receive/:token', async (req, res) => {
             if (listResult.rows.length > 0) {
               listId = listResult.rows[0].id;
             } else {
+              // Get owner user_id from organization
+              const ownerResult = await query(
+                `SELECT user_id FROM organization_members WHERE organization_id = $1 AND role = 'owner' LIMIT 1`,
+                [webhook.organization_id]
+              );
+              const ownerId = ownerResult.rows.length > 0 ? ownerResult.rows[0].user_id : null;
               const newList = await query(
-                `INSERT INTO contact_lists (name, connection_id) VALUES ('Contatos Salvos', $1) RETURNING id`,
-                [connForList.rows[0].id]
+                `INSERT INTO contact_lists (name, connection_id, user_id) VALUES ('Contatos Salvos', $1, $2) RETURNING id`,
+                [connForList.rows[0].id, ownerId]
               );
               listId = newList.rows[0].id;
             }
