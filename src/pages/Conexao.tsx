@@ -177,22 +177,41 @@ const Conexao = () => {
       return;
     }
 
+    if (newConnectionProvider === 'meta') {
+      if (!newMetaToken.trim() || !newMetaPhoneNumberId.trim() || !newMetaWabaId.trim()) {
+        toast.error('Token, Phone Number ID e WABA ID são obrigatórios');
+        return;
+      }
+    }
+
     setCreating(true);
     try {
       let result: Connection & { qrCode?: string };
 
-      // Create W-API connection - instance is auto-created using org token
-      result = await api<Connection>('/api/connections', {
-        method: 'POST',
-        body: {
-          provider: 'wapi',
-          name: newConnectionName,
-        },
-      });
-      toast.success('Conexão criada! Instância W-API gerada automaticamente.');
-      // Auto-open QR code dialog
-      setSelectedConnection(result);
-      handleGetQRCode(result);
+      if (newConnectionProvider === 'meta') {
+        result = await api<Connection>('/api/connections', {
+          method: 'POST',
+          body: {
+            provider: 'meta',
+            name: newConnectionName,
+            meta_token: newMetaToken,
+            meta_phone_number_id: newMetaPhoneNumberId,
+            meta_waba_id: newMetaWabaId,
+          },
+        });
+        toast.success('Conexão Meta API criada com sucesso!');
+      } else {
+        result = await api<Connection>('/api/connections', {
+          method: 'POST',
+          body: {
+            provider: 'wapi',
+            name: newConnectionName,
+          },
+        });
+        toast.success('Conexão criada! Instância W-API gerada automaticamente.');
+        setSelectedConnection(result);
+        handleGetQRCode(result);
+      }
 
       setConnections(prev => [...prev, result]);
       setShowCreateDialog(false);
@@ -202,6 +221,29 @@ const Conexao = () => {
       toast.error(error.message || 'Erro ao criar conexão', { duration: 8000 });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleValidateMetaToken = async () => {
+    if (!newMetaToken.trim() || !newMetaWabaId.trim()) {
+      toast.error('Preencha o Token e WABA ID para validar');
+      return;
+    }
+    setValidatingMeta(true);
+    try {
+      const result = await api<{ valid: boolean; error?: string; account?: any }>('/api/meta/validate', {
+        method: 'POST',
+        body: { token: newMetaToken, waba_id: newMetaWabaId },
+      });
+      if (result.valid) {
+        toast.success(`Token válido! Conta: ${result.account?.name || 'OK'}`);
+      } else {
+        toast.error(result.error || 'Token inválido');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao validar');
+    } finally {
+      setValidatingMeta(false);
     }
   };
 
