@@ -431,6 +431,7 @@ Content-Type: application/json
                   <Label htmlFor="deal_title_template">📝 Título da Negociação</Label>
                   <p className="text-xs text-muted-foreground">
                     Use variáveis: <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{email}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code>, <code className="bg-muted px-1 rounded">{'{empresa}'}</code>, <code className="bg-muted px-1 rounded">{'{valor}'}</code>
+                    {editingWebhook && <LastPayloadCustomFieldVars webhookId={editingWebhook.id} />}
                   </p>
                   <Input
                     id="deal_title_template"
@@ -581,9 +582,19 @@ Content-Type: application/json
                   <p className="text-sm text-muted-foreground">
                     <AlertCircle className="h-4 w-4 inline mr-1" />
                     O mapeamento de campos é opcional. O sistema detecta automaticamente campos comuns 
-                    como name, email, phone, company. Use o <strong>Inspetor de Payload</strong> nos logs para ver exatamente o que está chegando.
+                    como name, email, phone, company. Campos dentro de <code className="bg-muted px-1 rounded">custom_fields</code> são extraídos automaticamente.
                   </p>
                 </div>
+
+                {/* Show last payload fields for reference */}
+                {editingWebhook && (
+                  <LastPayloadFieldsExplorer 
+                    webhookId={editingWebhook.id} 
+                    onAddMapping={(sourceField, targetField) => {
+                      setForm({ ...form, field_mapping: { ...form.field_mapping, [sourceField]: targetField } });
+                    }}
+                  />
+                )}
 
                 {/* Auto-detect from last payload */}
                 {editingWebhook && (
@@ -602,7 +613,7 @@ Content-Type: application/json
                   {Object.entries(form.field_mapping).map(([source, target], index) => (
                     <div key={index} className="flex items-center gap-2">
                       <Input
-                        placeholder="Campo origem (ex: lead.nome)"
+                        placeholder="Campo origem (ex: custom_fields.novo_campo)"
                         value={source}
                         onChange={(e) => {
                           const newMapping = { ...form.field_mapping };
@@ -704,6 +715,75 @@ Content-Type: application/json
         removeMember={removeDistributionMember}
       />
     </MainLayout>
+  );
+}
+
+// Show custom_fields variables from last payload for the title template
+function LastPayloadCustomFieldVars({ webhookId }: { webhookId: string }) {
+  const { data: logs = [] } = useWebhookLogs(webhookId);
+  const lastPayload = logs.length > 0 ? logs[0]?.request_body : null;
+  if (!lastPayload) return null;
+
+  // Extract custom_fields keys
+  const customFieldKeys: string[] = [];
+  if (lastPayload.custom_fields && typeof lastPayload.custom_fields === 'object') {
+    for (const key of Object.keys(lastPayload.custom_fields)) {
+      customFieldKeys.push(key);
+    }
+  }
+
+  if (customFieldKeys.length === 0) return null;
+
+  return (
+    <span className="block mt-1">
+      Campos personalizados: {customFieldKeys.map(k => (
+        <code key={k} className="bg-muted px-1 rounded mr-1 cursor-pointer hover:bg-primary/20" onClick={() => {
+          navigator.clipboard.writeText(`{${k}}`);
+          toast.success(`Variável {${k}} copiada`);
+        }}>{`{${k}}`}</code>
+      ))}
+    </span>
+  );
+}
+
+// Show all fields from last payload in the mapping tab
+function LastPayloadFieldsExplorer({ webhookId, onAddMapping }: { webhookId: string; onAddMapping: (source: string, target: string) => void }) {
+  const { data: logs = [] } = useWebhookLogs(webhookId);
+  const lastPayload = logs.length > 0 ? logs[0]?.request_body : null;
+
+  if (!lastPayload) return (
+    <div className="p-3 border border-dashed rounded-lg text-center text-sm text-muted-foreground">
+      <Webhook className="h-5 w-5 mx-auto mb-1 opacity-50" />
+      Envie um lead de teste para ver os campos disponíveis aqui
+    </div>
+  );
+
+  const allKeys = flattenKeys(lastPayload);
+
+  return (
+    <div className="p-3 border rounded-lg space-y-2">
+      <Label className="text-sm font-semibold">📦 Campos do último payload recebido</Label>
+      <p className="text-xs text-muted-foreground">Clique em um campo para adicioná-lo ao mapeamento</p>
+      <div className="flex flex-wrap gap-1.5">
+        {allKeys.map(key => {
+          const value = getNestedPreview(lastPayload, key);
+          return (
+            <Badge 
+              key={key}
+              variant="outline"
+              className="text-xs font-mono gap-1 cursor-pointer hover:bg-primary/10"
+              onClick={() => {
+                onAddMapping(key, 'custom_fields');
+                toast.success(`Campo "${key}" adicionado ao mapeamento`);
+              }}
+            >
+              <Plus className="h-3 w-3" />
+              {key}{value ? `: ${value.slice(0, 30)}` : ''}
+            </Badge>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
