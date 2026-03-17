@@ -971,17 +971,22 @@ const handleGetQRCode = async (connection: Connection) => {
                     </div>
                     <div className="flex items-center gap-1.5 p-2 rounded bg-muted/50">
                       <Badge variant="outline" className="text-[10px] px-1.5">
-                        {(connection.provider === 'wapi' || !!connection.instance_id) ? 'W-API' : 'Evolution'}
+                        {connection.provider === 'meta' 
+                          ? 'Meta API'
+                          : (connection.provider === 'wapi' || !!connection.instance_id) ? 'W-API' : 'Evolution'}
                       </Badge>
                       <code className="text-[10px] truncate flex-1">
-                        {(connection.provider === 'wapi' || !!connection.instance_id) 
-                          ? connection.instance_id 
-                          : connection.instance_name}
+                        {connection.provider === 'meta'
+                          ? connection.meta_phone_number_id
+                          : (connection.provider === 'wapi' || !!connection.instance_id) 
+                            ? connection.instance_id 
+                            : connection.instance_name}
                       </code>
                     </div>
                   </div>
 
-                  {/* Groups Toggle */}
+                  {/* Groups Toggle - not for Meta */}
+                  {connection.provider !== 'meta' && (
                   <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
@@ -1008,6 +1013,7 @@ const handleGetQRCode = async (connection: Connection) => {
                       }}
                     />
                   </div>
+                  )}
 
                   {/* Lead Distribution Button */}
                   <div 
