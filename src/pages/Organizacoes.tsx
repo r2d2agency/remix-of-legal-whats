@@ -386,6 +386,7 @@ export default function Organizacoes() {
       body.lead_gleego_funnel_id = gleegoFunnelId || null;
       body.lead_gleego_stage_id = gleegoStageId || null;
       body.lead_gleego_webhook_id = (gleegoWebhookId && gleegoWebhookId !== 'none') ? gleegoWebhookId : null;
+      body.lead_gleego_deal_title_template = gleegoDealTitleTemplate || '{nome}';
 
       await api('/api/lead-gleego/settings', { method: 'PUT', body });
       toast.success('Configurações do Lead Gleego salvas!');
