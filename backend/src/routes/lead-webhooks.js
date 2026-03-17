@@ -118,6 +118,19 @@ router.post('/receive/:token', async (req, res) => {
       }
     }
 
+    // Auto-extract custom_fields from payload (nested object)
+    if (payload.custom_fields && typeof payload.custom_fields === 'object') {
+      for (const [cfKey, cfValue] of Object.entries(payload.custom_fields)) {
+        if (cfValue !== null && cfValue !== undefined && cfValue !== '') {
+          // Only add if not already mapped via field_mapping
+          if (!mappedData.custom_fields[cfKey] && !mappedData.custom_fields[`custom_fields.${cfKey}`]) {
+            mappedData.custom_fields[cfKey] = cfValue;
+            mappingLog[`custom_fields.${cfKey}`] = { target: `custom_fields.${cfKey}`, value: String(cfValue), source: 'auto' };
+          }
+        }
+      }
+    }
+
     // Fallback: try common field names if mapping doesn't provide required fields
     if (!mappedData.name) {
       const fallbackName = payload.name || payload.full_name || payload.nome || 
