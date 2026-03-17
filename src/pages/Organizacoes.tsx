@@ -257,6 +257,7 @@ export default function Organizacoes() {
       setGleegoFunnelId(settings.lead_gleego_funnel_id || '');
       setGleegoStageId(settings.lead_gleego_stage_id || '');
       setGleegoWebhookId(settings.lead_gleego_webhook_id || '');
+      setGleegoDealTitleTemplate(settings.lead_gleego_deal_title_template || '{nome}');
     } catch {
       // ignore
     }
