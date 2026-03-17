@@ -514,7 +514,8 @@ router.post('/', async (req, res) => {
       owner_id, 
       field_mapping,
       default_value,
-      default_probability 
+      default_probability,
+      deal_title_template
     } = req.body;
 
     if (!name) {
@@ -528,8 +529,8 @@ router.post('/', async (req, res) => {
       `INSERT INTO lead_webhooks (
          organization_id, name, description, webhook_token,
          funnel_id, stage_id, owner_id, field_mapping,
-         default_value, default_probability, created_by
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         default_value, default_probability, deal_title_template, created_by
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         org.organization_id,
@@ -542,6 +543,7 @@ router.post('/', async (req, res) => {
         JSON.stringify(field_mapping || {}),
         default_value || 0,
         default_probability || 10,
+        deal_title_template || '{nome}',
         req.userId
       ]
     );
