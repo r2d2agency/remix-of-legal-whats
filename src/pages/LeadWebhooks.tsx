@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,15 +69,16 @@ function getNestedPreview(obj: any, path: string): string {
 }
 
 export default function LeadWebhooks() {
+  const { user } = useAuth();
   const { data: webhooks = [], isLoading } = useLeadWebhooks();
   const { data: funnels = [] } = useCRMFunnels();
   // selectedFunnelData is loaded below after form state
   const { data: members = [] } = useQuery({
-    queryKey: ["org-members-for-webhooks"],
+    queryKey: ["org-members-for-webhooks", user?.organization_id],
     queryFn: async () => {
-      const response = await api<{ members: Array<{ user_id: string; name: string; email: string; role: string }> }>("/api/organizations/current");
-      return response.members || [];
+      return api<Array<{ user_id: string; name: string; email: string; role: string }>>(`/api/organizations/${user?.organization_id}/members`);
     },
+    enabled: !!user?.organization_id,
   });
   const { createWebhook, updateWebhook, deleteWebhook, regenerateToken, toggleDistribution, addDistributionMember, removeDistributionMember } = useLeadWebhookMutations();
 
