@@ -70,7 +70,7 @@ function getNestedPreview(obj: any, path: string): string {
 export default function LeadWebhooks() {
   const { data: webhooks = [], isLoading } = useLeadWebhooks();
   const { data: funnels = [] } = useCRMFunnels();
-  const { data: selectedFunnelData } = useCRMFunnel(form.funnel_id || null);
+  // selectedFunnelData is loaded below after form state
   const { data: members = [] } = useQuery({
     queryKey: ["org-members-for-webhooks"],
     queryFn: async () => {
