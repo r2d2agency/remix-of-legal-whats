@@ -183,11 +183,11 @@ router.post('/receive', async (req, res) => {
            organization_id, funnel_id, stage_id, company_id,
            title, value, probability, status, description,
            owner_id, created_by, source
-         ) VALUES ($1, $2, $3, $4, $5, $6, 10, 'open', $7, $8, $8, 'FormGleego')
+          ) VALUES ($1, $2, $3, $4, $5, $6, 10, 'open', $7, $8, $8, 'form_gleego')
          RETURNING id`,
         [
           org.id, funnelId, stageId, companyId,
-          `Lead: ${mappedData.name}`,
+          mappedData.name || 'Novo Lead',
           mappedData.value,
           description,
           assignedOwnerId
