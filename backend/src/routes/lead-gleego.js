@@ -198,16 +198,41 @@ router.post('/receive', async (req, res) => {
       // Create/link contact
       if (cleanPhone) {
         let contactResult = await query(
-          `SELECT id FROM contacts WHERE organization_id = $1 AND phone = $2 LIMIT 1`,
+          `SELECT c.id FROM contacts c
+           JOIN contact_lists cl ON cl.id = c.list_id
+           JOIN connections conn ON conn.id = cl.connection_id
+           WHERE conn.organization_id = $1 AND c.phone = $2
+           LIMIT 1`,
           [org.id, cleanPhone]
         );
         let contactId;
         if (contactResult.rows.length > 0) {
           contactId = contactResult.rows[0].id;
         } else {
+          // Find or create contact list
+          const connForList = await query(
+            `SELECT id FROM connections WHERE organization_id = $1 AND status = 'connected' ORDER BY created_at ASC LIMIT 1`,
+            [org.id]
+          );
+          let listId = null;
+          if (connForList.rows.length > 0) {
+            const listResult = await query(
+              `SELECT id FROM contact_lists WHERE connection_id = $1 LIMIT 1`,
+              [connForList.rows[0].id]
+            );
+            if (listResult.rows.length > 0) {
+              listId = listResult.rows[0].id;
+            } else {
+              const newList = await query(
+                `INSERT INTO contact_lists (name, connection_id) VALUES ('Contatos Salvos', $1) RETURNING id`,
+                [connForList.rows[0].id]
+              );
+              listId = newList.rows[0].id;
+            }
+          }
           const newContact = await query(
-            `INSERT INTO contacts (organization_id, name, phone, email, source) VALUES ($1, $2, $3, $4, 'FormGleego') RETURNING id`,
-            [org.id, mappedData.name, cleanPhone, mappedData.email]
+            `INSERT INTO contacts (list_id, name, phone, email, source) VALUES ($1, $2, $3, $4, 'FormGleego') RETURNING id`,
+            [listId, mappedData.name, cleanPhone, mappedData.email]
           );
           contactId = newContact.rows[0].id;
         }
