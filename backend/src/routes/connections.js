@@ -160,7 +160,10 @@ router.post('/', async (req, res) => {
       instance_name, 
       instance_id,
       wapi_token,
-      name 
+      name,
+      meta_token,
+      meta_phone_number_id,
+      meta_waba_id,
     } = req.body;
 
     const org = await getUserOrganization(req.userId);
@@ -172,7 +175,6 @@ router.post('/', async (req, res) => {
     // For W-API: get token from org if not provided
     let resolvedToken = wapi_token || null;
     if (provider === 'wapi' && !resolvedToken) {
-      // Fetch global W-API token from system_settings (configured by superadmin)
       const settingResult = await query(
         `SELECT value FROM system_settings WHERE key = 'wapi_token'`
       );
@@ -180,7 +182,11 @@ router.post('/', async (req, res) => {
     }
 
     // Validate based on provider
-    if (provider === 'wapi') {
+    if (provider === 'meta') {
+      if (!meta_token || !meta_phone_number_id || !meta_waba_id) {
+        return res.status(400).json({ error: 'Token, Phone Number ID e WABA ID são obrigatórios para conexão Meta' });
+      }
+    } else if (provider === 'wapi') {
       if (!resolvedToken) {
         return res.status(400).json({ error: 'Token W-API não configurado. Peça ao administrador para configurar o token no painel Superadmin.' });
       }
