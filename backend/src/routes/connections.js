@@ -239,8 +239,8 @@ router.post('/', async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO connections (user_id, organization_id, provider, api_url, api_key, instance_name, instance_id, wapi_token, name)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      `INSERT INTO connections (user_id, organization_id, provider, api_url, api_key, instance_name, instance_id, wapi_token, name, meta_token, meta_phone_number_id, meta_waba_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [
         req.userId, 
         org?.organization_id || null, 
@@ -250,7 +250,10 @@ router.post('/', async (req, res) => {
         instance_name || null,
         finalInstanceId,
         finalToken,
-        name.trim()
+        name.trim(),
+        meta_token || null,
+        meta_phone_number_id || null,
+        meta_waba_id || null,
       ]
     );
 

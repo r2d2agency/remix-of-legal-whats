@@ -204,6 +204,7 @@ app.use('/api/push', pushRoutes);
 app.use('/api/task-boards', taskBoardsRoutes);
 app.use('/api/lead-gleego', leadGleegoRoutes);
 app.use('/api/global-agents', globalAgentsRoutes);
+app.use('/api/meta', metaTemplatesRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
