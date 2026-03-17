@@ -23,12 +23,14 @@ import { useAuth } from "@/contexts/AuthContext";
 interface Connection {
   id: string;
   name: string;
-  provider?: 'evolution' | 'wapi';
+  provider?: 'evolution' | 'wapi' | 'meta';
   instance_name: string;
   instance_id?: string;
   status: string;
   phone_number?: string;
   show_groups?: boolean;
+  meta_phone_number_id?: string;
+  meta_waba_id?: string;
   created_at: string;
 }
 
