@@ -541,7 +541,20 @@ Content-Type: application/json
                   </div>
                 </div>
 
-                {editingWebhook && (
+                {/* Deal Title Template */}
+                <div className="space-y-2">
+                  <Label htmlFor="deal_title_template">📝 Título da Negociação</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Use variáveis: <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{email}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code>, <code className="bg-muted px-1 rounded">{'{empresa}'}</code>, <code className="bg-muted px-1 rounded">{'{valor}'}</code>. Ex: <code className="bg-muted px-1 rounded">{'{nome}'} | Orçamento</code>
+                  </p>
+                  <Input
+                    id="deal_title_template"
+                    placeholder="{nome}"
+                    value={form.deal_title_template}
+                    onChange={(e) => setForm({ ...form, deal_title_template: e.target.value })}
+                  />
+                </div>
+
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div>
                       <p className="font-medium text-sm">Status do Webhook</p>
