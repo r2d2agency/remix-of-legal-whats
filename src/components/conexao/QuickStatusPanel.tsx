@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 interface Connection {
   id: string;
   name: string;
-  provider?: 'evolution' | 'wapi';
+  provider?: 'evolution' | 'wapi' | 'meta';
   instance_name?: string | null;
   instance_id?: string | null;
   status: string;
