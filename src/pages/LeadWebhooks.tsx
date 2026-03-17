@@ -718,6 +718,75 @@ Content-Type: application/json
   );
 }
 
+// Show custom_fields variables from last payload for the title template
+function LastPayloadCustomFieldVars({ webhookId }: { webhookId: string }) {
+  const { data: logs = [] } = useWebhookLogs(webhookId);
+  const lastPayload = logs.length > 0 ? logs[0]?.request_body : null;
+  if (!lastPayload) return null;
+
+  // Extract custom_fields keys
+  const customFieldKeys: string[] = [];
+  if (lastPayload.custom_fields && typeof lastPayload.custom_fields === 'object') {
+    for (const key of Object.keys(lastPayload.custom_fields)) {
+      customFieldKeys.push(key);
+    }
+  }
+
+  if (customFieldKeys.length === 0) return null;
+
+  return (
+    <span className="block mt-1">
+      Campos personalizados: {customFieldKeys.map(k => (
+        <code key={k} className="bg-muted px-1 rounded mr-1 cursor-pointer hover:bg-primary/20" onClick={() => {
+          navigator.clipboard.writeText(`{${k}}`);
+          toast.success(`Variável {${k}} copiada`);
+        }}>{`{${k}}`}</code>
+      ))}
+    </span>
+  );
+}
+
+// Show all fields from last payload in the mapping tab
+function LastPayloadFieldsExplorer({ webhookId, onAddMapping }: { webhookId: string; onAddMapping: (source: string, target: string) => void }) {
+  const { data: logs = [] } = useWebhookLogs(webhookId);
+  const lastPayload = logs.length > 0 ? logs[0]?.request_body : null;
+
+  if (!lastPayload) return (
+    <div className="p-3 border border-dashed rounded-lg text-center text-sm text-muted-foreground">
+      <Webhook className="h-5 w-5 mx-auto mb-1 opacity-50" />
+      Envie um lead de teste para ver os campos disponíveis aqui
+    </div>
+  );
+
+  const allKeys = flattenKeys(lastPayload);
+
+  return (
+    <div className="p-3 border rounded-lg space-y-2">
+      <Label className="text-sm font-semibold">📦 Campos do último payload recebido</Label>
+      <p className="text-xs text-muted-foreground">Clique em um campo para adicioná-lo ao mapeamento</p>
+      <div className="flex flex-wrap gap-1.5">
+        {allKeys.map(key => {
+          const value = getNestedPreview(lastPayload, key);
+          return (
+            <Badge 
+              key={key}
+              variant="outline"
+              className="text-xs font-mono gap-1 cursor-pointer hover:bg-primary/10"
+              onClick={() => {
+                onAddMapping(key, 'custom_fields');
+                toast.success(`Campo "${key}" adicionado ao mapeamento`);
+              }}
+            >
+              <Plus className="h-3 w-3" />
+              {key}{value ? `: ${value.slice(0, 30)}` : ''}
+            </Badge>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Auto-detect mapping from last payload
 function AutoDetectMappingButton({ webhookId, onApplyMapping }: { webhookId: string; onApplyMapping: (mapping: Record<string, string>) => void }) {
   const { data: logs = [] } = useWebhookLogs(webhookId);
