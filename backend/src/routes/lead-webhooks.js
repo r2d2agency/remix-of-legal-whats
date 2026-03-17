@@ -306,6 +306,16 @@ router.post('/receive/:token', async (req, res) => {
         let contactId;
         if (contactResult.rows.length > 0) {
           contactId = contactResult.rows[0].id;
+          // Update contact name/email if they were empty and we now have data
+          if (mappedData.name && mappedData.name !== 'Lead sem nome') {
+            await query(
+              `UPDATE contacts SET name = CASE WHEN name IS NULL OR name = '' OR name = 'Lead sem nome' THEN $1 ELSE name END,
+               email = CASE WHEN (email IS NULL OR email = '') AND $2 != '' THEN $2 ELSE email END,
+               updated_at = NOW()
+               WHERE id = $3`,
+              [mappedData.name, mappedData.email || '', contactId]
+            );
+          }
         } else {
           // Find or create a contact list for the first active connection
           const connForList = await query(
@@ -366,11 +376,16 @@ router.post('/receive/:token', async (req, res) => {
             );
 
             if (convResult.rows.length > 0) {
-              // Assign all matching conversations to the distributed user
+              // Assign all matching conversations to the distributed user and update contact name
               for (const conv of convResult.rows) {
                 await query(
-                  `UPDATE conversations SET assigned_to = $1, attendance_status = 'attending', updated_at = NOW() WHERE id = $2`,
-                  [assignedOwnerId, conv.id]
+                  `UPDATE conversations SET 
+                     assigned_to = $1, 
+                     attendance_status = 'attending', 
+                     contact_name = CASE WHEN (contact_name IS NULL OR contact_name = '' OR contact_name LIKE '%@%') AND $3 != '' AND $3 != 'Lead sem nome' THEN $3 ELSE contact_name END,
+                     updated_at = NOW() 
+                   WHERE id = $2`,
+                  [assignedOwnerId, conv.id, mappedData.name || '']
                 );
               }
               logInfo(`[Lead Webhook] Assigned ${convResult.rows.length} conversation(s) to user ${assignedOwnerId}`, {
