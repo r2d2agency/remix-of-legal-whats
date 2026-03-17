@@ -135,7 +135,7 @@ router.post('/receive', async (req, res) => {
       const prospectResult = await query(
         `INSERT INTO crm_prospects (
            organization_id, name, email, phone, company_name, source, notes, created_by
-         ) VALUES ($1, $2, $3, $4, $5, 'FormGleego', $6, $7)
+         ) VALUES ($1, $2, $3, $4, $5, 'form_gleego', $6, $7)
          RETURNING id`,
         [
           org.id,
