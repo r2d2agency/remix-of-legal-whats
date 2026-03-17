@@ -929,7 +929,7 @@ function DistributionDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {availableMembers.length === 0 ? (
-                    <SelectItem value="" disabled>Todos os usuários já foram adicionados</SelectItem>
+                    <SelectItem value="__empty" disabled>Todos os usuários já foram adicionados</SelectItem>
                   ) : (
                     availableMembers.map((member) => (
                       <SelectItem key={member.user_id} value={member.user_id}>

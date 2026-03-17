@@ -1096,7 +1096,7 @@ function DistributionPanel({
                 </SelectTrigger>
                 <SelectContent>
                   {availableMembers.length === 0 ? (
-                    <SelectItem value="" disabled>Todos já adicionados</SelectItem>
+                    <SelectItem value="__empty" disabled>Todos já adicionados</SelectItem>
                   ) : (
                     availableMembers.map((member) => (
                       <SelectItem key={member.user_id} value={member.user_id}>

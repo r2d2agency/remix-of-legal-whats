@@ -601,7 +601,7 @@ export default function AgentesIACliente() {
                 )}
               </>
             ) : (
-              <SelectItem value="" disabled>Carregando modelos...</SelectItem>
+              <SelectItem value="__loading" disabled>Carregando modelos...</SelectItem>
             )}
           </SelectContent>
         </Select>
