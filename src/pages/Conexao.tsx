@@ -816,10 +816,24 @@ const handleGetQRCode = async (connection: Connection) => {
               <DialogHeader>
                 <DialogTitle>Nova Conexão WhatsApp</DialogTitle>
                 <DialogDescription>
-                  A instância W-API será criada automaticamente.
+                  Escolha o tipo de conexão e preencha os dados.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {/* Provider Selection */}
+                <div className="space-y-2">
+                  <Label>Tipo de Conexão</Label>
+                  <Select value={newConnectionProvider} onValueChange={(v: 'wapi' | 'meta') => setNewConnectionProvider(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="wapi">W-API (WhatsApp não-oficial)</SelectItem>
+                      <SelectItem value="meta">Meta Cloud API (Oficial)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Connection Name */}
                 <div className="space-y-2">
                   <Label>Nome da Conexão</Label>
@@ -830,11 +844,57 @@ const handleGetQRCode = async (connection: Connection) => {
                   />
                 </div>
 
-                <div className="rounded-lg border border-dashed p-3 bg-muted/30">
-                  <p className="text-xs text-muted-foreground">
-                    💡 A instância será criada automaticamente usando o token W-API configurado nas <strong>Configurações da Organização</strong>.
-                  </p>
-                </div>
+                {newConnectionProvider === 'wapi' ? (
+                  <div className="rounded-lg border border-dashed p-3 bg-muted/30">
+                    <p className="text-xs text-muted-foreground">
+                      💡 A instância será criada automaticamente usando o token W-API configurado nas <strong>Configurações da Organização</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Token de Acesso Permanente</Label>
+                      <Input 
+                        placeholder="EAAxxxxxxx..."
+                        value={newMetaToken}
+                        onChange={(e) => setNewMetaToken(e.target.value)}
+                        type="password"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone Number ID</Label>
+                      <Input 
+                        placeholder="Ex: 123456789012345"
+                        value={newMetaPhoneNumberId}
+                        onChange={(e) => setNewMetaPhoneNumberId(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>WhatsApp Business Account ID (WABA ID)</Label>
+                      <Input 
+                        placeholder="Ex: 123456789012345"
+                        value={newMetaWabaId}
+                        onChange={(e) => setNewMetaWabaId(e.target.value)}
+                      />
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleValidateMetaToken}
+                      disabled={validatingMeta || !newMetaToken || !newMetaWabaId}
+                      className="w-full"
+                    >
+                      {validatingMeta ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+                      Validar Credenciais
+                    </Button>
+                    <div className="rounded-lg border border-dashed p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground">
+                        💡 Obtenha estas credenciais no <strong>Meta Business Suite</strong> → Configurações → API do WhatsApp.
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setShowCreateDialog(false); resetCreateForm(); }}>
