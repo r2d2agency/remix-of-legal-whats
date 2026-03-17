@@ -12,9 +12,12 @@ const router = Router();
   } catch (e) {
     // ignore if already exists
   }
-  // Ensure source column on crm_deals
+  // Ensure source column on crm_deals and contacts
   try {
     await query(`ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS source VARCHAR(255)`);
+  } catch (_) {}
+  try {
+    await query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS source VARCHAR(255)`);
   } catch (_) {}
 })();
 
