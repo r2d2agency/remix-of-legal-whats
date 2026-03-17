@@ -90,6 +90,40 @@ router.post('/receive', async (req, res) => {
       }
     }
 
+    // Detect unmapped fields and notify
+    const knownKeys = new Set([
+      ...Object.keys(fieldMapping),
+      'name', 'full_name', 'nome', 'firstName', 'first_name', 'last_name',
+      'email', 'email_address', 'e_mail', 'phone', 'telefone', 'whatsapp',
+      'phone_number', 'cellphone', 'celular', 'company', 'empresa', 'company_name',
+      'apiKey', 'api_key', 'value', 'valor'
+    ]);
+    const unmappedFields = Object.keys(payload).filter(k => !knownKeys.has(k) && typeof payload[k] !== 'object');
+    
+    if (unmappedFields.length > 0) {
+      log(`[Lead Gleego] Unmapped fields detected: ${unmappedFields.join(', ')}`, { orgId: org.id });
+      // Notify org owner/admins about unmapped fields
+      try {
+        const admins = await query(
+          `SELECT user_id FROM organization_members WHERE organization_id = $1 AND role IN ('owner', 'admin')`,
+          [org.id]
+        );
+        for (const admin of admins.rows) {
+          await query(
+            `INSERT INTO user_alerts (user_id, type, title, message, metadata) VALUES ($1, 'warning', $2, $3, $4)`,
+            [
+              admin.user_id,
+              '⚠️ Campos não mapeados no FormGleego',
+              `Os seguintes campos do formulário não estão mapeados: ${unmappedFields.join(', ')}. Configure o mapeamento nas configurações do Lead Gleego.`,
+              JSON.stringify({ unmapped_fields: unmappedFields, source: 'form_gleego', sample_values: unmappedFields.reduce((acc, k) => { acc[k] = String(payload[k]).slice(0, 100); return acc; }, {}) })
+            ]
+          );
+        }
+      } catch (alertErr) {
+        logError('[Lead Gleego] Error creating unmapped fields alert', alertErr);
+      }
+    }
+
     const cleanPhone = mappedData.phone.toString().replace(/\D/g, '');
 
     let dealId = null;
