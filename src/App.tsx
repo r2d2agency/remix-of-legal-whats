@@ -54,6 +54,7 @@ import LeadGleego from "./pages/LeadGleego";
 import AgentesIACliente from "./pages/AgentesIACliente";
 import RespostasRapidas from "./pages/RespostasRapidas";
 import ApiDocumentation from "./pages/ApiDocumentation";
+import MetaTemplates from "./pages/MetaTemplates";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
