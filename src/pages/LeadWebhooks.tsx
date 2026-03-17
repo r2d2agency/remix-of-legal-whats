@@ -431,6 +431,7 @@ Content-Type: application/json
                   <Label htmlFor="deal_title_template">📝 Título da Negociação</Label>
                   <p className="text-xs text-muted-foreground">
                     Use variáveis: <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{email}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code>, <code className="bg-muted px-1 rounded">{'{empresa}'}</code>, <code className="bg-muted px-1 rounded">{'{valor}'}</code>
+                    {editingWebhook && <LastPayloadCustomFieldVars webhookId={editingWebhook.id} />}
                   </p>
                   <Input
                     id="deal_title_template"
