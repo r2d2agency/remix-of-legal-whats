@@ -223,7 +223,7 @@ export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetai
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
@@ -293,7 +293,7 @@ export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetai
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : details ? (
-          <div className="flex flex-col gap-4 overflow-hidden">
+          <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-auto">
             {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-accent/50 rounded-lg p-3 text-center">
@@ -373,7 +373,7 @@ export function CampaignDetailModal({ campaignId, open, onClose }: CampaignDetai
                 <Users className="h-4 w-4" />
                 Contatos ({details.messages.length})
               </h3>
-              <ScrollArea className="h-[300px] rounded-lg border">
+              <ScrollArea className="h-[40vh] rounded-lg border">
                 <div className="divide-y divide-border">
                   {details.messages.map((msg) => {
                     const config = statusConfig[msg.status];
