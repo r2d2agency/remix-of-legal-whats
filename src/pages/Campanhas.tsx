@@ -100,6 +100,21 @@ const Campanhas = () => {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   
+  // Reports state
+  const [reportData, setReportData] = useState<CampaignReport | null>(null);
+  const [reportStartDate, setReportStartDate] = useState<Date | undefined>();
+  const [reportEndDate, setReportEndDate] = useState<Date | undefined>();
+  const [loadingReport, setLoadingReport] = useState(false);
+  
+  // Edit campaign dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [editConnection, setEditConnection] = useState("");
+  const [editStartDate, setEditStartDate] = useState<Date | undefined>();
+  const [editEndDate, setEditEndDate] = useState<Date | undefined>();
+  const [editStartTime, setEditStartTime] = useState("08:00");
+  const [editEndTime, setEditEndTime] = useState("18:00");
+  
   // Auto-refresh state
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [countdown, setCountdown] = useState(30);
