@@ -62,6 +62,8 @@ const MetaTemplates = () => {
   const [syncing, setSyncing] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+
   // Create form state
   const [newName, setNewName] = useState("");
   const [newLanguage, setNewLanguage] = useState("pt_BR");
@@ -70,6 +72,18 @@ const MetaTemplates = () => {
   const [newBodyText, setNewBodyText] = useState("");
   const [newFooterText, setNewFooterText] = useState("");
   const [creating, setCreating] = useState(false);
+
+  const applyPreset = (preset: MetaTemplatePreset) => {
+    setNewName(preset.name);
+    setNewBodyText(preset.bodyText);
+    setNewHeaderText(preset.headerText || "");
+    setNewFooterText(preset.footerText || "");
+    setNewCategory(preset.category);
+    setNewLanguage(preset.language);
+    setPresetDialogOpen(false);
+    setCreateDialogOpen(true);
+    toast.success(`Modelo "${preset.displayName}" carregado. Edite e envie para aprovação.`);
+  };
 
   useEffect(() => {
     loadMetaConnections();
