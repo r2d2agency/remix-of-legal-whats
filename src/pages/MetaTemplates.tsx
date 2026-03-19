@@ -45,6 +45,14 @@ const CATEGORIES = [
   { value: "AUTHENTICATION", label: "Autenticação" },
 ];
 
+const normalizeTemplateName = (value: string) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
 const MetaTemplates = () => {
   const [connections, setConnections] = useState<MetaConnection[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>("");
@@ -109,6 +117,18 @@ const MetaTemplates = () => {
       return;
     }
 
+    const normalizedName = normalizeTemplateName(newName);
+    const hasLocalDuplicate = templates.some(
+      (template) =>
+        normalizeTemplateName(template.name) === normalizedName &&
+        String(template.language || "").toLowerCase() === String(newLanguage || "").toLowerCase()
+    );
+
+    if (hasLocalDuplicate) {
+      toast.error("Já existe template com esse nome e idioma. Use outro nome (ex: boas_vindas_v2).");
+      return;
+    }
+
     const components: any[] = [];
     if (newHeaderText.trim()) {
       components.push({ type: "HEADER", format: "TEXT", text: newHeaderText });
@@ -122,7 +142,7 @@ const MetaTemplates = () => {
     try {
       await api(`/api/meta/${selectedConnectionId}/templates`, {
         method: "POST",
-        body: { name: newName, language: newLanguage, category: newCategory, components },
+        body: { name: normalizedName, language: newLanguage, category: newCategory, components },
       });
       toast.success("Template enviado para aprovação da Meta!");
       setCreateDialogOpen(false);
@@ -130,13 +150,24 @@ const MetaTemplates = () => {
       loadTemplates(true);
     } catch (err: any) {
       const detailedMessage =
+        err?.response?.error ||
         err?.details?.error_user_msg ||
         err?.details?.message ||
         err?.details?.error_data?.details ||
         err?.message ||
         "Erro ao criar template";
 
-      toast.error(detailedMessage);
+      const isDuplicateTemplate =
+        /META_TEMPLATE_DUPLICATE_LANGUAGE/i.test(String(detailedMessage)) ||
+        /já existe conteúdo/i.test(String(detailedMessage)) ||
+        /template com esse nome e idioma/i.test(String(detailedMessage));
+
+      if (isDuplicateTemplate) {
+        toast.error("Esse nome já existe no idioma selecionado. Renomeie (ex: boas_vindas_v2) e tente novamente.");
+        await loadTemplates(true);
+      } else {
+        toast.error(String(detailedMessage));
+      }
     } finally {
       setCreating(false);
     }
