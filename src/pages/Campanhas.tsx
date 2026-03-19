@@ -84,7 +84,7 @@ const statusConfig = {
 };
 
 const Campanhas = () => {
-  const { loading: loadingCampaigns, getCampaigns, createCampaign, updateStatus, deleteCampaign } = useCampaigns();
+  const { loading: loadingCampaigns, getCampaigns, createCampaign, updateStatus, deleteCampaign, getReports, updateCampaign } = useCampaigns();
   const { getLists } = useContacts();
   const { getMessages } = useMessages();
   const { getFlows } = useFlows();
