@@ -3476,6 +3476,32 @@ CREATE INDEX IF NOT EXISTS idx_lead_webhook_logs_webhook ON lead_webhook_logs(we
 CREATE INDEX IF NOT EXISTS idx_lead_webhook_logs_created ON lead_webhook_logs(created_at DESC);
 `;
 
+const step41MetaTemplates = `
+CREATE TABLE IF NOT EXISTS meta_message_templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    connection_id UUID REFERENCES connections(id) ON DELETE CASCADE,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    meta_template_id VARCHAR(255),
+    name VARCHAR(255) NOT NULL,
+    language VARCHAR(20) DEFAULT 'pt_BR',
+    category VARCHAR(50) DEFAULT 'UTILITY',
+    status VARCHAR(50) DEFAULT 'PENDING',
+    components JSONB DEFAULT '[]'::jsonb,
+    synced_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_meta_templates_conn_tid 
+  ON meta_message_templates(connection_id, meta_template_id);
+CREATE INDEX IF NOT EXISTS idx_meta_templates_connection 
+  ON meta_message_templates(connection_id);
+CREATE INDEX IF NOT EXISTS idx_meta_templates_org 
+  ON meta_message_templates(organization_id);
+CREATE INDEX IF NOT EXISTS idx_meta_templates_status 
+  ON meta_message_templates(status);
+`;
+
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
   { name: 'Core Tables (users, plans)', sql: step2CoreTables, critical: true },
@@ -3518,6 +3544,7 @@ const migrationSteps = [
   { name: 'Push Notifications', sql: step38PushNotifications, critical: false },
   { name: 'Global AI Agents', sql: step39GlobalAgents, critical: false },
   { name: 'Lead Webhooks', sql: step40LeadWebhooks, critical: false },
+  { name: 'Meta Message Templates', sql: step41MetaTemplates, critical: false },
 ];
 
 export async function initDatabase() {
