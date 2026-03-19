@@ -210,9 +210,57 @@ const Campanhas = () => {
     }
   }, [getCampaigns, getLists, getMessages, getFlows]);
 
+  const loadReports = useCallback(async () => {
+    setLoadingReport(true);
+    try {
+      const formatDate = (d?: Date) => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : undefined;
+      const data = await getReports(formatDate(reportStartDate), formatDate(reportEndDate));
+      setReportData(data);
+    } catch {
+      toast.error("Erro ao carregar relatório");
+    } finally {
+      setLoadingReport(false);
+    }
+  }, [getReports, reportStartDate, reportEndDate]);
+
+  const handleOpenEdit = (campaign: Campaign) => {
+    setEditingCampaign(campaign);
+    setEditConnection(campaign.connection_id || "");
+    setEditStartDate(campaign.start_date ? new Date(campaign.start_date) : undefined);
+    setEditEndDate(campaign.end_date ? new Date(campaign.end_date) : undefined);
+    setEditStartTime(campaign.start_time || "08:00");
+    setEditEndTime(campaign.end_time || "18:00");
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCampaign) return;
+    try {
+      const formatDate = (d?: Date) => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : undefined;
+      await updateCampaign(editingCampaign.id, {
+        connection_id: editConnection || undefined,
+        start_date: formatDate(editStartDate),
+        end_date: formatDate(editEndDate),
+        start_time: editStartTime,
+        end_time: editEndTime,
+      });
+      toast.success("Campanha atualizada com sucesso!");
+      setEditDialogOpen(false);
+      loadData();
+    } catch {
+      toast.error("Erro ao atualizar campanha");
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (activeTab === 'reports') {
+      loadReports();
+    }
+  }, [activeTab, loadReports]);
 
   // Auto-refresh for campaign list
   useEffect(() => {
