@@ -38,6 +38,46 @@ export interface CampaignStats {
   pending: number;
 }
 
+export interface CampaignReport {
+  general: {
+    total_campaigns: string;
+    completed_campaigns: string;
+    running_campaigns: string;
+    paused_campaigns: string;
+    total_sent: string;
+    total_failed: string;
+    success_rate: string;
+  };
+  connections: {
+    connection_id: string;
+    connection_name: string;
+    connection_status: string;
+    campaign_count: string;
+    total_sent: string;
+    total_failed: string;
+    success_rate: string;
+  }[];
+  daily: {
+    date: string;
+    campaigns: string;
+    sent: string;
+    failed: string;
+  }[];
+  campaigns: {
+    id: string;
+    name: string;
+    status: string;
+    sent_count: number;
+    failed_count: number;
+    created_at: string;
+    start_date: string;
+    connection_name: string;
+    list_name: string;
+    total_contacts: string;
+    success_rate: string;
+  }[];
+}
+
 export interface CreateCampaignData {
   name: string;
   connection_id: string;
@@ -141,6 +181,42 @@ export const useCampaigns = () => {
     }
   }, []);
 
+  const getReports = useCallback(async (startDate?: string, endDate?: string): Promise<CampaignReport> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set('start_date', startDate);
+      if (endDate) params.set('end_date', endDate);
+      const data = await api<CampaignReport>(`/api/campaigns/reports/overview?${params.toString()}`);
+      return data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao buscar relatório';
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const updateCampaign = useCallback(async (id: string, data: { connection_id?: string; start_date?: string; end_date?: string; start_time?: string; end_time?: string }): Promise<Campaign> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api<Campaign>(`/api/campaigns/${id}`, {
+        method: 'PATCH',
+        body: data,
+      });
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao atualizar campanha';
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -149,5 +225,7 @@ export const useCampaigns = () => {
     updateStatus,
     getCampaignStats,
     deleteCampaign,
+    getReports,
+    updateCampaign,
   };
 };

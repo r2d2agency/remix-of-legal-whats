@@ -17,6 +17,8 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -43,15 +45,22 @@ import {
   X,
   Tag,
   GitBranch,
+  BarChart3,
+  TrendingUp,
+  Wifi,
+  WifiOff,
+  Edit,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCampaigns, Campaign } from "@/hooks/use-campaigns";
+import { useCampaigns, Campaign, CampaignReport } from "@/hooks/use-campaigns";
 import { useContacts, ContactList } from "@/hooks/use-contacts";
 import { useMessages, MessageTemplate } from "@/hooks/use-messages";
 import { useFlows, Flow } from "@/hooks/use-flows";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { CampaignDetailModal } from "@/components/campanhas/CampaignDetailModal";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Connection {
   id: string;
@@ -75,7 +84,7 @@ const statusConfig = {
 };
 
 const Campanhas = () => {
-  const { loading: loadingCampaigns, getCampaigns, createCampaign, updateStatus, deleteCampaign } = useCampaigns();
+  const { loading: loadingCampaigns, getCampaigns, createCampaign, updateStatus, deleteCampaign, getReports, updateCampaign } = useCampaigns();
   const { getLists } = useContacts();
   const { getMessages } = useMessages();
   const { getFlows } = useFlows();
@@ -90,6 +99,21 @@ const Campanhas = () => {
   const [activeTab, setActiveTab] = useState("list");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  
+  // Reports state
+  const [reportData, setReportData] = useState<CampaignReport | null>(null);
+  const [reportStartDate, setReportStartDate] = useState<Date | undefined>();
+  const [reportEndDate, setReportEndDate] = useState<Date | undefined>();
+  const [loadingReport, setLoadingReport] = useState(false);
+  
+  // Edit campaign dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [editConnection, setEditConnection] = useState("");
+  const [editStartDate, setEditStartDate] = useState<Date | undefined>();
+  const [editEndDate, setEditEndDate] = useState<Date | undefined>();
+  const [editStartTime, setEditStartTime] = useState("08:00");
+  const [editEndTime, setEditEndTime] = useState("18:00");
   
   // Auto-refresh state
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -186,9 +210,57 @@ const Campanhas = () => {
     }
   }, [getCampaigns, getLists, getMessages, getFlows]);
 
+  const loadReports = useCallback(async () => {
+    setLoadingReport(true);
+    try {
+      const formatDate = (d?: Date) => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : undefined;
+      const data = await getReports(formatDate(reportStartDate), formatDate(reportEndDate));
+      setReportData(data);
+    } catch {
+      toast.error("Erro ao carregar relatório");
+    } finally {
+      setLoadingReport(false);
+    }
+  }, [getReports, reportStartDate, reportEndDate]);
+
+  const handleOpenEdit = (campaign: Campaign) => {
+    setEditingCampaign(campaign);
+    setEditConnection(campaign.connection_id || "");
+    setEditStartDate(campaign.start_date ? new Date(campaign.start_date) : undefined);
+    setEditEndDate(campaign.end_date ? new Date(campaign.end_date) : undefined);
+    setEditStartTime(campaign.start_time || "08:00");
+    setEditEndTime(campaign.end_time || "18:00");
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCampaign) return;
+    try {
+      const formatDate = (d?: Date) => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : undefined;
+      await updateCampaign(editingCampaign.id, {
+        connection_id: editConnection || undefined,
+        start_date: formatDate(editStartDate),
+        end_date: formatDate(editEndDate),
+        start_time: editStartTime,
+        end_time: editEndTime,
+      });
+      toast.success("Campanha atualizada com sucesso!");
+      setEditDialogOpen(false);
+      loadData();
+    } catch {
+      toast.error("Erro ao atualizar campanha");
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (activeTab === 'reports') {
+      loadReports();
+    }
+  }, [activeTab, loadReports]);
 
   // Auto-refresh for campaign list
   useEffect(() => {
@@ -426,6 +498,10 @@ const Campanhas = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="list">Campanhas</TabsTrigger>
+            <TabsTrigger value="reports">
+              <BarChart3 className="h-4 w-4 mr-1" />
+              Relatórios
+            </TabsTrigger>
             <TabsTrigger value="create">Criar Campanha</TabsTrigger>
           </TabsList>
 
@@ -692,13 +768,33 @@ const Campanhas = () => {
                               </Button>
                             )}
                             {campaign.status === "paused" && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleUpdateStatus(campaign.id, "running")}
+                                >
+                                  <Play className="h-4 w-4" />
+                                  Retomar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleOpenEdit(campaign)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                  Editar
+                                </Button>
+                              </>
+                            )}
+                            {campaign.status === "pending" && (
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleUpdateStatus(campaign.id, "running")}
+                                onClick={() => handleOpenEdit(campaign)}
                               >
-                                <Play className="h-4 w-4" />
-                                Retomar
+                                <Edit className="h-4 w-4" />
+                                Editar
                               </Button>
                             )}
                             <Button
@@ -720,6 +816,231 @@ const Campanhas = () => {
                   </Card>
                 );
               })
+            )}
+          </TabsContent>
+
+          {/* Reports Tab */}
+          <TabsContent value="reports" className="space-y-6 mt-6">
+            {/* Report Filters */}
+            <div className="flex flex-wrap items-center gap-3 p-4 rounded-lg bg-card border">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("gap-2", reportStartDate && "text-primary border-primary")}>
+                    <CalendarIcon className="h-4 w-4" />
+                    {reportStartDate ? format(reportStartDate, "dd/MM/yyyy", { locale: ptBR }) : "Data início"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={reportStartDate} onSelect={setReportStartDate} locale={ptBR} className="pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("gap-2", reportEndDate && "text-primary border-primary")}>
+                    <CalendarIcon className="h-4 w-4" />
+                    {reportEndDate ? format(reportEndDate, "dd/MM/yyyy", { locale: ptBR }) : "Data fim"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={reportEndDate} onSelect={setReportEndDate} locale={ptBR} className="pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+              <Button variant="outline" onClick={loadReports} disabled={loadingReport}>
+                {loadingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Atualizar
+              </Button>
+              {(reportStartDate || reportEndDate) && (
+                <Button variant="ghost" size="sm" onClick={() => { setReportStartDate(undefined); setReportEndDate(undefined); }}>
+                  <X className="h-4 w-4" /> Limpar
+                </Button>
+              )}
+            </div>
+
+            {loadingReport && !reportData ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : reportData ? (
+              <>
+                {/* General Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-primary/10">
+                          <Send className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{Number(reportData.general.total_campaigns)}</p>
+                          <p className="text-xs text-muted-foreground">Total Campanhas</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-success/10">
+                          <CheckCircle2 className="h-5 w-5 text-success" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{Number(reportData.general.total_sent).toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Total Enviadas</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-destructive/10">
+                          <AlertCircle className="h-5 w-5 text-destructive" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{Number(reportData.general.total_failed).toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">Total Falhadas</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-warning/10">
+                          <TrendingUp className="h-5 w-5 text-warning" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold">{reportData.general.success_rate}%</p>
+                          <p className="text-xs text-muted-foreground">Taxa de Sucesso</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Connections Stats */}
+                {reportData.connections.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Wifi className="h-5 w-5 text-primary" />
+                        Envios por Conexão
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Conexão</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Campanhas</TableHead>
+                            <TableHead className="text-right">Enviadas</TableHead>
+                            <TableHead className="text-right">Falhadas</TableHead>
+                            <TableHead className="text-right">Sucesso</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {reportData.connections.map((conn) => (
+                            <TableRow key={conn.connection_id}>
+                              <TableCell className="font-medium">{conn.connection_name}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={cn(
+                                  conn.connection_status === 'connected' ? 'text-success border-success' : 'text-destructive border-destructive'
+                                )}>
+                                  {conn.connection_status === 'connected' ? (
+                                    <><Wifi className="h-3 w-3 mr-1" /> Online</>
+                                  ) : (
+                                    <><WifiOff className="h-3 w-3 mr-1" /> Offline</>
+                                  )}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">{conn.campaign_count}</TableCell>
+                              <TableCell className="text-right font-medium text-success">{Number(conn.total_sent).toLocaleString()}</TableCell>
+                              <TableCell className="text-right text-destructive">{Number(conn.total_failed).toLocaleString()}</TableCell>
+                              <TableCell className="text-right">
+                                <Badge className={cn(
+                                  Number(conn.success_rate) >= 90 ? 'bg-success/10 text-success' :
+                                  Number(conn.success_rate) >= 70 ? 'bg-warning/10 text-warning' :
+                                  'bg-destructive/10 text-destructive',
+                                  'border-0'
+                                )}>
+                                  {conn.success_rate}%
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Campaigns Table */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <BarChart3 className="h-5 w-5 text-primary" />
+                      Detalhes por Campanha
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="max-h-[400px]">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Campanha</TableHead>
+                            <TableHead>Conexão</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Contatos</TableHead>
+                            <TableHead className="text-right">Enviadas</TableHead>
+                            <TableHead className="text-right">Falhadas</TableHead>
+                            <TableHead className="text-right">Sucesso</TableHead>
+                            <TableHead>Data</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {reportData.campaigns.map((c) => {
+                            const config = statusConfig[c.status as keyof typeof statusConfig] || statusConfig.pending;
+                            return (
+                              <TableRow key={c.id} className="cursor-pointer" onClick={() => { setSelectedCampaignId(c.id); setShowDetailModal(true); }}>
+                                <TableCell className="font-medium">{c.name}</TableCell>
+                                <TableCell className="text-muted-foreground">{c.connection_name}</TableCell>
+                                <TableCell>
+                                  <Badge className={cn(config.bgColor, config.color, "border-0 text-xs")}>
+                                    {config.label}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">{c.total_contacts}</TableCell>
+                                <TableCell className="text-right font-medium text-success">{c.sent_count}</TableCell>
+                                <TableCell className="text-right text-destructive">{c.failed_count}</TableCell>
+                                <TableCell className="text-right">
+                                  <Badge className={cn(
+                                    Number(c.success_rate) >= 90 ? 'bg-success/10 text-success' :
+                                    Number(c.success_rate) >= 70 ? 'bg-warning/10 text-warning' :
+                                    'bg-destructive/10 text-destructive',
+                                    'border-0'
+                                  )}>
+                                    {c.success_rate}%
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-sm">
+                                  {c.created_at ? format(new Date(c.created_at), "dd/MM/yy", { locale: ptBR }) : '-'}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum dado disponível</p>
+              </div>
             )}
           </TabsContent>
 
@@ -1171,6 +1492,94 @@ const Campanhas = () => {
             setSelectedCampaignId(null);
           }}
         />
+
+        {/* Edit Campaign Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit className="h-5 w-5 text-primary" />
+                Editar Campanha
+              </DialogTitle>
+              <DialogDescription>
+                {editingCampaign?.name} — altere a conexão ou reagende
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Conexão WhatsApp</Label>
+                <Select value={editConnection} onValueChange={setEditConnection}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma conexão" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {connections.map((conn) => (
+                      <SelectItem key={conn.id} value={conn.id}>
+                        <div className="flex items-center gap-2">
+                          {conn.status === 'connected' ? (
+                            <Wifi className="h-3 w-3 text-success" />
+                          ) : (
+                            <WifiOff className="h-3 w-3 text-destructive" />
+                          )}
+                          {conn.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Data de Início</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editStartDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {editStartDate ? format(editStartDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar mode="single" selected={editStartDate} onSelect={setEditStartDate} locale={ptBR} className="pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <Label>Data de Término</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editEndDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {editEndDate ? format(editEndDate, "dd/MM/yyyy", { locale: ptBR }) : "Sem limite"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar mode="single" selected={editEndDate} onSelect={setEditEndDate} locale={ptBR} className="pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Horário Início</Label>
+                  <Input type="time" value={editStartTime} onChange={(e) => setEditStartTime(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Horário Término</Label>
+                  <Input type="time" value={editEndTime} onChange={(e) => setEditEndTime(e.target.value)} />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSaveEdit} disabled={loadingCampaigns}>
+                {loadingCampaigns ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

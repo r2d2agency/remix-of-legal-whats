@@ -487,6 +487,16 @@ router.patch('/:id/status', async (req, res) => {
           const pauseAfter = campaign.pause_after_messages || 20;
           const pauseDuration = (campaign.pause_duration || 10) * 60; // seconds
           
+          const SP_OFFSET_MS = -3 * 60 * 60 * 1000;
+          const toSaoPauloDate = (utcDate) => new Date(utcDate.getTime() + SP_OFFSET_MS);
+          const fromSaoPauloDate = (spDate) => new Date(spDate.getTime() - SP_OFFSET_MS);
+          
+          // Parse time bounds
+          const startTimeHours = campaign.start_time ? parseInt(campaign.start_time.split(':')[0]) : 0;
+          const startTimeMinutes = campaign.start_time ? parseInt(campaign.start_time.split(':')[1]) : 0;
+          const endTimeHours = campaign.end_time ? parseInt(campaign.end_time.split(':')[0]) : 23;
+          const endTimeMinutes = campaign.end_time ? parseInt(campaign.end_time.split(':')[1]) : 59;
+          
           // Start from now
           let currentTime = new Date();
           let messagesSincePause = 0;
@@ -494,6 +504,27 @@ router.patch('/:id/status', async (req, res) => {
           // Update each pending message with new scheduled time
           for (let i = 0; i < pendingMessages.rows.length; i++) {
             const msgId = pendingMessages.rows[i].id;
+            
+            // Enforce time window
+            let spTime = toSaoPauloDate(currentTime);
+            let scheduleHour = spTime.getUTCHours();
+            let scheduleMinute = spTime.getUTCMinutes();
+            
+            // Past end time → next day start
+            if (scheduleHour > endTimeHours || (scheduleHour === endTimeHours && scheduleMinute > endTimeMinutes)) {
+              spTime.setUTCDate(spTime.getUTCDate() + 1);
+              spTime.setUTCHours(startTimeHours, startTimeMinutes, 0, 0);
+              currentTime = fromSaoPauloDate(spTime);
+            }
+            
+            // Before start time → move to start
+            spTime = toSaoPauloDate(currentTime);
+            scheduleHour = spTime.getUTCHours();
+            scheduleMinute = spTime.getUTCMinutes();
+            if (scheduleHour < startTimeHours || (scheduleHour === startTimeHours && scheduleMinute < startTimeMinutes)) {
+              spTime.setUTCHours(startTimeHours, startTimeMinutes, 0, 0);
+              currentTime = fromSaoPauloDate(spTime);
+            }
             
             await query(
               `UPDATE campaign_messages SET scheduled_at = $1 WHERE id = $2`,
@@ -512,7 +543,7 @@ router.patch('/:id/status', async (req, res) => {
             }
           }
           
-          console.log(`Recalculated ${pendingMessages.rows.length} message times for campaign ${id}`);
+          console.log(`Recalculated ${pendingMessages.rows.length} message times for campaign ${id} (respecting ${campaign.start_time}-${campaign.end_time} window)`);
         }
       }
     }
@@ -660,6 +691,204 @@ router.get('/:id/details', async (req, res) => {
   } catch (error) {
     console.error('Get campaign details error:', error);
     res.status(500).json({ error: 'Erro ao buscar detalhes da campanha' });
+  }
+});
+
+// Campaign reports/analytics
+router.get('/reports/overview', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    const { start_date, end_date } = req.query;
+
+    let orgFilter = 'c.user_id = $1';
+    let params = [req.userId];
+    let paramIdx = 2;
+
+    if (org) {
+      orgFilter = `(c.user_id = $1 OR c.connection_id IN (
+        SELECT id FROM connections WHERE organization_id = $${paramIdx}
+      ))`;
+      params.push(org.organization_id);
+      paramIdx++;
+    }
+
+    let dateFilter = '';
+    if (start_date) {
+      dateFilter += ` AND c.created_at >= $${paramIdx}::date`;
+      params.push(start_date);
+      paramIdx++;
+    }
+    if (end_date) {
+      dateFilter += ` AND c.created_at <= ($${paramIdx}::date + interval '1 day')`;
+      params.push(end_date);
+      paramIdx++;
+    }
+
+    const generalStats = await query(
+      `SELECT 
+         COUNT(*) as total_campaigns,
+         COUNT(*) FILTER (WHERE c.status = 'completed') as completed_campaigns,
+         COUNT(*) FILTER (WHERE c.status = 'running') as running_campaigns,
+         COUNT(*) FILTER (WHERE c.status = 'paused') as paused_campaigns,
+         COALESCE(SUM(c.sent_count), 0) as total_sent,
+         COALESCE(SUM(c.failed_count), 0) as total_failed,
+         CASE WHEN COALESCE(SUM(c.sent_count) + SUM(c.failed_count), 0) > 0 
+           THEN ROUND(SUM(c.sent_count)::numeric / (SUM(c.sent_count) + SUM(c.failed_count)) * 100, 1)
+           ELSE 0 END as success_rate
+       FROM campaigns c
+       WHERE ${orgFilter} ${dateFilter}`,
+      params
+    );
+
+    const connectionStats = await query(
+      `SELECT 
+         conn.id as connection_id,
+         conn.name as connection_name,
+         conn.status as connection_status,
+         COUNT(c.id) as campaign_count,
+         COALESCE(SUM(c.sent_count), 0) as total_sent,
+         COALESCE(SUM(c.failed_count), 0) as total_failed,
+         CASE WHEN COALESCE(SUM(c.sent_count) + SUM(c.failed_count), 0) > 0 
+           THEN ROUND(SUM(c.sent_count)::numeric / (SUM(c.sent_count) + SUM(c.failed_count)) * 100, 1)
+           ELSE 0 END as success_rate
+       FROM campaigns c
+       JOIN connections conn ON conn.id = c.connection_id
+       WHERE ${orgFilter} ${dateFilter}
+       GROUP BY conn.id, conn.name, conn.status
+       ORDER BY total_sent DESC`,
+      params
+    );
+
+    const dailyStats = await query(
+      `SELECT 
+         DATE(c.created_at) as date,
+         COUNT(c.id) as campaigns,
+         COALESCE(SUM(c.sent_count), 0) as sent,
+         COALESCE(SUM(c.failed_count), 0) as failed
+       FROM campaigns c
+       WHERE ${orgFilter} ${dateFilter}
+       GROUP BY DATE(c.created_at)
+       ORDER BY date DESC
+       LIMIT 30`,
+      params
+    );
+
+    const campaignList = await query(
+      `SELECT 
+         c.id, c.name, c.status, c.sent_count, c.failed_count,
+         c.created_at, c.start_date, c.start_time, c.end_time,
+         conn.name as connection_name,
+         cl.name as list_name,
+         (SELECT COUNT(*) FROM contacts WHERE list_id = c.list_id) as total_contacts,
+         CASE WHEN (c.sent_count + c.failed_count) > 0
+           THEN ROUND(c.sent_count::numeric / (c.sent_count + c.failed_count) * 100, 1)
+           ELSE 0 END as success_rate
+       FROM campaigns c
+       LEFT JOIN connections conn ON conn.id = c.connection_id
+       LEFT JOIN contact_lists cl ON c.list_id = cl.id
+       WHERE ${orgFilter} ${dateFilter}
+       ORDER BY c.created_at DESC`,
+      params
+    );
+
+    res.json({
+      general: generalStats.rows[0],
+      connections: connectionStats.rows,
+      daily: dailyStats.rows,
+      campaigns: campaignList.rows,
+    });
+  } catch (error) {
+    console.error('Campaign reports error:', error);
+    res.status(500).json({ error: 'Erro ao gerar relatório' });
+  }
+});
+
+// Update campaign (edit connection, reschedule)
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { connection_id, start_date, end_date, start_time, end_time } = req.body;
+
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'id = $1 AND user_id = $2';
+    let checkParams = [id, req.userId];
+
+    if (org) {
+      whereClause = `id = $1 AND (user_id = $2 OR connection_id IN (
+        SELECT id FROM connections WHERE organization_id = $3
+      ))`;
+      checkParams = [id, req.userId, org.organization_id];
+    }
+
+    const existing = await query(`SELECT * FROM campaigns WHERE ${whereClause}`, checkParams);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Campanha não encontrada' });
+    }
+
+    const campaign = existing.rows[0];
+
+    if (!['paused', 'pending'].includes(campaign.status)) {
+      return res.status(400).json({ error: 'Só é possível editar campanhas pausadas ou agendadas' });
+    }
+
+    const updates = [];
+    const updateParams = [];
+    let pIdx = 1;
+
+    if (connection_id) {
+      let connCheck;
+      if (org) {
+        connCheck = await query(
+          'SELECT id FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id = $3)',
+          [connection_id, req.userId, org.organization_id]
+        );
+      } else {
+        connCheck = await query(
+          'SELECT id FROM connections WHERE id = $1 AND user_id = $2',
+          [connection_id, req.userId]
+        );
+      }
+      if (connCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Conexão não encontrada ou sem permissão' });
+      }
+      updates.push(`connection_id = $${pIdx++}`);
+      updateParams.push(connection_id);
+    }
+
+    if (start_date !== undefined) {
+      updates.push(`start_date = $${pIdx++}`);
+      updateParams.push(start_date || null);
+    }
+    if (end_date !== undefined) {
+      updates.push(`end_date = $${pIdx++}`);
+      updateParams.push(end_date || null);
+    }
+    if (start_time !== undefined) {
+      updates.push(`start_time = $${pIdx++}`);
+      updateParams.push(start_time || null);
+    }
+    if (end_time !== undefined) {
+      updates.push(`end_time = $${pIdx++}`);
+      updateParams.push(end_time || null);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+    }
+
+    updates.push(`updated_at = NOW()`);
+    updateParams.push(id);
+
+    const result = await query(
+      `UPDATE campaigns SET ${updates.join(', ')} WHERE id = $${pIdx} RETURNING *`,
+      updateParams
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update campaign error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar campanha' });
   }
 });
 

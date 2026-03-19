@@ -115,11 +115,55 @@ export async function executeCampaignMessages() {
     sent: 0,
     failed: 0,
     campaignsStarted: 0,
+    connectionLost: 0,
   };
 
   try {
-    // First, auto-start campaigns that have pending messages with scheduled_at <= NOW()
-    // and campaign status is 'pending' (scheduled but not started)
+    // Check running campaigns for offline connections and auto-pause them
+    const runningCampaigns = await query(`
+      SELECT DISTINCT c.id, c.name, c.connection_id, 
+             conn.status as connection_status, conn.instance_id, conn.wapi_token, conn.provider,
+             conn.name as connection_name
+      FROM campaigns c
+      JOIN connections conn ON conn.id = c.connection_id
+      WHERE c.status = 'running'
+    `);
+
+    for (const campaign of runningCampaigns.rows) {
+      const provider = whatsappProvider.detectProvider(campaign);
+      const isConnected = campaign.connection_status === 'connected' || 
+        (provider === 'wapi' && campaign.instance_id && campaign.wapi_token);
+
+      if (!isConnected) {
+        await query(
+          `UPDATE campaigns SET status = 'paused', updated_at = NOW() WHERE id = $1`,
+          [campaign.id]
+        );
+
+        const ownerResult = await query(`SELECT user_id FROM campaigns WHERE id = $1`, [campaign.id]);
+        if (ownerResult.rows.length > 0) {
+          await query(
+            `INSERT INTO user_alerts (user_id, type, title, message, metadata)
+             VALUES ($1, 'campaign_connection_lost', $2, $3, $4)`,
+            [
+              ownerResult.rows[0].user_id,
+              '⚠️ Campanha pausada - Conexão offline',
+              `A campanha "${campaign.name}" foi pausada porque a conexão "${campaign.connection_name}" ficou offline.`,
+              JSON.stringify({
+                campaign_id: campaign.id,
+                connection_id: campaign.connection_id,
+                connection_name: campaign.connection_name,
+              })
+            ]
+          );
+        }
+
+        stats.connectionLost++;
+        console.log(`📤 [CAMPAIGN] Auto-paused campaign "${campaign.name}" - connection offline`);
+      }
+    }
+
+    // Auto-start campaigns that have pending messages with scheduled_at <= NOW()
     const campaignsToStart = await query(`
       SELECT DISTINCT c.id, c.name
       FROM campaigns c
