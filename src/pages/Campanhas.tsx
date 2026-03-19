@@ -498,6 +498,10 @@ const Campanhas = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="list">Campanhas</TabsTrigger>
+            <TabsTrigger value="reports">
+              <BarChart3 className="h-4 w-4 mr-1" />
+              Relatórios
+            </TabsTrigger>
             <TabsTrigger value="create">Criar Campanha</TabsTrigger>
           </TabsList>
 
