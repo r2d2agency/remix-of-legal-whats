@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, RefreshCw, Loader2, FileText, Trash2, CheckCircle, Clock, XCircle, AlertTriangle, MessageSquare } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
 
 interface MetaConnection {
   id: string;
@@ -48,7 +46,6 @@ const CATEGORIES = [
 ];
 
 const MetaTemplates = () => {
-  const { user } = useAuth();
   const [connections, setConnections] = useState<MetaConnection[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>("");
   const [templates, setTemplates] = useState<MetaTemplate[]>([]);
@@ -132,7 +129,14 @@ const MetaTemplates = () => {
       resetCreateForm();
       loadTemplates(true);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao criar template");
+      const detailedMessage =
+        err?.details?.error_user_msg ||
+        err?.details?.message ||
+        err?.details?.error_data?.details ||
+        err?.message ||
+        "Erro ao criar template";
+
+      toast.error(detailedMessage);
     } finally {
       setCreating(false);
     }
