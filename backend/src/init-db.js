@@ -3518,6 +3518,7 @@ const migrationSteps = [
   { name: 'Push Notifications', sql: step38PushNotifications, critical: false },
   { name: 'Global AI Agents', sql: step39GlobalAgents, critical: false },
   { name: 'Lead Webhooks', sql: step40LeadWebhooks, critical: false },
+  { name: 'Meta Message Templates', sql: step41MetaTemplates, critical: false },
 ];
 
 export async function initDatabase() {
