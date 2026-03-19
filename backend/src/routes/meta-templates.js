@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import { buildComponentsWithExamples, validateTemplateInput } from '../lib/meta-template-utils.js';
 
 const router = Router();
 router.use(authenticate);
@@ -100,11 +101,18 @@ router.post('/:connectionId/templates', async (req, res) => {
     const connection = await getMetaConnection(req.params.connectionId, org.organization_id);
     if (!connection) return res.status(404).json({ error: 'Conexão Meta não encontrada' });
 
-    const { name, language, category, components } = req.body;
-
-    if (!name || !components || !Array.isArray(components)) {
-      return res.status(400).json({ error: 'Nome e componentes são obrigatórios' });
+    if (!connection.meta_token || !connection.meta_waba_id) {
+      return res.status(400).json({ error: 'Conexão Meta inválida: token ou WABA ID ausente.' });
     }
+
+    const { name, language, category, components } = req.body;
+    const validation = validateTemplateInput({ name, language, category, components });
+
+    if (!validation.ok) {
+      return res.status(400).json({ error: validation.error });
+    }
+
+    const metaComponents = buildComponentsWithExamples(validation.normalizedComponents);
 
     // Submit to Meta API
     const response = await fetch(
@@ -116,20 +124,20 @@ router.post('/:connectionId/templates', async (req, res) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: name.toLowerCase().replace(/[^a-z0-9_]/g, '_'),
-          language: language || 'pt_BR',
-          category: category || 'UTILITY',
-          components,
+          name: validation.normalizedName,
+          language: validation.normalizedLanguage,
+          category: validation.normalizedCategory,
+          components: metaComponents,
         }),
       }
     );
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       return res.status(response.status).json({
-        error: data.error?.message || `Erro ao criar template (${response.status})`,
-        details: data.error,
+        error: data.error?.error_user_msg || data.error?.message || `Erro ao criar template (${response.status})`,
+        details: data.error || data,
       });
     }
 
@@ -143,11 +151,11 @@ router.post('/:connectionId/templates', async (req, res) => {
         connection.id,
         org.organization_id,
         data.id,
-        name,
-        language || 'pt_BR',
-        category || 'UTILITY',
+        validation.normalizedName,
+        validation.normalizedLanguage,
+        validation.normalizedCategory,
         data.status || 'PENDING',
-        JSON.stringify(components),
+        JSON.stringify(metaComponents),
       ]
     );
 
@@ -171,7 +179,7 @@ router.delete('/:connectionId/templates/:templateName', async (req, res) => {
 
     // Delete from Meta API
     const response = await fetch(
-      `${META_GRAPH_URL}/${connection.meta_waba_id}/message_templates?name=${templateName}`,
+      `${META_GRAPH_URL}/${connection.meta_waba_id}/message_templates?name=${encodeURIComponent(templateName)}`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${connection.meta_token}` },
