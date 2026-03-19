@@ -1,17 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, X, Download } from "lucide-react";
+import { RefreshCw, Download, Sparkles, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { toast } from "@/components/ui/sonner";
 
 // Build hash injected at build time — changes on each deploy
 const BUILD_ID = import.meta.env.VITE_BUILD_ID || Date.now().toString();
 
 export function PWAUpdateBanner() {
-  const [showBanner, setShowBanner] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [done, setDone] = useState(false);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
@@ -23,69 +23,47 @@ export function PWAUpdateBanner() {
         const reg = await navigator.serviceWorker.getRegistration();
         if (!reg) return;
 
-        // When a new SW is found installing
         const onUpdateFound = () => {
           const newWorker = reg.installing;
           if (!newWorker) return;
 
           newWorker.addEventListener("statechange", () => {
-            if (newWorker.state === "installed") {
-              if (navigator.serviceWorker.controller) {
-                // New version ready — show banner
-                setShowBanner(true);
-                toast.info("Nova versão disponível!", {
-                  description: "Clique em 'Atualizar' para aplicar.",
-                  duration: 8000,
-                });
-              }
+            if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+              setShowPopup(true);
             }
           });
         };
 
         reg.addEventListener("updatefound", onUpdateFound);
 
-        // Check if there's already a waiting SW
         if (reg.waiting && navigator.serviceWorker.controller) {
-          setShowBanner(true);
+          setShowPopup(true);
         }
 
         // Check for updates every 30 seconds
         interval = setInterval(() => {
           reg.update().catch(() => {});
         }, 30 * 1000);
-
-        // Also listen for controller change (auto-update applied)
-        navigator.serviceWorker.addEventListener("controllerchange", () => {
-          if (updating) return; // we're already handling it
-          // Auto-update happened in background — reload silently
-          window.location.reload();
-        });
       } catch (err) {
         console.error("[PWA] Error setting up update listener:", err);
       }
     };
 
     setup();
+    return () => { if (interval) clearInterval(interval); };
+  }, []);
 
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [updating]);
-
-  // Also poll for app-level changes via a lightweight version check
+  // Poll for app-level changes via version check
   useEffect(() => {
     const checkVersion = async () => {
       try {
-        // Fetch index.html with cache-bust to detect new builds
         const res = await fetch(`/?_v=${Date.now()}`, {
           cache: "no-store",
           headers: { Accept: "text/html" },
         });
         if (!res.ok) return;
         const html = await res.text();
-        // If the HTML contains a different build hash, there's an update
         if (html.includes("/assets/") && !html.includes(BUILD_ID)) {
-          // Force SW update check
           const reg = await navigator.serviceWorker.getRegistration();
           if (reg) reg.update();
         }
@@ -94,7 +72,6 @@ export function PWAUpdateBanner() {
       }
     };
 
-    // Check every 60 seconds
     const versionInterval = setInterval(checkVersion, 60 * 1000);
     return () => clearInterval(versionInterval);
   }, []);
@@ -109,39 +86,40 @@ export function PWAUpdateBanner() {
           clearInterval(progressInterval);
           return 90;
         }
-        return prev + Math.random() * 20;
+        return prev + Math.random() * 15;
       });
-    }, 150);
+    }, 200);
 
     const doUpdate = async () => {
       try {
+        // Pre-cache: fetch main assets
+        if ("caches" in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map((name) => caches.delete(name)));
+        }
+
+        setProgress(50);
+
         const reg = await navigator.serviceWorker.getRegistration();
         const waiting = reg?.waiting;
 
         if (waiting) {
           waiting.postMessage({ type: "SKIP_WAITING" });
-          // controllerchange listener will reload
+
           navigator.serviceWorker.addEventListener("controllerchange", () => {
             clearInterval(progressInterval);
             setProgress(100);
-            setTimeout(() => window.location.reload(), 400);
+            setDone(true);
+            setTimeout(() => window.location.reload(), 800);
           });
         } else {
-          // No waiting worker — clear all caches and reload
           clearInterval(progressInterval);
-          setProgress(80);
-
-          if ("caches" in window) {
-            const cacheNames = await caches.keys();
-            await Promise.all(cacheNames.map((name) => caches.delete(name)));
-          }
-
           setProgress(100);
-          setTimeout(() => window.location.reload(), 400);
+          setDone(true);
+          setTimeout(() => window.location.reload(), 800);
         }
       } catch {
         clearInterval(progressInterval);
-        // Fallback: force reload
         window.location.reload();
       }
     };
@@ -149,56 +127,71 @@ export function PWAUpdateBanner() {
     doUpdate();
   }, []);
 
-  if (!showBanner) return null;
+  if (!showPopup) return null;
 
   return (
-    <div
-      className={cn(
-        "fixed bottom-0 left-0 right-0 z-[9999] bg-primary text-primary-foreground",
-        "shadow-lg transition-all duration-300 ease-in-out"
-      )}
-    >
-      {updating && (
-        <Progress
-          value={progress}
-          className="h-1 rounded-none bg-primary-foreground/20 [&>div]:bg-primary-foreground"
-        />
-      )}
-      <div className="flex items-center justify-between px-4 py-3 gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          {updating ? (
-            <RefreshCw className="h-4 w-4 flex-shrink-0 animate-spin" />
-          ) : (
-            <Download className="h-4 w-4 flex-shrink-0" />
-          )}
-          <span className="text-sm font-medium truncate">
-            {updating
-              ? "Atualizando sistema..."
-              : "Nova versão disponível!"}
-          </span>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className={cn(
+        "bg-card border rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full",
+        "animate-in zoom-in-95 slide-in-from-bottom-4 duration-300"
+      )}>
+        {/* Icon */}
+        <div className="flex justify-center mb-4">
+          <div className={cn(
+            "p-4 rounded-full",
+            done ? "bg-success/10" : updating ? "bg-primary/10" : "bg-primary/10"
+          )}>
+            {done ? (
+              <CheckCircle2 className="h-10 w-10 text-success" />
+            ) : updating ? (
+              <RefreshCw className="h-10 w-10 text-primary animate-spin" />
+            ) : (
+              <Sparkles className="h-10 w-10 text-primary" />
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {!updating && (
-            <>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-                onClick={handleUpdate}
-              >
-                Atualizar agora
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20"
-                onClick={() => setShowBanner(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </>
-          )}
-        </div>
+
+        {/* Title */}
+        <h3 className="text-lg font-bold text-foreground text-center">
+          {done ? "Atualização concluída!" : updating ? "Atualizando..." : "Nova atualização disponível!"}
+        </h3>
+
+        {/* Description */}
+        <p className="text-sm text-muted-foreground text-center mt-2">
+          {done
+            ? "O sistema será recarregado automaticamente."
+            : updating
+            ? "Pré-carregando nova versão, aguarde..."
+            : "Uma nova versão do sistema está pronta. Clique para atualizar agora."}
+        </p>
+
+        {/* Progress bar */}
+        {updating && (
+          <div className="mt-4">
+            <Progress value={progress} className="h-2" />
+            <p className="text-xs text-muted-foreground text-center mt-1">
+              {Math.round(progress)}%
+            </p>
+          </div>
+        )}
+
+        {/* Actions */}
+        {!updating && !done && (
+          <div className="flex flex-col gap-2 mt-5">
+            <Button onClick={handleUpdate} className="w-full gap-2">
+              <Download className="h-4 w-4" />
+              Atualizar agora
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => setShowPopup(false)}
+            >
+              Depois
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
