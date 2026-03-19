@@ -7,6 +7,7 @@ const router = Router();
 router.use(authenticate);
 
 const META_GRAPH_URL = 'https://graph.facebook.com/v21.0';
+const META_DUPLICATE_TEMPLATE_SUBCODE = 2388024;
 
 async function getUserOrganization(userId) {
   const result = await query(
@@ -112,6 +113,25 @@ router.post('/:connectionId/templates', async (req, res) => {
       return res.status(400).json({ error: validation.error });
     }
 
+    const cachedDuplicate = await query(
+      `SELECT id, name, language, status
+       FROM meta_message_templates
+       WHERE connection_id = $1 AND LOWER(name) = LOWER($2) AND language = $3
+       LIMIT 1`,
+      [connection.id, validation.normalizedName, validation.normalizedLanguage]
+    );
+
+    if (cachedDuplicate.rows[0]) {
+      return res.status(409).json({
+        error: 'Já existe conteúdo em Portuguese (BR) para esse modelo. Você pode criar um novo modelo e tentar novamente.',
+        code: 'META_TEMPLATE_DUPLICATE_LANGUAGE',
+        details: {
+          source: 'local_cache',
+          existing_template: cachedDuplicate.rows[0],
+        },
+      });
+    }
+
     const metaComponents = buildComponentsWithExamples(validation.normalizedComponents);
 
     // Submit to Meta API
@@ -135,9 +155,23 @@ router.post('/:connectionId/templates', async (req, res) => {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      const metaError = data.error || data;
+      const metaErrorMessage = String(metaError?.error_user_msg || metaError?.message || '');
+      const isDuplicateTemplate =
+        Number(metaError?.error_subcode) === META_DUPLICATE_TEMPLATE_SUBCODE ||
+        /já existe conteúdo/i.test(metaErrorMessage);
+
+      if (isDuplicateTemplate) {
+        return res.status(409).json({
+          error: 'Já existe conteúdo nesse idioma para esse template. Altere nome ou idioma.',
+          code: 'META_TEMPLATE_DUPLICATE_LANGUAGE',
+          details: metaError,
+        });
+      }
+
       return res.status(response.status).json({
-        error: data.error?.error_user_msg || data.error?.message || `Erro ao criar template (${response.status})`,
-        details: data.error || data,
+        error: metaError?.error_user_msg || metaError?.message || `Erro ao criar template (${response.status})`,
+        details: metaError,
       });
     }
 
