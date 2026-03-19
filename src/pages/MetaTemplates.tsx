@@ -405,6 +405,59 @@ const MetaTemplates = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Preset Templates Dialog */}
+        <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
+          <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BookTemplate className="h-5 w-5 text-primary" />
+                Modelos Prontos por Segmento
+              </DialogTitle>
+              <DialogDescription>
+                Selecione um modelo, edite conforme sua necessidade e envie para aprovação da Meta.
+              </DialogDescription>
+            </DialogHeader>
+            <Accordion type="single" collapsible defaultValue="imobiliaria" className="w-full">
+              {META_TEMPLATE_SEGMENTS.map((segment) => (
+                <AccordionItem key={segment.id} value={segment.id}>
+                  <AccordionTrigger className="text-base font-semibold">
+                    {segment.label}
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {segment.presets.map((preset) => (
+                        <Card
+                          key={preset.id}
+                          className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
+                          onClick={() => applyPreset(preset)}
+                        >
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm">{preset.displayName}</CardTitle>
+                              <Badge variant="outline" className="text-xs">
+                                {CATEGORIES.find((c) => c.value === preset.category)?.label || preset.category}
+                              </Badge>
+                            </div>
+                            <CardDescription className="text-xs font-mono">{preset.name}</CardDescription>
+                          </CardHeader>
+                          <CardContent className="pt-0">
+                            <p className="text-xs text-muted-foreground line-clamp-4 whitespace-pre-line">
+                              {preset.bodyText}
+                            </p>
+                            <div className="flex items-center justify-end mt-2 text-xs text-primary font-medium">
+                              Usar modelo <ChevronRight className="h-3 w-3 ml-1" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
