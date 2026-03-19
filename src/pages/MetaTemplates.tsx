@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, RefreshCw, Loader2, FileText, Trash2, CheckCircle, Clock, XCircle, AlertTriangle, MessageSquare } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Plus, RefreshCw, Loader2, FileText, Trash2, CheckCircle, Clock, XCircle, AlertTriangle, MessageSquare, BookTemplate, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-
+import { META_TEMPLATE_SEGMENTS, MetaTemplatePreset } from "@/components/meta-templates/meta-template-presets";
 interface MetaConnection {
   id: string;
   name: string;
