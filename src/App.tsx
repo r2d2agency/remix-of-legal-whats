@@ -156,6 +156,8 @@ const App = () => (
             <Route path="/api-docs" element={<ApiDocumentation />} />
             <Route path="/f/:slug" element={<PublicFormPage />} />
             <Route path="/politica-privacidade" element={<PoliticaPrivacidade />} />
+            <Route path="/termos-servico" element={<TermosServico />} />
+            <Route path="/exclusao-dados" element={<ExclusaoDados />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
