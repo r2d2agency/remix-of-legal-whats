@@ -230,6 +230,10 @@ DO $$ BEGIN
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS instance_id VARCHAR(255);
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS wapi_token TEXT;
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS show_groups BOOLEAN DEFAULT false;
+    -- Meta Cloud API columns
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS meta_token TEXT;
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS meta_phone_number_id VARCHAR(255);
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS meta_waba_id VARCHAR(255);
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
@@ -247,29 +251,35 @@ DO $$ BEGIN
     ALTER TABLE connections ALTER COLUMN instance_name DROP NOT NULL;
 EXCEPTION WHEN others THEN null; END $$;
 
--- Enforce required fields per provider
+-- Enforce required fields per provider (drop old constraints and recreate to include meta)
 DO $$
 BEGIN
     -- Normalize provider
     UPDATE connections SET provider = 'evolution' WHERE provider IS NULL;
 
-    -- Provider value constraint
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'connections_provider_chk') THEN
-        ALTER TABLE connections
-        ADD CONSTRAINT connections_provider_chk
-        CHECK (provider IN ('evolution', 'wapi'));
+    -- Drop old constraints to recreate with meta support
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'connections_provider_chk') THEN
+        ALTER TABLE connections DROP CONSTRAINT connections_provider_chk;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'connections_provider_required_fields_chk') THEN
+        ALTER TABLE connections DROP CONSTRAINT connections_provider_required_fields_chk;
     END IF;
 
-    -- Required fields per provider constraint
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'connections_provider_required_fields_chk') THEN
-        ALTER TABLE connections
-        ADD CONSTRAINT connections_provider_required_fields_chk
-        CHECK (
-            (provider = 'wapi' AND instance_id IS NOT NULL AND wapi_token IS NOT NULL)
-            OR
-            (provider = 'evolution' AND api_url IS NOT NULL AND api_key IS NOT NULL AND instance_name IS NOT NULL)
-        );
-    END IF;
+    -- Provider value constraint (now includes meta)
+    ALTER TABLE connections
+    ADD CONSTRAINT connections_provider_chk
+    CHECK (provider IN ('evolution', 'wapi', 'meta'));
+
+    -- Required fields per provider constraint (now includes meta)
+    ALTER TABLE connections
+    ADD CONSTRAINT connections_provider_required_fields_chk
+    CHECK (
+        (provider = 'wapi' AND instance_id IS NOT NULL AND wapi_token IS NOT NULL)
+        OR
+        (provider = 'evolution' AND api_url IS NOT NULL AND api_key IS NOT NULL AND instance_name IS NOT NULL)
+        OR
+        (provider = 'meta' AND meta_token IS NOT NULL AND meta_phone_number_id IS NOT NULL AND meta_waba_id IS NOT NULL)
+    );
 END $$;
 
 
