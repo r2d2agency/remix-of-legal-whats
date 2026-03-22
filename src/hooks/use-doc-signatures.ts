@@ -51,6 +51,7 @@ export interface AuditLog {
   actor_email: string;
   ip_address: string;
   user_agent: string;
+  geolocation?: string;
   details: any;
   created_at: string;
 }
