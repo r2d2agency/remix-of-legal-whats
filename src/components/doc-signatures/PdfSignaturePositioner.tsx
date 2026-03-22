@@ -312,7 +312,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              style={{ cursor: readOnly ? 'default' : (dragging || resizing ? 'grabbing' : 'crosshair') }}
+              style={{ cursor: readOnly ? 'default' : (dragging || resizing ? 'grabbing' : (addMode ? 'crosshair' : 'default')) }}
             >
               <Page pageNumber={currentPage} renderTextLayer={true} renderAnnotationLayer={true} />
 
