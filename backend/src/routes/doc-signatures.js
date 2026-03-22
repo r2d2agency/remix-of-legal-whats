@@ -176,8 +176,16 @@ async function sendOtpEmail(signerEmail, signerName, code, docTitle, orgId) {
 
   try {
     const transporter = createTransporter(smtpConfig);
+    const fromName = smtpConfig.from_name || smtpConfig.username || 'Assinatura Digital';
+    const fromEmail = smtpConfig.from_email || smtpConfig.username;
+
+    if (!fromEmail) {
+      console.error('[doc-signatures] SMTP config missing from_email/username');
+      return false;
+    }
+
     await transporter.sendMail({
-      from: `"${smtpConfig.from_name}" <${smtpConfig.from_email}>`,
+      from: `"${fromName}" <${fromEmail}>`,
       to: signerEmail,
       subject: `Código de verificação - ${docTitle}`,
       html: `
