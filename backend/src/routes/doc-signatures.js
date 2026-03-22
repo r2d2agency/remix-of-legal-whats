@@ -210,6 +210,13 @@ async function readRemoteBinary(url) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  return Array.isArray(forwarded)
+    ? forwarded[0]
+    : (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || null);
+}
+
 function toAbsoluteFileUrl(req, fileUrl) {
   if (!fileUrl || typeof fileUrl !== 'string') return null;
   if (HTTP_URL_REGEX.test(fileUrl) || /^data:/i.test(fileUrl) || /^blob:/i.test(fileUrl)) {
