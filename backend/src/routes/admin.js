@@ -566,6 +566,7 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
         has_ghost,
         has_projects,
         has_lead_gleego,
+        has_doc_signatures,
         price,
         billing_period,
         is_active,
