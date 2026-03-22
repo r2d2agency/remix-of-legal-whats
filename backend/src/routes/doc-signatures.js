@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import { PDFDocument } from 'pdf-lib';
+import fs from 'fs';
+import path from 'path';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -208,6 +211,142 @@ async function sendOtpEmail(signerEmail, signerName, code, docTitle, orgId) {
     console.error('[doc-signatures] OTP email error:', err.message);
     return false;
   }
+}
+
+// ===========================
+// PDF GENERATION WITH SIGNATURES
+// ===========================
+
+async function generateSignedPdf(documentId) {
+  // 1. Get document info
+  const docResult = await query(`SELECT file_url FROM doc_signature_documents WHERE id = $1`, [documentId]);
+  if (!docResult.rows[0]) throw new Error('Document not found');
+  const { file_url } = docResult.rows[0];
+
+  // 2. Get all signed signers with their positions
+  const signersResult = await query(
+    `SELECT s.id, s.name, s.email, s.cpf, s.role, s.signature_url, s.signed_at,
+            s.ip_address, s.geolocation
+     FROM doc_signature_signers s
+     WHERE s.document_id = $1 AND s.status = 'signed' AND s.signature_url IS NOT NULL`,
+    [documentId]
+  );
+
+  if (signersResult.rows.length === 0) {
+    console.log('[doc-signatures] No signed signers yet, skipping PDF generation');
+    return null;
+  }
+
+  // 3. Get positions for all signers
+  const positionsResult = await query(
+    `SELECT p.signer_id, p.page, p.x, p.y, p.width, p.height
+     FROM doc_signature_positions p
+     WHERE p.document_id = $1`,
+    [documentId]
+  );
+
+  // Build a map of signer_id -> positions[]
+  const positionsBySigner = {};
+  for (const pos of positionsResult.rows) {
+    if (!positionsBySigner[pos.signer_id]) positionsBySigner[pos.signer_id] = [];
+    positionsBySigner[pos.signer_id].push(pos);
+  }
+
+  // 4. Download the original PDF
+  let pdfBytes;
+  if (file_url.startsWith('http://') || file_url.startsWith('https://')) {
+    const response = await fetch(file_url);
+    if (!response.ok) throw new Error(`Failed to download PDF: ${response.status}`);
+    pdfBytes = new Uint8Array(await response.arrayBuffer());
+  } else {
+    // Local file
+    const filePath = path.resolve(file_url.replace(/^\/uploads\//, 'uploads/'));
+    pdfBytes = fs.readFileSync(filePath);
+  }
+
+  // 5. Load the PDF
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pages = pdfDoc.getPages();
+
+  // 6. For each signed signer, embed their signature at configured positions
+  for (const signer of signersResult.rows) {
+    const positions = positionsBySigner[signer.id];
+    if (!positions || positions.length === 0) continue;
+
+    // The signature_url is a base64 data URL (data:image/png;base64,...)
+    const sigUrl = signer.signature_url;
+    if (!sigUrl) continue;
+
+    let sigImage;
+    try {
+      if (sigUrl.startsWith('data:image/png')) {
+        const base64Data = sigUrl.split(',')[1];
+        sigImage = await pdfDoc.embedPng(Buffer.from(base64Data, 'base64'));
+      } else if (sigUrl.startsWith('data:image/jpeg') || sigUrl.startsWith('data:image/jpg')) {
+        const base64Data = sigUrl.split(',')[1];
+        sigImage = await pdfDoc.embedJpg(Buffer.from(base64Data, 'base64'));
+      } else if (sigUrl.startsWith('data:')) {
+        // Try PNG as default for other data URLs
+        const base64Data = sigUrl.split(',')[1];
+        sigImage = await pdfDoc.embedPng(Buffer.from(base64Data, 'base64'));
+      } else {
+        console.log(`[doc-signatures] Unsupported signature format for signer ${signer.id}`);
+        continue;
+      }
+    } catch (imgErr) {
+      console.error(`[doc-signatures] Error embedding signature image for signer ${signer.id}:`, imgErr.message);
+      continue;
+    }
+
+    for (const pos of positions) {
+      const pageIndex = Math.max(0, parseInt(pos.page) - 1); // 1-based to 0-based
+      if (pageIndex >= pages.length) continue;
+
+      const page = pages[pageIndex];
+      const { width: pageWidth, height: pageHeight } = page.getSize();
+
+      // Positions are stored as pixel values relative to the rendered PDF page
+      // We need to convert from the frontend coordinate system to PDF coordinates
+      // Frontend renders at ~scale, positions are in CSS pixels
+      // PDF coordinates: origin at bottom-left, y goes up
+      const pdfX = parseFloat(pos.x);
+      const pdfY = pageHeight - parseFloat(pos.y) - parseFloat(pos.height); // Flip Y axis
+      const sigWidth = parseFloat(pos.width);
+      const sigHeight = parseFloat(pos.height);
+
+      page.drawImage(sigImage, {
+        x: pdfX,
+        y: pdfY,
+        width: sigWidth,
+        height: sigHeight,
+      });
+    }
+  }
+
+  // 7. Save the modified PDF
+  const signedPdfBytes = await pdfDoc.save();
+
+  // Save to uploads directory
+  const uploadsDir = path.resolve('uploads', 'signed-docs');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  const signedFileName = `signed_${documentId}_${Date.now()}.pdf`;
+  const signedFilePath = path.join(uploadsDir, signedFileName);
+  fs.writeFileSync(signedFilePath, signedPdfBytes);
+
+  // Build the URL (relative to server)
+  const signedFileUrl = `/uploads/signed-docs/${signedFileName}`;
+
+  // 8. Update the document record
+  await query(
+    `UPDATE doc_signature_documents SET signed_file_url = $1, updated_at = NOW() WHERE id = $2`,
+    [signedFileUrl, documentId]
+  );
+
+  console.log(`[doc-signatures] Generated signed PDF: ${signedFileUrl} for document ${documentId}`);
+  return signedFileUrl;
 }
 
 // ===========================
@@ -431,7 +570,9 @@ router.post('/sign/:token', async (req, res) => {
       [signer.doc_id]
     );
 
-    if (parseInt(pendingResult.rows[0].pending) === 0) {
+    const allSigned = parseInt(pendingResult.rows[0].pending) === 0;
+
+    if (allSigned) {
       await query(`UPDATE doc_signature_documents SET status = 'completed', updated_at = NOW() WHERE id = $1`, [signer.doc_id]);
       await auditLog(signer.doc_id, 'document_completed', {
         name: 'Sistema', email: 'system', ip, userAgent,
@@ -439,11 +580,15 @@ router.post('/sign/:token', async (req, res) => {
       });
     }
 
-    // Return download URL so signer can download
-    const docResult = await query(`SELECT file_url, signed_file_url FROM doc_signature_documents WHERE id = $1`, [signer.doc_id]);
-    const downloadUrl = docResult.rows[0]?.signed_file_url || docResult.rows[0]?.file_url;
+    // Generate signed PDF with all current signatures embedded
+    let signedPdfUrl = null;
+    try {
+      signedPdfUrl = await generateSignedPdf(signer.doc_id);
+    } catch (pdfErr) {
+      console.error('[doc-signatures] PDF generation error:', pdfErr.message);
+    }
 
-    res.json({ success: true, download_url: downloadUrl });
+    res.json({ success: true, signed_pdf_url: signedPdfUrl, download_url: signedPdfUrl });
   } catch (error) {
     console.error('[doc-signatures] Submit signature error:', error);
     res.status(500).json({ error: 'Erro ao processar assinatura' });
