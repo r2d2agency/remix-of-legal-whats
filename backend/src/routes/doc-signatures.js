@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 import { query } from '../db.js';
@@ -267,11 +267,33 @@ async function generateSignedPdf(documentId) {
   // 5. Load the PDF
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
+  const infoFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const toFiniteNumber = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+  const compactText = (value, max = 72) => {
+    if (!value) return 'N/A';
+    const normalized = String(value).replace(/\s+/g, ' ').trim();
+    return normalized.length > max ? `${normalized.slice(0, max - 1)}…` : normalized;
+  };
+
+  const formatSignedAt = (signedAt) => {
+    if (!signedAt) return new Date().toLocaleString('pt-BR');
+    const date = new Date(signedAt);
+    if (Number.isNaN(date.getTime())) return new Date().toLocaleString('pt-BR');
+    return date.toLocaleString('pt-BR');
+  };
 
   // 6. For each signed signer, embed their signature at configured positions
-  for (const signer of signersResult.rows) {
-    const positions = positionsBySigner[signer.id];
-    if (!positions || positions.length === 0) continue;
+  let drawnSignatures = 0;
+  for (let signerIndex = 0; signerIndex < signersResult.rows.length; signerIndex += 1) {
+    const signer = signersResult.rows[signerIndex];
+    const configuredPositions = positionsBySigner[signer.id] || [];
 
     // The signature_url is a base64 data URL (data:image/png;base64,...)
     const sigUrl = signer.signature_url;
@@ -298,7 +320,18 @@ async function generateSignedPdf(documentId) {
       continue;
     }
 
-    for (const pos of positions) {
+    const fallbackTopY = 40 + (signerIndex * 140);
+    const fallbackPositions = [{
+      page: 1,
+      x: 36,
+      y: fallbackTopY,
+      width: 220,
+      height: 72,
+    }];
+
+    const positionsToUse = configuredPositions.length > 0 ? configuredPositions : fallbackPositions;
+
+    for (const pos of positionsToUse) {
       const pageIndex = Math.max(0, parseInt(pos.page) - 1); // 1-based to 0-based
       if (pageIndex >= pages.length) continue;
 
@@ -309,10 +342,12 @@ async function generateSignedPdf(documentId) {
       // We need to convert from the frontend coordinate system to PDF coordinates
       // Frontend renders at ~scale, positions are in CSS pixels
       // PDF coordinates: origin at bottom-left, y goes up
-      const pdfX = parseFloat(pos.x);
-      const pdfY = pageHeight - parseFloat(pos.y) - parseFloat(pos.height); // Flip Y axis
-      const sigWidth = parseFloat(pos.width);
-      const sigHeight = parseFloat(pos.height);
+      const sigWidth = clamp(toFiniteNumber(pos.width, 220), 100, Math.max(100, pageWidth - 24));
+      const sigHeight = clamp(toFiniteNumber(pos.height, 72), 40, Math.max(40, pageHeight - 24));
+      const rawX = toFiniteNumber(pos.x, 36);
+      const rawY = toFiniteNumber(pos.y, 40);
+      const pdfX = clamp(rawX, 12, Math.max(12, pageWidth - sigWidth - 12));
+      const pdfY = clamp(pageHeight - rawY - sigHeight, 12, Math.max(12, pageHeight - sigHeight - 12));
 
       page.drawImage(sigImage, {
         x: pdfX,
@@ -320,7 +355,54 @@ async function generateSignedPdf(documentId) {
         width: sigWidth,
         height: sigHeight,
       });
+
+      const auditLines = [
+        `Assinado por: ${compactText(signer.name, 60)}`,
+        `CPF: ${compactText(signer.cpf, 20)}`,
+        `Data/Hora: ${formatSignedAt(signer.signed_at)}`,
+        `IP: ${compactText(signer.ip_address, 45)}`,
+        `Geo: ${compactText(signer.geolocation, 65)}`,
+      ];
+
+      const lineHeight = 9;
+      const textPadding = 4;
+      const textBoxHeight = textPadding * 2 + (auditLines.length * lineHeight);
+      const textBoxWidth = clamp(Math.max(sigWidth, 250), 220, pageWidth - pdfX - 12);
+
+      let textBoxY = pdfY - textBoxHeight - 6;
+      if (textBoxY < 12) {
+        textBoxY = pdfY + sigHeight + 6;
+      }
+      textBoxY = clamp(textBoxY, 12, Math.max(12, pageHeight - textBoxHeight - 12));
+
+      page.drawRectangle({
+        x: pdfX,
+        y: textBoxY,
+        width: textBoxWidth,
+        height: textBoxHeight,
+        color: rgb(1, 1, 1),
+        borderColor: rgb(0.82, 0.82, 0.82),
+        borderWidth: 0.7,
+        opacity: 0.9,
+      });
+
+      auditLines.forEach((line, index) => {
+        page.drawText(line, {
+          x: pdfX + textPadding,
+          y: textBoxY + textBoxHeight - textPadding - 7 - (index * lineHeight),
+          size: 7,
+          font: infoFont,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+      });
+
+      drawnSignatures += 1;
     }
+  }
+
+  if (drawnSignatures === 0) {
+    console.warn(`[doc-signatures] Signed signers found but no signature could be drawn for document ${documentId}`);
+    return null;
   }
 
   // 7. Save the modified PDF
@@ -522,7 +604,10 @@ router.post('/sign/:token', async (req, res) => {
   try {
     const { token } = req.params;
     const { signature_image, cpf, full_name, geolocation } = req.body;
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = Array.isArray(forwarded)
+      ? forwarded[0]
+      : (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket.remoteAddress);
     const userAgent = req.headers['user-agent'];
 
     if (!signature_image) return res.status(400).json({ error: 'Assinatura é obrigatória' });
