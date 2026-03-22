@@ -240,7 +240,7 @@ export function useDocSignatures() {
     cpf: string;
     full_name: string;
     geolocation?: string;
-  }): Promise<{ signed_pdf_url?: string } | null> => {
+  }): Promise<{ signed_pdf_url?: string | null; download_url?: string | null } | null> => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/doc-signatures/sign/${token}`, {
@@ -257,6 +257,20 @@ export function useDocSignatures() {
       throw err;
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const getPublicSignedPdfUrl = useCallback(async (token: string): Promise<string | null> => {
+    try {
+      const res = await fetch(`${API_URL}/api/doc-signatures/sign/${token}/download`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'PDF assinado ainda não disponível');
+      }
+      const data = await res.json();
+      return data.url || null;
+    } catch (err: any) {
+      throw err;
     }
   }, []);
 
@@ -322,6 +336,7 @@ export function useDocSignatures() {
     cancelDocument,
     getPublicSigningData,
     submitSignature,
+    getPublicSignedPdfUrl,
     downloadSignedPdf,
     requestOtp,
     verifyOtp,
