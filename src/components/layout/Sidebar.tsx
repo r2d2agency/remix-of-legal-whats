@@ -53,7 +53,7 @@ interface NavItem {
   href: string;
   icon: any;
   pageKey?: string; // Used for permission template matching
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects' | 'lead_gleego';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects' | 'lead_gleego' | 'doc_signatures';
   adminOnly?: boolean;
   ownerOnly?: boolean;
   superadminOnly?: boolean;
