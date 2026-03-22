@@ -267,10 +267,66 @@ export default function Admin() {
       setWapiToken(foundWapi?.value || '');
       const foundCnpj = settings.find(s => s.key === 'cnpj_api_token');
       setCnpjApiToken(foundCnpj?.value || '');
+      // Load doc signature SMTP
+      const foundDocSmtp = settings.find(s => s.key === 'doc_signature_smtp');
+      if (foundDocSmtp?.value) {
+        try {
+          const smtp = JSON.parse(foundDocSmtp.value);
+          setDocSmtpHost(smtp.host || '');
+          setDocSmtpPort(String(smtp.port || 587));
+          setDocSmtpSecure(smtp.secure !== false);
+          setDocSmtpUsername(smtp.username || '');
+          setDocSmtpFromName(smtp.from_name || '');
+          setDocSmtpFromEmail(smtp.from_email || '');
+        } catch {}
+      }
     } catch {
       // ignore
     } finally {
       setLoadingWapiToken(false);
+    }
+  };
+
+  const handleSaveDocSmtp = async () => {
+    if (!docSmtpHost || !docSmtpUsername || !docSmtpFromEmail) {
+      toast.error('Preencha host, usuário e e-mail de envio');
+      return;
+    }
+    setSavingDocSmtp(true);
+    try {
+      const payload = {
+        host: docSmtpHost,
+        port: parseInt(docSmtpPort) || 587,
+        secure: docSmtpSecure,
+        username: docSmtpUsername,
+        password: docSmtpPassword || undefined,
+        from_name: docSmtpFromName,
+        from_email: docSmtpFromEmail,
+      };
+      await api('/api/admin/settings/doc-signature-smtp', {
+        method: 'PUT',
+        body: payload,
+      });
+      toast.success('SMTP de assinaturas salvo!');
+      setDocSmtpPassword('');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao salvar');
+    } finally {
+      setSavingDocSmtp(false);
+    }
+  };
+
+  const handleTestDocSmtp = async () => {
+    setTestingDocSmtp(true);
+    try {
+      const result = await api<{ success: boolean; message: string }>('/api/admin/settings/doc-signature-smtp/test', {
+        method: 'POST',
+      });
+      toast.success(result.message || 'E-mail de teste enviado!');
+    } catch (error: any) {
+      toast.error(error.message || 'Falha no teste');
+    } finally {
+      setTestingDocSmtp(false);
     }
   };
 
