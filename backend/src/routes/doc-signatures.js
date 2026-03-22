@@ -168,6 +168,48 @@ function createTransporter(config) {
   });
 }
 
+const HTTP_URL_REGEX = /^https?:\/\//i;
+
+function extractUploadsRelativePath(source) {
+  if (!source || typeof source !== 'string') return null;
+
+  const fromPathname = (pathname) => {
+    if (!pathname) return null;
+    const marker = '/uploads/';
+    const markerIndex = pathname.indexOf(marker);
+    if (markerIndex === -1) return null;
+
+    const raw = pathname.slice(markerIndex + marker.length).split('?')[0].split('#')[0];
+    const normalized = path.posix.normalize(raw).replace(/^\/+/, '');
+    if (!normalized || normalized.startsWith('..')) return null;
+    return normalized;
+  };
+
+  if (HTTP_URL_REGEX.test(source)) {
+    try {
+      return fromPathname(new URL(source).pathname);
+    } catch {
+      return null;
+    }
+  }
+
+  return fromPathname(source);
+}
+
+function resolveLocalUploadsPath(source) {
+  const relativePath = extractUploadsRelativePath(source);
+  if (!relativePath) return null;
+
+  const localPath = path.join(process.cwd(), 'uploads', relativePath);
+  return fs.existsSync(localPath) ? localPath : null;
+}
+
+async function readRemoteBinary(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to download file: ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
 // Helper: send OTP email
 async function sendOtpEmail(signerEmail, signerName, code, docTitle, orgId) {
   const smtpConfig = await getSmtpConfig(orgId);
@@ -254,14 +296,17 @@ async function generateSignedPdf(documentId) {
 
   // 4. Download the original PDF
   let pdfBytes;
-  if (file_url.startsWith('http://') || file_url.startsWith('https://')) {
-    const response = await fetch(file_url);
-    if (!response.ok) throw new Error(`Failed to download PDF: ${response.status}`);
-    pdfBytes = new Uint8Array(await response.arrayBuffer());
+  const localPdfPath = resolveLocalUploadsPath(file_url);
+  if (localPdfPath) {
+    pdfBytes = fs.readFileSync(localPdfPath);
+  } else if (HTTP_URL_REGEX.test(file_url)) {
+    pdfBytes = await readRemoteBinary(file_url);
   } else {
-    // Local file
-    const filePath = path.resolve(file_url.replace(/^\/uploads\//, 'uploads/'));
-    pdfBytes = fs.readFileSync(filePath);
+    const fallbackPath = path.isAbsolute(file_url) ? file_url : path.resolve(file_url);
+    if (!fs.existsSync(fallbackPath)) {
+      throw new Error(`PDF source not found: ${file_url}`);
+    }
+    pdfBytes = fs.readFileSync(fallbackPath);
   }
 
   // 5. Load the PDF
@@ -295,25 +340,51 @@ async function generateSignedPdf(documentId) {
     const signer = signersResult.rows[signerIndex];
     const configuredPositions = positionsBySigner[signer.id] || [];
 
-    // The signature_url is a base64 data URL (data:image/png;base64,...)
-    const sigUrl = signer.signature_url;
+    const sigUrl = String(signer.signature_url || '');
     if (!sigUrl) continue;
 
     let sigImage;
     try {
-      if (sigUrl.startsWith('data:image/png')) {
-        const base64Data = sigUrl.split(',')[1];
-        sigImage = await pdfDoc.embedPng(Buffer.from(base64Data, 'base64'));
-      } else if (sigUrl.startsWith('data:image/jpeg') || sigUrl.startsWith('data:image/jpg')) {
-        const base64Data = sigUrl.split(',')[1];
-        sigImage = await pdfDoc.embedJpg(Buffer.from(base64Data, 'base64'));
-      } else if (sigUrl.startsWith('data:')) {
-        // Try PNG as default for other data URLs
-        const base64Data = sigUrl.split(',')[1];
-        sigImage = await pdfDoc.embedPng(Buffer.from(base64Data, 'base64'));
+      if (sigUrl.startsWith('data:')) {
+        const [metadata, base64Data] = sigUrl.split(',', 2);
+        if (!base64Data) {
+          throw new Error('Invalid signature data URL');
+        }
+
+        const signatureBytes = Buffer.from(base64Data, 'base64');
+        const normalizedMetadata = metadata.toLowerCase();
+
+        if (normalizedMetadata.includes('image/png')) {
+          sigImage = await pdfDoc.embedPng(signatureBytes);
+        } else if (normalizedMetadata.includes('image/jpeg') || normalizedMetadata.includes('image/jpg')) {
+          sigImage = await pdfDoc.embedJpg(signatureBytes);
+        } else {
+          try {
+            sigImage = await pdfDoc.embedPng(signatureBytes);
+          } catch {
+            sigImage = await pdfDoc.embedJpg(signatureBytes);
+          }
+        }
       } else {
-        console.log(`[doc-signatures] Unsupported signature format for signer ${signer.id}`);
-        continue;
+        const localSignaturePath = resolveLocalUploadsPath(sigUrl);
+        let signatureBytes = null;
+
+        if (localSignaturePath) {
+          signatureBytes = fs.readFileSync(localSignaturePath);
+        } else if (HTTP_URL_REGEX.test(sigUrl)) {
+          signatureBytes = await readRemoteBinary(sigUrl);
+        }
+
+        if (!signatureBytes) {
+          console.log(`[doc-signatures] Unsupported signature source for signer ${signer.id}`);
+          continue;
+        }
+
+        try {
+          sigImage = await pdfDoc.embedPng(signatureBytes);
+        } catch {
+          sigImage = await pdfDoc.embedJpg(signatureBytes);
+        }
       }
     } catch (imgErr) {
       console.error(`[doc-signatures] Error embedding signature image for signer ${signer.id}:`, imgErr.message);
@@ -332,7 +403,8 @@ async function generateSignedPdf(documentId) {
     const positionsToUse = configuredPositions.length > 0 ? configuredPositions : fallbackPositions;
 
     for (const pos of positionsToUse) {
-      const pageIndex = Math.max(0, parseInt(pos.page) - 1); // 1-based to 0-based
+      const parsedPage = Number.parseInt(String(pos.page), 10);
+      const pageIndex = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage - 1 : 0; // 1-based to 0-based
       if (pageIndex >= pages.length) continue;
 
       const page = pages[pageIndex];
@@ -367,7 +439,8 @@ async function generateSignedPdf(documentId) {
       const lineHeight = 9;
       const textPadding = 4;
       const textBoxHeight = textPadding * 2 + (auditLines.length * lineHeight);
-      const textBoxWidth = clamp(Math.max(sigWidth, 250), 220, pageWidth - pdfX - 12);
+      const availableTextWidth = Math.max(120, pageWidth - pdfX - 12);
+      const textBoxWidth = Math.min(Math.max(sigWidth, 220), availableTextWidth);
 
       let textBoxY = pdfY - textBoxHeight - 6;
       if (textBoxY < 12) {
@@ -909,7 +982,17 @@ router.get('/:id/download', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Documento não encontrado' });
     
     const doc = result.rows[0];
-    res.json({ url: doc.signed_file_url || doc.file_url });
+    let downloadUrl = doc.signed_file_url;
+
+    if (!downloadUrl) {
+      try {
+        downloadUrl = await generateSignedPdf(req.params.id);
+      } catch (generationError) {
+        console.error('[doc-signatures] On-demand PDF generation error:', generationError.message);
+      }
+    }
+
+    res.json({ url: downloadUrl || doc.file_url });
   } catch (error) {
     console.error('[doc-signatures] Download error:', error);
     res.status(500).json({ error: 'Erro ao baixar documento' });
