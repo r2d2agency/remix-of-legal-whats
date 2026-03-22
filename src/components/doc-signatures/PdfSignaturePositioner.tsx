@@ -5,7 +5,7 @@ import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Move, Save, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Move, Save, Loader2, Plus, MousePointer } from 'lucide-react';
 import { DocSigner, SignaturePosition } from '@/hooks/use-doc-signatures';
 import { resolveMediaUrl } from '@/lib/media';
 
