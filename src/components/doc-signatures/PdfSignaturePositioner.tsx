@@ -248,6 +248,15 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
 
         {!readOnly && (
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={addMode ? 'default' : 'outline'}
+              onClick={() => setAddMode(m => !m)}
+              className="gap-1"
+            >
+              {addMode ? <Plus className="h-3 w-3" /> : <MousePointer className="h-3 w-3" />}
+              {addMode ? 'Adicionando...' : 'Adicionar Área'}
+            </Button>
             <Select value={selectedSigner} onValueChange={setSelectedSigner}>
               <SelectTrigger className="w-[180px] h-8 text-xs">
                 <SelectValue placeholder="Selecione signatário" />
