@@ -1346,8 +1346,6 @@ router.patch('/settings/:key', requireSuperadmin, async (req, res) => {
 // ============================================
 // DOC SIGNATURE SMTP (System-level)
 // ============================================
-import crypto from 'crypto';
-import nodemailer from 'nodemailer';
 
 const DOC_SMTP_ENCRYPTION_KEY = process.env.EMAIL_ENCRYPTION_KEY || 'whatsale-email-key-32chars!!';
 
