@@ -263,6 +263,45 @@ export function useDocSignatures() {
     }
   }, []);
 
+  const requestOtp = useCallback(async (token: string): Promise<{ masked_email: string; signer_name: string; document_title: string } | null> => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/doc-signatures/sign/${token}/request-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro ao enviar código');
+      }
+      return res.json();
+    } catch (err: any) {
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const verifyOtp = useCallback(async (token: string, code: string): Promise<boolean> => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/doc-signatures/sign/${token}/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Código inválido');
+      }
+      return true;
+    } catch (err: any) {
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     listDocuments,
@@ -276,5 +315,7 @@ export function useDocSignatures() {
     getPublicSigningData,
     submitSignature,
     downloadSignedPdf,
+    requestOtp,
+    verifyOtp,
   };
 }

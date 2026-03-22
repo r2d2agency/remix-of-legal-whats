@@ -5,13 +5,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useDocSignatures } from '@/hooks/use-doc-signatures';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { FileSignature, Loader2, CheckCircle2, RefreshCw, MapPin, Download } from 'lucide-react';
+import { FileSignature, Loader2, CheckCircle2, RefreshCw, MapPin, Download, ShieldCheck, Mail, KeyRound } from 'lucide-react';
 
 export default function AssinarDocumento() {
   const { token } = useParams<{ token: string }>();
+  // OTP verification state
+  const [otpStep, setOtpStep] = useState<'loading' | 'request' | 'verify' | 'verified'>('loading');
+  const [otpCode, setOtpCode] = useState('');
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [otpDocTitle, setOtpDocTitle] = useState('');
+  const [otpSignerName, setOtpSignerName] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   const [signingData, setSigningData] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,9 +32,62 @@ export default function AssinarDocumento() {
   const [loadingGeo, setLoadingGeo] = useState(false);
 
   const sigPadRef = useRef<SignatureCanvas>(null);
-  const { getPublicSigningData, submitSignature, loading: submitting } = useDocSignatures();
+  const { getPublicSigningData, submitSignature, requestOtp, verifyOtp, loading: submitting } = useDocSignatures();
 
-  useEffect(() => { if (token) loadData(); }, [token]);
+  useEffect(() => {
+    if (token) handleRequestOtp();
+  }, [token]);
+
+  // Cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const handleRequestOtp = async () => {
+    setOtpStep('loading');
+    try {
+      const data = await requestOtp(token!);
+      if (data) {
+        setMaskedEmail(data.masked_email);
+        setOtpSignerName(data.signer_name);
+        setOtpDocTitle(data.document_title);
+        setOtpStep('verify');
+        setResendCooldown(60);
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setOtpStep('request');
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length !== 6) { toast.error('Digite o código de 6 dígitos'); return; }
+    try {
+      const ok = await verifyOtp(token!, otpCode);
+      if (ok) {
+        setOtpStep('verified');
+        toast.success('Identidade verificada!');
+        loadData();
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+      setOtpCode('');
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    try {
+      await requestOtp(token!);
+      toast.success('Novo código enviado!');
+      setResendCooldown(60);
+      setOtpCode('');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -44,7 +106,15 @@ export default function AssinarDocumento() {
       setSigningData(data);
       setFullName(data.signer.name);
       setCpfInput(data.signer.cpf);
-    } catch (err: any) { setError(err.message); }
+    } catch (err: any) {
+      // If require_otp, go back to OTP flow
+      if (err.message?.includes('Verificação de identidade')) {
+        setOtpStep('request');
+        handleRequestOtp();
+        return;
+      }
+      setError(err.message);
+    }
     finally { setLoadingData(false); }
   };
 
@@ -78,6 +148,101 @@ export default function AssinarDocumento() {
   };
 
   if (loadingData) {
+    // Show OTP verification screen instead of spinner when not yet verified
+    if (otpStep !== 'verified') {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+          <div className="max-w-md w-full space-y-6">
+            <Card>
+              <CardHeader className="text-center">
+                <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
+                  <ShieldCheck className="h-8 w-8 text-primary" />
+                </div>
+                <CardTitle className="text-xl">Verificação de Identidade</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {otpStep === 'loading' && (
+                  <div className="flex flex-col items-center gap-3 py-6">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Enviando código de verificação...</p>
+                  </div>
+                )}
+
+                {otpStep === 'request' && !error && (
+                  <div className="flex flex-col items-center gap-4 py-4">
+                    <Mail className="h-10 w-10 text-muted-foreground" />
+                    <p className="text-sm text-center text-muted-foreground">
+                      Para sua segurança, enviaremos um código de verificação para o seu e-mail cadastrado.
+                    </p>
+                    <Button onClick={handleRequestOtp} className="gap-2">
+                      <KeyRound className="h-4 w-4" />
+                      Enviar Código
+                    </Button>
+                  </div>
+                )}
+
+                {otpStep === 'verify' && (
+                  <div className="space-y-5">
+                    <div className="text-center space-y-2">
+                      <p className="text-sm">
+                        Olá <strong>{otpSignerName}</strong>, enviamos um código para:
+                      </p>
+                      <Badge variant="secondary" className="text-sm gap-1.5 px-3 py-1.5">
+                        <Mail className="h-3.5 w-3.5" />
+                        {maskedEmail}
+                      </Badge>
+                      {otpDocTitle && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Documento: <strong>{otpDocTitle}</strong>
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col items-center gap-4">
+                      <Label className="text-sm font-medium">Digite o código de 6 dígitos</Label>
+                      <InputOTP maxLength={6} value={otpCode} onChange={setOtpCode}>
+                        <InputOTPGroup>
+                          <InputOTPSlot index={0} />
+                          <InputOTPSlot index={1} />
+                          <InputOTPSlot index={2} />
+                          <InputOTPSlot index={3} />
+                          <InputOTPSlot index={4} />
+                          <InputOTPSlot index={5} />
+                        </InputOTPGroup>
+                      </InputOTP>
+
+                      <Button onClick={handleVerifyOtp} disabled={submitting || otpCode.length !== 6} className="w-full gap-2">
+                        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                        Verificar Código
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleResendOtp}
+                        disabled={resendCooldown > 0 || submitting}
+                        className="text-xs"
+                      >
+                        {resendCooldown > 0 ? `Reenviar em ${resendCooldown}s` : 'Reenviar código'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+              <CardContent className="pt-4">
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  🔒 <strong>Por que estamos pedindo isso?</strong> Esta verificação garante que somente a pessoa autorizada tenha acesso ao documento para assinatura. O código é válido por 10 minutos.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

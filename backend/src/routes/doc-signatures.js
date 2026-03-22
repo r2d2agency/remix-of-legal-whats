@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -85,6 +86,18 @@ async function ensureTables() {
     )`);
 
     await query(`CREATE INDEX IF NOT EXISTS idx_doc_sig_signers_token ON doc_signature_signers(sign_token)`);
+
+    // OTP verification table
+    await query(`CREATE TABLE IF NOT EXISTS doc_signature_otp (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      signer_id UUID REFERENCES doc_signature_signers(id) ON DELETE CASCADE NOT NULL,
+      code VARCHAR(6) NOT NULL,
+      verified BOOLEAN DEFAULT false,
+      attempts INTEGER DEFAULT 0,
+      expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )`);
+
   } catch (e) {
     console.error('[doc-signatures] Table init error:', e.message);
   }
@@ -92,11 +105,173 @@ async function ensureTables() {
 
 ensureTables();
 
+// Helper: get SMTP config for org
+async function getSmtpConfig(orgId) {
+  const r = await query(`SELECT * FROM smtp_configs WHERE organization_id = $1 AND is_active = true LIMIT 1`, [orgId]);
+  return r.rows[0] || null;
+}
+
+// Helper: create nodemailer transporter
+function createTransporter(config) {
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure || config.port === 465,
+    auth: { user: config.username, pass: config.password },
+  });
+}
+
+// Helper: send OTP email
+async function sendOtpEmail(signerEmail, signerName, code, docTitle, orgId) {
+  // Try org SMTP first
+  let smtpConfig = orgId ? await getSmtpConfig(orgId) : null;
+
+  // Fallback: try any active SMTP config
+  if (!smtpConfig) {
+    const r = await query(`SELECT * FROM smtp_configs WHERE is_active = true LIMIT 1`);
+    smtpConfig = r.rows[0] || null;
+  }
+
+  if (!smtpConfig) {
+    console.error('[doc-signatures] No SMTP config found for OTP email');
+    return false;
+  }
+
+  try {
+    const transporter = createTransporter(smtpConfig);
+    await transporter.sendMail({
+      from: `"${smtpConfig.from_name}" <${smtpConfig.from_email}>`,
+      to: signerEmail,
+      subject: `Código de verificação - ${docTitle}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333; text-align: center;">Verificação de Identidade</h2>
+          <p>Olá <strong>${signerName}</strong>,</p>
+          <p>Você está acessando o documento <strong>"${docTitle}"</strong> para assinatura.</p>
+          <p>Seu código de verificação é:</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; background: #f4f4f5; padding: 16px 32px; border-radius: 8px; display: inline-block;">${code}</span>
+          </div>
+          <p style="color: #666; font-size: 13px;">Este código é válido por <strong>10 minutos</strong>. Não compartilhe com ninguém.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+          <p style="color: #999; font-size: 11px; text-align: center;">Se você não solicitou este código, ignore este e-mail.</p>
+        </div>
+      `,
+    });
+    return true;
+  } catch (err) {
+    console.error('[doc-signatures] OTP email error:', err.message);
+    return false;
+  }
+}
+
 // ===========================
 // PUBLIC ROUTES (before auth)
 // ===========================
 
-// Get signing data by token
+// Step 1: Request OTP - sends verification code to signer's email
+router.post('/sign/:token/request-otp', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const result = await query(
+      `SELECT s.*, d.title, d.status as doc_status, d.organization_id
+       FROM doc_signature_signers s
+       JOIN doc_signature_documents d ON d.id = s.document_id
+       WHERE s.sign_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Link inválido ou expirado' });
+
+    const signer = result.rows[0];
+    if (signer.doc_status !== 'pending') return res.status(400).json({ error: 'Documento não está disponível para assinatura' });
+    if (signer.status === 'signed') return res.status(400).json({ error: 'Você já assinou este documento' });
+
+    // Invalidate old OTPs
+    await query(`UPDATE doc_signature_otp SET verified = true WHERE signer_id = $1 AND verified = false`, [signer.id]);
+
+    // Generate 6-digit code
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await query(
+      `INSERT INTO doc_signature_otp (signer_id, code, expires_at) VALUES ($1, $2, $3)`,
+      [signer.id, code, expiresAt]
+    );
+
+    // Mask email for display
+    const emailParts = signer.email.split('@');
+    const maskedLocal = emailParts[0].slice(0, 2) + '***';
+    const maskedEmail = `${maskedLocal}@${emailParts[1]}`;
+
+    // Send email
+    const sent = await sendOtpEmail(signer.email, signer.name, code, signer.title, signer.organization_id);
+    if (!sent) return res.status(500).json({ error: 'Erro ao enviar código de verificação. Tente novamente.' });
+
+    res.json({
+      success: true,
+      masked_email: maskedEmail,
+      signer_name: signer.name,
+      document_title: signer.title,
+    });
+  } catch (error) {
+    console.error('[doc-signatures] Request OTP error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// Step 2: Verify OTP
+router.post('/sign/:token/verify-otp', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Código é obrigatório' });
+
+    const signerResult = await query(
+      `SELECT s.id, s.status, d.status as doc_status
+       FROM doc_signature_signers s
+       JOIN doc_signature_documents d ON d.id = s.document_id
+       WHERE s.sign_token = $1`,
+      [token]
+    );
+    if (signerResult.rows.length === 0) return res.status(404).json({ error: 'Link inválido' });
+
+    const signer = signerResult.rows[0];
+
+    // Find valid OTP
+    const otpResult = await query(
+      `SELECT * FROM doc_signature_otp
+       WHERE signer_id = $1 AND verified = false AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1`,
+      [signer.id]
+    );
+
+    if (otpResult.rows.length === 0) return res.status(400).json({ error: 'Código expirado. Solicite um novo.' });
+
+    const otp = otpResult.rows[0];
+
+    // Increment attempts
+    await query(`UPDATE doc_signature_otp SET attempts = attempts + 1 WHERE id = $1`, [otp.id]);
+
+    if (otp.attempts >= 5) {
+      await query(`UPDATE doc_signature_otp SET verified = true WHERE id = $1`, [otp.id]);
+      return res.status(400).json({ error: 'Muitas tentativas. Solicite um novo código.' });
+    }
+
+    if (otp.code !== code.trim()) {
+      return res.status(400).json({ error: `Código incorreto. ${4 - otp.attempts} tentativa(s) restante(s).` });
+    }
+
+    // Mark as verified
+    await query(`UPDATE doc_signature_otp SET verified = true WHERE id = $1`, [otp.id]);
+
+    res.json({ success: true, verified: true });
+  } catch (error) {
+    console.error('[doc-signatures] Verify OTP error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+// Get signing data by token (now requires OTP verification)
 router.get('/sign/:token', async (req, res) => {
   try {
     const { token } = req.params;
@@ -112,6 +287,17 @@ router.get('/sign/:token', async (req, res) => {
     const signer = result.rows[0];
     if (signer.doc_status !== 'pending') return res.status(400).json({ error: 'Documento não está mais disponível para assinatura' });
     if (signer.status === 'signed') return res.status(400).json({ error: 'Você já assinou este documento' });
+
+    // Check if OTP was verified recently (last 30 minutes)
+    const otpCheck = await query(
+      `SELECT id FROM doc_signature_otp
+       WHERE signer_id = $1 AND verified = true AND created_at > NOW() - INTERVAL '30 minutes'
+       ORDER BY created_at DESC LIMIT 1`,
+      [signer.id]
+    );
+    if (otpCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Verificação de identidade necessária', require_otp: true });
+    }
 
     // Get positions for this signer
     const posResult = await query(
