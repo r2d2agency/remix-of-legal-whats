@@ -64,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     ghost: true,
     projects: false,
     lead_gleego: false,
+    doc_signatures: false,
   };
 
   const refreshUser = async () => {
