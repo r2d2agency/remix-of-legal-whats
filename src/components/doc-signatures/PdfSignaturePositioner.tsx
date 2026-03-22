@@ -89,6 +89,11 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
     if (readOnly || !selectedSigner || dragging || resizing) return;
     if (justDragged.current) { justDragged.current = false; return; }
 
+    const target = e.target;
+    if (target instanceof Element && target.closest('[data-signature-box="true"]')) {
+      return;
+    }
+
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / scale;
     const y = (e.clientY - rect.top) / scale;
@@ -305,6 +310,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
               {currentPageBoxes.map((box) => (
                 <div
                   key={box.id}
+                  data-signature-box="true"
                   className="absolute border-2 rounded flex flex-col items-center justify-center text-xs select-none group"
                   style={{
                     left: box.x,
@@ -316,6 +322,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
                     cursor: readOnly ? 'default' : 'move',
                   }}
                   onMouseDown={(e) => handleMouseDown(e, box.id)}
+                  onClick={(e) => e.stopPropagation()}
                   onDragStart={(e) => e.preventDefault()}
                 >
                   <Move className="h-3 w-3 mb-0.5 opacity-50" />
