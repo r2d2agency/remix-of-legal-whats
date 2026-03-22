@@ -44,6 +44,7 @@ import taskBoardsRoutes from './routes/task-boards.js';
 import leadGleegoRoutes from './routes/lead-gleego.js';
 import globalAgentsRoutes from './routes/global-agents.js';
 import metaTemplatesRoutes from './routes/meta-templates.js';
+import docSignaturesRoutes from './routes/doc-signatures.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -205,6 +206,7 @@ app.use('/api/task-boards', taskBoardsRoutes);
 app.use('/api/lead-gleego', leadGleegoRoutes);
 app.use('/api/global-agents', globalAgentsRoutes);
 app.use('/api/meta', metaTemplatesRoutes);
+app.use('/api/doc-signatures', docSignaturesRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

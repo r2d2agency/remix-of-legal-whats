@@ -15,6 +15,7 @@ interface ModulesEnabled {
   ghost: boolean;
   projects: boolean;
   lead_gleego: boolean;
+  doc_signatures: boolean;
 }
 
 // Page-level permissions from permission templates
@@ -63,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     ghost: true,
     projects: false,
     lead_gleego: false,
+    doc_signatures: false,
   };
 
   const refreshUser = async () => {

@@ -427,6 +427,7 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
       has_ghost,
       has_projects,
       has_lead_gleego,
+      has_doc_signatures,
       price, 
       billing_period,
       visible_on_signup,
@@ -438,8 +439,8 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_ghost, has_projects, has_lead_gleego, price, billing_period, visible_on_signup, trial_days)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *`,
+      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_ghost, has_projects, has_lead_gleego, has_doc_signatures, price, billing_period, visible_on_signup, trial_days)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) RETURNING *`,
       [
         name,
         description,
@@ -462,6 +463,7 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
         has_ghost || false,
         has_projects || false,
         has_lead_gleego || false,
+        has_doc_signatures || false,
         price || 0,
         billing_period || 'monthly',
         visible_on_signup || false,
@@ -502,6 +504,7 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
       has_ghost,
       has_projects,
       has_lead_gleego,
+      has_doc_signatures,
       price, 
       billing_period, 
       is_active,
@@ -532,13 +535,14 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
            has_ghost = COALESCE($19, has_ghost),
            has_projects = COALESCE($20, has_projects),
            has_lead_gleego = COALESCE($21, has_lead_gleego),
-           price = COALESCE($22, price),
-           billing_period = COALESCE($23, billing_period),
-           is_active = COALESCE($24, is_active),
-           visible_on_signup = COALESCE($25, visible_on_signup),
-           trial_days = COALESCE($26, trial_days),
+           has_doc_signatures = COALESCE($22, has_doc_signatures),
+           price = COALESCE($23, price),
+           billing_period = COALESCE($24, billing_period),
+           is_active = COALESCE($25, is_active),
+           visible_on_signup = COALESCE($26, visible_on_signup),
+           trial_days = COALESCE($27, trial_days),
            updated_at = NOW()
-       WHERE id = $27
+       WHERE id = $28
        RETURNING *`,
       [
         name,
@@ -562,6 +566,7 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
         has_ghost,
         has_projects,
         has_lead_gleego,
+        has_doc_signatures,
         price,
         billing_period,
         is_active,
@@ -587,7 +592,7 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
   try {
     // Get all plans with their modules
     const plansResult = await query(
-      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_projects, has_lead_gleego FROM plans`
+      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_projects, has_lead_gleego, has_doc_signatures FROM plans`
     );
 
     let syncedCount = 0;
@@ -609,6 +614,7 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
         group_secretary: plan.has_group_secretary ?? false,
         projects: plan.has_projects ?? false,
         lead_gleego: plan.has_lead_gleego ?? false,
+        doc_signatures: plan.has_doc_signatures ?? false,
       };
 
       console.log(`[sync-all] Plan "${plan.name}" (${plan.id}) modules:`, modulesEnabled);

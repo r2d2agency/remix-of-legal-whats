@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Code,
   ClipboardList,
+  FileSignature,
   FileText,
   GitBranch,
   Kanban,
@@ -53,7 +54,7 @@ interface NavItem {
   href: string;
   icon: any;
   pageKey?: string; // Used for permission template matching
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects' | 'lead_gleego';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects' | 'lead_gleego' | 'doc_signatures';
   adminOnly?: boolean;
   ownerOnly?: boolean;
   superadminOnly?: boolean;
@@ -63,7 +64,7 @@ interface NavSection {
   title: string;
   icon: any;
   items: NavItem[];
-  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects' | 'lead_gleego';
+  moduleKey?: 'campaigns' | 'billing' | 'groups' | 'scheduled_messages' | 'chatbots' | 'chat' | 'crm' | 'ai_agents' | 'group_secretary' | 'ghost' | 'projects' | 'lead_gleego' | 'doc_signatures';
   adminOnly?: boolean; // Entire section requires admin role
 }
 
@@ -125,6 +126,7 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
     items: [
       { name: "Conexões", href: "/conexao", icon: Plug, pageKey: 'conexoes' },
       { name: "Templates Meta", href: "/meta-templates", icon: FileText, pageKey: 'meta_templates' },
+      { name: "Assinaturas", href: "/assinaturas", icon: FileSignature, pageKey: 'assinaturas', moduleKey: 'doc_signatures' as const },
       { name: "Ajustes", href: "/configuracoes", icon: Settings, pageKey: 'ajustes' },
     ],
   },

@@ -57,6 +57,8 @@ import AgentesIACliente from "./pages/AgentesIACliente";
 import RespostasRapidas from "./pages/RespostasRapidas";
 import ApiDocumentation from "./pages/ApiDocumentation";
 import MetaTemplates from "./pages/MetaTemplates";
+import Assinaturas from "./pages/Assinaturas";
+import AssinarDocumento from "./pages/AssinarDocumento";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -153,8 +155,10 @@ const App = () => (
             <Route path="/agentes-ia-cliente" element={<ProtectedRoute><AgentesIACliente /></ProtectedRoute>} />
             <Route path="/respostas-rapidas" element={<ProtectedRoute><RespostasRapidas /></ProtectedRoute>} />
             <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
+            <Route path="/assinaturas" element={<ProtectedRoute><Assinaturas /></ProtectedRoute>} />
             <Route path="/api-docs" element={<ApiDocumentation />} />
             <Route path="/f/:slug" element={<PublicFormPage />} />
+            <Route path="/assinar/:token" element={<AssinarDocumento />} />
             <Route path="/politica-privacidade" element={<PoliticaPrivacidade />} />
             <Route path="/termos-servico" element={<TermosServico />} />
             <Route path="/exclusao-dados" element={<ExclusaoDados />} />
