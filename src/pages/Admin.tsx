@@ -369,6 +369,7 @@ export default function Admin() {
       has_ghost: newPlanGhost,
       has_projects: newPlanProjects,
       has_lead_gleego: newPlanLeadGleego,
+      has_doc_signatures: newPlanDocSignatures,
       price: parseFloat(newPlanPrice) || 0,
       billing_period: newPlanPeriod,
       visible_on_signup: newPlanVisibleOnSignup,
