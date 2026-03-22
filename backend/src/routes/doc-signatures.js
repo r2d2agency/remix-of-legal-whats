@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import { PDFDocument } from 'pdf-lib';
+import fs from 'fs';
+import path from 'path';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 
