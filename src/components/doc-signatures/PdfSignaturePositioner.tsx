@@ -315,7 +315,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
         ref={containerRef}
         className="border rounded-lg overflow-auto bg-muted/30 max-h-[600px]"
       >
-        <div className="inline-block relative" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+        <div className="inline-block relative">
           <Document
             file={resolvedUrl}
             onLoadSuccess={handleDocumentLoadSuccess}
@@ -331,7 +331,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
               onMouseLeave={handleMouseUp}
               style={{ cursor: readOnly ? 'default' : (dragging || resizing ? 'grabbing' : (addMode ? 'crosshair' : 'default')) }}
             >
-              <Page pageNumber={currentPage} renderTextLayer={true} renderAnnotationLayer={true} />
+              <Page pageNumber={currentPage} scale={scale} renderTextLayer={false} renderAnnotationLayer={false} />
 
               {/* Signature boxes overlay */}
               {currentPageBoxes.map((box) => (
@@ -340,13 +340,14 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
                   data-signature-box="true"
                   className="absolute border-2 rounded flex flex-col items-center justify-center text-xs select-none group"
                   style={{
-                    left: box.x,
-                    top: box.y,
-                    width: box.width,
-                    height: box.height,
+                    left: box.x * scale,
+                    top: box.y * scale,
+                    width: box.width * scale,
+                    height: box.height * scale,
                     borderColor: getSignerColor(box.signer_id),
                     backgroundColor: `${getSignerColor(box.signer_id)}15`,
                     cursor: readOnly ? 'default' : 'move',
+                    zIndex: 10,
                   }}
                   onMouseDown={(e) => handleMouseDown(e, box.id)}
                   onClick={(e) => e.stopPropagation()}
