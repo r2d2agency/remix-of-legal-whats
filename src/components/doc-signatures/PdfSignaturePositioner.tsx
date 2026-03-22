@@ -50,6 +50,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
   const [selectedSigner, setSelectedSigner] = useState<string>('');
   const justDragged = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (existingPositions.length > 0) {
@@ -112,54 +113,90 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
     setBoxes(prev => [...prev, newBox]);
   }, [readOnly, selectedSigner, currentPage, scale, dragging, resizing, boxes]);
 
+  const getPointerPosition = useCallback((clientX: number, clientY: number) => {
+    const rect = surfaceRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+
+    return {
+      x: (clientX - rect.left) / scale,
+      y: (clientY - rect.top) / scale,
+    };
+  }, [scale]);
+
   const handleMouseDown = (e: React.MouseEvent, boxId: string, isResize = false) => {
     if (readOnly) return;
+    e.preventDefault();
     e.stopPropagation();
+
     const box = boxes.find(b => b.id === boxId);
     if (!box) return;
 
-    const rect = (e.currentTarget.parentElement?.parentElement as HTMLElement)?.getBoundingClientRect();
-    if (!rect) return;
+    const pointer = getPointerPosition(e.clientX, e.clientY);
+    if (!pointer) return;
 
     if (isResize) {
       setResizing(boxId);
     } else {
       setDragging(boxId);
       setDragOffset({
-        x: (e.clientX - rect.left) / scale - box.x,
-        y: (e.clientY - rect.top) / scale - box.y,
+        x: pointer.x - box.x,
+        y: pointer.y - box.y,
       });
     }
   };
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const updateDraggingPosition = useCallback((clientX: number, clientY: number) => {
     if (!dragging && !resizing) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const mx = (e.clientX - rect.left) / scale;
-    const my = (e.clientY - rect.top) / scale;
+
+    const pointer = getPointerPosition(clientX, clientY);
+    if (!pointer) return;
 
     setBoxes(prev => prev.map(b => {
       if (dragging && b.id === dragging) {
-        return { ...b, x: Math.max(0, mx - dragOffset.x), y: Math.max(0, my - dragOffset.y) };
+        return { ...b, x: Math.max(0, pointer.x - dragOffset.x), y: Math.max(0, pointer.y - dragOffset.y) };
       }
       if (resizing && b.id === resizing) {
         return {
           ...b,
-          width: Math.max(100, mx - b.x),
-          height: Math.max(40, my - b.y),
+          width: Math.max(100, pointer.x - b.x),
+          height: Math.max(40, pointer.y - b.y),
         };
       }
       return b;
     }));
-  }, [dragging, resizing, dragOffset, scale]);
+  }, [dragging, resizing, dragOffset, getPointerPosition]);
 
-  const handleMouseUp = () => {
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    updateDraggingPosition(e.clientX, e.clientY);
+  }, [updateDraggingPosition]);
+
+  const handleMouseUp = useCallback(() => {
     if (dragging || resizing) {
       justDragged.current = true;
     }
     setDragging(null);
     setResizing(null);
-  };
+  }, [dragging, resizing]);
+
+  useEffect(() => {
+    if (!dragging && !resizing) return;
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      updateDraggingPosition(e.clientX, e.clientY);
+    };
+
+    const handleWindowMouseUp = () => {
+      handleMouseUp();
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+  }, [dragging, resizing, updateDraggingPosition, handleMouseUp]);
 
   const removeBox = (boxId: string) => {
     setBoxes(prev => prev.filter(b => b.id !== boxId));
@@ -254,12 +291,13 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
             error={<div className="p-10 text-center text-destructive">Erro ao carregar PDF. Verifique o arquivo.</div>}
           >
             <div
+              ref={surfaceRef}
               className="relative"
               onClick={handlePageClick}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              style={{ cursor: readOnly ? 'default' : 'crosshair' }}
+              style={{ cursor: readOnly ? 'default' : (dragging || resizing ? 'grabbing' : 'crosshair') }}
             >
               <Page pageNumber={currentPage} renderTextLayer={true} renderAnnotationLayer={true} />
 
@@ -278,6 +316,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
                     cursor: readOnly ? 'default' : 'move',
                   }}
                   onMouseDown={(e) => handleMouseDown(e, box.id)}
+                  onDragStart={(e) => e.preventDefault()}
                 >
                   <Move className="h-3 w-3 mb-0.5 opacity-50" />
                   <span className="font-medium truncate max-w-full px-1" style={{ color: getSignerColor(box.signer_id) }}>
