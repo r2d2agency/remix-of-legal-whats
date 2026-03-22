@@ -9,7 +9,7 @@ import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Move, Save, Loader2, Plus, 
 import { DocSigner, SignaturePosition } from '@/hooks/use-doc-signatures';
 import { resolveMediaUrl } from '@/lib/media';
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
 interface DraggableBox {
   id: string;
@@ -27,6 +27,13 @@ interface Props {
   existingPositions: SignaturePosition[];
   onSave: (positions: DraggableBox[]) => Promise<void>;
   readOnly?: boolean;
+  previewSignatureBySigner?: Record<string, string | null | undefined>;
+  auditPreviewBySigner?: Record<string, {
+    name?: string;
+    cpf?: string;
+    geolocation?: string;
+    signedAt?: string;
+  }>;
 }
 
 const SIGNER_COLORS = [
@@ -38,7 +45,15 @@ const SIGNER_COLORS = [
   'hsl(0, 70%, 55%)',
 ];
 
-export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, onSave, readOnly = false }: Props) {
+export function PdfSignaturePositioner({
+  fileUrl,
+  signers,
+  existingPositions,
+  onSave,
+  readOnly = false,
+  previewSignatureBySigner,
+  auditPreviewBySigner,
+}: Props) {
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1);
@@ -230,6 +245,8 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
 
   const resolvedUrl = resolveMediaUrl(fileUrl);
   const currentPageBoxes = boxes.filter(b => b.page === currentPage);
+  const previewSignatures = previewSignatureBySigner ?? {};
+  const previewAudit = auditPreviewBySigner ?? {};
 
   return (
     <div className="space-y-3">
@@ -334,48 +351,74 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
               <Page pageNumber={currentPage} scale={scale} renderTextLayer={false} renderAnnotationLayer={false} />
 
               {/* Signature boxes overlay */}
-              {currentPageBoxes.map((box) => (
-                <div
-                  key={box.id}
-                  data-signature-box="true"
-                  className="absolute border-2 rounded flex flex-col items-center justify-center text-xs select-none group"
-                  style={{
-                    left: box.x * scale,
-                    top: box.y * scale,
-                    width: box.width * scale,
-                    height: box.height * scale,
-                    borderColor: getSignerColor(box.signer_id),
-                    backgroundColor: `${getSignerColor(box.signer_id)}15`,
-                    cursor: readOnly ? 'default' : 'move',
-                    zIndex: 10,
-                  }}
-                  onMouseDown={(e) => handleMouseDown(e, box.id)}
-                  onClick={(e) => e.stopPropagation()}
-                  onDragStart={(e) => e.preventDefault()}
-                >
-                  <Move className="h-3 w-3 mb-0.5 opacity-50" />
-                  <span className="font-medium truncate max-w-full px-1" style={{ color: getSignerColor(box.signer_id) }}>
-                    {getSignerName(box.signer_id)}
-                  </span>
-                  <span className="text-[10px] opacity-60">Assinatura</span>
+              {currentPageBoxes.map((box) => {
+                const signerColor = getSignerColor(box.signer_id);
+                const previewSignatureUrl = previewSignatures[box.signer_id];
+                const auditPreview = previewAudit[box.signer_id];
 
-                  {!readOnly && (
-                    <>
-                      <button
-                        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                        onClick={(e) => { e.stopPropagation(); removeBox(box.id); }}
-                      >
-                        ×
-                      </button>
-                      <div
-                        className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize opacity-0 group-hover:opacity-100"
-                        style={{ borderRight: `2px solid ${getSignerColor(box.signer_id)}`, borderBottom: `2px solid ${getSignerColor(box.signer_id)}` }}
-                        onMouseDown={(e) => handleMouseDown(e, box.id, true)}
+                return (
+                  <div
+                    key={box.id}
+                    data-signature-box="true"
+                    className="absolute border-2 rounded flex flex-col items-center justify-center text-xs select-none group overflow-hidden"
+                    style={{
+                      left: box.x * scale,
+                      top: box.y * scale,
+                      width: box.width * scale,
+                      height: box.height * scale,
+                      borderColor: signerColor,
+                      backgroundColor: `${signerColor}15`,
+                      cursor: readOnly ? 'default' : 'move',
+                      zIndex: 10,
+                    }}
+                    onMouseDown={(e) => handleMouseDown(e, box.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onDragStart={(e) => e.preventDefault()}
+                  >
+                    {previewSignatureUrl ? (
+                      <img
+                        src={previewSignatureUrl}
+                        alt={`Prévia da assinatura de ${getSignerName(box.signer_id)}`}
+                        className="absolute inset-1 h-[calc(100%-0.5rem)] w-[calc(100%-0.5rem)] object-contain pointer-events-none"
+                        draggable={false}
+                        loading="lazy"
                       />
-                    </>
-                  )}
-                </div>
-              ))}
+                    ) : (
+                      <>
+                        <Move className="h-3 w-3 mb-0.5 opacity-50" />
+                        <span className="font-medium truncate max-w-full px-1" style={{ color: signerColor }}>
+                          {getSignerName(box.signer_id)}
+                        </span>
+                        <span className="text-[10px] opacity-60">Assinatura</span>
+                      </>
+                    )}
+
+                    {readOnly && auditPreview && (
+                      <div className="absolute inset-x-0 bottom-0 border-t bg-background/90 px-1 py-0.5 text-[9px] leading-tight text-foreground">
+                        {auditPreview.cpf && <p className="truncate">CPF: {auditPreview.cpf}</p>}
+                        {auditPreview.signedAt && <p className="truncate">Data/Hora: {new Date(auditPreview.signedAt).toLocaleString('pt-BR')}</p>}
+                        {auditPreview.geolocation && <p className="truncate">Geo: {auditPreview.geolocation}</p>}
+                      </div>
+                    )}
+
+                    {!readOnly && (
+                      <>
+                        <button
+                          className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-[10px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          onClick={(e) => { e.stopPropagation(); removeBox(box.id); }}
+                        >
+                          ×
+                        </button>
+                        <div
+                          className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize opacity-0 group-hover:opacity-100"
+                          style={{ borderRight: `2px solid ${signerColor}`, borderBottom: `2px solid ${signerColor}` }}
+                          onMouseDown={(e) => handleMouseDown(e, box.id, true)}
+                        />
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </Document>
         </div>

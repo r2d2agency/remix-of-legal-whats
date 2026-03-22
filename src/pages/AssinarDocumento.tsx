@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { PdfSignaturePositioner } from '@/components/doc-signatures/PdfSignaturePositioner';
 import { useDocSignatures, DocSigner, SignaturePosition } from '@/hooks/use-doc-signatures';
+import { resolveMediaUrl } from '@/lib/media';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { FileSignature, Loader2, CheckCircle2, RefreshCw, MapPin, Download, ShieldCheck, Mail, KeyRound } from 'lucide-react';
@@ -35,9 +36,11 @@ export default function AssinarDocumento() {
   const [fullName, setFullName] = useState('');
   const [geolocation, setGeolocation] = useState<string | null>(null);
   const [loadingGeo, setLoadingGeo] = useState(false);
+  const [signaturePreviewUrl, setSignaturePreviewUrl] = useState<string | null>(null);
+  const [signaturePreviewTimestamp, setSignaturePreviewTimestamp] = useState<string | null>(null);
 
   const sigPadRef = useRef<SignatureCanvas>(null);
-  const { getPublicSigningData, submitSignature, requestOtp, verifyOtp, loading: submitting } = useDocSignatures();
+  const { getPublicSigningData, submitSignature, getPublicSignedPdfUrl, requestOtp, verifyOtp, loading: submitting } = useDocSignatures();
 
   useEffect(() => {
     if (token) handleRequestOtp();
@@ -139,7 +142,22 @@ export default function AssinarDocumento() {
     return `${nums.slice(0, 3)}.${nums.slice(3, 6)}.${nums.slice(6, 9)}-${nums.slice(9)}`;
   };
 
-  const clearSignature = () => { sigPadRef.current?.clear(); };
+  const updateSignaturePreview = () => {
+    if (!sigPadRef.current || sigPadRef.current.isEmpty()) {
+      setSignaturePreviewUrl(null);
+      setSignaturePreviewTimestamp(null);
+      return;
+    }
+
+    setSignaturePreviewUrl(sigPadRef.current.toDataURL('image/png'));
+    setSignaturePreviewTimestamp(new Date().toISOString());
+  };
+
+  const clearSignature = () => {
+    sigPadRef.current?.clear();
+    setSignaturePreviewUrl(null);
+    setSignaturePreviewTimestamp(null);
+  };
 
   const handleSubmit = async () => {
     if (!sigPadRef.current || sigPadRef.current.isEmpty()) { toast.error('Desenhe sua assinatura'); return; }
@@ -154,7 +172,17 @@ export default function AssinarDocumento() {
         full_name: fullName,
         geolocation: geolocation || undefined,
       });
-      setSignedResult(result);
+
+      const fallbackDownloadUrl = (!result?.download_url && !result?.signed_pdf_url)
+        ? await getPublicSignedPdfUrl(token!)
+        : null;
+      const finalDownloadUrl = result?.download_url || result?.signed_pdf_url || fallbackDownloadUrl || null;
+
+      setSignedResult({
+        ...result,
+        download_url: finalDownloadUrl,
+        signed_pdf_url: finalDownloadUrl,
+      });
       setSigned(true);
       toast.success('Documento assinado com sucesso!');
     } catch (err: any) { toast.error(err.message); }
@@ -189,6 +217,24 @@ export default function AssinarDocumento() {
           height: 72,
         }]
       : []);
+
+  const previewSignatureBySigner = publicSignerPreview?.id && signaturePreviewUrl
+    ? { [publicSignerPreview.id]: signaturePreviewUrl }
+    : undefined;
+
+  const previewAuditBySigner = publicSignerPreview?.id
+    ? {
+        [publicSignerPreview.id]: {
+          name: fullName || publicSignerPreview.name,
+          cpf: cpfInput || publicSignerPreview.cpf,
+          geolocation: geolocation || undefined,
+          signedAt: signaturePreviewTimestamp || new Date().toISOString(),
+        },
+      }
+    : undefined;
+
+  const signedDownloadUrl = resolveMediaUrl(signedResult?.download_url || signedResult?.signed_pdf_url);
+  const originalDownloadUrl = resolveMediaUrl(signingData?.file_url);
 
   // OTP verification screen (before document is loaded)
   if (otpStep !== 'verified' && !signingData && !error) {
@@ -346,14 +392,14 @@ export default function AssinarDocumento() {
             </div>
 
             {/* Download signed copy */}
-            {signedResult?.download_url && (
-              <Button onClick={() => window.open(signedResult.download_url, '_blank')} className="w-full gap-2" variant="outline">
+            {signedDownloadUrl && (
+              <Button onClick={() => window.open(signedDownloadUrl, '_blank')} className="w-full gap-2" variant="outline">
                 <Download className="h-4 w-4" />
                 Baixar Cópia do Documento Assinado
               </Button>
             )}
-            {signingData?.file_url && (
-              <Button onClick={() => window.open(signingData.file_url, '_blank')} className="w-full gap-2" variant="outline">
+            {originalDownloadUrl && (
+              <Button onClick={() => window.open(originalDownloadUrl, '_blank')} className="w-full gap-2" variant="outline">
                 <Download className="h-4 w-4" />
                 Baixar Documento Original
               </Button>
@@ -409,6 +455,8 @@ export default function AssinarDocumento() {
                 existingPositions={previewPositions}
                 onSave={async () => {}}
                 readOnly
+                previewSignatureBySigner={previewSignatureBySigner}
+                auditPreviewBySigner={previewAuditBySigner}
               />
               <p className="text-xs text-muted-foreground">
                 A caixa destacada indica onde sua assinatura e os dados de auditoria serão aplicados no PDF final.
@@ -452,6 +500,7 @@ export default function AssinarDocumento() {
                 ref={sigPadRef}
                 penColor="black"
                 canvasProps={{ className: 'w-full h-[200px]', style: { width: '100%', height: '200px' } }}
+                onEnd={updateSignaturePreview}
               />
             </div>
             <p className="text-xs text-muted-foreground mt-2 text-center">
