@@ -21,6 +21,9 @@ export default function AssinarDocumento() {
   const [otpSignerName, setOtpSignerName] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [otpError, setOtpError] = useState<string | null>(null);
+  const [orgName, setOrgName] = useState('');
+  const [orgLogoUrl, setOrgLogoUrl] = useState('');
+  const [docDescription, setDocDescription] = useState('');
 
   const [signingData, setSigningData] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -55,6 +58,9 @@ export default function AssinarDocumento() {
         setMaskedEmail(data.masked_email);
         setOtpSignerName(data.signer_name);
         setOtpDocTitle(data.document_title);
+        setDocDescription(data.document_description || '');
+        setOrgName(data.org_name || '');
+        setOrgLogoUrl(data.org_logo_url || '');
         setOtpStep('verify');
         setResendCooldown(60);
       }
@@ -109,6 +115,9 @@ export default function AssinarDocumento() {
       setSigningData(data);
       setFullName(data.signer.name);
       setCpfInput(data.signer.cpf);
+      if (data.org_name) setOrgName(data.org_name);
+      if (data.org_logo_url) setOrgLogoUrl(data.org_logo_url);
+      if (data.document_description) setDocDescription(data.document_description);
     } catch (err: any) {
       // If require_otp, go back to OTP flow
       if (err.require_otp) {
@@ -155,6 +164,18 @@ export default function AssinarDocumento() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full space-y-6">
+          {/* Org branding header */}
+          {(orgLogoUrl || orgName) && (
+            <div className="flex flex-col items-center gap-2 mb-2">
+              {orgLogoUrl && (
+                <img src={orgLogoUrl} alt={orgName || 'Logo'} className="h-12 max-w-[200px] object-contain" />
+              )}
+              {orgName && !orgLogoUrl && (
+                <p className="text-lg font-semibold text-foreground">{orgName}</p>
+              )}
+            </div>
+          )}
+
           <Card>
             <CardHeader className="text-center">
               <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
@@ -176,6 +197,12 @@ export default function AssinarDocumento() {
                   <p className="text-sm text-center text-muted-foreground">
                     Para sua segurança, enviaremos um código de verificação para o e-mail cadastrado do signatário.
                   </p>
+                  {otpDocTitle && (
+                    <div className="text-left bg-muted/50 rounded-lg p-3 w-full space-y-1">
+                      <p className="text-sm font-medium">📄 {otpDocTitle}</p>
+                      {docDescription && <p className="text-xs text-muted-foreground">{docDescription}</p>}
+                    </div>
+                  )}
                   {otpError && (
                     <p className="text-sm text-destructive text-center">{otpError}</p>
                   )}
@@ -197,9 +224,10 @@ export default function AssinarDocumento() {
                       {maskedEmail}
                     </Badge>
                     {otpDocTitle && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Documento: <strong>{otpDocTitle}</strong>
-                      </p>
+                      <div className="text-left bg-muted/50 rounded-lg p-3 w-full space-y-1 mt-2">
+                        <p className="text-sm font-medium">📄 {otpDocTitle}</p>
+                        {docDescription && <p className="text-xs text-muted-foreground">{docDescription}</p>}
+                      </div>
                     )}
                   </div>
 
@@ -308,16 +336,28 @@ export default function AssinarDocumento() {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-2xl mx-auto space-y-6">
+        {/* Org branding + document info */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileSignature className="h-5 w-5 text-primary" />
-              Assinatura de Documento
-            </CardTitle>
+            <div className="flex items-center gap-3">
+              {orgLogoUrl ? (
+                <img src={orgLogoUrl} alt={orgName || 'Logo'} className="h-10 max-w-[160px] object-contain" />
+              ) : (
+                <FileSignature className="h-5 w-5 text-primary" />
+              )}
+              <div>
+                <CardTitle className="text-lg">{signingData?.document_title || 'Assinatura de Documento'}</CardTitle>
+                {orgName && <p className="text-xs text-muted-foreground">{orgName}</p>}
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold">{signingData?.document_title}</p>
-            <p className="text-sm text-muted-foreground mt-1">
+          <CardContent className="space-y-3">
+            {docDescription && (
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-sm text-muted-foreground">{docDescription}</p>
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground">
               Olá <strong>{signingData?.signer?.name}</strong>, você foi convidado(a) a assinar este documento como{' '}
               <Badge variant="outline" className="text-xs">
                 {signingData?.signer?.role === 'signer' ? 'Signatário' : signingData?.signer?.role === 'witness' ? 'Testemunha' : 'Aprovador'}
