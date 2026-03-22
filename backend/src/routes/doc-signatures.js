@@ -210,6 +210,13 @@ async function readRemoteBinary(url) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+function getClientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  return Array.isArray(forwarded)
+    ? forwarded[0]
+    : (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress || null);
+}
+
 function toAbsoluteFileUrl(req, fileUrl) {
   if (!fileUrl || typeof fileUrl !== 'string') return null;
   if (HTTP_URL_REGEX.test(fileUrl) || /^data:/i.test(fileUrl) || /^blob:/i.test(fileUrl)) {
@@ -571,6 +578,12 @@ router.post('/sign/:token/request-otp', async (req, res) => {
     const sent = await sendOtpEmail(signer.email, signer.name, code, signer.title, signer.organization_id);
     if (!sent) return res.status(500).json({ error: 'Erro ao enviar código de verificação. Tente novamente.' });
 
+    await auditLog(signer.document_id, 'otp_requested', {
+      name: signer.name, email: signer.email,
+      ip: getClientIp(req), userAgent: req.headers['user-agent'],
+      details: { masked_email: maskedEmail }
+    });
+
     res.json({
       success: true,
       masked_email: maskedEmail,
@@ -631,6 +644,18 @@ router.post('/sign/:token/verify-otp', async (req, res) => {
     // Mark as verified
     await query(`UPDATE doc_signature_otp SET verified = true WHERE id = $1`, [otp.id]);
 
+    // Audit: identity verified
+    const signerDetail = await query(
+      `SELECT s.name, s.email, s.document_id FROM doc_signature_signers s WHERE s.id = $1`, [signer.id]
+    );
+    if (signerDetail.rows[0]) {
+      await auditLog(signerDetail.rows[0].document_id, 'otp_verified', {
+        name: signerDetail.rows[0].name, email: signerDetail.rows[0].email,
+        ip: getClientIp(req), userAgent: req.headers['user-agent'],
+        details: { verified_at: new Date().toISOString() }
+      });
+    }
+
     res.json({ success: true, verified: true });
   } catch (error) {
     console.error('[doc-signatures] Verify OTP error:', error);
@@ -689,6 +714,13 @@ router.get('/sign/:token', async (req, res) => {
       },
       positions: posResult.rows,
     });
+
+    // Audit: document accessed
+    await auditLog(signer.document_id, 'document_accessed', {
+      name: signer.name, email: signer.email,
+      ip: getClientIp(req), userAgent: req.headers['user-agent'],
+      details: { access_type: 'public_signing' }
+    });
   } catch (error) {
     console.error('[doc-signatures] Get sign data error:', error);
     res.status(500).json({ error: 'Erro interno' });
@@ -700,10 +732,7 @@ router.post('/sign/:token', async (req, res) => {
   try {
     const { token } = req.params;
     const { signature_image, cpf, full_name, geolocation } = req.body;
-    const forwarded = req.headers['x-forwarded-for'];
-    const ip = Array.isArray(forwarded)
-      ? forwarded[0]
-      : (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket.remoteAddress);
+    const ip = getClientIp(req);
     const userAgent = req.headers['user-agent'];
 
     if (!signature_image) return res.status(400).json({ error: 'Assinatura é obrigatória' });
@@ -787,7 +816,8 @@ router.get('/sign/:token/download', async (req, res) => {
     const { token } = req.params;
     const result = await query(
       `SELECT s.id as signer_id, s.status as signer_status,
-              d.id as doc_id, d.signed_file_url
+              d.id as doc_id, d.signed_file_url,
+              s.name, s.email
        FROM doc_signature_signers s
        JOIN doc_signature_documents d ON d.id = s.document_id
        WHERE s.sign_token = $1`,
@@ -797,6 +827,13 @@ router.get('/sign/:token/download', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Link inválido' });
 
     const signer = result.rows[0];
+
+    await auditLog(signer.doc_id, 'pdf_downloaded', {
+      name: signer.name, email: signer.email,
+      ip: getClientIp(req), userAgent: req.headers['user-agent'],
+      details: { download_type: 'public_signer', has_signed_url: !!signer.signed_file_url }
+    });
+
     if (signer.signer_status !== 'signed') {
       return res.status(403).json({ error: 'Documento ainda não foi assinado por este signatário' });
     }
@@ -809,6 +846,13 @@ router.get('/sign/:token/download', async (req, res) => {
         console.error('[doc-signatures] Public download generation error:', generationError.message);
       }
     }
+
+    const dlUser = await query(`SELECT name, email FROM users WHERE id = $1`, [req.userId]);
+    await auditLog(req.params.id, 'pdf_downloaded', {
+      name: dlUser.rows[0]?.name, email: dlUser.rows[0]?.email,
+      ip: getClientIp(req), userAgent: req.headers['user-agent'],
+      details: { download_type: 'authenticated', has_signed_url: !!downloadUrl }
+    });
 
     const absoluteDownloadUrl = toAbsoluteFileUrl(req, downloadUrl);
     if (!absoluteDownloadUrl) {
@@ -980,6 +1024,13 @@ router.put('/:id/positions', async (req, res) => {
         [req.params.id, pos.signer_id, pos.page, pos.x, pos.y, pos.width || 200, pos.height || 80]
       );
     }
+
+    const posUser = await query(`SELECT name, email FROM users WHERE id = $1`, [req.userId]);
+    await auditLog(req.params.id, 'positions_saved', {
+      name: posUser.rows[0]?.name, email: posUser.rows[0]?.email,
+      ip: getClientIp(req), userAgent: req.headers['user-agent'],
+      details: { positions_count: positions.length }
+    });
 
     res.json({ success: true });
   } catch (error) {

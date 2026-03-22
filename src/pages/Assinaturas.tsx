@@ -489,13 +489,40 @@ export default function Assinaturas() {
                         {auditLogs.map((log) => (
                           <div key={log.id} className="p-3 rounded-lg border text-sm">
                             <div className="flex items-center justify-between">
-                              <span className="font-medium">{log.action.replace(/_/g, ' ').toUpperCase()}</span>
+                              <Badge variant={
+                                log.action === 'signature_submitted' ? 'default' :
+                                log.action === 'otp_verified' ? 'default' :
+                                log.action === 'document_completed' ? 'default' :
+                                log.action === 'document_cancelled' ? 'destructive' :
+                                'secondary'
+                              } className="text-xs">
+                                {{
+                                  document_created: '📄 Documento Criado',
+                                  document_sent: '📤 Enviado p/ Assinatura',
+                                  otp_requested: '🔑 OTP Solicitado',
+                                  otp_verified: '✅ Identidade Verificada',
+                                  document_accessed: '👁️ Documento Acessado',
+                                  signature_submitted: '✍️ Assinatura Registrada',
+                                  document_completed: '🎉 Documento Finalizado',
+                                  document_cancelled: '❌ Documento Cancelado',
+                                  pdf_downloaded: '⬇️ PDF Baixado',
+                                  positions_saved: '📐 Posições Salvas',
+                                }[log.action] || log.action.replace(/_/g, ' ').toUpperCase()}
+                              </Badge>
                               <span className="text-xs text-muted-foreground">
                                 {format(new Date(log.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
                               </span>
                             </div>
-                            <p className="text-muted-foreground text-xs mt-1">{log.actor_name} ({log.actor_email})</p>
-                            {log.ip_address && <p className="text-xs text-muted-foreground">IP: {log.ip_address}</p>}
+                            <div className="mt-1.5 text-xs text-muted-foreground space-y-0.5">
+                              <p>👤 {log.actor_name || 'N/A'} ({log.actor_email || 'N/A'})</p>
+                              {log.ip_address && <p>🌐 IP: {log.ip_address}</p>}
+                              {log.user_agent && <p className="truncate max-w-full" title={log.user_agent}>🖥️ {log.user_agent.slice(0, 80)}{log.user_agent.length > 80 ? '…' : ''}</p>}
+                              {log.details && typeof log.details === 'object' && Object.keys(log.details).length > 0 && (
+                                <p className="text-muted-foreground/70">
+                                  {Object.entries(log.details).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
