@@ -117,7 +117,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
       height: 60,
     };
     setBoxes(prev => [...prev, newBox]);
-  }, [readOnly, selectedSigner, currentPage, scale, dragging, resizing, boxes]);
+  }, [readOnly, addMode, selectedSigner, currentPage, scale, dragging, resizing, boxes]);
 
   const getPointerPosition = useCallback((clientX: number, clientY: number) => {
     const rect = surfaceRef.current?.getBoundingClientRect();
