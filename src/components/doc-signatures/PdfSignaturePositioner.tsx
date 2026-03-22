@@ -53,19 +53,22 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
   const containerRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
 
+  const toNumber = useCallback((value: unknown, fallback: number) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }, []);
+
   useEffect(() => {
-    if (existingPositions.length > 0) {
-      setBoxes(existingPositions.map(p => ({
-        id: p.id,
-        signer_id: p.signer_id,
-        page: p.page,
-        x: p.x,
-        y: p.y,
-        width: p.width,
-        height: p.height,
-      })));
-    }
-  }, [existingPositions]);
+    setBoxes(existingPositions.map((p) => ({
+      id: p.id,
+      signer_id: p.signer_id,
+      page: Math.max(1, Math.round(toNumber(p.page, 1))),
+      x: toNumber(p.x, 0),
+      y: toNumber(p.y, 0),
+      width: Math.max(100, toNumber(p.width, 200)),
+      height: Math.max(40, toNumber(p.height, 60)),
+    })));
+  }, [existingPositions, toNumber]);
 
   useEffect(() => {
     if (signers.length > 0 && !selectedSigner) {
@@ -211,7 +214,15 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onSave(boxes);
+      const normalizedBoxes = boxes.map((box) => ({
+        ...box,
+        page: Math.max(1, Math.round(toNumber(box.page, 1))),
+        x: toNumber(box.x, 0),
+        y: toNumber(box.y, 0),
+        width: Math.max(100, toNumber(box.width, 200)),
+        height: Math.max(40, toNumber(box.height, 60)),
+      }));
+      await onSave(normalizedBoxes);
     } finally {
       setSaving(false);
     }
