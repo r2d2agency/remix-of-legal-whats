@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import { useDocSignatures } from '@/hooks/use-doc-signatures';
+import { PdfSignaturePositioner } from '@/components/doc-signatures/PdfSignaturePositioner';
+import { useDocSignatures, DocSigner, SignaturePosition } from '@/hooks/use-doc-signatures';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { FileSignature, Loader2, CheckCircle2, RefreshCw, MapPin, Download, ShieldCheck, Mail, KeyRound } from 'lucide-react';
@@ -158,6 +159,36 @@ export default function AssinarDocumento() {
       toast.success('Documento assinado com sucesso!');
     } catch (err: any) { toast.error(err.message); }
   };
+
+  const publicSignerPreview: DocSigner | null = signingData?.signer
+    ? {
+        id: signingData.signer.id,
+        document_id: '',
+        name: signingData.signer.name,
+        email: signingData.signer.email,
+        cpf: signingData.signer.cpf,
+        role: signingData.signer.role || 'signer',
+        sign_order: 1,
+        status: 'pending',
+        sign_token: '',
+        created_at: new Date().toISOString(),
+      }
+    : null;
+
+  const signerPositions: SignaturePosition[] = Array.isArray(signingData?.positions) ? signingData.positions : [];
+  const previewPositions: SignaturePosition[] = signerPositions.length > 0
+    ? signerPositions
+    : (publicSignerPreview
+      ? [{
+          id: `preview-${publicSignerPreview.id}`,
+          signer_id: publicSignerPreview.id,
+          page: 1,
+          x: 36,
+          y: 40,
+          width: 220,
+          height: 72,
+        }]
+      : []);
 
   // OTP verification screen (before document is loaded)
   if (otpStep !== 'verified' && !signingData && !error) {
@@ -369,10 +400,19 @@ export default function AssinarDocumento() {
         {signingData?.file_url && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Visualizar Documento</CardTitle>
+              <CardTitle className="text-base">Visualizar Documento e Área de Assinatura</CardTitle>
             </CardHeader>
-            <CardContent>
-              <iframe src={signingData.file_url} className="w-full h-[500px] border rounded-lg" title="Documento PDF" />
+            <CardContent className="space-y-3">
+              <PdfSignaturePositioner
+                fileUrl={signingData.file_url}
+                signers={publicSignerPreview ? [publicSignerPreview] : []}
+                existingPositions={previewPositions}
+                onSave={async () => {}}
+                readOnly
+              />
+              <p className="text-xs text-muted-foreground">
+                A caixa destacada indica onde sua assinatura e os dados de auditoria serão aplicados no PDF final.
+              </p>
             </CardContent>
           </Card>
         )}
