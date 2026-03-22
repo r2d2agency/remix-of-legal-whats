@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Code,
   ClipboardList,
+  FileSignature,
   FileText,
   GitBranch,
   Kanban,
