@@ -216,7 +216,15 @@ export function useDocSignatures() {
   const getPublicSigningData = useCallback(async (token: string): Promise<any> => {
     try {
       const res = await fetch(`${API_URL}/api/doc-signatures/sign/${token}`);
-      if (!res.ok) throw new Error('Link inválido ou expirado');
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        if (errBody.require_otp) {
+          const err: any = new Error(errBody.error || 'Verificação necessária');
+          err.require_otp = true;
+          throw err;
+        }
+        throw new Error(errBody.error || 'Link inválido ou expirado');
+      }
       const data = await res.json();
       return {
         ...data,
