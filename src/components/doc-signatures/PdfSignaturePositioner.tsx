@@ -5,7 +5,7 @@ import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Move, Save, Loader2, Plus, MousePointer } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Move, Save, Loader2, Plus, MousePointer, Trash2 } from 'lucide-react';
 import { DocSigner, SignaturePosition } from '@/hooks/use-doc-signatures';
 import { resolveMediaUrl } from '@/lib/media';
 
@@ -272,6 +272,12 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
                 ))}
               </SelectContent>
             </Select>
+            {boxes.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setBoxes([])} className="gap-1 text-destructive hover:text-destructive">
+                <Trash2 className="h-3 w-3" />
+                Limpar Todas
+              </Button>
+            )}
             <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1">
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
               Salvar Posições
