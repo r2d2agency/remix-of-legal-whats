@@ -714,6 +714,13 @@ router.get('/sign/:token', async (req, res) => {
       },
       positions: posResult.rows,
     });
+
+    // Audit: document accessed
+    await auditLog(signer.document_id, 'document_accessed', {
+      name: signer.name, email: signer.email,
+      ip: getClientIp(req), userAgent: req.headers['user-agent'],
+      details: { access_type: 'public_signing' }
+    });
   } catch (error) {
     console.error('[doc-signatures] Get sign data error:', error);
     res.status(500).json({ error: 'Erro interno' });
@@ -725,10 +732,7 @@ router.post('/sign/:token', async (req, res) => {
   try {
     const { token } = req.params;
     const { signature_image, cpf, full_name, geolocation } = req.body;
-    const forwarded = req.headers['x-forwarded-for'];
-    const ip = Array.isArray(forwarded)
-      ? forwarded[0]
-      : (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket.remoteAddress);
+    const ip = getClientIp(req);
     const userAgent = req.headers['user-agent'];
 
     if (!signature_image) return res.status(400).json({ error: 'Assinatura é obrigatória' });
