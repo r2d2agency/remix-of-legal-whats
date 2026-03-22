@@ -439,8 +439,8 @@ router.post('/plans', requireSuperadmin, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_ghost, has_projects, has_lead_gleego, price, billing_period, visible_on_signup, trial_days)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *`,
+      `INSERT INTO plans (name, description, max_connections, max_monthly_messages, max_users, max_supervisors, has_asaas_integration, has_chat, has_whatsapp_groups, has_campaigns, has_chatbots, has_scheduled_messages, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_ghost, has_projects, has_lead_gleego, has_doc_signatures, price, billing_period, visible_on_signup, trial_days)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) RETURNING *`,
       [
         name,
         description,
