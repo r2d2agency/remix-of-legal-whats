@@ -5,7 +5,7 @@ import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Move, Save, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Move, Save, Loader2, Plus, MousePointer } from 'lucide-react';
 import { DocSigner, SignaturePosition } from '@/hooks/use-doc-signatures';
 import { resolveMediaUrl } from '@/lib/media';
 
@@ -48,6 +48,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [saving, setSaving] = useState(false);
   const [selectedSigner, setSelectedSigner] = useState<string>('');
+  const [addMode, setAddMode] = useState(false);
   const justDragged = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
@@ -86,7 +87,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
   };
 
   const handlePageClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (readOnly || !selectedSigner || dragging || resizing) return;
+    if (readOnly || !addMode || !selectedSigner || dragging || resizing) return;
     if (justDragged.current) { justDragged.current = false; return; }
 
     const target = e.target;
@@ -116,7 +117,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
       height: 60,
     };
     setBoxes(prev => [...prev, newBox]);
-  }, [readOnly, selectedSigner, currentPage, scale, dragging, resizing, boxes]);
+  }, [readOnly, addMode, selectedSigner, currentPage, scale, dragging, resizing, boxes]);
 
   const getPointerPosition = useCallback((clientX: number, clientY: number) => {
     const rect = surfaceRef.current?.getBoundingClientRect();
@@ -247,6 +248,15 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
 
         {!readOnly && (
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={addMode ? 'default' : 'outline'}
+              onClick={() => setAddMode(m => !m)}
+              className="gap-1"
+            >
+              {addMode ? <Plus className="h-3 w-3" /> : <MousePointer className="h-3 w-3" />}
+              {addMode ? 'Adicionando...' : 'Adicionar Área'}
+            </Button>
             <Select value={selectedSigner} onValueChange={setSelectedSigner}>
               <SelectTrigger className="w-[180px] h-8 text-xs">
                 <SelectValue placeholder="Selecione signatário" />
@@ -279,7 +289,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
               {s.name} ({boxes.filter(b => b.signer_id === s.id).length} áreas)
             </Badge>
           ))}
-          {!readOnly && <p className="text-xs text-muted-foreground ml-2 self-center">Clique no PDF para adicionar área de assinatura</p>}
+          {!readOnly && <p className="text-xs text-muted-foreground ml-2 self-center">{addMode ? 'Clique no PDF para adicionar área de assinatura' : 'Arraste as caixas para reposicionar. Use "Adicionar Área" para criar novas.'}</p>}
         </div>
       )}
 
@@ -302,7 +312,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              style={{ cursor: readOnly ? 'default' : (dragging || resizing ? 'grabbing' : 'crosshair') }}
+              style={{ cursor: readOnly ? 'default' : (dragging || resizing ? 'grabbing' : (addMode ? 'crosshair' : 'default')) }}
             >
               <Page pageNumber={currentPage} renderTextLayer={true} renderAnnotationLayer={true} />
 
