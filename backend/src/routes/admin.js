@@ -535,13 +535,14 @@ router.patch('/plans/:id', requireSuperadmin, async (req, res) => {
            has_ghost = COALESCE($19, has_ghost),
            has_projects = COALESCE($20, has_projects),
            has_lead_gleego = COALESCE($21, has_lead_gleego),
-           price = COALESCE($22, price),
-           billing_period = COALESCE($23, billing_period),
-           is_active = COALESCE($24, is_active),
-           visible_on_signup = COALESCE($25, visible_on_signup),
-           trial_days = COALESCE($26, trial_days),
+           has_doc_signatures = COALESCE($22, has_doc_signatures),
+           price = COALESCE($23, price),
+           billing_period = COALESCE($24, billing_period),
+           is_active = COALESCE($25, is_active),
+           visible_on_signup = COALESCE($26, visible_on_signup),
+           trial_days = COALESCE($27, trial_days),
            updated_at = NOW()
-       WHERE id = $27
+       WHERE id = $28
        RETURNING *`,
       [
         name,
