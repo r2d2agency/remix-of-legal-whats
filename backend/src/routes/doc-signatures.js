@@ -126,22 +126,27 @@ function decryptPassword(encryptedPassword) {
 // Helper: get SMTP config for org (with system fallback)
 async function getSmtpConfig(orgId) {
   // 1. Try org SMTP
-  if (orgId) {
-    const r = await query(`SELECT * FROM email_smtp_configs WHERE organization_id = $1 AND is_active = true LIMIT 1`, [orgId]);
-    if (r.rows[0]) return r.rows[0];
+  try {
+    if (orgId) {
+      const r = await query(`SELECT * FROM email_smtp_configs WHERE organization_id = $1 AND is_active = true LIMIT 1`, [orgId]);
+      if (r.rows[0]) return r.rows[0];
+    }
+    // 2. Try any active org SMTP
+    const r2 = await query(`SELECT * FROM email_smtp_configs WHERE is_active = true LIMIT 1`);
+    if (r2.rows[0]) return r2.rows[0];
+  } catch (e) {
+    console.log('[doc-signatures] email_smtp_configs not available, using system fallback:', e.message);
   }
 
-  // 2. Try any active org SMTP
-  const r2 = await query(`SELECT * FROM email_smtp_configs WHERE is_active = true LIMIT 1`);
-  if (r2.rows[0]) return r2.rows[0];
-
   // 3. Fallback: system-level SMTP from system_settings
-  const r3 = await query(`SELECT value FROM system_settings WHERE key = 'doc_signature_smtp'`);
-  if (r3.rows[0]?.value) {
-    try {
+  try {
+    const r3 = await query(`SELECT value FROM system_settings WHERE key = 'doc_signature_smtp'`);
+    if (r3.rows[0]?.value) {
       const config = JSON.parse(r3.rows[0].value);
-      return config; // has host, port, secure, username, password_encrypted, from_name, from_email
-    } catch {}
+      return config;
+    }
+  } catch (e) {
+    console.error('[doc-signatures] System SMTP fallback error:', e.message);
   }
 
   return null;
