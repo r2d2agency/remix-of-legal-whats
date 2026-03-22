@@ -271,7 +271,7 @@ export function useDocSignatures() {
     }
   }, []);
 
-  const requestOtp = useCallback(async (token: string): Promise<{ masked_email: string; signer_name: string; document_title: string } | null> => {
+  const requestOtp = useCallback(async (token: string): Promise<{ masked_email: string; signer_name: string; document_title: string; document_description?: string; org_name?: string; org_logo_url?: string } | null> => {
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/doc-signatures/sign/${token}/request-otp`, {
