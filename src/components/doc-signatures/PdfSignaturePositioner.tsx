@@ -48,6 +48,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [saving, setSaving] = useState(false);
   const [selectedSigner, setSelectedSigner] = useState<string>('');
+  const justDragged = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
