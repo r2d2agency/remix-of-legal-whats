@@ -174,9 +174,11 @@ router.post('/sign/:token/request-otp', async (req, res) => {
   try {
     const { token } = req.params;
     const result = await query(
-      `SELECT s.*, d.title, d.status as doc_status, d.organization_id
+      `SELECT s.*, d.title, d.description, d.status as doc_status, d.organization_id,
+              o.name as org_name, o.logo_url as org_logo_url
        FROM doc_signature_signers s
        JOIN doc_signature_documents d ON d.id = s.document_id
+       LEFT JOIN organizations o ON o.id = d.organization_id
        WHERE s.sign_token = $1`,
       [token]
     );
@@ -212,6 +214,9 @@ router.post('/sign/:token/request-otp', async (req, res) => {
       masked_email: maskedEmail,
       signer_name: signer.name,
       document_title: signer.title,
+      document_description: signer.description || null,
+      org_name: signer.org_name || null,
+      org_logo_url: signer.org_logo_url || null,
     });
   } catch (error) {
     console.error('[doc-signatures] Request OTP error:', error);
@@ -276,9 +281,11 @@ router.get('/sign/:token', async (req, res) => {
   try {
     const { token } = req.params;
     const result = await query(
-      `SELECT s.*, d.title, d.file_url, d.status as doc_status
+      `SELECT s.*, d.title, d.description, d.file_url, d.status as doc_status, d.organization_id,
+              o.name as org_name, o.logo_url as org_logo_url
        FROM doc_signature_signers s
        JOIN doc_signature_documents d ON d.id = s.document_id
+       LEFT JOIN organizations o ON o.id = d.organization_id
        WHERE s.sign_token = $1`,
       [token]
     );
@@ -307,7 +314,10 @@ router.get('/sign/:token', async (req, res) => {
 
     res.json({
       document_title: signer.title,
+      document_description: signer.description || null,
       file_url: signer.file_url,
+      org_name: signer.org_name || null,
+      org_logo_url: signer.org_logo_url || null,
       signer: {
         id: signer.id,
         name: signer.name,
