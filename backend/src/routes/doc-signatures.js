@@ -147,6 +147,26 @@ async function getSmtpConfig(orgId) {
   return null;
 }
 
+// Helper: create nodemailer transporter
+function createTransporter(config) {
+  const password = config.password_encrypted ? decryptPassword(config.password_encrypted) : config.password;
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure || config.port === 465,
+    auth: { user: config.username, pass: password },
+  });
+}
+
+// Helper: send OTP email
+async function sendOtpEmail(signerEmail, signerName, code, docTitle, orgId) {
+  const smtpConfig = await getSmtpConfig(orgId);
+
+  if (!smtpConfig) {
+    console.error('[doc-signatures] No SMTP config found for OTP email');
+    return false;
+  }
+
   try {
     const transporter = createTransporter(smtpConfig);
     await transporter.sendMail({
