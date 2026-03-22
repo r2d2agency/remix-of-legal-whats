@@ -289,7 +289,7 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
               {s.name} ({boxes.filter(b => b.signer_id === s.id).length} áreas)
             </Badge>
           ))}
-          {!readOnly && <p className="text-xs text-muted-foreground ml-2 self-center">Clique no PDF para adicionar área de assinatura</p>}
+          {!readOnly && <p className="text-xs text-muted-foreground ml-2 self-center">{addMode ? 'Clique no PDF para adicionar área de assinatura' : 'Arraste as caixas para reposicionar. Use "Adicionar Área" para criar novas.'}</p>}
         </div>
       )}
 
