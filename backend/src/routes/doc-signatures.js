@@ -198,7 +198,11 @@ router.post('/sign/:token', async (req, res) => {
       });
     }
 
-    res.json({ success: true });
+    // Return download URL so signer can download
+    const docResult = await query(`SELECT file_url, signed_file_url FROM doc_signature_documents WHERE id = $1`, [signer.doc_id]);
+    const downloadUrl = docResult.rows[0]?.signed_file_url || docResult.rows[0]?.file_url;
+
+    res.json({ success: true, download_url: downloadUrl });
   } catch (error) {
     console.error('[doc-signatures] Submit signature error:', error);
     res.status(500).json({ error: 'Erro ao processar assinatura' });
