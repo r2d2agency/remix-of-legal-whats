@@ -1341,6 +1341,103 @@ router.patch('/settings/:key', requireSuperadmin, async (req, res) => {
   }
 });
 
+// ============================================
+// DOC SIGNATURE SMTP (System-level)
+// ============================================
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
+
+const DOC_SMTP_ENCRYPTION_KEY = process.env.EMAIL_ENCRYPTION_KEY || 'whatsale-email-key-32chars!!';
+
+function encryptSmtpPassword(password) {
+  const key = crypto.scryptSync(DOC_SMTP_ENCRYPTION_KEY, 'salt', 32);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(password, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+function decryptSmtpPassword(encryptedPassword) {
+  try {
+    const [ivHex, encrypted] = encryptedPassword.split(':');
+    const iv = Buffer.from(ivHex, 'hex');
+    const key = crypto.scryptSync(DOC_SMTP_ENCRYPTION_KEY, 'salt', 32);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch {
+    return encryptedPassword;
+  }
+}
+
+router.put('/settings/doc-signature-smtp', requireSuperadmin, async (req, res) => {
+  try {
+    const { host, port, secure, username, password, from_name, from_email } = req.body;
+    
+    // Load existing to preserve password if not provided
+    let existingPassword = null;
+    const existing = await query(`SELECT value FROM system_settings WHERE key = 'doc_signature_smtp'`);
+    if (existing.rows[0]?.value) {
+      try { existingPassword = JSON.parse(existing.rows[0].value).password_encrypted; } catch {}
+    }
+
+    const smtpData = {
+      host, port: port || 587, secure: secure !== false,
+      username, from_name, from_email,
+      password_encrypted: password ? encryptSmtpPassword(password) : existingPassword,
+    };
+
+    const result = await query(
+      `UPDATE system_settings SET value = $1, updated_by = $2, updated_at = NOW() WHERE key = 'doc_signature_smtp' RETURNING *`,
+      [JSON.stringify(smtpData), req.userId]
+    );
+    if (result.rows.length === 0) {
+      await query(
+        `INSERT INTO system_settings (key, value, updated_by) VALUES ('doc_signature_smtp', $1, $2)`,
+        [JSON.stringify(smtpData), req.userId]
+      );
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save doc SMTP error:', error);
+    res.status(500).json({ error: 'Erro ao salvar SMTP' });
+  }
+});
+
+router.post('/settings/doc-signature-smtp/test', requireSuperadmin, async (req, res) => {
+  try {
+    const r = await query(`SELECT value FROM system_settings WHERE key = 'doc_signature_smtp'`);
+    if (!r.rows[0]?.value) return res.status(400).json({ error: 'SMTP não configurado' });
+    
+    const config = JSON.parse(r.rows[0].value);
+    const password = config.password_encrypted ? decryptSmtpPassword(config.password_encrypted) : '';
+    
+    const transporter = nodemailer.createTransport({
+      host: config.host, port: config.port,
+      secure: config.secure || config.port === 465,
+      auth: { user: config.username, pass: password },
+    });
+
+    // Get superadmin email
+    const userResult = await query(`SELECT email FROM users WHERE id = $1`, [req.userId]);
+    const testEmail = userResult.rows[0]?.email || config.from_email;
+
+    await transporter.sendMail({
+      from: `"${config.from_name}" <${config.from_email}>`,
+      to: testEmail,
+      subject: 'Teste SMTP - Assinatura de Documentos',
+      html: '<div style="font-family:Arial;padding:20px;"><h2>✅ SMTP funcionando!</h2><p>O envio de e-mails de verificação para assinaturas está configurado corretamente.</p></div>',
+    });
+    
+    res.json({ success: true, message: `E-mail de teste enviado para ${testEmail}` });
+  } catch (error) {
+    console.error('Test doc SMTP error:', error);
+    res.status(500).json({ error: error.message || 'Falha no envio de teste' });
+  }
+});
+
 
 // ============================================
 // W-API INSTANCES MANAGEMENT (Integrator)
