@@ -272,6 +272,12 @@ export function PdfSignaturePositioner({ fileUrl, signers, existingPositions, on
                 ))}
               </SelectContent>
             </Select>
+            {boxes.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setBoxes([])} className="gap-1 text-destructive hover:text-destructive">
+                <Trash2 className="h-3 w-3" />
+                Limpar Todas
+              </Button>
+            )}
             <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1">
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
               Salvar Posições
