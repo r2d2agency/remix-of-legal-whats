@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import PDFWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,9 @@ import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Move, Save, Loader2, Plus, 
 import { DocSigner, SignaturePosition } from '@/hooks/use-doc-signatures';
 import { resolveMediaUrl } from '@/lib/media';
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+if (typeof window !== 'undefined') {
+  pdfjs.GlobalWorkerOptions.workerPort = new PDFWorker();
+}
 
 interface DraggableBox {
   id: string;
