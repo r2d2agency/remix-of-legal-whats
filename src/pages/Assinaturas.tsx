@@ -207,75 +207,133 @@ export default function Assinaturas() {
                 <p className="text-sm">Clique em "Novo Documento" para começar</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Documento</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Progresso</TableHead>
-                    <TableHead>Criado em</TableHead>
-                    <TableHead className="w-[120px]">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {documents.map((doc) => {
-                    const status = statusConfig[doc.status] || statusConfig.draft;
-                    const StatusIcon = status.icon;
-                    const complete = allSigned(doc);
-                    return (
-                      <TableRow key={doc.id} className="cursor-pointer" onClick={() => loadDocumentDetail(doc.id)}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{doc.title}</div>
-                            {doc.creator_name && <div className="text-xs text-muted-foreground">por {doc.creator_name}</div>}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={status.variant} className="gap-1">
-                            <StatusIcon className="h-3 w-3" />
-                            {status.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all"
-                                style={{
-                                  width: doc.signers_count > 0 ? `${(doc.signed_count / doc.signers_count) * 100}%` : '0%',
-                                  backgroundColor: complete ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-                                }}
-                              />
-                            </div>
-                            <span className="text-xs font-medium">
-                              {doc.signed_count}/{doc.signers_count}
-                              {complete && doc.status === 'completed' && <CheckCircle2 className="h-3 w-3 inline ml-1 text-green-500" />}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {format(new Date(doc.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" onClick={() => loadDocumentDetail(doc.id)} title="Ver detalhes">
-                              <Eye className="h-4 w-4" />
+              <>
+              <div className="md:hidden divide-y divide-border">
+                {documents.map((doc) => {
+                  const status = statusConfig[doc.status] || statusConfig.draft;
+                  const StatusIcon = status.icon;
+                  const complete = allSigned(doc);
+                  return (
+                    <div key={doc.id} className="p-4 space-y-2 cursor-pointer active:bg-muted/50" onClick={() => loadDocumentDetail(doc.id)}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">{doc.title}</p>
+                          {doc.creator_name && <p className="text-xs text-muted-foreground">por {doc.creator_name}</p>}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => loadDocumentDetail(doc.id)} title="Ver detalhes">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {doc.status === 'completed' && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                              const url = await downloadSignedPdf(doc.id);
+                              if (url) window.open(url, '_blank');
+                            }} title="Baixar documento">
+                              <Download className="h-4 w-4" />
                             </Button>
-                            {doc.status === 'completed' && (
-                              <Button variant="ghost" size="icon" onClick={async () => {
-                                const url = await downloadSignedPdf(doc.id);
-                                if (url) window.open(url, '_blank');
-                              }} title="Baixar documento">
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            )}
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <Badge variant={status.variant} className="gap-1 text-xs">
+                          <StatusIcon className="h-3 w-3" />
+                          {status.label}
+                        </Badge>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: doc.signers_count > 0 ? `${(doc.signed_count / doc.signers_count) * 100}%` : '0%',
+                                backgroundColor: complete ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+                              }}
+                            />
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                          <span className="text-xs font-medium">
+                            {doc.signed_count}/{doc.signers_count}
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          {format(new Date(doc.created_at), "dd/MM/yy", { locale: ptBR })}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Documento</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Progresso</TableHead>
+                      <TableHead>Criado em</TableHead>
+                      <TableHead className="w-[120px]">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {documents.map((doc) => {
+                      const status = statusConfig[doc.status] || statusConfig.draft;
+                      const StatusIcon = status.icon;
+                      const complete = allSigned(doc);
+                      return (
+                        <TableRow key={doc.id} className="cursor-pointer" onClick={() => loadDocumentDetail(doc.id)}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{doc.title}</div>
+                              {doc.creator_name && <div className="text-xs text-muted-foreground">por {doc.creator_name}</div>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={status.variant} className="gap-1">
+                              <StatusIcon className="h-3 w-3" />
+                              {status.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full transition-all"
+                                  style={{
+                                    width: doc.signers_count > 0 ? `${(doc.signed_count / doc.signers_count) * 100}%` : '0%',
+                                    backgroundColor: complete ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
+                                  }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium">
+                                {doc.signed_count}/{doc.signers_count}
+                                {complete && doc.status === 'completed' && <CheckCircle2 className="h-3 w-3 inline ml-1 text-green-500" />}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                            {format(new Date(doc.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" onClick={() => loadDocumentDetail(doc.id)} title="Ver detalhes">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {doc.status === 'completed' && (
+                                <Button variant="ghost" size="icon" onClick={async () => {
+                                  const url = await downloadSignedPdf(doc.id);
+                                  if (url) window.open(url, '_blank');
+                                }} title="Baixar documento">
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              </>
             )}
           </CardContent>
         </Card>
