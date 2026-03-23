@@ -175,11 +175,26 @@ function extractUploadsRelativePath(source) {
 
   const fromPathname = (pathname) => {
     if (!pathname) return null;
+
+    const normalizedPathname = pathname.replace(/\/{2,}/g, '/');
+
+    const publicRouteMatch = normalizedPathname.match(/\/api\/uploads\/public\/([^/]+)(?:\/[^/]+)?/i);
+    if (publicRouteMatch?.[1]) {
+      try {
+        const stored = decodeURIComponent(publicRouteMatch[1]);
+        const normalizedStored = path.posix.normalize(stored).replace(/^\/+/, '');
+        if (!normalizedStored || normalizedStored.startsWith('..')) return null;
+        return normalizedStored;
+      } catch {
+        return null;
+      }
+    }
+
     const marker = '/uploads/';
-    const markerIndex = pathname.indexOf(marker);
+    const markerIndex = normalizedPathname.indexOf(marker);
     if (markerIndex === -1) return null;
 
-    const raw = pathname.slice(markerIndex + marker.length).split('?')[0].split('#')[0];
+    const raw = normalizedPathname.slice(markerIndex + marker.length).split('?')[0].split('#')[0];
     const normalized = path.posix.normalize(raw).replace(/^\/+/, '');
     if (!normalized || normalized.startsWith('..')) return null;
     return normalized;
@@ -202,6 +217,13 @@ function resolveLocalUploadsPath(source) {
 
   const localPath = path.join(process.cwd(), 'uploads', relativePath);
   return fs.existsSync(localPath) ? localPath : null;
+}
+
+function normalizeDocumentFileUrl(fileUrl) {
+  if (!fileUrl || typeof fileUrl !== 'string') return fileUrl;
+  const relativePath = extractUploadsRelativePath(fileUrl);
+  if (!relativePath) return fileUrl;
+  return `/uploads/${relativePath}`;
 }
 
 async function readRemoteBinary(url) {
@@ -702,7 +724,7 @@ router.get('/sign/:token', async (req, res) => {
     res.json({
       document_title: signer.title,
       document_description: signer.description || null,
-      file_url: signer.file_url,
+      file_url: normalizeDocumentFileUrl(signer.file_url),
       org_name: signer.org_name || null,
       org_logo_url: signer.org_logo_url || null,
       signer: {
@@ -908,8 +930,13 @@ router.get('/:id', async (req, res) => {
     const positionsResult = await query(`SELECT * FROM doc_signature_positions WHERE document_id = $1`, [req.params.id]);
     const auditResult = await query(`SELECT * FROM doc_signature_audit WHERE document_id = $1 ORDER BY created_at DESC`, [req.params.id]);
 
+    const document = docResult.rows[0];
+
     res.json({
-      document: docResult.rows[0],
+      document: {
+        ...document,
+        file_url: normalizeDocumentFileUrl(document.file_url),
+      },
       signers: signersResult.rows,
       positions: positionsResult.rows,
       audit: auditResult.rows,
@@ -929,13 +956,15 @@ router.post('/', async (req, res) => {
     const { title, description, file_url } = req.body;
     if (!title || !file_url) return res.status(400).json({ error: 'Título e arquivo são obrigatórios' });
 
+    const normalizedFileUrl = normalizeDocumentFileUrl(file_url);
+
     const userResult = await query(`SELECT name, email FROM users WHERE id = $1`, [req.userId]);
     const user = userResult.rows[0];
 
     const result = await query(
       `INSERT INTO doc_signature_documents (organization_id, title, description, file_url, created_by)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [orgId, title, description || null, file_url, req.userId]
+      [orgId, title, description || null, normalizedFileUrl, req.userId]
     );
 
     const doc = result.rows[0];
@@ -944,10 +973,13 @@ router.post('/', async (req, res) => {
       name: user?.name, email: user?.email,
       ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
       userAgent: req.headers['user-agent'],
-      details: { title, file_url }
+      details: { title, file_url: normalizedFileUrl }
     });
 
-    res.status(201).json(doc);
+    res.status(201).json({
+      ...doc,
+      file_url: normalizeDocumentFileUrl(doc.file_url),
+    });
   } catch (error) {
     console.error('[doc-signatures] Create error:', error);
     res.status(500).json({ error: 'Erro ao criar documento' });

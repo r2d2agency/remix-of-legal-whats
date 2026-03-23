@@ -151,8 +151,10 @@ router.post('/', authenticate, (req, res) => {
       }
 
       // Build the public URL - use backend domain, not frontend
-      const baseUrl = process.env.API_BASE_URL || '';
-      const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
+      const baseUrl = String(process.env.API_BASE_URL || '').trim().replace(/\/+$/, '');
+      const fileUrl = baseUrl
+        ? `${baseUrl}/uploads/${req.file.filename}`
+        : `/uploads/${req.file.filename}`;
 
       res.json({
         success: true,
@@ -232,12 +234,12 @@ router.get('/check/:filename', (req, res) => {
     
     if (exists) {
       const stats = fs.statSync(filePath);
-      const baseUrl = process.env.API_BASE_URL || '';
+      const baseUrl = String(process.env.API_BASE_URL || '').trim().replace(/\/+$/, '');
       res.json({ 
         exists: true, 
         size: stats.size,
         created: stats.birthtime,
-        url: `${baseUrl}/uploads/${req.params.filename}`
+        url: baseUrl ? `${baseUrl}/uploads/${req.params.filename}` : `/uploads/${req.params.filename}`
       });
     } else {
       res.json({ exists: false, message: 'Arquivo não encontrado no servidor' });
