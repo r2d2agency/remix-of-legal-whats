@@ -111,11 +111,34 @@ const extractUploadsRelativePath = (source?: string | null): string | null => {
   return fromPathname(input);
 };
 
-const normalizeDocumentFileUrl = (fileUrl?: string | null): string => {
+const normalizeDocumentFileUrl = (
+  fileUrl?: string | null,
+  options?: { preferRelative?: boolean }
+): string => {
   if (!fileUrl || typeof fileUrl !== 'string') return '';
-  const relativePath = extractUploadsRelativePath(fileUrl);
-  if (!relativePath) return fileUrl.trim();
-  return `/uploads/${relativePath}`;
+
+  const input = fileUrl.trim();
+  if (!input) return '';
+
+  const relativePath = extractUploadsRelativePath(input);
+  if (!relativePath) return input;
+
+  const normalizedRelativePath = `/uploads/${relativePath}`;
+  const preferRelative = options?.preferRelative === true;
+
+  if (preferRelative || !HTTP_URL_REGEX.test(input)) {
+    return normalizedRelativePath;
+  }
+
+  try {
+    const parsed = new URL(input);
+    parsed.pathname = normalizedRelativePath;
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return normalizedRelativePath;
+  }
 };
 
 const normalizePosition = (position: any): SignaturePosition => ({
@@ -169,7 +192,7 @@ export function useDocSignatures() {
   const createDocument = useCallback(async (data: { title: string; description?: string; file_url: string }): Promise<DocSignatureDocument | null> => {
     setLoading(true);
     try {
-      const normalizedFileUrl = normalizeDocumentFileUrl(data.file_url);
+      const normalizedFileUrl = normalizeDocumentFileUrl(data.file_url, { preferRelative: true });
 
       const res = await fetch(`${API_URL}/api/doc-signatures`, {
         method: 'POST',
