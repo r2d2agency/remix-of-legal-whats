@@ -56,9 +56,66 @@ export interface AuditLog {
   created_at: string;
 }
 
+const HTTP_URL_REGEX = /^https?:\/\//i;
+
 const toNumber = (value: unknown, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const extractUploadsRelativePath = (source?: string | null): string | null => {
+  if (!source || typeof source !== 'string') return null;
+  const input = source.trim();
+  if (!input) return null;
+
+  const fromPathname = (pathname: string): string | null => {
+    if (!pathname) return null;
+
+    const normalizedPathname = pathname.replace(/\/{2,}/g, '/');
+
+    const publicRouteMatch = normalizedPathname.match(/\/api\/uploads\/public\/([^/]+)(?:\/[^/]+)?/i);
+    if (publicRouteMatch?.[1]) {
+      try {
+        const stored = decodeURIComponent(publicRouteMatch[1]);
+        const normalizedStored = stored.replace(/^\/+/, '').trim();
+        if (!normalizedStored || normalizedStored.startsWith('..')) return null;
+        return normalizedStored;
+      } catch {
+        return null;
+      }
+    }
+
+    const marker = '/uploads/';
+    const markerIndex = normalizedPathname.indexOf(marker);
+    if (markerIndex === -1) return null;
+
+    const raw = normalizedPathname
+      .slice(markerIndex + marker.length)
+      .split('?')[0]
+      .split('#')[0]
+      .replace(/^\/+/, '')
+      .trim();
+
+    if (!raw || raw.startsWith('..')) return null;
+    return raw;
+  };
+
+  if (HTTP_URL_REGEX.test(input)) {
+    try {
+      return fromPathname(new URL(input).pathname);
+    } catch {
+      return null;
+    }
+  }
+
+  return fromPathname(input);
+};
+
+const normalizeDocumentFileUrl = (fileUrl?: string | null): string => {
+  if (!fileUrl || typeof fileUrl !== 'string') return '';
+  const relativePath = extractUploadsRelativePath(fileUrl);
+  if (!relativePath) return fileUrl.trim();
+  return `/uploads/${relativePath}`;
 };
 
 const normalizePosition = (position: any): SignaturePosition => ({
@@ -97,6 +154,10 @@ export function useDocSignatures() {
       const data = await res.json();
       return {
         ...data,
+        document: {
+          ...data.document,
+          file_url: normalizeDocumentFileUrl(data.document?.file_url),
+        },
         positions: Array.isArray(data.positions) ? data.positions.map(normalizePosition) : [],
       };
     } catch (err) {
@@ -108,16 +169,25 @@ export function useDocSignatures() {
   const createDocument = useCallback(async (data: { title: string; description?: string; file_url: string }): Promise<DocSignatureDocument | null> => {
     setLoading(true);
     try {
+      const normalizedFileUrl = normalizeDocumentFileUrl(data.file_url);
+
       const res = await fetch(`${API_URL}/api/doc-signatures`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          ...data,
+          file_url: normalizedFileUrl,
+        })
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || 'Erro ao criar documento');
       }
-      return res.json();
+      const created = await res.json();
+      return {
+        ...created,
+        file_url: normalizeDocumentFileUrl(created?.file_url),
+      };
     } catch (err: any) {
       console.error(err);
       throw err;
@@ -229,6 +299,7 @@ export function useDocSignatures() {
       const data = await res.json();
       return {
         ...data,
+        file_url: normalizeDocumentFileUrl(data.file_url),
         positions: Array.isArray(data.positions) ? data.positions.map(normalizePosition) : [],
       };
     } catch (err: any) {
