@@ -972,12 +972,74 @@ router.post('/sign/:token', async (req, res) => {
 
     const allSigned = parseInt(pendingResult.rows[0].pending) === 0;
 
+    // Get document details for notifications
+    const docDetails = await query(
+      `SELECT d.title, d.created_by, d.organization_id,
+              (SELECT COUNT(*) FROM doc_signature_signers WHERE document_id = d.id) as total_signers,
+              (SELECT COUNT(*) FROM doc_signature_signers WHERE document_id = d.id AND status = 'signed') as signed_count
+       FROM doc_signature_documents d WHERE d.id = $1`,
+      [signer.doc_id]
+    );
+    const doc = docDetails.rows[0];
+
     if (allSigned) {
       await query(`UPDATE doc_signature_documents SET status = 'completed', updated_at = NOW() WHERE id = $1`, [signer.doc_id]);
       await auditLog(signer.doc_id, 'document_completed', {
         name: 'Sistema', email: 'system', ip, userAgent,
         details: { completed_at: new Date().toISOString() }
       });
+
+      // Notify creator: all signed
+      if (doc?.created_by && doc?.organization_id) {
+        try {
+          await query(
+            `INSERT INTO user_alerts (user_id, type, title, message, metadata) VALUES ($1, $2, $3, $4, $5)`,
+            [doc.created_by, 'doc_signature_completed', 
+             `✅ Documento "${doc.title}" totalmente assinado`,
+             `Todos os ${doc.total_signers} signatários assinaram o documento "${doc.title}".`,
+             JSON.stringify({ document_id: signer.doc_id, document_title: doc.title })]
+          );
+
+          await createTaskCardInGlobalBoard({
+            organizationId: doc.organization_id,
+            createdBy: doc.created_by,
+            assignedTo: doc.created_by,
+            title: `✅ Doc assinado: ${doc.title}`,
+            description: `O documento "${doc.title}" foi completamente assinado por todos os ${doc.total_signers} signatários. Acesse a página de Assinaturas para baixar o PDF final.`,
+            priority: 'medium',
+            sourceModule: 'doc_signature',
+          });
+          logInfo('[doc-signatures]', `Created completion task for doc "${doc.title}"`);
+        } catch (notifErr) {
+          logError('[doc-signatures] Notification error (completed)', notifErr);
+        }
+      }
+    } else {
+      // Partial signature: notify creator
+      if (doc?.created_by && doc?.organization_id) {
+        try {
+          await query(
+            `INSERT INTO user_alerts (user_id, type, title, message, metadata) VALUES ($1, $2, $3, $4, $5)`,
+            [doc.created_by, 'doc_signature_partial',
+             `📝 "${doc.title}" - ${doc.signed_count}/${doc.total_signers} assinado(s)`,
+             `${full_name || signer.name} assinou o documento "${doc.title}". Faltam ${parseInt(doc.total_signers) - parseInt(doc.signed_count)} signatário(s).`,
+             JSON.stringify({ document_id: signer.doc_id, document_title: doc.title, signed_count: doc.signed_count, total_signers: doc.total_signers })]
+          );
+
+          await createTaskCardInGlobalBoard({
+            organizationId: doc.organization_id,
+            createdBy: doc.created_by,
+            assignedTo: doc.created_by,
+            title: `📝 Assinatura parcial: ${doc.title} (${doc.signed_count}/${doc.total_signers})`,
+            description: `${full_name || signer.name} assinou o documento "${doc.title}". Aguardando ${parseInt(doc.total_signers) - parseInt(doc.signed_count)} signatário(s) restante(s).`,
+            priority: 'low',
+            sourceModule: 'doc_signature',
+          });
+          logInfo('[doc-signatures]', `Created partial signature task for doc "${doc.title}"`);
+        } catch (notifErr) {
+          logError('[doc-signatures] Notification error (partial)', notifErr);
+        }
+      }
     }
 
     // Generate signed PDF with all current signatures embedded

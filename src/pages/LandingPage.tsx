@@ -405,6 +405,7 @@ const pricingPlans = [
       { text: "WhatsApps ilimitados", included: true },
       { text: "Usuários ilimitados", included: true },
       { text: "Tudo do Premium +", included: true },
+      { text: "Assinatura de documentos ilimitada", included: true },
       { text: "Análise fantasma de conversas", included: true },
       { text: "Onboarding dedicado", included: true },
       { text: "SLA garantido", included: true },
