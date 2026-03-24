@@ -26,6 +26,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { CompanyDialog } from "./CompanyDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialog";
+import { RequestSignatureDialog } from "@/components/chat/RequestSignatureDialog";
+import { useDocSignatures, DocSignatureDocument } from "@/hooks/use-doc-signatures";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDealScore, useRecalculateDealScore } from "@/hooks/use-lead-scoring";
