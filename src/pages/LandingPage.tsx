@@ -341,6 +341,7 @@ const pricingPlans = [
       { text: "Lembretes e agendamentos", included: true },
       { text: "Chatbot de triagem", included: true },
       { text: "IA à parte (OpenAI/Gemini)", included: true },
+      { text: "Assinatura de documentos (30/mês)", included: true },
       { text: "Transferir para IA", included: false },
       { text: "Base de conhecimento IA", included: false },
     ],
