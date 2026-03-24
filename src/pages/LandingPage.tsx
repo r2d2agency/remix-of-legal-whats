@@ -285,6 +285,44 @@ const featureCategories = [
       },
     ],
   },
+  {
+    category: "Assinatura Digital",
+    icon: PenTool,
+    color: "text-teal-500",
+    bgColor: "bg-teal-500/10",
+    features: [
+      {
+        icon: PenTool,
+        title: "Assinatura Eletrônica",
+        description: "Envie documentos PDF para assinatura com validade jurídica (MP 2.200-2/2001 e Lei 14.063/2020).",
+      },
+      {
+        icon: QrCode,
+        title: "Verificação por QR Code",
+        description: "Cada documento assinado possui um QR Code de verificação de autenticidade acessível publicamente.",
+      },
+      {
+        icon: Mail,
+        title: "Verificação por E-mail (OTP)",
+        description: "Identidade do signatário validada por código de verificação enviado ao e-mail cadastrado.",
+      },
+      {
+        icon: MapPin,
+        title: "Geolocalização Obrigatória",
+        description: "Registro de localização do signatário para garantir rastreabilidade e segurança jurídica.",
+      },
+      {
+        icon: ShieldCheck,
+        title: "Trilha de Auditoria Completa",
+        description: "IP, geolocalização, User-Agent e timestamps registrados para cada ação no documento.",
+      },
+      {
+        icon: MessageSquare,
+        title: "Envio via WhatsApp",
+        description: "Envie o link de assinatura diretamente pelo WhatsApp do contato, integrado ao Chat e CRM.",
+      },
+    ],
+  },
 ];
 
 const pricingPlans = [
