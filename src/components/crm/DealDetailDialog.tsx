@@ -704,6 +704,16 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                 )}
               </TabsTrigger>
             )}
+            {docSignaturesEnabled && (
+              <TabsTrigger value="documents">
+                Documentos
+                {dealDocuments.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {dealDocuments.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="history">Histórico</TabsTrigger>
           </TabsList>
 
