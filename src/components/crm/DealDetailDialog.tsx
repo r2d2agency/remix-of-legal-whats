@@ -1810,6 +1810,19 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       contactName={currentDeal?.contacts?.[0]?.name}
       dealId={deal?.id}
     />
+
+    <RequestSignatureDialog
+      open={showSignatureDialog}
+      onOpenChange={(v) => {
+        setShowSignatureDialog(v);
+        if (!v && deal?.id) {
+          listDocumentsByDeal(deal.id).then(setDealDocuments);
+        }
+      }}
+      contactName={currentDeal?.contacts?.[0]?.name || undefined}
+      contactPhone={currentDeal?.contacts?.[0]?.phone || undefined}
+      dealId={deal?.id}
+    />
     </>
   );
 }
