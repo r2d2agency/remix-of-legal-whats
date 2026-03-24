@@ -1171,15 +1171,15 @@ router.post('/:id/signers', async (req, res) => {
     if (docCheck.rows.length === 0) return res.status(404).json({ error: 'Documento não encontrado' });
     if (docCheck.rows[0].status !== 'draft') return res.status(400).json({ error: 'Documento já enviado para assinatura' });
 
-    const { name, email, cpf, role, sign_order } = req.body;
+    const { name, email, cpf, role, sign_order, phone } = req.body;
     if (!name || !email || !cpf) return res.status(400).json({ error: 'Nome, email e CPF são obrigatórios' });
 
     const signToken = crypto.randomBytes(48).toString('hex');
 
     const result = await query(
-      `INSERT INTO doc_signature_signers (document_id, name, email, cpf, role, sign_order, sign_token)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [req.params.id, name, email, cpf, role || 'signer', sign_order || 1, signToken]
+      `INSERT INTO doc_signature_signers (document_id, name, email, cpf, role, sign_order, sign_token, phone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [req.params.id, name, email, cpf, role || 'signer', sign_order || 1, signToken, phone || null]
     );
 
     const userResult = await query(`SELECT name, email FROM users WHERE id = $1`, [req.userId]);
@@ -1187,7 +1187,7 @@ router.post('/:id/signers', async (req, res) => {
       name: userResult.rows[0]?.name, email: userResult.rows[0]?.email,
       ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
       userAgent: req.headers['user-agent'],
-      details: { signer_name: name, signer_email: email, signer_cpf: cpf }
+      details: { signer_name: name, signer_email: email, signer_cpf: cpf, phone: phone || null }
     });
 
     res.status(201).json(result.rows[0]);
