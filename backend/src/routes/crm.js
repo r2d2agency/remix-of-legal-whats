@@ -423,13 +423,13 @@ router.post('/funnels', async (req, res) => {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
-    const { name, description, color, stages } = req.body;
+    const { name, description, color, stages, connection_id } = req.body;
     
     // Create funnel
     const funnelResult = await query(
-      `INSERT INTO crm_funnels (organization_id, name, description, color)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [org.organization_id, name, description, color || '#6366f1']
+      `INSERT INTO crm_funnels (organization_id, name, description, color, connection_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [org.organization_id, name, description, color || '#6366f1', connection_id || null]
     );
     const funnel = funnelResult.rows[0];
 
