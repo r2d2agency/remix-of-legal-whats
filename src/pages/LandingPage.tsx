@@ -54,6 +54,10 @@ import {
   Eye,
   ShieldCheck,
   Activity,
+  PenTool,
+  QrCode,
+  Mail,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import heroImage from "@/assets/system-preview-crm-kanban.png";
@@ -281,6 +285,44 @@ const featureCategories = [
       },
     ],
   },
+  {
+    category: "Assinatura Digital",
+    icon: PenTool,
+    color: "text-teal-500",
+    bgColor: "bg-teal-500/10",
+    features: [
+      {
+        icon: PenTool,
+        title: "Assinatura Eletrônica",
+        description: "Envie documentos PDF para assinatura com validade jurídica (MP 2.200-2/2001 e Lei 14.063/2020).",
+      },
+      {
+        icon: QrCode,
+        title: "Verificação por QR Code",
+        description: "Cada documento assinado possui um QR Code de verificação de autenticidade acessível publicamente.",
+      },
+      {
+        icon: Mail,
+        title: "Verificação por E-mail (OTP)",
+        description: "Identidade do signatário validada por código de verificação enviado ao e-mail cadastrado.",
+      },
+      {
+        icon: MapPin,
+        title: "Geolocalização Obrigatória",
+        description: "Registro de localização do signatário para garantir rastreabilidade e segurança jurídica.",
+      },
+      {
+        icon: ShieldCheck,
+        title: "Trilha de Auditoria Completa",
+        description: "IP, geolocalização, User-Agent e timestamps registrados para cada ação no documento.",
+      },
+      {
+        icon: MessageSquare,
+        title: "Envio via WhatsApp",
+        description: "Envie o link de assinatura diretamente pelo WhatsApp do contato, integrado ao Chat e CRM.",
+      },
+    ],
+  },
 ];
 
 const pricingPlans = [
@@ -299,6 +341,7 @@ const pricingPlans = [
       { text: "Lembretes e agendamentos", included: true },
       { text: "Chatbot de triagem", included: true },
       { text: "IA à parte (OpenAI/Gemini)", included: true },
+      { text: "Assinatura de documentos (30/mês)", included: true },
       { text: "Transferir para IA", included: false },
       { text: "Base de conhecimento IA", included: false },
     ],
@@ -321,6 +364,7 @@ const pricingPlans = [
       { text: "Secretária IA nos grupos", included: true },
       { text: "Disparos em massa", included: true },
       { text: "Consulta IA no chat", included: true },
+      { text: "Assinatura de documentos (30/mês)", included: true },
       { text: "Transferir para IA", included: false },
       { text: "Base de conhecimento IA", included: false },
     ],
@@ -343,6 +387,7 @@ const pricingPlans = [
       { text: "Múltiplos agentes especializados", included: true },
       { text: "Assistente de vendas IA", included: true },
       { text: "Resumos de conversas por IA", included: true },
+      { text: "Assinatura de documentos ilimitada", included: true },
       { text: "Análise fantasma de conversas", included: true },
       { text: "Relatórios gerenciais", included: true },
       { text: "Suporte prioritário", included: true },
@@ -360,6 +405,7 @@ const pricingPlans = [
       { text: "WhatsApps ilimitados", included: true },
       { text: "Usuários ilimitados", included: true },
       { text: "Tudo do Premium +", included: true },
+      { text: "Assinatura de documentos ilimitada", included: true },
       { text: "Análise fantasma de conversas", included: true },
       { text: "Onboarding dedicado", included: true },
       { text: "SLA garantido", included: true },
