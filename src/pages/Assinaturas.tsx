@@ -671,6 +671,11 @@ export default function Assinaturas() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label>WhatsApp (opcional)</Label>
+                <Input placeholder="5511999999999" value={signerPhone} onChange={(e) => setSignerPhone(e.target.value.replace(/\D/g, ''))} maxLength={15} />
+                <p className="text-xs text-muted-foreground">Informe para enviar o link de assinatura via WhatsApp</p>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddSignerOpen(false)}>Cancelar</Button>
