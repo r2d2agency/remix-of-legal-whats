@@ -207,15 +207,17 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
         name,
         description,
         color,
+        connection_id: connectionId,
         stages: stagesWithPosition,
-      });
+      } as any);
     } else {
       createFunnel.mutate({
         name,
         description,
         color,
+        connection_id: connectionId,
         stages: stagesWithPosition,
-      });
+      } as any);
     }
     onOpenChange(false);
   };
