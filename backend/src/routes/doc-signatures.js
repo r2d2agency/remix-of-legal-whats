@@ -312,7 +312,7 @@ async function sendOtpEmail(signerEmail, signerName, code, docTitle, orgId) {
 // PDF GENERATION WITH SIGNATURES
 // ===========================
 
-async function generateSignedPdf(documentId) {
+async function generateSignedPdf(documentId, baseUrl) {
   // 1. Get document info
   const docResult = await query(`SELECT file_url FROM doc_signature_documents WHERE id = $1`, [documentId]);
   if (!docResult.rows[0]) throw new Error('Document not found');
