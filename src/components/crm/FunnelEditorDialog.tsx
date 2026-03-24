@@ -6,13 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CRMFunnel, CRMStage, useCRMFunnelMutations } from "@/hooks/use-crm";
-import { Plus, Trash2, GripVertical, Zap } from "lucide-react";
+import { Plus, Trash2, GripVertical, Zap, Plug } from "lucide-react";
 import { DndContext, closestCenter, DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { StageAutomationEditor } from "./StageAutomationEditor";
+import { api } from "@/lib/api";
 
 interface FunnelEditorDialogProps {
   funnel: CRMFunnel | null;
