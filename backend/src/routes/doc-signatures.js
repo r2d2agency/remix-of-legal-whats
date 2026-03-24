@@ -531,7 +531,67 @@ async function generateSignedPdf(documentId) {
     return null;
   }
 
-  // 7. Save the modified PDF
+  // 7. Add legal validity footer to every page
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const footerFontSize = 6.5;
+  const footerLineHeight = 8.5;
+  const footerPadding = 6;
+  const footerLines = [
+    'DOCUMENTO ASSINADO ELETRONICAMENTE',
+    'Validade jurídica conforme MP 2.200-2/2001 (Art. 10, §2º) e Lei 14.063/2020 (Assinatura Eletrônica Simples).',
+    `Verificação: ${documentId} | Hash SHA-256 do documento original registrado no sistema.`,
+  ];
+  const footerBoxHeight = footerPadding * 2 + (footerLines.length * footerLineHeight) + 2;
+
+  for (let pi = 0; pi < pages.length; pi++) {
+    const pg = pages[pi];
+    const { width: pgW } = pg.getSize();
+    const footerY = 6;
+    const footerX = 24;
+    const footerW = pgW - 48;
+
+    // Background
+    pg.drawRectangle({
+      x: footerX,
+      y: footerY,
+      width: footerW,
+      height: footerBoxHeight,
+      color: rgb(0.96, 0.97, 0.98),
+      borderColor: rgb(0.7, 0.75, 0.8),
+      borderWidth: 0.5,
+    });
+
+    // Green accent line at top of footer
+    pg.drawRectangle({
+      x: footerX,
+      y: footerY + footerBoxHeight - 1.5,
+      width: footerW,
+      height: 1.5,
+      color: rgb(0.13, 0.55, 0.13),
+    });
+
+    // Title line (bold)
+    pg.drawText(footerLines[0], {
+      x: footerX + footerPadding,
+      y: footerY + footerBoxHeight - footerPadding - footerFontSize,
+      size: footerFontSize,
+      font: boldFont,
+      color: rgb(0.13, 0.55, 0.13),
+    });
+
+    // Remaining lines (regular)
+    for (let li = 1; li < footerLines.length; li++) {
+      pg.drawText(footerLines[li], {
+        x: footerX + footerPadding,
+        y: footerY + footerBoxHeight - footerPadding - footerFontSize - (li * footerLineHeight),
+        size: footerFontSize,
+        font: infoFont,
+        color: rgb(0.25, 0.25, 0.25),
+      });
+    }
+  }
+
+  // 8. Save the modified PDF
   const signedPdfBytes = await pdfDoc.save();
 
   // Save to uploads directory
