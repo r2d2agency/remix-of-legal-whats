@@ -170,6 +170,7 @@ export default function AssinarDocumento() {
   };
 
   const handleSubmit = async () => {
+    if (!geolocation) { toast.error('A geolocalização é obrigatória para assinar. Permita o acesso à localização no navegador e tente novamente.'); return; }
     if (!sigPadRef.current || sigPadRef.current.isEmpty()) { toast.error('Desenhe sua assinatura'); return; }
     if (!cpfInput || cpfInput.replace(/\D/g, '').length !== 11) { toast.error('CPF inválido'); return; }
     if (!fullName) { toast.error('Nome completo é obrigatório'); return; }
