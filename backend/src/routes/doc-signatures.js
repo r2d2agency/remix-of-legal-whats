@@ -7,6 +7,8 @@ import fs from 'fs';
 import path from 'path';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import { createTaskCardInGlobalBoard } from '../lib/task-card-helper.js';
+import { logInfo, logError } from '../logger.js';
 
 const router = Router();
 
