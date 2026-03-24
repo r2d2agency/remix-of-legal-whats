@@ -308,6 +308,17 @@ async function sendOtpEmail(signerEmail, signerName, code, docTitle, orgId) {
   }
 }
 
+// Helper: extract frontend base URL from request
+function getFrontendBaseUrl(req) {
+  if (req?.headers?.origin) return req.headers.origin;
+  if (req?.headers?.referer) {
+    try { return new URL(req.headers.referer).origin; } catch { /* ignore */ }
+  }
+  const proto = req?.protocol || 'https';
+  const host = req?.headers?.host || 'localhost';
+  return `${proto}://${host}`;
+}
+
 // ===========================
 // PDF GENERATION WITH SIGNATURES
 // ===========================
