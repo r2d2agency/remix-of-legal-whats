@@ -1112,6 +1112,23 @@ export default function Admin() {
                           onCheckedChange={setNewPlanDocSignatures}
                         />
                       </div>
+                      {newPlanDocSignatures && (
+                        <div className="rounded-lg border p-3 ml-4">
+                          <Label htmlFor="doc-sig-limit" className="text-sm">Limite mensal de documentos</Label>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Input
+                              id="doc-sig-limit"
+                              type="number"
+                              min="0"
+                              value={newPlanDocSignaturesLimit}
+                              onChange={(e) => setNewPlanDocSignaturesLimit(e.target.value)}
+                              className="w-24"
+                              placeholder="0"
+                            />
+                            <span className="text-xs text-muted-foreground">0 = ilimitado</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="border-t pt-4 space-y-4">
                       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
