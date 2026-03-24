@@ -6,13 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CRMFunnel, CRMStage, useCRMFunnelMutations } from "@/hooks/use-crm";
-import { Plus, Trash2, GripVertical, Zap } from "lucide-react";
+import { Plus, Trash2, GripVertical, Zap, Plug } from "lucide-react";
 import { DndContext, closestCenter, DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { StageAutomationEditor } from "./StageAutomationEditor";
+import { api } from "@/lib/api";
 
 interface FunnelEditorDialogProps {
   funnel: CRMFunnel | null;
@@ -125,20 +127,31 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#6366f1");
+  const [connectionId, setConnectionId] = useState<string | null>(null);
+  const [connections, setConnections] = useState<Array<{ id: string; name: string; phone_number?: string; status?: string }>>([]);
   const [stages, setStages] = useState<CRMStage[]>([]);
 
   const { createFunnel, updateFunnel } = useCRMFunnelMutations();
+
+  // Load connections
+  useEffect(() => {
+    if (open) {
+      api<any[]>('/api/connections').then(setConnections).catch(() => {});
+    }
+  }, [open]);
 
   useEffect(() => {
     if (funnel) {
       setName(funnel.name);
       setDescription(funnel.description || "");
       setColor(funnel.color);
+      setConnectionId((funnel as any).connection_id || null);
       setStages(funnel.stages || []);
     } else {
       setName("");
       setDescription("");
       setColor("#6366f1");
+      setConnectionId(null);
       setStages([
         { name: "Novo", color: "#6366f1", position: 0, inactivity_hours: 24, inactivity_color: "#ef4444", is_final: false },
         { name: "Qualificação", color: "#8b5cf6", position: 1, inactivity_hours: 48, inactivity_color: "#ef4444", is_final: false },
@@ -194,15 +207,17 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
         name,
         description,
         color,
+        connection_id: connectionId,
         stages: stagesWithPosition,
-      });
+      } as any);
     } else {
       createFunnel.mutate({
         name,
         description,
         color,
+        connection_id: connectionId,
         stages: stagesWithPosition,
-      });
+      } as any);
     }
     onOpenChange(false);
   };
@@ -252,6 +267,33 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
                 placeholder="Descreva o objetivo deste funil..."
                 rows={2}
               />
+            </div>
+
+            {/* Connection for automations */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Plug className="h-4 w-4" />
+                Conexão para automações
+              </Label>
+              <Select
+                value={connectionId || "none"}
+                onValueChange={(v) => setConnectionId(v === "none" ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma conexão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Automática (primeira disponível)</SelectItem>
+                  {connections.filter(c => c.status === 'connected').map(conn => (
+                    <SelectItem key={conn.id} value={conn.id}>
+                      {conn.name} {conn.phone_number ? `(${conn.phone_number})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Conexão WhatsApp usada para disparar fluxos automáticos neste funil
+              </p>
             </div>
 
             {/* Stages */}

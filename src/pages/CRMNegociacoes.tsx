@@ -409,7 +409,12 @@ export default function CRMNegociacoes() {
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="mine">Minhas negociações</SelectItem>
-                {groupMembers?.map((member) => (
+                {canManage && orgMembers?.filter(m => m.user_id !== user?.id).map((member) => (
+                  <SelectItem key={member.user_id} value={member.user_id}>
+                    {member.name || member.email}
+                  </SelectItem>
+                ))}
+                {!canManage && groupMembers?.map((member) => (
                   <SelectItem key={member.user_id} value={member.user_id}>
                     {member.name}
                   </SelectItem>

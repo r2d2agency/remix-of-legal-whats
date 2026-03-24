@@ -7,10 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useFlows, Flow } from "@/hooks/use-flows";
 import { useStageAutomation, useStageAutomationMutations, StageAutomation } from "@/hooks/use-crm-automation";
 import { useCRMFunnels, CRMFunnel, CRMStage } from "@/hooks/use-crm";
-import { Zap, ChevronDown, ChevronUp, Clock, ArrowRight, Loader2, Trash2 } from "lucide-react";
+import { Zap, ChevronDown, ChevronUp, Clock, ArrowRight, Loader2, Trash2, Calendar } from "lucide-react";
+
+const DAYS_OF_WEEK = [
+  { value: 0, label: "Dom" },
+  { value: 1, label: "Seg" },
+  { value: 2, label: "Ter" },
+  { value: 3, label: "Qua" },
+  { value: 4, label: "Qui" },
+  { value: 5, label: "Sex" },
+  { value: 6, label: "Sáb" },
+];
 
 interface StageAutomationEditorProps {
   stage: CRMStage;
@@ -20,7 +31,7 @@ interface StageAutomationEditorProps {
 
 export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutomationEditorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [localConfig, setLocalConfig] = useState<Partial<StageAutomation>>({
+  const [localConfig, setLocalConfig] = useState<Partial<StageAutomation> & { schedule_days?: number[]; schedule_start_time?: string; schedule_end_time?: string }>({
     flow_id: null,
     wait_hours: 24,
     next_stage_id: null,
@@ -28,6 +39,9 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
     fallback_stage_id: null,
     is_active: true,
     execute_immediately: true,
+    schedule_days: [1, 2, 3, 4, 5],
+    schedule_start_time: '08:00',
+    schedule_end_time: '18:00',
   });
 
   const { data: existingAutomation, isLoading: loadingAutomation } = useStageAutomation(stage.id || null);
@@ -54,6 +68,7 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
   // Load existing automation
   useEffect(() => {
     if (existingAutomation) {
+      const ea = existingAutomation as any;
       setLocalConfig({
         flow_id: existingAutomation.flow_id,
         wait_hours: existingAutomation.wait_hours,
@@ -62,6 +77,9 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
         fallback_stage_id: existingAutomation.fallback_stage_id,
         is_active: existingAutomation.is_active,
         execute_immediately: existingAutomation.execute_immediately,
+        schedule_days: ea.schedule_days || [1, 2, 3, 4, 5],
+        schedule_start_time: ea.schedule_start_time || '08:00',
+        schedule_end_time: ea.schedule_end_time || '18:00',
       });
     }
   }, [existingAutomation]);
@@ -71,10 +89,7 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
   const [fallbackStages, setFallbackStages] = useState<CRMStage[]>([]);
 
   useEffect(() => {
-    // In a real app, we'd fetch stages for the fallback funnel
-    // For now, we'll use a placeholder
     if (localConfig.fallback_funnel_id && fallbackFunnel) {
-      // Would need to fetch stages for this funnel
       setFallbackStages([]);
     }
   }, [localConfig.fallback_funnel_id, fallbackFunnel]);
@@ -84,12 +99,20 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
     s.id !== stage.id && s.position > stage.position && !s.is_final
   );
 
+  const toggleDay = (day: number) => {
+    const days = localConfig.schedule_days || [1, 2, 3, 4, 5];
+    setLocalConfig(prev => ({
+      ...prev,
+      schedule_days: days.includes(day) ? days.filter(d => d !== day) : [...days, day].sort()
+    }));
+  };
+
   const handleSave = () => {
     if (!stage.id) return;
     saveAutomation.mutate({
       stageId: stage.id,
       ...localConfig,
-    });
+    } as any);
   };
 
   const handleDelete = () => {
@@ -103,6 +126,9 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
       fallback_stage_id: null,
       is_active: true,
       execute_immediately: true,
+      schedule_days: [1, 2, 3, 4, 5],
+      schedule_start_time: '08:00',
+      schedule_end_time: '18:00',
     });
   };
 
@@ -177,6 +203,53 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
                 />
                 <p className="text-[10px] text-muted-foreground">
                   Se não houver resposta em {localConfig.wait_hours}h, move para próxima etapa
+                </p>
+              </div>
+
+              {/* Business Hours Schedule */}
+              <div className="space-y-2 p-2 bg-background rounded border">
+                <Label className="text-xs flex items-center gap-1 font-medium">
+                  <Calendar className="h-3 w-3" />
+                  Horário de execução
+                </Label>
+                
+                <div className="flex flex-wrap gap-1">
+                  {DAYS_OF_WEEK.map(day => (
+                    <Button
+                      key={day.value}
+                      type="button"
+                      variant={(localConfig.schedule_days || []).includes(day.value) ? "default" : "outline"}
+                      size="sm"
+                      className="h-6 text-[10px] px-2"
+                      onClick={() => toggleDay(day.value)}
+                    >
+                      {day.label}
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[10px]">Início</Label>
+                    <Input
+                      type="time"
+                      value={localConfig.schedule_start_time || '08:00'}
+                      onChange={(e) => setLocalConfig(prev => ({ ...prev, schedule_start_time: e.target.value }))}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px]">Fim</Label>
+                    <Input
+                      type="time"
+                      value={localConfig.schedule_end_time || '18:00'}
+                      onChange={(e) => setLocalConfig(prev => ({ ...prev, schedule_end_time: e.target.value }))}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Fora deste horário, ações serão agendadas para o próximo dia útil
                 </p>
               </div>
 

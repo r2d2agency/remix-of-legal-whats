@@ -25,6 +25,20 @@ router.use(authenticate);
     }
   }
   logInfo('[CRM] Self-healing company columns check complete');
+
+  // Self-healing: funnel connection_id
+  try { await query(`ALTER TABLE crm_funnels ADD COLUMN IF NOT EXISTS connection_id UUID REFERENCES connections(id) ON DELETE SET NULL`); } catch(e) {}
+
+  // Self-healing: automation schedule columns
+  const autoCols = [
+    { name: 'schedule_days', type: "JSONB DEFAULT '[1,2,3,4,5]'" },
+    { name: 'schedule_start_time', type: "VARCHAR(5) DEFAULT '08:00'" },
+    { name: 'schedule_end_time', type: "VARCHAR(5) DEFAULT '18:00'" },
+  ];
+  for (const col of autoCols) {
+    try { await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`); } catch(e) {}
+  }
+  logInfo('[CRM] Self-healing funnel/automation columns check complete');
 })();
 
 // Some CRM/Intelligence tables/columns may not exist yet during partial deployments.
@@ -423,13 +437,13 @@ router.post('/funnels', async (req, res) => {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
-    const { name, description, color, stages } = req.body;
+    const { name, description, color, stages, connection_id } = req.body;
     
     // Create funnel
     const funnelResult = await query(
-      `INSERT INTO crm_funnels (organization_id, name, description, color)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [org.organization_id, name, description, color || '#6366f1']
+      `INSERT INTO crm_funnels (organization_id, name, description, color, connection_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [org.organization_id, name, description, color || '#6366f1', connection_id || null]
     );
     const funnel = funnelResult.rows[0];
 
@@ -461,12 +475,12 @@ router.put('/funnels/:id', async (req, res) => {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
-    const { name, description, color, is_active, stages } = req.body;
+    const { name, description, color, is_active, stages, connection_id } = req.body;
     
     await query(
-      `UPDATE crm_funnels SET name = $1, description = $2, color = $3, is_active = $4, updated_at = NOW()
-       WHERE id = $5 AND organization_id = $6`,
-      [name, description, color, is_active !== false, req.params.id, org.organization_id]
+      `UPDATE crm_funnels SET name = $1, description = $2, color = $3, is_active = $4, connection_id = $5, updated_at = NOW()
+       WHERE id = $6 AND organization_id = $7`,
+      [name, description, color, is_active !== false, connection_id || null, req.params.id, org.organization_id]
     );
 
     // Update stages if provided
