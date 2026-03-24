@@ -2377,6 +2377,23 @@ export default function Admin() {
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan!, has_doc_signatures: v })}
                   />
                 </div>
+                {editingPlan?.has_doc_signatures && (
+                  <div className="rounded-lg border p-3 ml-4">
+                    <Label htmlFor="edit-doc-sig-limit" className="text-sm">Limite mensal de documentos</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        id="edit-doc-sig-limit"
+                        type="number"
+                        min="0"
+                        value={editingPlan?.doc_signatures_limit || 0}
+                        onChange={(e) => setEditingPlan({ ...editingPlan!, doc_signatures_limit: parseInt(e.target.value) || 0 })}
+                        className="w-24"
+                        placeholder="0"
+                      />
+                      <span className="text-xs text-muted-foreground">0 = ilimitado</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <Label htmlFor="edit-lead-scoring">Lead Scoring</Label>
                   <Switch
