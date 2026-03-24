@@ -90,6 +90,7 @@ import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { AIAgentBanner } from "./AIAgentBanner";
 import { ChatMessageBubble } from "./ChatMessageBubble";
 import { ForwardMessageDialog } from "./ForwardMessageDialog";
+import { RequestSignatureDialog } from "./RequestSignatureDialog";
 import {
   TransferDialog,
   DepartmentDialog,
