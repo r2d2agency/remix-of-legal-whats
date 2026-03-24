@@ -124,4 +124,5 @@ export const SOURCE_MODULE_LABELS = {
   flow: 'Fluxo',
   manual: 'Manual',
   migration: 'Migração',
+  doc_signature: 'Assinatura Digital',
 };
