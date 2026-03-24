@@ -489,9 +489,18 @@ export default function AssinarDocumento() {
               <Label>CPF *</Label>
               <Input value={cpfInput} onChange={(e) => setCpfInput(formatCpf(e.target.value))} maxLength={14} />
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className={`flex items-center gap-2 text-xs ${geoBlocked ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
               <MapPin className="h-3 w-3" />
-              {loadingGeo ? 'Obtendo localização...' : geolocation ? `Localização: ${geolocation}` : 'Localização não disponível'}
+              {loadingGeo ? 'Obtendo localização...' : geolocation ? (
+                <span className="text-green-600 dark:text-green-400">✓ Localização obtida: {geolocation}</span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  ⚠️ Geolocalização obrigatória — permita o acesso no navegador.
+                  <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={requestGeolocation}>
+                    Tentar novamente
+                  </Button>
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
