@@ -91,10 +91,11 @@ export default function Assinaturas() {
     if (!selectedDoc) return;
     if (!signerName || !signerEmail || !signerCpf) { toast.error('Nome, email e CPF são obrigatórios'); return; }
     try {
-      await addSigner(selectedDoc.id, { name: signerName, email: signerEmail, cpf: signerCpf, role: signerRole });
+      const phone = signerPhone.replace(/\D/g, '');
+      await addSigner(selectedDoc.id, { name: signerName, email: signerEmail, cpf: signerCpf, role: signerRole, phone: phone || undefined } as any);
       toast.success('Signatário adicionado!');
       setAddSignerOpen(false);
-      setSignerName(''); setSignerEmail(''); setSignerCpf(''); setSignerRole('signer');
+      setSignerName(''); setSignerEmail(''); setSignerCpf(''); setSignerRole('signer'); setSignerPhone('');
       loadDocumentDetail(selectedDoc.id);
     } catch (err: any) { toast.error(err.message); }
   };
