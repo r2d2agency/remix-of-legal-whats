@@ -387,6 +387,7 @@ const pricingPlans = [
       { text: "Múltiplos agentes especializados", included: true },
       { text: "Assistente de vendas IA", included: true },
       { text: "Resumos de conversas por IA", included: true },
+      { text: "Assinatura de documentos ilimitada", included: true },
       { text: "Análise fantasma de conversas", included: true },
       { text: "Relatórios gerenciais", included: true },
       { text: "Suporte prioritário", included: true },
