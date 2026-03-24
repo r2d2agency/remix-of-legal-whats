@@ -102,15 +102,25 @@ export default function AssinarDocumento() {
     }
   };
 
-  useEffect(() => {
-    if (navigator.geolocation) {
-      setLoadingGeo(true);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => { setGeolocation(`${pos.coords.latitude},${pos.coords.longitude}`); setLoadingGeo(false); },
-        () => setLoadingGeo(false),
-        { timeout: 10000 }
-      );
+  const [geoBlocked, setGeoBlocked] = useState(false);
+
+  const requestGeolocation = () => {
+    if (!navigator.geolocation) {
+      setGeoBlocked(true);
+      setLoadingGeo(false);
+      return;
     }
+    setLoadingGeo(true);
+    setGeoBlocked(false);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setGeolocation(`${pos.coords.latitude},${pos.coords.longitude}`); setLoadingGeo(false); setGeoBlocked(false); },
+      () => { setLoadingGeo(false); setGeoBlocked(true); },
+      { timeout: 10000 }
+    );
+  };
+
+  useEffect(() => {
+    requestGeolocation();
   }, []);
 
   const loadData = async () => {
