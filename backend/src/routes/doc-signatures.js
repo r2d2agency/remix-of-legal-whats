@@ -622,6 +622,64 @@ async function generateSignedPdf(documentId) {
 // PUBLIC ROUTES (before auth)
 // ===========================
 
+// Public: Verify document authenticity
+router.get('/verify/:documentId', async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const docResult = await query(
+      `SELECT d.id, d.title, d.description, d.status, d.hash_sha256, d.created_at,
+              o.name as org_name
+       FROM doc_signature_documents d
+       LEFT JOIN organizations o ON o.id = d.organization_id
+       WHERE d.id = $1`,
+      [documentId]
+    );
+    if (docResult.rows.length === 0) return res.status(404).json({ error: 'Documento não encontrado' });
+
+    const doc = docResult.rows[0];
+
+    const signersResult = await query(
+      `SELECT name, cpf, role, status, signed_at, ip_address, geolocation
+       FROM doc_signature_signers WHERE document_id = $1 ORDER BY sign_order`,
+      [documentId]
+    );
+
+    const signers = signersResult.rows.map(s => ({
+      name: s.name,
+      cpf_masked: s.cpf ? s.cpf.replace(/(\d{3})\.\d{3}\.\d{3}-(\d{2})/, '$1.***.***-$2').replace(/(\d{3})\d{3}\d{3}(\d{2})/, '$1.***.***-$2') : '***',
+      role: s.role,
+      status: s.status,
+      signed_at: s.signed_at,
+      ip_address: s.ip_address,
+      geolocation: s.geolocation,
+    }));
+
+    const auditResult = await query(
+      `SELECT action, actor_name, actor_email, ip_address, geolocation, created_at
+       FROM doc_signature_audit WHERE document_id = $1 ORDER BY created_at DESC`,
+      [documentId]
+    );
+
+    res.json({
+      document: {
+        id: doc.id,
+        title: doc.title,
+        description: doc.description,
+        status: doc.status,
+        hash_sha256: doc.hash_sha256,
+        created_at: doc.created_at,
+        org_name: doc.org_name,
+      },
+      signers,
+      audit: auditResult.rows,
+    });
+  } catch (error) {
+    console.error('[doc-signatures] Verify error:', error);
+    res.status(500).json({ error: 'Erro ao verificar documento' });
+  }
+});
+
+
 // Step 1: Request OTP - sends verification code to signer's email
 router.post('/sign/:token/request-otp', async (req, res) => {
   try {
