@@ -917,7 +917,7 @@ export function ChatArea({
                 <>
                   <DropdownMenuSeparator />
                   {modulesEnabled.crm && <DropdownMenuItem onClick={() => setShowDealDialog(true)}><Briefcase className="h-4 w-4 mr-2" />Negociações (CRM)</DropdownMenuItem>}
-                  <DropdownMenuItem onClick={() => setShowStartFlowDialog(true)}><Bot className="h-4 w-4 mr-2" />Iniciar fluxo de chatbot</DropdownMenuItem>
+                  {modulesEnabled.docSignatures && !conversation.is_group && <DropdownMenuItem onClick={() => setShowSignatureDialog(true)}><FileSignature className="h-4 w-4 mr-2" />Solicitar Assinatura</DropdownMenuItem>}
                   <DropdownMenuItem onClick={() => setShowTransferDialog(true)}><ArrowLeftRight className="h-4 w-4 mr-2" />Transferir atendimento</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowDepartmentDialog(true)}>
                     <Building2 className="h-4 w-4 mr-2" />Atribuir departamento
