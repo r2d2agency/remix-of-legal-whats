@@ -58,6 +58,7 @@ import {
   Pin,
   X as XIcon,
 } from "lucide-react";
+import { FileSignature } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessage, Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
 import { useChat } from "@/hooks/use-chat";
