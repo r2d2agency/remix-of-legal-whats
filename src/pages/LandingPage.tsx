@@ -54,6 +54,10 @@ import {
   Eye,
   ShieldCheck,
   Activity,
+  PenTool,
+  QrCode,
+  Mail,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import heroImage from "@/assets/system-preview-crm-kanban.png";
