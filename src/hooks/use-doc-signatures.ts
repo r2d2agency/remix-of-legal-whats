@@ -189,7 +189,7 @@ export function useDocSignatures() {
     }
   }, []);
 
-  const createDocument = useCallback(async (data: { title: string; description?: string; file_url: string }): Promise<DocSignatureDocument | null> => {
+  const createDocument = useCallback(async (data: { title: string; description?: string; file_url: string; deal_id?: string }): Promise<DocSignatureDocument | null> => {
     setLoading(true);
     try {
       const normalizedFileUrl = normalizeDocumentFileUrl(data.file_url, { preferRelative: true });
@@ -419,9 +419,40 @@ export function useDocSignatures() {
     }
   }, []);
 
+  const sendSigningLinkWhatsApp = useCallback(async (documentId: string): Promise<{ sent: number } | null> => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/doc-signatures/${documentId}/send-whatsapp`, {
+        method: 'POST',
+        headers: getHeaders()
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro ao enviar via WhatsApp');
+      }
+      return res.json();
+    } catch (err: any) {
+      console.error(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const listDocumentsByDeal = useCallback(async (dealId: string): Promise<DocSignatureDocument[]> => {
+    try {
+      const res = await fetch(`${API_URL}/api/doc-signatures/by-deal/${dealId}`, { headers: getHeaders() });
+      if (!res.ok) return [];
+      return res.json();
+    } catch {
+      return [];
+    }
+  }, []);
+
   return {
     loading,
     listDocuments,
+    listDocumentsByDeal,
     getDocument,
     createDocument,
     addSigner,
@@ -435,5 +466,6 @@ export function useDocSignatures() {
     downloadSignedPdf,
     requestOtp,
     verifyOtp,
+    sendSigningLinkWhatsApp,
   };
 }

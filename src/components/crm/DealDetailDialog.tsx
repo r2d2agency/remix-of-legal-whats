@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel, useCRMCompanies } from "@/hooks/use-crm";
 import { useCRMCustomFields, CRMCustomField } from "@/hooks/use-crm-config";
 import { api } from "@/lib/api";
-import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building, Mail, Video, Send, ClipboardList, RefreshCw, Flame } from "lucide-react";
+import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building, Mail, Video, Send, ClipboardList, RefreshCw, Flame, FileSignature } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { CompanyDialog } from "./CompanyDialog";
 import { SendEmailDialog } from "@/components/email/SendEmailDialog";
 import { EnrollSequenceDialog } from "@/components/nurturing/EnrollSequenceDialog";
+import { RequestSignatureDialog } from "@/components/chat/RequestSignatureDialog";
+import { useDocSignatures, DocSignatureDocument } from "@/hooks/use-doc-signatures";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDealScore, useRecalculateDealScore } from "@/hooks/use-lead-scoring";
@@ -121,6 +123,9 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [newProjectTitle, setNewProjectTitle] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const [newProjectTemplateId, setNewProjectTemplateId] = useState<string>("");
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [dealDocuments, setDealDocuments] = useState<DocSignatureDocument[]>([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
 
   const { data: fullDeal, isLoading } = useCRMDeal(deal?.id || null);
   const { data: funnelData } = useCRMFunnel(deal?.funnel_id || null);
@@ -155,6 +160,8 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const { data: dealProjects } = useProjectsByDeal(projectsEnabled ? (deal?.id || null) : null);
   const { create: createProject } = useProjectMutations();
   const { data: projectTemplates } = useProjectTemplates();
+  const docSignaturesEnabled = modulesEnabled.doc_signatures;
+  const { listDocumentsByDeal, sendSigningLinkWhatsApp } = useDocSignatures();
 
   const currentDeal = fullDeal || deal;
   const stages = funnelData?.stages || [];
@@ -186,6 +193,12 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       
       // Load scheduled WhatsApp messages for this deal's contacts
       loadScheduledMessages();
+
+      // Load deal documents
+      if (docSignaturesEnabled && deal?.id) {
+        setLoadingDocuments(true);
+        listDocumentsByDeal(deal.id).then(setDealDocuments).finally(() => setLoadingDocuments(false));
+      }
     }
   }, [open, currentDeal?.contacts]);
 
@@ -601,6 +614,12 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                   Projeto
                 </Button>
               )}
+              {docSignaturesEnabled && (
+                <Button variant="outline" size="sm" onClick={() => { setShowSignatureDialog(true); }} title="Solicitar Assinatura">
+                  <FileSignature className="h-4 w-4 mr-2" />
+                  Assinar
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => setShowSequenceDialog(true)} title="Inscrever em Sequência de Nurturing">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Sequência
@@ -687,6 +706,16 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                 {dealProjects && dealProjects.length > 0 && (
                   <Badge variant="secondary" className="ml-1 text-xs">
                     {dealProjects.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )}
+            {docSignaturesEnabled && (
+              <TabsTrigger value="documents">
+                Documentos
+                {dealDocuments.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {dealDocuments.length}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -1666,6 +1695,55 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
               </TabsContent>
             )}
 
+            {docSignaturesEnabled && (
+              <TabsContent value="documents" className="m-0">
+                <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={() => setShowSignatureDialog(true)} className="gap-2">
+                      <FileSignature className="h-4 w-4" />
+                      Solicitar Assinatura
+                    </Button>
+                  </div>
+                  {loadingDocuments ? (
+                    <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                  ) : dealDocuments.length > 0 ? (
+                    <div className="space-y-3">
+                      {dealDocuments.map((doc) => {
+                        const statusMap: Record<string, { label: string; className: string }> = {
+                          draft: { label: 'Rascunho', className: 'bg-muted text-muted-foreground' },
+                          pending: { label: 'Aguardando', className: 'bg-primary/10 text-primary' },
+                          completed: { label: 'Concluído', className: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' },
+                          cancelled: { label: 'Cancelado', className: 'bg-destructive/10 text-destructive' },
+                        };
+                        const status = statusMap[doc.status] || statusMap.draft;
+                        return (
+                          <Card key={doc.id} className="p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3 min-w-0">
+                                <FileSignature className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="font-medium truncate">{doc.title}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {format(parseISO(doc.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                                    {doc.signers_count > 0 && ` • ${doc.signed_count}/${doc.signers_count} assinaturas`}
+                                  </p>
+                                </div>
+                              </div>
+                              <Badge variant="outline" className={cn("text-xs flex-shrink-0", status.className)}>
+                                {status.label}
+                              </Badge>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">Nenhum documento vinculado a esta negociação</p>
+                  )}
+                </div>
+              </TabsContent>
+            )}
+
             <TabsContent value="history" className="m-0">
               <div className="space-y-3">
                 {fullDeal?.history?.map((item: any) => (
@@ -1730,6 +1808,19 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       onOpenChange={setShowSequenceDialog}
       contactPhone={currentDeal?.contacts?.[0]?.phone}
       contactName={currentDeal?.contacts?.[0]?.name}
+      dealId={deal?.id}
+    />
+
+    <RequestSignatureDialog
+      open={showSignatureDialog}
+      onOpenChange={(v) => {
+        setShowSignatureDialog(v);
+        if (!v && deal?.id) {
+          listDocumentsByDeal(deal.id).then(setDealDocuments);
+        }
+      }}
+      contactName={currentDeal?.contacts?.[0]?.name || undefined}
+      contactPhone={currentDeal?.contacts?.[0]?.phone || undefined}
       dealId={deal?.id}
     />
     </>

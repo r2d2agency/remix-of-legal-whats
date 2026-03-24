@@ -51,8 +51,9 @@ export default function Assinaturas() {
   const [signerEmail, setSignerEmail] = useState('');
   const [signerCpf, setSignerCpf] = useState('');
   const [signerRole, setSignerRole] = useState('signer');
+  const [signerPhone, setSignerPhone] = useState('');
 
-  const { listDocuments, getDocument, createDocument, addSigner, removeSigner, sendForSignature, cancelDocument, savePositions, downloadSignedPdf, loading: actionLoading } = useDocSignatures();
+  const { listDocuments, getDocument, createDocument, addSigner, removeSigner, sendForSignature, cancelDocument, savePositions, downloadSignedPdf, sendSigningLinkWhatsApp, loading: actionLoading } = useDocSignatures();
 
   useEffect(() => { loadDocuments(); }, []);
 
@@ -90,10 +91,11 @@ export default function Assinaturas() {
     if (!selectedDoc) return;
     if (!signerName || !signerEmail || !signerCpf) { toast.error('Nome, email e CPF são obrigatórios'); return; }
     try {
-      await addSigner(selectedDoc.id, { name: signerName, email: signerEmail, cpf: signerCpf, role: signerRole });
+      const phone = signerPhone.replace(/\D/g, '');
+      await addSigner(selectedDoc.id, { name: signerName, email: signerEmail, cpf: signerCpf, role: signerRole, phone: phone || undefined } as any);
       toast.success('Signatário adicionado!');
       setAddSignerOpen(false);
-      setSignerName(''); setSignerEmail(''); setSignerCpf(''); setSignerRole('signer');
+      setSignerName(''); setSignerEmail(''); setSignerCpf(''); setSignerRole('signer'); setSignerPhone('');
       loadDocumentDetail(selectedDoc.id);
     } catch (err: any) { toast.error(err.message); }
   };
@@ -615,6 +617,16 @@ export default function Assinaturas() {
                     )}
                   </div>
                   <div className="flex gap-2">
+                    {selectedDoc.status === 'pending' && signers.some((s: any) => s.phone && s.status === 'pending') && (
+                      <Button variant="outline" onClick={async () => {
+                        try {
+                          const result = await sendSigningLinkWhatsApp(selectedDoc.id);
+                          toast.success(`${result?.sent || 0} link(s) enviado(s) via WhatsApp!`);
+                        } catch (err: any) { toast.error(err.message); }
+                      }} className="gap-1" disabled={actionLoading}>
+                        📱 Enviar via WhatsApp
+                      </Button>
+                    )}
                     {selectedDoc.status === 'draft' && signers.length > 0 && (
                       <Button onClick={handleSend} className="gap-1" disabled={actionLoading}>
                         {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -658,6 +670,11 @@ export default function Assinaturas() {
                     <SelectItem value="approver">Aprovador</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>WhatsApp (opcional)</Label>
+                <Input placeholder="5511999999999" value={signerPhone} onChange={(e) => setSignerPhone(e.target.value.replace(/\D/g, ''))} maxLength={15} />
+                <p className="text-xs text-muted-foreground">Informe para enviar o link de assinatura via WhatsApp</p>
               </div>
             </div>
             <DialogFooter>

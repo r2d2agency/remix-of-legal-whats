@@ -102,6 +102,11 @@ async function ensureTables() {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
     )`);
 
+    // Add phone column to signers if not exists
+    await query(`ALTER TABLE doc_signature_signers ADD COLUMN IF NOT EXISTS phone VARCHAR(20)`);
+    // Add deal_id to documents for CRM integration
+    await query(`ALTER TABLE doc_signature_documents ADD COLUMN IF NOT EXISTS deal_id UUID`);
+
   } catch (e) {
     console.error('[doc-signatures] Table init error:', e.message);
   }
@@ -1123,7 +1128,7 @@ router.post('/', async (req, res) => {
     const orgId = await getUserOrgId(req.userId);
     if (!orgId) return res.status(403).json({ error: 'Sem organização' });
 
-    const { title, description, file_url } = req.body;
+    const { title, description, file_url, deal_id } = req.body;
     if (!title || !file_url) return res.status(400).json({ error: 'Título e arquivo são obrigatórios' });
 
     const normalizedFileUrl = normalizeDocumentFileUrl(file_url);
@@ -1132,9 +1137,9 @@ router.post('/', async (req, res) => {
     const user = userResult.rows[0];
 
     const result = await query(
-      `INSERT INTO doc_signature_documents (organization_id, title, description, file_url, created_by)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [orgId, title, description || null, normalizedFileUrl, req.userId]
+      `INSERT INTO doc_signature_documents (organization_id, title, description, file_url, created_by, deal_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [orgId, title, description || null, normalizedFileUrl, req.userId, deal_id || null]
     );
 
     const doc = result.rows[0];
@@ -1143,7 +1148,7 @@ router.post('/', async (req, res) => {
       name: user?.name, email: user?.email,
       ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
       userAgent: req.headers['user-agent'],
-      details: { title, file_url: normalizedFileUrl }
+      details: { title, file_url: normalizedFileUrl, deal_id: deal_id || null }
     });
 
     const createdNormalizedFileUrl = normalizeDocumentFileUrl(doc.file_url);
@@ -1166,15 +1171,15 @@ router.post('/:id/signers', async (req, res) => {
     if (docCheck.rows.length === 0) return res.status(404).json({ error: 'Documento não encontrado' });
     if (docCheck.rows[0].status !== 'draft') return res.status(400).json({ error: 'Documento já enviado para assinatura' });
 
-    const { name, email, cpf, role, sign_order } = req.body;
+    const { name, email, cpf, role, sign_order, phone } = req.body;
     if (!name || !email || !cpf) return res.status(400).json({ error: 'Nome, email e CPF são obrigatórios' });
 
     const signToken = crypto.randomBytes(48).toString('hex');
 
     const result = await query(
-      `INSERT INTO doc_signature_signers (document_id, name, email, cpf, role, sign_order, sign_token)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [req.params.id, name, email, cpf, role || 'signer', sign_order || 1, signToken]
+      `INSERT INTO doc_signature_signers (document_id, name, email, cpf, role, sign_order, sign_token, phone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [req.params.id, name, email, cpf, role || 'signer', sign_order || 1, signToken, phone || null]
     );
 
     const userResult = await query(`SELECT name, email FROM users WHERE id = $1`, [req.userId]);
@@ -1182,7 +1187,7 @@ router.post('/:id/signers', async (req, res) => {
       name: userResult.rows[0]?.name, email: userResult.rows[0]?.email,
       ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
       userAgent: req.headers['user-agent'],
-      details: { signer_name: name, signer_email: email, signer_cpf: cpf }
+      details: { signer_name: name, signer_email: email, signer_cpf: cpf, phone: phone || null }
     });
 
     res.status(201).json(result.rows[0]);
@@ -1325,6 +1330,113 @@ router.get('/:id/download', async (req, res) => {
   } catch (error) {
     console.error('[doc-signatures] Download error:', error);
     res.status(500).json({ error: 'Erro ao baixar documento' });
+  }
+});
+
+// List documents by deal_id (for CRM integration)
+router.get('/by-deal/:dealId', async (req, res) => {
+  try {
+    const orgId = await getUserOrgId(req.userId);
+    if (!orgId) return res.status(403).json({ error: 'Sem organização' });
+
+    const result = await query(
+      `SELECT d.*, u.name as creator_name,
+              (SELECT COUNT(*) FROM doc_signature_signers WHERE document_id = d.id) as signers_count,
+              (SELECT COUNT(*) FROM doc_signature_signers WHERE document_id = d.id AND status = 'signed') as signed_count
+       FROM doc_signature_documents d
+       LEFT JOIN users u ON u.id = d.created_by
+       WHERE d.organization_id = $1 AND d.deal_id = $2
+       ORDER BY d.created_at DESC`,
+      [orgId, req.params.dealId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('[doc-signatures] List by deal error:', error);
+    res.status(500).json({ error: 'Erro ao listar documentos' });
+  }
+});
+
+// Send signing link via WhatsApp
+router.post('/:id/send-whatsapp', async (req, res) => {
+  try {
+    const orgId = await getUserOrgId(req.userId);
+    if (!orgId) return res.status(403).json({ error: 'Sem organização' });
+
+    const docResult = await query(
+      `SELECT d.title FROM doc_signature_documents d WHERE d.id = $1 AND d.organization_id = $2`,
+      [req.params.id, orgId]
+    );
+    if (docResult.rows.length === 0) return res.status(404).json({ error: 'Documento não encontrado' });
+    const docTitle = docResult.rows[0].title;
+
+    // Get signers with phone numbers
+    const signersResult = await query(
+      `SELECT id, name, phone, sign_token, status FROM doc_signature_signers WHERE document_id = $1 AND phone IS NOT NULL AND status = 'pending'`,
+      [req.params.id]
+    );
+
+    if (signersResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Nenhum signatário com telefone e pendente encontrado' });
+    }
+
+    // Get first active WhatsApp connection
+    const connResult = await query(
+      `SELECT c.id, c.api_url, c.api_key, c.instance_name, c.provider 
+       FROM connections c 
+       WHERE c.organization_id = $1 AND c.status IN ('connected', 'open', 'online')
+       ORDER BY c.created_at ASC LIMIT 1`,
+      [orgId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Nenhuma conexão WhatsApp ativa' });
+    }
+
+    const connection = connResult.rows[0];
+    const { sendMessage } = await import('../lib/whatsapp-provider.js');
+
+    const frontendUrl = getFrontendBaseUrl({ headers: req.headers, protocol: req.protocol });
+    let sent = 0;
+
+    for (const signer of signersResult.rows) {
+      const signingLink = `${frontendUrl}/assinar/${signer.sign_token}`;
+      const message = `📝 *Solicitação de Assinatura*\n\nOlá ${signer.name},\n\nVocê tem um documento aguardando sua assinatura:\n\n📄 *${docTitle}*\n\n🔗 Acesse o link abaixo para assinar:\n${signingLink}\n\n_Assinatura eletrônica com validade jurídica conforme MP 2.200-2/2001._`;
+
+      try {
+        await sendMessage(connection, signer.phone, message, 'text');
+        sent++;
+
+        // Save message in conversation if exists
+        const phone = signer.phone.replace(/\D/g, '');
+        const jid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+        const convResult = await query(
+          `SELECT id FROM conversations WHERE connection_id = $1 AND contact_jid = $2 LIMIT 1`,
+          [connection.id, jid]
+        );
+        if (convResult.rows.length > 0) {
+          await query(
+            `INSERT INTO messages (conversation_id, content, message_type, from_me, status) VALUES ($1, $2, 'text', true, 'sent')`,
+            [convResult.rows[0].id, message]
+          );
+          await query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [convResult.rows[0].id]);
+        }
+      } catch (sendErr) {
+        console.error(`[doc-signatures] WhatsApp send error for ${signer.name}:`, sendErr.message);
+      }
+    }
+
+    const userResult = await query(`SELECT name, email FROM users WHERE id = $1`, [req.userId]);
+    await auditLog(req.params.id, 'whatsapp_links_sent', {
+      name: userResult.rows[0]?.name, email: userResult.rows[0]?.email,
+      ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+      userAgent: req.headers['user-agent'],
+      details: { sent_count: sent, total_signers: signersResult.rows.length }
+    });
+
+    res.json({ success: true, sent });
+  } catch (error) {
+    console.error('[doc-signatures] Send WhatsApp error:', error);
+    res.status(500).json({ error: 'Erro ao enviar links via WhatsApp' });
   }
 });
 

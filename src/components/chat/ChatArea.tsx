@@ -58,6 +58,7 @@ import {
   Pin,
   X as XIcon,
 } from "lucide-react";
+import { FileSignature } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessage, Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
 import { useChat } from "@/hooks/use-chat";
@@ -90,6 +91,7 @@ import { DealDetailDialog } from "@/components/crm/DealDetailDialog";
 import { AIAgentBanner } from "./AIAgentBanner";
 import { ChatMessageBubble } from "./ChatMessageBubble";
 import { ForwardMessageDialog } from "./ForwardMessageDialog";
+import { RequestSignatureDialog } from "./RequestSignatureDialog";
 import {
   TransferDialog,
   DepartmentDialog,
@@ -208,6 +210,7 @@ export function ChatArea({
   const [showSummaryPanel, setShowSummaryPanel] = useState(false);
   const [showCallDialog, setShowCallDialog] = useState(false);
   const [savingCall, setSavingCall] = useState(false);
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [aiAgentActive, setAiAgentActive] = useState(false);
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
@@ -915,6 +918,7 @@ export function ChatArea({
                 <>
                   <DropdownMenuSeparator />
                   {modulesEnabled.crm && <DropdownMenuItem onClick={() => setShowDealDialog(true)}><Briefcase className="h-4 w-4 mr-2" />Negociações (CRM)</DropdownMenuItem>}
+                  {modulesEnabled.doc_signatures && !conversation.is_group && <DropdownMenuItem onClick={() => setShowSignatureDialog(true)}><FileSignature className="h-4 w-4 mr-2" />Solicitar Assinatura</DropdownMenuItem>}
                   <DropdownMenuItem onClick={() => setShowStartFlowDialog(true)}><Bot className="h-4 w-4 mr-2" />Iniciar fluxo de chatbot</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowTransferDialog(true)}><ArrowLeftRight className="h-4 w-4 mr-2" />Transferir atendimento</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowDepartmentDialog(true)}>
@@ -1297,6 +1301,12 @@ export function ChatArea({
       
       <CreateTagDialog open={showTagDialog} onOpenChange={setShowTagDialog} onCreateTag={onCreateTag} />
       <EditContactDialog open={showEditContactDialog} onOpenChange={setShowEditContactDialog} conversation={conversation} />
+      <RequestSignatureDialog
+        open={showSignatureDialog}
+        onOpenChange={setShowSignatureDialog}
+        contactName={conversation?.contact_name || undefined}
+        contactPhone={conversation?.contact_phone || undefined}
+      />
       </div>
 
       {/* Side Panels */}
