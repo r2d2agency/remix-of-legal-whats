@@ -160,6 +160,8 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const { data: dealProjects } = useProjectsByDeal(projectsEnabled ? (deal?.id || null) : null);
   const { create: createProject } = useProjectMutations();
   const { data: projectTemplates } = useProjectTemplates();
+  const docSignaturesEnabled = modulesEnabled.doc_signatures;
+  const { listDocumentsByDeal, sendSigningLinkWhatsApp } = useDocSignatures();
 
   const currentDeal = fullDeal || deal;
   const stages = funnelData?.stages || [];
