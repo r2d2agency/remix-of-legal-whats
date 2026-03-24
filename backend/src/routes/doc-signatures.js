@@ -974,7 +974,7 @@ router.post('/sign/:token', async (req, res) => {
     // Generate signed PDF with all current signatures embedded
     let signedPdfUrl = null;
     try {
-      signedPdfUrl = await generateSignedPdf(signer.doc_id);
+      signedPdfUrl = await generateSignedPdf(signer.doc_id, getFrontendBaseUrl(req));
     } catch (pdfErr) {
       console.error('[doc-signatures] PDF generation error:', pdfErr.message);
     }
