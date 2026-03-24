@@ -145,11 +145,13 @@ export function FunnelEditorDialog({ funnel, open, onOpenChange }: FunnelEditorD
       setName(funnel.name);
       setDescription(funnel.description || "");
       setColor(funnel.color);
+      setConnectionId((funnel as any).connection_id || null);
       setStages(funnel.stages || []);
     } else {
       setName("");
       setDescription("");
       setColor("#6366f1");
+      setConnectionId(null);
       setStages([
         { name: "Novo", color: "#6366f1", position: 0, inactivity_hours: 24, inactivity_color: "#ef4444", is_final: false },
         { name: "Qualificação", color: "#8b5cf6", position: 1, inactivity_hours: 48, inactivity_color: "#ef4444", is_final: false },

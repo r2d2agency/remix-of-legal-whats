@@ -25,6 +25,20 @@ router.use(authenticate);
     }
   }
   logInfo('[CRM] Self-healing company columns check complete');
+
+  // Self-healing: funnel connection_id
+  try { await query(`ALTER TABLE crm_funnels ADD COLUMN IF NOT EXISTS connection_id UUID REFERENCES connections(id) ON DELETE SET NULL`); } catch(e) {}
+
+  // Self-healing: automation schedule columns
+  const autoCols = [
+    { name: 'schedule_days', type: "JSONB DEFAULT '[1,2,3,4,5]'" },
+    { name: 'schedule_start_time', type: "VARCHAR(5) DEFAULT '08:00'" },
+    { name: 'schedule_end_time', type: "VARCHAR(5) DEFAULT '18:00'" },
+  ];
+  for (const col of autoCols) {
+    try { await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`); } catch(e) {}
+  }
+  logInfo('[CRM] Self-healing funnel/automation columns check complete');
 })();
 
 // Some CRM/Intelligence tables/columns may not exist yet during partial deployments.
