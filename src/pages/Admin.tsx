@@ -69,6 +69,7 @@ interface Plan {
   has_projects: boolean;
   has_lead_gleego: boolean;
   has_doc_signatures: boolean;
+  doc_signatures_limit: number;
   price: number;
   billing_period: string;
   is_active: boolean;
@@ -184,6 +185,7 @@ export default function Admin() {
   const [newPlanProjects, setNewPlanProjects] = useState(false);
   const [newPlanLeadGleego, setNewPlanLeadGleego] = useState(false);
   const [newPlanDocSignatures, setNewPlanDocSignatures] = useState(false);
+  const [newPlanDocSignaturesLimit, setNewPlanDocSignaturesLimit] = useState('0');
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
   const [newPlanVisibleOnSignup, setNewPlanVisibleOnSignup] = useState(false);
   const [newPlanTrialDays, setNewPlanTrialDays] = useState('3');
@@ -438,6 +440,7 @@ export default function Admin() {
       has_projects: newPlanProjects,
       has_lead_gleego: newPlanLeadGleego,
       has_doc_signatures: newPlanDocSignatures,
+      doc_signatures_limit: parseInt(newPlanDocSignaturesLimit) || 0,
       price: parseFloat(newPlanPrice) || 0,
       billing_period: newPlanPeriod,
       visible_on_signup: newPlanVisibleOnSignup,
@@ -478,6 +481,7 @@ export default function Admin() {
     setNewPlanProjects(false);
     setNewPlanLeadGleego(false);
     setNewPlanDocSignatures(false);
+    setNewPlanDocSignaturesLimit('0');
     setNewPlanPeriod('monthly');
     setNewPlanVisibleOnSignup(false);
     setNewPlanTrialDays('3');
@@ -509,6 +513,7 @@ export default function Admin() {
       has_projects: editingPlan.has_projects,
       has_lead_gleego: editingPlan.has_lead_gleego,
       has_doc_signatures: editingPlan.has_doc_signatures,
+      doc_signatures_limit: editingPlan.doc_signatures_limit,
       price: editingPlan.price,
       billing_period: editingPlan.billing_period,
       is_active: editingPlan.is_active,
@@ -1107,6 +1112,23 @@ export default function Admin() {
                           onCheckedChange={setNewPlanDocSignatures}
                         />
                       </div>
+                      {newPlanDocSignatures && (
+                        <div className="rounded-lg border p-3 ml-4">
+                          <Label htmlFor="doc-sig-limit" className="text-sm">Limite mensal de documentos</Label>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Input
+                              id="doc-sig-limit"
+                              type="number"
+                              min="0"
+                              value={newPlanDocSignaturesLimit}
+                              onChange={(e) => setNewPlanDocSignaturesLimit(e.target.value)}
+                              className="w-24"
+                              placeholder="0"
+                            />
+                            <span className="text-xs text-muted-foreground">0 = ilimitado</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="border-t pt-4 space-y-4">
                       <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -1252,7 +1274,9 @@ export default function Admin() {
                           <Badge variant="secondary" className="text-xs">Lead Gleego</Badge>
                         )}
                         {plan.has_doc_signatures && (
-                          <Badge variant="secondary" className="text-xs">Assinaturas</Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            Assinaturas {plan.doc_signatures_limit > 0 ? `(${plan.doc_signatures_limit}/mês)` : '(∞)'}
+                          </Badge>
                         )}
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t">
@@ -2355,6 +2379,23 @@ export default function Admin() {
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan!, has_doc_signatures: v })}
                   />
                 </div>
+                {editingPlan?.has_doc_signatures && (
+                  <div className="rounded-lg border p-3 ml-4">
+                    <Label htmlFor="edit-doc-sig-limit" className="text-sm">Limite mensal de documentos</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        id="edit-doc-sig-limit"
+                        type="number"
+                        min="0"
+                        value={editingPlan?.doc_signatures_limit || 0}
+                        onChange={(e) => setEditingPlan({ ...editingPlan!, doc_signatures_limit: parseInt(e.target.value) || 0 })}
+                        className="w-24"
+                        placeholder="0"
+                      />
+                      <span className="text-xs text-muted-foreground">0 = ilimitado</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <Label htmlFor="edit-lead-scoring">Lead Scoring</Label>
                   <Switch

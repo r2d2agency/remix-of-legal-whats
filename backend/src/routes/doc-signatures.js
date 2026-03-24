@@ -106,6 +106,8 @@ async function ensureTables() {
     await query(`ALTER TABLE doc_signature_signers ADD COLUMN IF NOT EXISTS phone VARCHAR(20)`);
     // Add deal_id to documents for CRM integration
     await query(`ALTER TABLE doc_signature_documents ADD COLUMN IF NOT EXISTS deal_id UUID`);
+    // Add doc_signatures_limit to plans (0 = unlimited)
+    await query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS doc_signatures_limit INTEGER DEFAULT 0`);
 
   } catch (e) {
     console.error('[doc-signatures] Table init error:', e.message);
@@ -1127,6 +1129,28 @@ router.post('/', async (req, res) => {
   try {
     const orgId = await getUserOrgId(req.userId);
     if (!orgId) return res.status(403).json({ error: 'Sem organização' });
+
+    // Check plan limit
+    const planCheck = await query(
+      `SELECT p.doc_signatures_limit 
+       FROM organizations o JOIN plans p ON p.id = o.plan_id 
+       WHERE o.id = $1`, [orgId]
+    );
+    const limit = planCheck.rows[0]?.doc_signatures_limit || 0;
+    if (limit > 0) {
+      const countResult = await query(
+        `SELECT COUNT(*) as cnt FROM doc_signature_documents 
+         WHERE organization_id = $1 AND created_at >= date_trunc('month', NOW())`,
+        [orgId]
+      );
+      const currentCount = parseInt(countResult.rows[0]?.cnt || '0');
+      if (currentCount >= limit) {
+        return res.status(403).json({ 
+          error: `Limite de ${limit} documentos por mês atingido. Atualize seu plano para continuar.`,
+          limit_reached: true 
+        });
+      }
+    }
 
     const { title, description, file_url, deal_id } = req.body;
     if (!title || !file_url) return res.status(400).json({ error: 'Título e arquivo são obrigatórios' });
