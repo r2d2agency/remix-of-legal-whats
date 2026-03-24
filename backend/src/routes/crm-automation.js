@@ -69,14 +69,17 @@ router.put('/stages/:stageId/automation', async (req, res) => {
       fallback_funnel_id,
       fallback_stage_id,
       is_active,
-      execute_immediately 
+      execute_immediately,
+      schedule_days,
+      schedule_start_time,
+      schedule_end_time
     } = req.body;
 
     // Upsert automation
     const result = await query(
       `INSERT INTO crm_stage_automations 
-       (stage_id, flow_id, wait_hours, next_stage_id, fallback_funnel_id, fallback_stage_id, is_active, execute_immediately)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (stage_id, flow_id, wait_hours, next_stage_id, fallback_funnel_id, fallback_stage_id, is_active, execute_immediately, schedule_days, schedule_start_time, schedule_end_time)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (stage_id) 
        DO UPDATE SET
          flow_id = EXCLUDED.flow_id,
@@ -86,6 +89,9 @@ router.put('/stages/:stageId/automation', async (req, res) => {
          fallback_stage_id = EXCLUDED.fallback_stage_id,
          is_active = EXCLUDED.is_active,
          execute_immediately = EXCLUDED.execute_immediately,
+         schedule_days = EXCLUDED.schedule_days,
+         schedule_start_time = EXCLUDED.schedule_start_time,
+         schedule_end_time = EXCLUDED.schedule_end_time,
          updated_at = NOW()
        RETURNING *`,
       [
@@ -96,7 +102,10 @@ router.put('/stages/:stageId/automation', async (req, res) => {
         fallback_funnel_id || null,
         fallback_stage_id || null,
         is_active !== false,
-        execute_immediately !== false
+        execute_immediately !== false,
+        schedule_days ? JSON.stringify(schedule_days) : JSON.stringify([1,2,3,4,5]),
+        schedule_start_time || '08:00',
+        schedule_end_time || '18:00'
       ]
     );
 

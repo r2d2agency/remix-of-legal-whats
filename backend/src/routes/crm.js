@@ -461,12 +461,12 @@ router.put('/funnels/:id', async (req, res) => {
       return res.status(403).json({ error: 'Permission denied' });
     }
 
-    const { name, description, color, is_active, stages } = req.body;
+    const { name, description, color, is_active, stages, connection_id } = req.body;
     
     await query(
-      `UPDATE crm_funnels SET name = $1, description = $2, color = $3, is_active = $4, updated_at = NOW()
-       WHERE id = $5 AND organization_id = $6`,
-      [name, description, color, is_active !== false, req.params.id, org.organization_id]
+      `UPDATE crm_funnels SET name = $1, description = $2, color = $3, is_active = $4, connection_id = $5, updated_at = NOW()
+       WHERE id = $6 AND organization_id = $7`,
+      [name, description, color, is_active !== false, connection_id || null, req.params.id, org.organization_id]
     );
 
     // Update stages if provided

@@ -2,15 +2,93 @@ import { query } from './db.js';
 import { logInfo, logError } from './logger.js';
 
 // Execute flow for a deal automation
+// Helper: Get next business day/time respecting schedule
+function getNextBusinessDateTime(scheduleDays, startTime, endTime) {
+  const now = new Date();
+  // Convert to São Paulo timezone
+  const spNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const currentDay = spNow.getDay(); // 0=Sun, 1=Mon...
+  const currentHour = spNow.getHours();
+  const currentMinute = spNow.getMinutes();
+  const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
+
+  const days = scheduleDays || [1, 2, 3, 4, 5]; // Default Mon-Fri
+  const start = startTime || '08:00';
+  const end = endTime || '18:00';
+
+  // Check if current time is within schedule
+  if (days.includes(currentDay) && currentTimeStr >= start && currentTimeStr < end) {
+    return null; // Can execute now
+  }
+
+  // Find next valid time
+  for (let offset = 0; offset <= 7; offset++) {
+    const checkDay = (currentDay + offset) % 7;
+    if (days.includes(checkDay)) {
+      if (offset === 0 && currentTimeStr < start) {
+        // Today but before start time - schedule for start time today
+        const scheduled = new Date(spNow);
+        const [h, m] = start.split(':').map(Number);
+        scheduled.setHours(h, m, 0, 0);
+        return scheduled;
+      }
+      if (offset > 0) {
+        // Future day - schedule for start time
+        const scheduled = new Date(spNow);
+        scheduled.setDate(scheduled.getDate() + offset);
+        const [h, m] = start.split(':').map(Number);
+        scheduled.setHours(h, m, 0, 0);
+        return scheduled;
+      }
+    }
+  }
+  return null;
+}
+
 async function executeFlowForDeal(automation, organizationId) {
   try {
-    // Get connection for the organization (first active WhatsApp connection)
-    const connectionResult = await query(
-      `SELECT * FROM connections 
-       WHERE organization_id = $1 AND status = 'connected' 
-       ORDER BY created_at DESC LIMIT 1`,
-      [organizationId]
+    // Check business hours schedule
+    const scheduleConfig = await query(
+      `SELECT schedule_days, schedule_start_time, schedule_end_time 
+       FROM crm_stage_automations WHERE id = $1`,
+      [automation.automation_id]
     );
+    
+    if (scheduleConfig.rows[0]) {
+      const cfg = scheduleConfig.rows[0];
+      const scheduleDays = typeof cfg.schedule_days === 'string' ? JSON.parse(cfg.schedule_days) : cfg.schedule_days;
+      const nextTime = getNextBusinessDateTime(scheduleDays, cfg.schedule_start_time, cfg.schedule_end_time);
+      
+      if (nextTime) {
+        // Not within business hours, reschedule
+        await query(
+          `UPDATE crm_deal_automations SET wait_until = $1, status = 'waiting', updated_at = NOW() WHERE id = $2`,
+          [nextTime, automation.id]
+        );
+        logInfo(`Automation ${automation.id} rescheduled to ${nextTime.toISOString()} (business hours)`);
+        return false;
+      }
+    }
+
+    // Get connection for the organization - prefer funnel-specific connection
+    let connectionResult = await query(
+      `SELECT c.* FROM connections c
+       JOIN crm_stages s ON s.funnel_id = (SELECT funnel_id FROM crm_stages WHERE id = $2)
+       JOIN crm_funnels f ON f.id = s.funnel_id
+       WHERE c.id = f.connection_id AND c.status = 'connected'
+       LIMIT 1`,
+      [organizationId, automation.stage_id]
+    );
+    
+    if (!connectionResult.rows[0]) {
+      // Fallback to any active connection
+      connectionResult = await query(
+        `SELECT * FROM connections 
+         WHERE organization_id = $1 AND status = 'connected' 
+         ORDER BY created_at DESC LIMIT 1`,
+        [organizationId]
+      );
+    }
 
     if (!connectionResult.rows[0]) {
       logError(`No active connection for org ${organizationId}`);
