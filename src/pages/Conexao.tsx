@@ -1020,7 +1020,63 @@ const handleGetQRCode = async (connection: Connection) => {
                   </div>
                   )}
 
-                  {/* Lead Distribution Button */}
+                  {/* Meta Webhook Config */}
+                  {connection.provider === 'meta' && (
+                    <div className="rounded-lg border p-3 bg-muted/30 space-y-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Globe className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm font-medium">Configuração do Webhook</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Configure estes dados na aba <strong>Configuração</strong> do seu app no Meta Business Suite:
+                      </p>
+                      <div className="space-y-1.5">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">URL de callback</Label>
+                          <div className="flex items-center gap-1">
+                            <code className="text-xs bg-background px-2 py-1 rounded border flex-1 break-all">
+                              {`${API_URL}/api/meta/webhook`}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${API_URL}/api/meta/webhook`);
+                                toast.success('URL copiada!');
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Verificar token</Label>
+                          <div className="flex items-center gap-1">
+                            <code className="text-xs bg-background px-2 py-1 rounded border flex-1 break-all">
+                              {connection.meta_webhook_verify_token || 'Não gerado'}
+                            </code>
+                            {connection.meta_webhook_verify_token && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(connection.meta_webhook_verify_token!);
+                                  toast.success('Token copiado!');
+                                }}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Após configurar, clique em "Verificar e salvar" no Meta Business Suite.
+                      </p>
+                    </div>
+                  )
                   <div 
                     className="flex items-center justify-between rounded-lg border p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => {
