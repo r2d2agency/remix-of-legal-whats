@@ -1076,7 +1076,9 @@ const handleGetQRCode = async (connection: Connection) => {
                         Após configurar, clique em "Verificar e salvar" no Meta Business Suite.
                       </p>
                     </div>
-                  )
+                  )}
+
+                  {/* Lead Distribution Button */}
                   <div 
                     className="flex items-center justify-between rounded-lg border p-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => {
