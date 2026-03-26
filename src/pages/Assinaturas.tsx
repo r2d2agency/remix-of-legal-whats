@@ -19,8 +19,9 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   FileSignature, Plus, Loader2, Eye, Send, Copy, Trash2,
-  UserPlus, FileText, Clock, CheckCircle2, XCircle, Shield, Download, Link2, Users, MapPin
+  UserPlus, FileText, Clock, CheckCircle2, XCircle, Shield, Download, Link2, Users, MapPin, CreditCard
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any }> = {
   draft: { label: 'Rascunho', variant: 'secondary', icon: FileText },
