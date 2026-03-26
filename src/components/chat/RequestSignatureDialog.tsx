@@ -29,6 +29,7 @@ export function RequestSignatureDialog({ open, onOpenChange, contactName, contac
   const [signerCpf, setSignerCpf] = useState('');
   const [signerRole, setSignerRole] = useState('signer');
   const [sending, setSending] = useState(false);
+  const [requireCnh, setRequireCnh] = useState(false);
 
   const { createDocument, addSigner, sendForSignature, sendSigningLinkWhatsApp } = useDocSignatures();
 
