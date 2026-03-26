@@ -231,6 +231,16 @@ export default function VerificarDocumento() {
                     {entry.ip_address && (
                       <p className="text-xs text-muted-foreground">IP: {entry.ip_address}</p>
                     )}
+                    {entry.details?.viewing_duration_seconds && (
+                      <p className="text-xs text-muted-foreground">
+                        ⏱️ Tempo de visualização: {Math.floor(entry.details.viewing_duration_seconds / 60)}min {entry.details.viewing_duration_seconds % 60}s
+                      </p>
+                    )}
+                    {entry.details?.terms_accepted_at && (
+                      <p className="text-xs text-muted-foreground">
+                        ✅ Termos aceitos em: {formatDate(entry.details.terms_accepted_at)}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
