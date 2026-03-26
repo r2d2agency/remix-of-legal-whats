@@ -11,7 +11,7 @@ import { useDocSignatures, DocSigner, SignaturePosition } from '@/hooks/use-doc-
 import { resolveMediaUrl } from '@/lib/media';
 import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { FileSignature, Loader2, CheckCircle2, RefreshCw, MapPin, Download, ShieldCheck, Mail, KeyRound } from 'lucide-react';
+import { FileSignature, Loader2, CheckCircle2, RefreshCw, MapPin, Download, ShieldCheck, Mail, KeyRound, CreditCard, Camera, Upload, X } from 'lucide-react';
 
 export default function AssinarDocumento() {
   const { token } = useParams<{ token: string }>();
