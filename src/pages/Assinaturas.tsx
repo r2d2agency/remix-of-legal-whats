@@ -362,6 +362,16 @@ export default function Assinaturas() {
                 <Label>Arquivo PDF *</Label>
                 <FileUploadInput value={newFileUrl} onChange={setNewFileUrl} accept=".pdf,application/pdf" placeholder="Faça upload do PDF" />
               </div>
+              <div className="flex items-center justify-between p-3 rounded-lg border">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium">Validação de CNH por IA</p>
+                    <p className="text-xs text-muted-foreground">Exigir foto da habilitação para validar identidade do signatário</p>
+                  </div>
+                </div>
+                <Switch checked={newRequireCnh} onCheckedChange={setNewRequireCnh} />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
