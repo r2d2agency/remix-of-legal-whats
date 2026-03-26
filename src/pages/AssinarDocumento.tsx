@@ -148,6 +148,8 @@ export default function AssinarDocumento() {
       if (data.document_description) setDocDescription(data.document_description);
       if (data.require_cnh_validation) setRequireCnhValidation(true);
       if (data.cnh_validated) setCnhValidated(true);
+      // Start tracking viewing time
+      viewStartTimeRef.current = Date.now();
     } catch (err: any) {
       if (err.require_otp) {
         setOtpStep('idle');
