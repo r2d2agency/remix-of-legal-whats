@@ -23,6 +23,9 @@ const storage = multer.diskStorage({
     // If original filename has no extension (common on mobile), infer from mimetype
     // so providers like W-API can fetch a URL that ends with a visible extension.
     const originalExt = path.extname(file.originalname || '');
+    // Alguns dispositivos salvam JPEG como .jfif; normalizamos para .jpg porque vários provedores
+    // validam a extensão da URL/arquivo e rejeitam .jfif.
+    const normalizedOriginalExt = originalExt.toLowerCase() === '.jfif' ? '.jpg' : originalExt;
     const mime = String(file.mimetype || '').toLowerCase();
 
     const mimeToExt = {
@@ -47,7 +50,8 @@ const storage = multer.diskStorage({
       'image/tiff': '.tiff',
       'image/svg+xml': '.svg',
       'image/avif': '.avif',
-      'image/jfif': '.jfif',
+      // JFIF é um contêiner de JPEG; salvamos como .jpg para compatibilidade.
+      'image/jfif': '.jpg',
       'audio/mpeg': '.mp3',
       'audio/mp3': '.mp3',
       'audio/ogg': '.ogg',
@@ -63,7 +67,7 @@ const storage = multer.diskStorage({
       'video/quicktime': '.mov',
     };
 
-    const ext = originalExt || mimeToExt[mime] || '.bin';
+    const ext = normalizedOriginalExt || mimeToExt[mime] || '.bin';
     const uniqueName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
     cb(null, uniqueName);
   }
