@@ -1085,7 +1085,7 @@ router.post('/sign/:token', async (req, res) => {
       name: full_name || signer.name,
       email: signer.email,
       ip, userAgent, geolocation,
-      details: { cpf: cleanCpf, signer_role: signer.role }
+      details: { cpf: cleanCpf, signer_role: signer.role, viewing_duration_seconds: viewing_duration_seconds || null, terms_accepted_at: terms_accepted_at || null }
     });
 
     // Check if all signers have signed
