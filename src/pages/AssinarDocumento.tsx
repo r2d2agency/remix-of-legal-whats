@@ -47,6 +47,11 @@ export default function AssinarDocumento() {
   const [cnhValidating, setCnhValidating] = useState(false);
   const [cnhResult, setCnhResult] = useState<{ validated: boolean; motivo?: string; nome_cnh?: string } | null>(null);
   const cnhInputRef = useRef<HTMLInputElement>(null);
+  const viewStartTimeRef = useRef<number | null>(null);
+
+  // Terms acceptance
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsAcceptedAt, setTermsAcceptedAt] = useState<string | null>(null);
 
   const sigPadRef = useRef<SignatureCanvas>(null);
   const { getPublicSigningData, submitSignature, getPublicSignedPdfUrl, requestOtp, verifyOtp, validateCnh, loading: submitting } = useDocSignatures();
