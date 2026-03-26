@@ -901,6 +901,8 @@ router.get('/sign/:token', async (req, res) => {
       file_url: signerFileUrl,
       org_name: signer.org_name || null,
       org_logo_url: signer.org_logo_url || null,
+      require_cnh_validation: signer.require_cnh_validation || false,
+      cnh_validated: signer.cnh_validated || false,
       signer: {
         id: signer.id,
         name: signer.name,
