@@ -116,7 +116,7 @@ const fileFilter = (req, file, cb) => {
   // Fallback extension allowlist (some browsers/mobile send generic mimetypes)
   const allowedExts = [
     // images
-    '.jpg', '.jpeg', '.png', '.gif', '.webp',
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.jfif', '.bmp', '.tiff', '.svg', '.avif',
     // audio
     '.mp3', '.ogg', '.wav', '.webm', '.aac', '.m4a',
     // video
