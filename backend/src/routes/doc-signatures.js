@@ -110,6 +110,11 @@ async function ensureTables() {
     await query(`ALTER TABLE doc_signature_documents ADD COLUMN IF NOT EXISTS deal_id UUID`);
     // Add doc_signatures_limit to plans (0 = unlimited)
     await query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS doc_signatures_limit INTEGER DEFAULT 0`);
+    // Add require_cnh_validation to documents
+    await query(`ALTER TABLE doc_signature_documents ADD COLUMN IF NOT EXISTS require_cnh_validation BOOLEAN DEFAULT false`);
+    // Add cnh_validated to signers
+    await query(`ALTER TABLE doc_signature_signers ADD COLUMN IF NOT EXISTS cnh_validated BOOLEAN DEFAULT false`);
+    await query(`ALTER TABLE doc_signature_signers ADD COLUMN IF NOT EXISTS cnh_image_url TEXT`);
 
   } catch (e) {
     console.error('[doc-signatures] Table init error:', e.message);
