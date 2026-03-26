@@ -1221,7 +1221,7 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const { title, description, file_url, deal_id } = req.body;
+    const { title, description, file_url, deal_id, require_cnh_validation } = req.body;
     if (!title || !file_url) return res.status(400).json({ error: 'Título e arquivo são obrigatórios' });
 
     const normalizedFileUrl = normalizeDocumentFileUrl(file_url);
