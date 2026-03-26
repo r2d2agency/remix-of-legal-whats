@@ -335,6 +335,8 @@ export function useDocSignatures() {
     cpf: string;
     full_name: string;
     geolocation?: string;
+    viewing_duration_seconds?: number | null;
+    terms_accepted_at?: string | null;
   }): Promise<{ signed_pdf_url?: string | null; download_url?: string | null } | null> => {
     setLoading(true);
     try {

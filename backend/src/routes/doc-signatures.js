@@ -899,6 +899,7 @@ router.get('/sign/:token', async (req, res) => {
     const signerFileUrl = toAbsoluteFileUrl(req, normalizedSignerFileUrl) || normalizedSignerFileUrl;
 
     res.json({
+      document_id: signer.document_id,
       document_title: signer.title,
       document_description: signer.description || null,
       file_url: signerFileUrl,
@@ -916,8 +917,8 @@ router.get('/sign/:token', async (req, res) => {
       positions: posResult.rows,
     });
 
-    // Audit: document accessed
-    await auditLog(signer.document_id, 'document_accessed', {
+    // Audit: signing link opened
+    await auditLog(signer.document_id, 'signing_link_opened', {
       name: signer.name, email: signer.email,
       ip: getClientIp(req), userAgent: req.headers['user-agent'],
       details: { access_type: 'public_signing' }
@@ -1040,7 +1041,7 @@ router.post('/sign/:token/validate-cnh', async (req, res) => {
 router.post('/sign/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    const { signature_image, cpf, full_name, geolocation } = req.body;
+    const { signature_image, cpf, full_name, geolocation, viewing_duration_seconds, terms_accepted_at } = req.body;
     const ip = getClientIp(req);
     const userAgent = req.headers['user-agent'];
 
@@ -1085,7 +1086,7 @@ router.post('/sign/:token', async (req, res) => {
       name: full_name || signer.name,
       email: signer.email,
       ip, userAgent, geolocation,
-      details: { cpf: cleanCpf, signer_role: signer.role }
+      details: { cpf: cleanCpf, signer_role: signer.role, viewing_duration_seconds: viewing_duration_seconds || null, terms_accepted_at: terms_accepted_at || null }
     });
 
     // Check if all signers have signed

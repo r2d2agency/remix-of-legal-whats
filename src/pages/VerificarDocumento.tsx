@@ -31,6 +31,7 @@ interface VerificationData {
     actor_email?: string;
     ip_address?: string;
     geolocation?: string;
+    details?: Record<string, any>;
     created_at: string;
   }>;
 }
@@ -49,8 +50,12 @@ const actionLabels: Record<string, string> = {
   document_sent: 'Enviado para assinatura',
   otp_requested: 'Código OTP solicitado',
   otp_verified: 'Código OTP verificado',
+  signing_link_opened: 'Link de assinatura aberto',
   signing_link_accessed: 'Link de assinatura acessado',
+  document_accessed: 'Documento acessado',
   document_signed: 'Documento assinado',
+  signature_submitted: 'Assinatura submetida',
+  terms_accepted: 'Termos aceitos pelo signatário',
   signed_pdf_downloaded: 'PDF assinado baixado',
   document_cancelled: 'Documento cancelado',
   positions_saved: 'Posições de assinatura salvas',
@@ -225,6 +230,16 @@ export default function VerificarDocumento() {
                     </p>
                     {entry.ip_address && (
                       <p className="text-xs text-muted-foreground">IP: {entry.ip_address}</p>
+                    )}
+                    {entry.details?.viewing_duration_seconds && (
+                      <p className="text-xs text-muted-foreground">
+                        ⏱️ Tempo de visualização: {Math.floor(entry.details.viewing_duration_seconds / 60)}min {entry.details.viewing_duration_seconds % 60}s
+                      </p>
+                    )}
+                    {entry.details?.terms_accepted_at && (
+                      <p className="text-xs text-muted-foreground">
+                        ✅ Termos aceitos em: {formatDate(entry.details.terms_accepted_at)}
+                      </p>
                     )}
                   </div>
                 </div>
