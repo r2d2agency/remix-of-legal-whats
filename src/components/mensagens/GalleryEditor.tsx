@@ -122,7 +122,7 @@ export function GalleryEditor({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp"
+          accept="image/*"
           multiple
           className="hidden"
           onChange={handleFilesSelect}

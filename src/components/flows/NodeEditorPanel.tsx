@@ -352,7 +352,7 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
         <input
           ref={galleryInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp"
+          accept="image/*"
           multiple
           className="hidden"
           onChange={handleGallerySelect}

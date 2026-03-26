@@ -43,6 +43,11 @@ const storage = multer.diskStorage({
       'image/png': '.png',
       'image/gif': '.gif',
       'image/webp': '.webp',
+      'image/bmp': '.bmp',
+      'image/tiff': '.tiff',
+      'image/svg+xml': '.svg',
+      'image/avif': '.avif',
+      'image/jfif': '.jfif',
       'audio/mpeg': '.mp3',
       'audio/mp3': '.mp3',
       'audio/ogg': '.ogg',
@@ -72,6 +77,11 @@ const fileFilter = (req, file, cb) => {
     'image/png',
     'image/gif',
     'image/webp',
+    'image/bmp',
+    'image/tiff',
+    'image/svg+xml',
+    'image/avif',
+    'image/jfif',
     // Audio
     'audio/mpeg',
     'audio/mp3',
@@ -106,7 +116,7 @@ const fileFilter = (req, file, cb) => {
   // Fallback extension allowlist (some browsers/mobile send generic mimetypes)
   const allowedExts = [
     // images
-    '.jpg', '.jpeg', '.png', '.gif', '.webp',
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.jfif', '.bmp', '.tiff', '.svg', '.avif',
     // audio
     '.mp3', '.ogg', '.wav', '.webm', '.aac', '.m4a',
     // video
