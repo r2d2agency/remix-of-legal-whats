@@ -1,5 +1,23 @@
-const DEFAULT_API_URL = 'https://blaster-whats-backend.isyhhh.easypanel.host';
-export const API_URL = (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, '');
+const ENV_API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const isBrowser = typeof window !== 'undefined';
+const isLocalhost = isBrowser && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+const getBaseCandidates = (endpoint: string) => {
+  const sameOriginBase = '';
+  const supportsSameOrigin = endpoint.startsWith('/api/') || endpoint.startsWith('/uploads/');
+  const shouldPreferSameOrigin = isBrowser && !isLocalhost && supportsSameOrigin;
+
+  const ordered = shouldPreferSameOrigin
+    ? [sameOriginBase, ENV_API_URL]
+    : [ENV_API_URL, sameOriginBase];
+
+  return [...new Set(ordered.filter((base) => base !== undefined && base !== null))];
+};
+
+const buildUrl = (base: string, endpoint: string) =>
+  base ? `${base}${endpoint}` : endpoint;
+
+export const API_URL = ENV_API_URL;
 
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
 const MAX_GET_RETRIES = 2;
@@ -42,84 +60,105 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
     }
   }
 
-  const url = `${API_URL}${endpoint}`;
+  const baseCandidates = getBaseCandidates(endpoint);
   const retries = method === 'GET' ? MAX_GET_RETRIES : 0;
+  let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined,
-      });
+  for (let baseIndex = 0; baseIndex < baseCandidates.length; baseIndex++) {
+    const base = baseCandidates[baseIndex];
+    const url = buildUrl(base, endpoint);
 
-      const contentType = response.headers.get('content-type') || '';
-      let data: any = null;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+        });
 
-      // Read body as text first for safer parsing
-      const rawText = await response.text().catch(() => '');
+        const contentType = response.headers.get('content-type') || '';
+        let data: any = null;
 
-      if (contentType.includes('application/json') || rawText.trim().startsWith('{') || rawText.trim().startsWith('[')) {
-        try {
-          data = JSON.parse(rawText);
-        } catch {
+        // Read body as text first for safer parsing
+        const rawText = await response.text().catch(() => '');
+
+        if (contentType.includes('application/json') || rawText.trim().startsWith('{') || rawText.trim().startsWith('[')) {
+          try {
+            data = JSON.parse(rawText);
+          } catch {
+            data = { raw: rawText };
+          }
+        } else {
+          if ((rawText.trim().startsWith('<!') || rawText.includes('<html')) && shouldLogNow(`html:${url}:${response.status}`)) {
+            // eslint-disable-next-line no-console
+            console.error('[api] Got HTML instead of JSON', {
+              url,
+              status: response.status,
+              preview: rawText.substring(0, 300),
+            });
+          }
           data = { raw: rawText };
         }
-      } else {
-        if ((rawText.trim().startsWith('<!') || rawText.includes('<html')) && shouldLogNow(`html:${url}:${response.status}`)) {
-          // eslint-disable-next-line no-console
-          console.error('[api] Got HTML instead of JSON', {
-            url,
-            status: response.status,
-            preview: rawText.substring(0, 300),
-          });
-        }
-        data = { raw: rawText };
-      }
 
-      if (!response.ok) {
-        if (attempt < retries && shouldRetry(method, response.status)) {
+        if (!response.ok) {
+          if (attempt < retries && shouldRetry(method, response.status)) {
+            await sleep(250 * Math.pow(2, attempt));
+            continue;
+          }
+
+          const baseMsg = data?.error || data?.message || `Erro na requisição (${response.status})`;
+          const details = data?.details ? `: ${data.details}` : '';
+          const logKey = `fail:${url}:${response.status}`;
+          if (shouldLogNow(logKey)) {
+            // eslint-disable-next-line no-console
+            console.error('[api] request failed', {
+              url,
+              status: response.status,
+              contentType,
+              body,
+              response: data,
+            });
+          }
+
+          // Fallback para same-origin somente em GET, evitando duplicidade em mutações
+          const shouldTryNextBase = method === 'GET' && baseIndex < baseCandidates.length - 1 && response.status >= 500;
+          if (shouldTryNextBase) {
+            lastError = new Error(`${baseMsg}${details}`);
+            break;
+          }
+
+          throw new Error(`${baseMsg}${details}`);
+        }
+
+        return data as T;
+      } catch (error: any) {
+        const canRetry = attempt < retries && shouldRetry(method);
+        if (canRetry) {
           await sleep(250 * Math.pow(2, attempt));
           continue;
         }
 
-        const baseMsg = data?.error || data?.message || `Erro na requisição (${response.status})`;
-        const details = data?.details ? `: ${data.details}` : '';
-        const logKey = `fail:${url}:${response.status}`;
-        if (shouldLogNow(logKey)) {
+        if (shouldLogNow(`network:${url}`)) {
           // eslint-disable-next-line no-console
-          console.error('[api] request failed', {
+          console.error('[api] network failure', {
             url,
-            status: response.status,
-            contentType,
-            body,
-            response: data,
+            method,
+            message: error?.message || 'Erro de rede',
           });
         }
-        throw new Error(`${baseMsg}${details}`);
-      }
 
-      return data as T;
-    } catch (error: any) {
-      const canRetry = attempt < retries && shouldRetry(method);
-      if (canRetry) {
-        await sleep(250 * Math.pow(2, attempt));
-        continue;
-      }
+        const shouldTryNextBase = method === 'GET' && baseIndex < baseCandidates.length - 1;
+        if (shouldTryNextBase) {
+          lastError = error instanceof Error ? error : new Error('Erro de rede');
+          break;
+        }
 
-      if (shouldLogNow(`network:${url}`)) {
-        // eslint-disable-next-line no-console
-        console.error('[api] network failure', {
-          url,
-          method,
-          message: error?.message || 'Erro de rede',
-        });
+        throw error;
       }
-
-      throw error;
     }
   }
 
+  if (lastError) throw lastError;
   throw new Error('Falha inesperada na requisição');
 };
 
