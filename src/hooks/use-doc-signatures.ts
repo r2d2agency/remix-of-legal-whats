@@ -449,6 +449,23 @@ export function useDocSignatures() {
     }
   }, []);
 
+  const validateCnh = useCallback(async (token: string, cnhImage: string): Promise<{ validated: boolean; nome_cnh?: string; cpf_match?: boolean; name_match?: boolean; motivo?: string } | null> => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_URL}/api/doc-signatures/sign/${token}/validate-cnh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cnh_image: cnhImage }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Erro ao validar CNH'); }
+      return res.json();
+    } catch (err: any) {
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     listDocuments,
@@ -467,5 +484,6 @@ export function useDocSignatures() {
     requestOtp,
     verifyOtp,
     sendSigningLinkWhatsApp,
+    validateCnh,
   };
 }

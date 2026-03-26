@@ -80,10 +80,10 @@ export default function Assinaturas() {
   const handleCreate = async () => {
     if (!newTitle || !newFileUrl) { toast.error('Título e arquivo são obrigatórios'); return; }
     try {
-      await createDocument({ title: newTitle, description: newDescription, file_url: newFileUrl });
+      await createDocument({ title: newTitle, description: newDescription, file_url: newFileUrl, require_cnh_validation: newRequireCnh } as any);
       toast.success('Documento criado com sucesso!');
       setCreateOpen(false);
-      setNewTitle(''); setNewDescription(''); setNewFileUrl('');
+      setNewTitle(''); setNewDescription(''); setNewFileUrl(''); setNewRequireCnh(false);
       loadDocuments();
     } catch (err: any) { toast.error(err.message); }
   };
