@@ -1040,7 +1040,7 @@ router.post('/sign/:token/validate-cnh', async (req, res) => {
 router.post('/sign/:token', async (req, res) => {
   try {
     const { token } = req.params;
-    const { signature_image, cpf, full_name, geolocation } = req.body;
+    const { signature_image, cpf, full_name, geolocation, viewing_duration_seconds, terms_accepted_at } = req.body;
     const ip = getClientIp(req);
     const userAgent = req.headers['user-agent'];
 
