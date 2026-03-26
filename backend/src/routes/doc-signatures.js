@@ -1230,9 +1230,9 @@ router.post('/', async (req, res) => {
     const user = userResult.rows[0];
 
     const result = await query(
-      `INSERT INTO doc_signature_documents (organization_id, title, description, file_url, created_by, deal_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [orgId, title, description || null, normalizedFileUrl, req.userId, deal_id || null]
+      `INSERT INTO doc_signature_documents (organization_id, title, description, file_url, created_by, deal_id, require_cnh_validation)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [orgId, title, description || null, normalizedFileUrl, req.userId, deal_id || null, require_cnh_validation || false]
     );
 
     const doc = result.rows[0];
