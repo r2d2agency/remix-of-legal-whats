@@ -62,7 +62,7 @@ export function RequestSignatureDialog({ open, onOpenChange, contactName, contac
     setSending(true);
     try {
       // 1. Create document
-      const doc = await createDocument({ title, description, file_url: fileUrl, ...(dealId ? { deal_id: dealId } : {}) } as any);
+      const doc = await createDocument({ title, description, file_url: fileUrl, require_cnh_validation: requireCnh, ...(dealId ? { deal_id: dealId } : {}) } as any);
       if (!doc) throw new Error('Erro ao criar documento');
 
       // 2. Add signer with phone
