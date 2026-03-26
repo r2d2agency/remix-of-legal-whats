@@ -1046,7 +1046,7 @@ router.post('/sign/:token', async (req, res) => {
 
     // Validate signer
     const signerResult = await query(
-      `SELECT s.*, d.id as doc_id, d.status as doc_status
+      `SELECT s.*, d.id as doc_id, d.status as doc_status, d.require_cnh_validation
        FROM doc_signature_signers s
        JOIN doc_signature_documents d ON d.id = s.document_id
        WHERE s.sign_token = $1`,
@@ -1057,6 +1057,11 @@ router.post('/sign/:token', async (req, res) => {
     const signer = signerResult.rows[0];
     if (signer.doc_status !== 'pending') return res.status(400).json({ error: 'Documento não disponível' });
     if (signer.status === 'signed') return res.status(400).json({ error: 'Já assinado' });
+
+    // Check CNH validation if required
+    if (signer.require_cnh_validation && !signer.cnh_validated) {
+      return res.status(400).json({ error: 'Validação de CNH é obrigatória antes de assinar. Envie a foto da sua CNH.' });
+    }
 
     // Validate CPF matches
     const cleanCpf = cpf.replace(/\D/g, '');
