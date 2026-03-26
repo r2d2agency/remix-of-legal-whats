@@ -61,7 +61,7 @@ const typeConfig = {
     label: "Imagem",
     color: "text-green-500",
     bgColor: "bg-green-500/10",
-    accept: "image/jpeg,image/png,image/gif,image/webp",
+    accept: "image/*",
   },
   video: {
     icon: Video,
