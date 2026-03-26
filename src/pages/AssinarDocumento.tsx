@@ -670,20 +670,49 @@ export default function AssinarDocumento() {
         </Card>
 
         <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
-          <CardContent className="pt-4">
+          <CardContent className="pt-4 space-y-4">
             <p className="text-xs text-amber-800 dark:text-amber-200">
               ⚖️ <strong>Aviso Legal:</strong> Ao assinar este documento, você declara que leu e concorda com o conteúdo.
               Esta assinatura digital tem validade jurídica conforme a Medida Provisória nº 2.200-2/2001
               e o Código Civil Brasileiro (Art. 107 e Art. 219). Serão registrados: seu IP, geolocalização,
               data/hora, CPF e assinatura digital para fins de auditoria e comprovação.
             </p>
+            <div className="flex items-start gap-3 pt-2 border-t border-amber-300 dark:border-amber-700">
+              <Checkbox
+                id="terms-accept"
+                checked={termsAccepted}
+                onCheckedChange={(checked) => {
+                  const accepted = checked === true;
+                  setTermsAccepted(accepted);
+                  setTermsAcceptedAt(accepted ? new Date().toISOString() : null);
+                }}
+              />
+              <label htmlFor="terms-accept" className="text-sm text-amber-900 dark:text-amber-100 font-medium cursor-pointer leading-snug">
+                Li e concordo com os termos deste documento. Declaro que revisei o conteúdo e estou ciente das condições apresentadas.
+              </label>
+            </div>
           </CardContent>
         </Card>
 
-        <Button onClick={handleSubmit} disabled={submitting} className="w-full gap-2" size="lg">
+        <Button onClick={handleSubmit} disabled={submitting || !termsAccepted} className="w-full gap-2" size="lg">
           {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileSignature className="h-5 w-5" />}
           Assinar Documento
         </Button>
+
+        {signingData?.document_id && (
+          <div className="text-center">
+            <a
+              href={`/verificar-documento/${signingData.document_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
+              <ShieldCheck className="h-3 w-3" />
+              Verificar autenticidade deste documento
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
