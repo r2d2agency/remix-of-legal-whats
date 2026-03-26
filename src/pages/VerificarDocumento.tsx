@@ -31,6 +31,7 @@ interface VerificationData {
     actor_email?: string;
     ip_address?: string;
     geolocation?: string;
+    details?: Record<string, any>;
     created_at: string;
   }>;
 }
