@@ -6,9 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { FileUploadInput } from '@/components/ui/file-upload-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useDocSignatures } from '@/hooks/use-doc-signatures';
 import { toast } from 'sonner';
-import { FileSignature, Loader2, Send } from 'lucide-react';
+import { FileSignature, Loader2, Send, CreditCard } from 'lucide-react';
 
 interface RequestSignatureDialogProps {
   open: boolean;
@@ -28,6 +29,7 @@ export function RequestSignatureDialog({ open, onOpenChange, contactName, contac
   const [signerCpf, setSignerCpf] = useState('');
   const [signerRole, setSignerRole] = useState('signer');
   const [sending, setSending] = useState(false);
+  const [requireCnh, setRequireCnh] = useState(false);
 
   const { createDocument, addSigner, sendForSignature, sendSigningLinkWhatsApp } = useDocSignatures();
 
@@ -48,6 +50,7 @@ export function RequestSignatureDialog({ open, onOpenChange, contactName, contac
     setSignerEmail('');
     setSignerCpf('');
     setSignerRole('signer');
+    setRequireCnh(false);
   };
 
   const handleSubmit = async () => {
@@ -59,7 +62,7 @@ export function RequestSignatureDialog({ open, onOpenChange, contactName, contac
     setSending(true);
     try {
       // 1. Create document
-      const doc = await createDocument({ title, description, file_url: fileUrl, ...(dealId ? { deal_id: dealId } : {}) } as any);
+      const doc = await createDocument({ title, description, file_url: fileUrl, require_cnh_validation: requireCnh, ...(dealId ? { deal_id: dealId } : {}) } as any);
       if (!doc) throw new Error('Erro ao criar documento');
 
       // 2. Add signer with phone
@@ -127,7 +130,16 @@ export function RequestSignatureDialog({ open, onOpenChange, contactName, contac
             <Label>Arquivo PDF *</Label>
             <FileUploadInput accept="application/pdf" onChange={(url) => setFileUrl(url)} value={fileUrl} previewType="file" />
           </div>
-
+          <div className="flex items-center justify-between p-3 rounded-lg border">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Validação de CNH</p>
+                <p className="text-xs text-muted-foreground">Exigir foto da habilitação via IA</p>
+              </div>
+            </div>
+            <Switch checked={requireCnh} onCheckedChange={setRequireCnh} />
+          </div>
           {/* Signer info */}
           <div className="border-t pt-4">
             <h4 className="font-medium text-sm mb-3">Dados do Signatário</h4>

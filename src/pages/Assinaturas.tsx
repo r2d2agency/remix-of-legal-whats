@@ -19,8 +19,9 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   FileSignature, Plus, Loader2, Eye, Send, Copy, Trash2,
-  UserPlus, FileText, Clock, CheckCircle2, XCircle, Shield, Download, Link2, Users, MapPin
+  UserPlus, FileText, Clock, CheckCircle2, XCircle, Shield, Download, Link2, Users, MapPin, CreditCard
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any }> = {
   draft: { label: 'Rascunho', variant: 'secondary', icon: FileText },
@@ -45,6 +46,7 @@ export default function Assinaturas() {
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newFileUrl, setNewFileUrl] = useState('');
+  const [newRequireCnh, setNewRequireCnh] = useState(false);
 
   // Add signer form
   const [signerName, setSignerName] = useState('');
@@ -79,10 +81,10 @@ export default function Assinaturas() {
   const handleCreate = async () => {
     if (!newTitle || !newFileUrl) { toast.error('Título e arquivo são obrigatórios'); return; }
     try {
-      await createDocument({ title: newTitle, description: newDescription, file_url: newFileUrl });
+      await createDocument({ title: newTitle, description: newDescription, file_url: newFileUrl, require_cnh_validation: newRequireCnh } as any);
       toast.success('Documento criado com sucesso!');
       setCreateOpen(false);
-      setNewTitle(''); setNewDescription(''); setNewFileUrl('');
+      setNewTitle(''); setNewDescription(''); setNewFileUrl(''); setNewRequireCnh(false);
       loadDocuments();
     } catch (err: any) { toast.error(err.message); }
   };
@@ -359,6 +361,16 @@ export default function Assinaturas() {
               <div className="space-y-2">
                 <Label>Arquivo PDF *</Label>
                 <FileUploadInput value={newFileUrl} onChange={setNewFileUrl} accept=".pdf,application/pdf" placeholder="Faça upload do PDF" />
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg border">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium">Validação de CNH por IA</p>
+                    <p className="text-xs text-muted-foreground">Exigir foto da habilitação para validar identidade do signatário</p>
+                  </div>
+                </div>
+                <Switch checked={newRequireCnh} onCheckedChange={setNewRequireCnh} />
               </div>
             </div>
             <DialogFooter>
