@@ -1181,30 +1181,45 @@ export function ChatArea({
           </div>
         )}
         
-        <input ref={fileInputRef} type="file" className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar" onChange={handleFileSelect} />
+        <input ref={fileInputRef} type="file" multiple className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar" onChange={handleFileSelect} />
 
-        {pendingFile && (
-          <div className="mb-3 p-3 rounded-lg border bg-muted/50 animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0">
-                {pendingFile.preview ? (
-                  <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted"><img src={pendingFile.preview} alt="Preview" className="w-full h-full object-cover" /></div>
-                ) : (
-                  <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">{getFileIcon(pendingFile.file.type)}</div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{pendingFile.file.name}</p>
-                <p className="text-xs text-muted-foreground">{formatFileSize(pendingFile.file.size)}</p>
-                {isUploading && <div className="mt-2 space-y-1"><Progress value={uploadProgress} className="h-2" /><p className="text-xs text-muted-foreground text-right">{uploadProgress}%</p></div>}
-              </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={handleCancelFileUpload} disabled={isUploading}><X className="h-4 w-4" /></Button>
-                <Button size="icon" className="h-8 w-8" onClick={handleConfirmFileUpload} disabled={isUploading || sending}>
-                  {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        {pendingFiles.length > 0 && (
+          <div className="mb-3 p-3 rounded-lg border bg-muted/50 animate-in fade-in slide-in-from-bottom-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground">
+                {pendingFiles.length} arquivo{pendingFiles.length > 1 ? 's' : ''} selecionado{pendingFiles.length > 1 ? 's' : ''}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={handleCancelFileUpload} disabled={isUploading}>
+                  Cancelar tudo
+                </Button>
+                <Button size="sm" className="h-7 text-xs" onClick={handleConfirmFileUpload} disabled={isUploading || sending}>
+                  {isUploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                  Enviar {pendingFiles.length > 1 ? `(${pendingFiles.length})` : ''}
                 </Button>
               </div>
             </div>
+            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+              {pendingFiles.map((pf, idx) => (
+                <div key={idx} className="relative group flex items-center gap-2 p-2 rounded-md border bg-background min-w-0 max-w-[200px]">
+                  <div className="flex-shrink-0">
+                    {pf.preview ? (
+                      <div className="w-10 h-10 rounded overflow-hidden bg-muted"><img src={pf.preview} alt="Preview" className="w-full h-full object-cover" /></div>
+                    ) : (
+                      <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">{getFileIcon(pf.file.type)}</div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{pf.file.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{formatFileSize(pf.file.size)}</p>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-1 -right-1 bg-background border shadow-sm" onClick={() => handleRemovePendingFile(idx)} disabled={isUploading}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {isUploading && <div className="space-y-1"><Progress value={uploadProgress} className="h-2" /><p className="text-xs text-muted-foreground text-right">{uploadProgress}%</p></div>}
           </div>
         )}
 
