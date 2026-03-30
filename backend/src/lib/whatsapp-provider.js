@@ -390,6 +390,12 @@ export async function sendMessage(connection, phone, content, messageType, media
 export async function checkNumber(connection, phone) {
   const provider = detectProvider(connection);
 
+  if (provider === 'meta') {
+    // Meta Cloud API doesn't have a direct "check number" API
+    // Return true by default; delivery will fail if number is invalid
+    return true;
+  }
+
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
     return wapiProvider.checkNumber(connection.instance_id, resolvedToken, phone);
