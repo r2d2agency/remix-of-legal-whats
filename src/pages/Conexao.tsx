@@ -85,6 +85,7 @@ const Conexao = () => {
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; messagesImported: number; conversationsCreated: number } | null>(null);
   const [syncingProfilePics, setSyncingProfilePics] = useState<string | null>(null);
   const [validatingNumbers, setValidatingNumbers] = useState<string | null>(null);
+  const [connectingMeta, setConnectingMeta] = useState<string | null>(null);
 
   // Webhook viewer state (shows what the backend is actually receiving)
   const [webhookViewerOpen, setWebhookViewerOpen] = useState(false);
@@ -245,6 +246,21 @@ const Conexao = () => {
       toast.error(err.message || 'Erro ao validar');
     } finally {
       setValidatingMeta(false);
+    }
+  };
+
+  const handleMetaConnect = async (connection: Connection) => {
+    setConnectingMeta(connection.id);
+    try {
+      const result = await api<Connection>(`/api/connections/${connection.id}/meta-connect`, {
+        method: 'POST',
+      });
+      setConnections(prev => prev.map(c => c.id === connection.id ? result : c));
+      toast.success('Conexão Meta ativada! Token de verificação gerado.');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao conectar Meta');
+    } finally {
+      setConnectingMeta(null);
     }
   };
 
@@ -1135,15 +1151,32 @@ const handleGetQRCode = async (connection: Connection) => {
                       </>
                     ) : (
                       <>
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handleGetQRCode(connection)}
-                        >
-                          <QrCode className="h-4 w-4 mr-1" />
-                          Conectar
-                        </Button>
+                        {connection.provider === 'meta' ? (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            className="flex-1"
+                            disabled={connectingMeta === connection.id}
+                            onClick={() => handleMetaConnect(connection)}
+                          >
+                            {connectingMeta === connection.id ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Globe className="h-4 w-4 mr-1" />
+                            )}
+                            Conectar Meta
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => handleGetQRCode(connection)}
+                          >
+                            <QrCode className="h-4 w-4 mr-1" />
+                            Conectar
+                          </Button>
+                        )}
                         <Button 
                           variant="outline" 
                           size="sm"
