@@ -387,6 +387,62 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+// Meta: Generate/regenerate webhook verify token and mark as connected
+router.post('/:id/meta-connect', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const org = await getUserOrganization(req.userId);
+
+    // Verify connection belongs to org and is meta provider
+    const connResult = await query(
+      `SELECT * FROM connections WHERE id = $1 AND organization_id = $2 AND provider = 'meta'`,
+      [id, org?.organization_id]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão Meta não encontrada' });
+    }
+
+    const connection = connResult.rows[0];
+
+    // Validate that Meta credentials are present
+    if (!connection.meta_token || !connection.meta_phone_number_id || !connection.meta_waba_id) {
+      return res.status(400).json({ error: 'Credenciais Meta incompletas (token, phone_number_id ou waba_id ausente)' });
+    }
+
+    // Validate token against Meta API
+    const { default: fetch } = await import('node-fetch');
+    const metaResp = await fetch(
+      `https://graph.facebook.com/v21.0/${connection.meta_waba_id}?fields=id,name`,
+      { headers: { Authorization: `Bearer ${connection.meta_token}` } }
+    );
+
+    if (!metaResp.ok) {
+      const err = await metaResp.json().catch(() => ({}));
+      return res.status(400).json({
+        error: err.error?.message || `Token Meta inválido (${metaResp.status})`,
+      });
+    }
+
+    // Generate or regenerate verify token
+    const crypto = await import('crypto');
+    const verifyToken = crypto.randomBytes(16).toString('hex');
+
+    const result = await query(
+      `UPDATE connections 
+       SET meta_webhook_verify_token = $1, status = 'connected', updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [verifyToken, id]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Meta connect error:', error);
+    res.status(500).json({ error: 'Erro ao conectar Meta' });
+  }
+});
+
 // Delete connection
 router.delete('/:id', async (req, res) => {
   try {

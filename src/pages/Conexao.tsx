@@ -1135,15 +1135,32 @@ const handleGetQRCode = async (connection: Connection) => {
                       </>
                     ) : (
                       <>
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handleGetQRCode(connection)}
-                        >
-                          <QrCode className="h-4 w-4 mr-1" />
-                          Conectar
-                        </Button>
+                        {connection.provider === 'meta' ? (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            className="flex-1"
+                            disabled={connectingMeta === connection.id}
+                            onClick={() => handleMetaConnect(connection)}
+                          >
+                            {connectingMeta === connection.id ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Globe className="h-4 w-4 mr-1" />
+                            )}
+                            Conectar Meta
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => handleGetQRCode(connection)}
+                          >
+                            <QrCode className="h-4 w-4 mr-1" />
+                            Conectar
+                          </Button>
+                        )}
                         <Button 
                           variant="outline" 
                           size="sm"
