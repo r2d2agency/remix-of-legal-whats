@@ -61,6 +61,11 @@ async function resolveWapiToken(connection) {
 export function detectProvider(connection) {
   const provider = String(connection?.provider || '').toLowerCase();
 
+  // Meta Cloud API
+  if (provider === 'meta') {
+    return 'meta';
+  }
+
   // Direct Instance ID é sempre W-API no sistema atual
   if (connection?.instance_id) {
     return 'wapi';
