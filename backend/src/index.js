@@ -234,6 +234,7 @@ app.post('/api/meta/webhook', async (req, res) => {
             const msgType = message.type;
             let content = '';
             let mediaUrl = null;
+            let effectiveType = msgType;
 
             switch (msgType) {
               case 'text':
@@ -241,7 +242,7 @@ app.post('/api/meta/webhook', async (req, res) => {
                 break;
               case 'image':
                 content = message.image?.caption || '[Imagem]';
-                mediaUrl = message.image?.id; // Media ID, needs download
+                mediaUrl = message.image?.id;
                 break;
               case 'video':
                 content = message.video?.caption || '[Vídeo]';
@@ -268,12 +269,30 @@ app.post('/api/meta/webhook', async (req, res) => {
               case 'reaction':
                 content = message.reaction?.emoji || '👍';
                 break;
+              case 'interactive':
+                // Replies to template buttons / list messages
+                content = message.interactive?.button_reply?.title
+                  || message.interactive?.list_reply?.title
+                  || message.interactive?.list_reply?.description
+                  || message.interactive?.nfm_reply?.body
+                  || JSON.stringify(message.interactive || {});
+                effectiveType = 'text';
+                break;
+              case 'button':
+                // Quick-reply button responses
+                content = message.button?.text || message.button?.payload || '[Botão]';
+                effectiveType = 'text';
+                break;
+              case 'order':
+                content = `[Pedido: ${message.order?.product_items?.length || 0} itens]`;
+                break;
               default:
                 content = `[${msgType}]`;
             }
 
             // Download media if needed
             let finalMediaUrl = null;
+            let mediaMimetype = null;
             if (mediaUrl && connection.meta_token) {
               try {
                 const mediaInfoRes = await fetch(`https://graph.facebook.com/v21.0/${mediaUrl}`, {
@@ -282,6 +301,7 @@ app.post('/api/meta/webhook', async (req, res) => {
                 if (mediaInfoRes.ok) {
                   const mediaInfo = await mediaInfoRes.json();
                   finalMediaUrl = mediaInfo.url; // Temporary URL from Meta
+                  mediaMimetype = mediaInfo.mime_type || null;
                 }
               } catch (mediaErr) {
                 console.error('[Meta Webhook] Media download error:', mediaErr.message);
@@ -291,50 +311,53 @@ app.post('/api/meta/webhook', async (req, res) => {
             // Normalize phone
             const normalizedPhone = from.replace(/\D/g, '');
             const contactName = value.contacts?.[0]?.profile?.name || normalizedPhone;
+            const remoteJid = `${normalizedPhone}@s.whatsapp.net`;
 
-            // Find or create contact
-            let contactResult = await dbQuery(
-              `SELECT id FROM contacts WHERE phone = $1 AND organization_id = $2 LIMIT 1`,
-              [normalizedPhone, connection.organization_id]
-            );
-
-            if (contactResult.rows.length === 0) {
-              contactResult = await dbQuery(
-                `INSERT INTO contacts (phone, name, organization_id) VALUES ($1, $2, $3) RETURNING id`,
-                [normalizedPhone, contactName, connection.organization_id]
-              );
-            }
-            const contactId = contactResult.rows[0].id;
-
-            // Find or create conversation
+            // Find or create conversation (using conversations table with contact_phone/remote_jid)
             let convResult = await dbQuery(
-              `SELECT id FROM conversations WHERE contact_id = $1 AND connection_id = $2 LIMIT 1`,
-              [contactId, connection.id]
+              `SELECT id FROM conversations 
+               WHERE connection_id = $1 AND (contact_phone = $2 OR remote_jid = $3)
+               LIMIT 1`,
+              [connection.id, normalizedPhone, remoteJid]
             );
 
             if (convResult.rows.length === 0) {
               convResult = await dbQuery(
-                `INSERT INTO conversations (contact_id, connection_id, organization_id, last_message_at)
-                 VALUES ($1, $2, $3, NOW()) RETURNING id`,
-                [contactId, connection.id, connection.organization_id]
+                `INSERT INTO conversations 
+                  (connection_id, remote_jid, contact_phone, contact_name, is_archived, unread_count, attendance_status, created_at, updated_at, last_message_at)
+                 VALUES ($1, $2, $3, $4, false, 0, 'waiting', NOW(), NOW(), NOW())
+                 RETURNING id`,
+                [connection.id, remoteJid, normalizedPhone, contactName]
               );
             }
             const conversationId = convResult.rows[0].id;
 
-            // Save message
+            // Save message to chat_messages (matching the schema used by the chat system)
+            const messageId = message.id || `meta_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             await dbQuery(
-              `INSERT INTO messages (conversation_id, sender, content, media_url, message_type, wamid, timestamp)
-               VALUES ($1, 'contact', $2, $3, $4, $5, NOW())`,
-              [conversationId, content, finalMediaUrl, msgType, message.id]
+              `INSERT INTO chat_messages 
+                (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, sender_name, sender_phone, status, timestamp)
+               VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8, 'received', NOW())
+               ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
+              [conversationId, messageId, content, effectiveType, finalMediaUrl, mediaMimetype, contactName, normalizedPhone]
             );
 
             // Update conversation
             await dbQuery(
-              `UPDATE conversations SET last_message_at = NOW(), unread_count = unread_count + 1 WHERE id = $1`,
+              `UPDATE conversations SET last_message_at = NOW(), unread_count = unread_count + 1, updated_at = NOW(), 
+               contact_name = COALESCE(NULLIF(contact_name, ''), $2)
+               WHERE id = $1`,
+              [conversationId, contactName]
+            );
+
+            // If conversation was finished, reopen to waiting
+            await dbQuery(
+              `UPDATE conversations SET attendance_status = 'waiting' 
+               WHERE id = $1 AND attendance_status = 'finished'`,
               [conversationId]
             );
 
-            console.log(`[Meta Webhook] Message saved: ${msgType} from ${normalizedPhone}`);
+            console.log(`[Meta Webhook] Message saved: ${msgType} (as ${effectiveType}) from ${normalizedPhone} in conversation ${conversationId}`);
           } catch (msgErr) {
             console.error('[Meta Webhook] Error processing message:', msgErr.message);
           }
@@ -348,12 +371,22 @@ app.post('/api/meta/webhook', async (req, res) => {
             
             if (statusValue === 'read') {
               await dbQuery(
-                `UPDATE messages SET read_at = NOW() WHERE wamid = $1 AND read_at IS NULL`,
+                `UPDATE chat_messages SET status = 'read' WHERE message_id = $1 AND status != 'read'`,
                 [wamid]
               );
             } else if (statusValue === 'delivered') {
               await dbQuery(
-                `UPDATE messages SET delivered_at = NOW() WHERE wamid = $1 AND delivered_at IS NULL`,
+                `UPDATE chat_messages SET status = 'delivered' WHERE message_id = $1 AND status = 'sent'`,
+                [wamid]
+              );
+            } else if (statusValue === 'sent') {
+              await dbQuery(
+                `UPDATE chat_messages SET status = 'sent' WHERE message_id = $1 AND status = 'pending'`,
+                [wamid]
+              );
+            } else if (statusValue === 'failed') {
+              await dbQuery(
+                `UPDATE chat_messages SET status = 'failed' WHERE message_id = $1`,
                 [wamid]
               );
             }
