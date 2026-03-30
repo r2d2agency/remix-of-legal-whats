@@ -85,6 +85,10 @@ export function detectProvider(connection) {
 export async function checkStatus(connection) {
   const provider = detectProvider(connection);
 
+  if (provider === 'meta') {
+    return checkMetaStatus(connection);
+  }
+
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
     return wapiProvider.checkStatus(connection.instance_id, resolvedToken);
