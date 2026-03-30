@@ -1347,6 +1347,22 @@ export function ChatArea({
       <DepartmentDialog open={showDepartmentDialog} onOpenChange={setShowDepartmentDialog} conversation={conversation} departments={departments} onSave={handleSaveDepartment} saving={savingDepartment} />
       {onDeleteConversation && <DeleteConversationDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog} onDelete={onDeleteConversation} />}
       
+      {conversation && isMetaConnection && (
+        <SendTemplateDialog
+          open={showTemplateDialog}
+          onOpenChange={setShowTemplateDialog}
+          connectionId={conversation.connection_id}
+          conversationId={conversation.id}
+          contactPhone={conversation.contact_phone || ""}
+          onTemplateSent={() => {
+            // Reload messages after template sent
+            if (conversation?.id) {
+              onLoadMore();
+            }
+          }}
+        />
+      )}
+      
       <CreateTagDialog open={showTagDialog} onOpenChange={setShowTagDialog} onCreateTag={onCreateTag} />
       <EditContactDialog open={showEditContactDialog} onOpenChange={setShowEditContactDialog} conversation={conversation} />
       <RequestSignatureDialog
