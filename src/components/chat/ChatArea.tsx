@@ -92,6 +92,7 @@ import { AIAgentBanner } from "./AIAgentBanner";
 import { ChatMessageBubble } from "./ChatMessageBubble";
 import { ForwardMessageDialog } from "./ForwardMessageDialog";
 import { RequestSignatureDialog } from "./RequestSignatureDialog";
+import { SendTemplateDialog } from "./SendTemplateDialog";
 import {
   TransferDialog,
   DepartmentDialog,
@@ -211,6 +212,7 @@ export function ChatArea({
   const [showCallDialog, setShowCallDialog] = useState(false);
   const [savingCall, setSavingCall] = useState(false);
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [aiAgentActive, setAiAgentActive] = useState(false);
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
@@ -241,6 +243,11 @@ export function ChatArea({
   );
   const openDeals = (contactDeals || []).filter(
     (d) => (d as any)?.status && String((d as any).status).toLowerCase() === 'open'
+  );
+
+  // Detect if current conversation uses Meta provider
+  const isMetaConnection = connections.some(
+    (c) => c.id === conversation?.connection_id && c.provider === 'meta'
   );
   
   const {
@@ -1256,6 +1263,11 @@ export function ChatArea({
         ) : (
           <div className={cn("flex flex-col gap-2", !isMobile && "flex-row items-end")}>
             <div className="flex items-center gap-1">
+              {isMetaConnection && (
+                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0 text-primary" onClick={() => setShowTemplateDialog(true)} title="Enviar Template Meta">
+                  <FileText className="h-4 w-4" />
+                </Button>
+              )}
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setShowStartFlowDialog(true)} title="Iniciar fluxo"><Zap className="h-4 w-4 text-primary" /></Button>
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setShowQuickReplies(!showQuickReplies)} title="Respostas rápidas"><Reply className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => fileInputRef.current?.click()} disabled={isUploading || sending}>
@@ -1334,6 +1346,22 @@ export function ChatArea({
       <TransferDialog open={showTransferDialog} onOpenChange={setShowTransferDialog} conversation={conversation} team={team} availableConnections={connections} onTransfer={onTransfer} />
       <DepartmentDialog open={showDepartmentDialog} onOpenChange={setShowDepartmentDialog} conversation={conversation} departments={departments} onSave={handleSaveDepartment} saving={savingDepartment} />
       {onDeleteConversation && <DeleteConversationDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog} onDelete={onDeleteConversation} />}
+      
+      {conversation && isMetaConnection && (
+        <SendTemplateDialog
+          open={showTemplateDialog}
+          onOpenChange={setShowTemplateDialog}
+          connectionId={conversation.connection_id}
+          conversationId={conversation.id}
+          contactPhone={conversation.contact_phone || ""}
+          onTemplateSent={() => {
+            // Reload messages after template sent
+            if (conversation?.id) {
+              onLoadMore();
+            }
+          }}
+        />
+      )}
       
       <CreateTagDialog open={showTagDialog} onOpenChange={setShowTagDialog} onCreateTag={onCreateTag} />
       <EditContactDialog open={showEditContactDialog} onOpenChange={setShowEditContactDialog} conversation={conversation} />

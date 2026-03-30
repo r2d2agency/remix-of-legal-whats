@@ -43,6 +43,7 @@ export interface Connection {
   name: string;
   phone_number: string | null;
   status: string;
+  provider?: string;
 }
 
 export interface ChatStats {
