@@ -85,6 +85,7 @@ const Conexao = () => {
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; messagesImported: number; conversationsCreated: number } | null>(null);
   const [syncingProfilePics, setSyncingProfilePics] = useState<string | null>(null);
   const [validatingNumbers, setValidatingNumbers] = useState<string | null>(null);
+  const [connectingMeta, setConnectingMeta] = useState<string | null>(null);
 
   // Webhook viewer state (shows what the backend is actually receiving)
   const [webhookViewerOpen, setWebhookViewerOpen] = useState(false);
