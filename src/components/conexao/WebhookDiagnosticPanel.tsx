@@ -160,6 +160,13 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const [reconfiguring, setReconfiguring] = useState(false);
   const [diagnostic, setDiagnostic] = useState<DiagnosticResult | null>(null);
   const [wapiDiagnostic, setWapiDiagnostic] = useState<WapiDiagnosticResult | null>(null);
+  const [metaDiagnostic, setMetaDiagnostic] = useState<{
+    status: string;
+    phoneNumber?: string | null;
+    webhookEndpoint: string;
+    healthy: boolean;
+    errors: string[];
+  } | null>(null);
 
   // Evolution webhook events (persisted on backend)
   const [events, setEvents] = useState<WebhookEvent[]>([]);
