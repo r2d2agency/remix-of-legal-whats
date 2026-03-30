@@ -295,6 +295,10 @@ export async function sendMessage(connection, phone, content, messageType, media
     phone_preview: phone ? String(phone).substring(0, 15) : null,
   });
 
+  if (provider === 'meta') {
+    return sendMetaMessage(connection, phone, content, messageType, mediaUrl);
+  }
+
   if (provider === 'wapi') {
     try {
       const resolvedToken = await resolveWapiToken(connection);
