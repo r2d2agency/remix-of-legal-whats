@@ -91,8 +91,8 @@ export function QuickStatusPanel({ connection, onConfigureWebhooks, onOpenFullDi
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Badge variant={isWapi ? "secondary" : "outline"} className="text-xs">
-            {isWapi ? "W-API" : "Evolution"}
+          <Badge variant={isMeta ? "default" : isWapi ? "secondary" : "outline"} className="text-xs">
+            {isMeta ? "Meta API" : isWapi ? "W-API" : "Evolution"}
           </Badge>
           <span className="font-medium">{connection.name}</span>
         </div>
