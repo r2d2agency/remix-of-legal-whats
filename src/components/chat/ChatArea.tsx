@@ -1258,6 +1258,11 @@ export function ChatArea({
         ) : (
           <div className={cn("flex flex-col gap-2", !isMobile && "flex-row items-end")}>
             <div className="flex items-center gap-1">
+              {isMetaConnection && (
+                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0 text-primary" onClick={() => setShowTemplateDialog(true)} title="Enviar Template Meta">
+                  <FileText className="h-4 w-4" />
+                </Button>
+              )}
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setShowStartFlowDialog(true)} title="Iniciar fluxo"><Zap className="h-4 w-4 text-primary" /></Button>
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setShowQuickReplies(!showQuickReplies)} title="Respostas rápidas"><Reply className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => fileInputRef.current?.click()} disabled={isUploading || sending}>
