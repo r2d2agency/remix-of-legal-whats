@@ -49,8 +49,9 @@ export function QuickStatusPanel({ connection, onConfigureWebhooks, onOpenFullDi
   const [checkDuration, setCheckDuration] = useState<number | null>(null);
 
   // Detect provider
+  const isMeta = connection.provider === 'meta';
   const isWapi = connection.provider === 'wapi' || 
-    (!!connection.instance_id && !connection.instance_name);
+    (!isMeta && !!connection.instance_id && !connection.instance_name);
 
   const checkStatus = useCallback(async () => {
     setLoading(true);
@@ -90,8 +91,8 @@ export function QuickStatusPanel({ connection, onConfigureWebhooks, onOpenFullDi
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Badge variant={isWapi ? "secondary" : "outline"} className="text-xs">
-            {isWapi ? "W-API" : "Evolution"}
+          <Badge variant={isMeta ? "default" : isWapi ? "secondary" : "outline"} className="text-xs">
+            {isMeta ? "Meta API" : isWapi ? "W-API" : "Evolution"}
           </Badge>
           <span className="font-medium">{connection.name}</span>
         </div>

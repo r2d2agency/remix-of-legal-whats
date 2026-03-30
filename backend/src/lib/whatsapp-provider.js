@@ -56,10 +56,71 @@ async function resolveWapiToken(connection) {
 }
 
 /**
+ * Check Meta Cloud API connection status by validating the token
+ */
+async function checkMetaStatus(connection) {
+  try {
+    const token = connection.meta_token;
+    const phoneNumberId = connection.meta_phone_number_id;
+
+    if (!token || !phoneNumberId) {
+      return {
+        status: 'disconnected',
+        error: 'Token ou Phone Number ID não configurados',
+      };
+    }
+
+    // Validate token by calling the Graph API
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${phoneNumberId}?fields=verified_name,display_phone_number`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        status: 'connected',
+        phoneNumber: data.display_phone_number || connection.phone_number || null,
+      };
+    }
+
+    const errorData = await response.json().catch(() => ({}));
+    const errorMsg = errorData?.error?.message || `HTTP ${response.status}`;
+
+    // Token expired or invalid
+    if (response.status === 401 || response.status === 190) {
+      return {
+        status: 'disconnected',
+        error: `Token inválido ou expirado: ${errorMsg}`,
+      };
+    }
+
+    return {
+      status: 'disconnected',
+      error: errorMsg,
+    };
+  } catch (error) {
+    logError('meta.status_check_failed', error, {
+      connection_id: connection?.id,
+    });
+    // If it's a network error, preserve current status
+    if (connection.status === 'connected') {
+      return { status: 'connected', phoneNumber: connection.phone_number, transient: true };
+    }
+    return { status: 'disconnected', error: error.message };
+  }
+}
+
+/**
  * Detect provider from connection data
  */
 export function detectProvider(connection) {
   const provider = String(connection?.provider || '').toLowerCase();
+
+  // Meta Cloud API
+  if (provider === 'meta') {
+    return 'meta';
+  }
 
   // Direct Instance ID é sempre W-API no sistema atual
   if (connection?.instance_id) {
@@ -79,6 +140,10 @@ export function detectProvider(connection) {
  */
 export async function checkStatus(connection) {
   const provider = detectProvider(connection);
+
+  if (provider === 'meta') {
+    return checkMetaStatus(connection);
+  }
 
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
@@ -160,6 +225,11 @@ export async function checkStatus(connection) {
 export async function getQRCode(connection) {
   const provider = detectProvider(connection);
 
+  if (provider === 'meta') {
+    // Meta Cloud API doesn't use QR codes
+    return null;
+  }
+
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
     return wapiProvider.getQRCode(connection.instance_id, resolvedToken);
@@ -191,6 +261,12 @@ export async function getQRCode(connection) {
  */
 export async function disconnect(connection) {
   const provider = detectProvider(connection);
+
+  if (provider === 'meta') {
+    // Meta Cloud API: just mark as disconnected in DB
+    await query('UPDATE connections SET status = $1, updated_at = NOW() WHERE id = $2', ['disconnected', connection.id]);
+    return true;
+  }
 
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
@@ -229,6 +305,10 @@ export async function sendMessage(connection, phone, content, messageType, media
     has_content: Boolean(content),
     phone_preview: phone ? String(phone).substring(0, 15) : null,
   });
+
+  if (provider === 'meta') {
+    return sendMetaMessage(connection, phone, content, messageType, mediaUrl);
+  }
 
   if (provider === 'wapi') {
     try {
@@ -321,6 +401,12 @@ export async function sendMessage(connection, phone, content, messageType, media
 export async function checkNumber(connection, phone) {
   const provider = detectProvider(connection);
 
+  if (provider === 'meta') {
+    // Meta Cloud API doesn't have a direct "check number" API
+    // Return true by default; delivery will fail if number is invalid
+    return true;
+  }
+
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
     return wapiProvider.checkNumber(connection.instance_id, resolvedToken, phone);
@@ -386,5 +472,102 @@ export async function sendPresenceComposing(connection, contactPhone) {
     );
   } catch (error) {
     logWarn('whatsapp_provider.presence_error', { error: error.message });
+  }
+}
+
+/**
+ * Send message via Meta Cloud API
+ */
+async function sendMetaMessage(connection, phone, content, messageType, mediaUrl) {
+  try {
+    const token = connection.meta_token;
+    const phoneNumberId = connection.meta_phone_number_id;
+
+    if (!token || !phoneNumberId) {
+      return { success: false, error: 'Token ou Phone Number ID não configurados' };
+    }
+
+    // Normalize phone number (remove non-digits)
+    const cleanPhone = String(phone).replace(/\D/g, '');
+
+    let body;
+
+    if (messageType === 'text') {
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'text',
+        text: { body: content },
+      };
+    } else if (messageType === 'image') {
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'image',
+        image: { link: mediaUrl, ...(content ? { caption: content } : {}) },
+      };
+    } else if (messageType === 'audio') {
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'audio',
+        audio: { link: mediaUrl },
+      };
+    } else if (messageType === 'video') {
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'video',
+        video: { link: mediaUrl, ...(content ? { caption: content } : {}) },
+      };
+    } else if (messageType === 'document') {
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'document',
+        document: { link: mediaUrl, ...(content ? { filename: content } : {}) },
+      };
+    } else {
+      // Fallback to text
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'text',
+        text: { body: content || '' },
+      };
+    }
+
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      const errorMsg = result?.error?.message || `HTTP ${response.status}`;
+      logError('meta.send_message_failed', new Error(errorMsg), {
+        connection_id: connection.id,
+        status: response.status,
+      });
+      return { success: false, error: errorMsg };
+    }
+
+    return {
+      success: true,
+      messageId: result?.messages?.[0]?.id || null,
+    };
+  } catch (error) {
+    logError('meta.send_message_exception', error, {
+      connection_id: connection.id,
+    });
+    return { success: false, error: error.message };
   }
 }

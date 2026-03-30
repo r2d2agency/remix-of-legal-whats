@@ -4,7 +4,7 @@
 import { evolutionApi, EvolutionConfig, ConnectionState } from "./evolution-api";
 import { wapiApi, WApiConfig, WApiConnectionState } from "./wapi-api";
 
-export type WhatsAppProvider = "evolution" | "wapi";
+export type WhatsAppProvider = "evolution" | "wapi" | "meta";
 
 export interface WhatsAppConnection {
   id: string;
@@ -39,6 +39,11 @@ export interface WhatsAppProviderInterface {
 // Detectar automaticamente o provider baseado nos campos disponíveis
 export function detectProvider(connection: WhatsAppConnection): WhatsAppProvider {
   const provider = String(connection.provider || "").toLowerCase();
+
+  // Meta Cloud API
+  if (provider === "meta") {
+    return "meta";
+  }
 
   // Prioriza credenciais concretas da W-API para cobrir registros legados
   if (connection.instanceId && connection.token) {
