@@ -1829,6 +1829,145 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
   }
 });
 
+// Send Meta template message
+router.post('/conversations/:id/send-template', authenticate, async (req, res) => {
+  try {
+    const userOrg = await getUserOrganization(req.userId);
+    if (userOrg && isViewOnlyRole(userOrg.role)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    const { id } = req.params;
+    const { template_name, language, components, param_values } = req.body;
+    const connectionIds = await getUserConnections(req.userId);
+
+    const convResult = await query(
+      `SELECT conv.*, conn.meta_token, conn.meta_phone_number_id, conn.meta_waba_id, conn.provider, conn.status as connection_status
+       FROM conversations conv
+       JOIN connections conn ON conn.id = conv.connection_id
+       WHERE conv.id = $1 AND conv.connection_id = ANY($2)`,
+      [id, connectionIds]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+
+    const conversation = convResult.rows[0];
+
+    if (conversation.provider !== 'meta') {
+      return res.status(400).json({ error: 'Templates só podem ser enviados em conexões Meta' });
+    }
+
+    if (!conversation.meta_token || !conversation.meta_phone_number_id) {
+      return res.status(400).json({ error: 'Token ou Phone Number ID não configurados' });
+    }
+
+    const cleanPhone = String(conversation.contact_phone || conversation.remote_jid || '').replace(/\D/g, '');
+    if (!cleanPhone) {
+      return res.status(400).json({ error: 'Telefone do contato não encontrado' });
+    }
+
+    // Build template components with parameter values
+    const templateComponents = [];
+    const bodyComp = (components || []).find(c => (c.type || '').toUpperCase() === 'BODY');
+    const headerComp = (components || []).find(c => (c.type || '').toUpperCase() === 'HEADER');
+
+    if (headerComp?.text) {
+      const headerParams = (headerComp.text.match(/\{\{(\d+)\}\}/g) || []);
+      if (headerParams.length > 0) {
+        templateComponents.push({
+          type: 'header',
+          parameters: headerParams.map(p => ({
+            type: 'text',
+            text: (param_values || {})[p] || `exemplo_${p.replace(/\D/g, '')}`,
+          })),
+        });
+      }
+    }
+
+    if (bodyComp?.text) {
+      const bodyParams = (bodyComp.text.match(/\{\{(\d+)\}\}/g) || []);
+      if (bodyParams.length > 0) {
+        templateComponents.push({
+          type: 'body',
+          parameters: bodyParams.map(p => ({
+            type: 'text',
+            text: (param_values || {})[p] || `exemplo_${p.replace(/\D/g, '')}`,
+          })),
+        });
+      }
+    }
+
+    // Send template via Meta API
+    const metaBody = {
+      messaging_product: 'whatsapp',
+      to: cleanPhone,
+      type: 'template',
+      template: {
+        name: template_name,
+        language: { code: language || 'pt_BR' },
+        ...(templateComponents.length > 0 ? { components: templateComponents } : {}),
+      },
+    };
+
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${conversation.meta_phone_number_id}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${conversation.meta_token}`,
+        },
+        body: JSON.stringify(metaBody),
+      }
+    );
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errorMsg = result?.error?.message || result?.error?.error_user_msg || `HTTP ${response.status}`;
+      return res.status(response.status).json({ error: errorMsg, details: result?.error });
+    }
+
+    const metaMessageId = result?.messages?.[0]?.id || `template_${Date.now()}`;
+
+    // Build readable content from template
+    let readableContent = bodyComp?.text || template_name;
+    if (param_values) {
+      Object.entries(param_values).forEach(([key, value]) => {
+        readableContent = readableContent.replace(key, value);
+      });
+    }
+
+    // Save to DB
+    const messageResult = await query(
+      `INSERT INTO chat_messages 
+        (conversation_id, message_id, from_me, sender_id, content, message_type, status, timestamp)
+       VALUES ($1, $2, true, $3, $4, 'text', 'sent', NOW())
+       RETURNING *`,
+      [id, metaMessageId, req.userId, `📋 ${readableContent}`]
+    );
+
+    // Update conversation
+    await query(
+      `UPDATE conversations 
+       SET last_message_at = NOW(), updated_at = NOW(),
+           attendance_status = CASE WHEN attendance_status = 'waiting' THEN 'attending' ELSE attendance_status END,
+           accepted_by = CASE WHEN attendance_status = 'waiting' THEN $2::uuid ELSE accepted_by END,
+           accepted_at = CASE WHEN attendance_status = 'waiting' THEN NOW() ELSE accepted_at END,
+           assigned_to = CASE WHEN attendance_status = 'waiting' THEN $2::uuid ELSE assigned_to END
+       WHERE id = $1`,
+      [id, req.userId]
+    );
+
+    res.status(201).json(messageResult.rows[0]);
+  } catch (error) {
+    console.error('Send template error:', error);
+    res.status(500).json({ error: error.message || 'Erro ao enviar template' });
+  }
+});
+
 // Edit a message (text only, from_me only)
 router.patch('/conversations/:id/messages/:messageId', authenticate, async (req, res) => {
   try {
