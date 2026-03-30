@@ -836,44 +836,7 @@ export function ConversationList({
                       )}
                     </div>
 
-                    {/* Accept button for waiting conversations - only show on desktop */}
-                    {!isMobile && isWaiting && onAcceptConversation && (
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="h-6 px-2 text-[10px] mt-2 max-w-full truncate"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAcceptConversation(conv.id);
-                        }}
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1 flex-shrink-0" />
-                        <span className="truncate">Aceitar</span>
-                      </Button>
-                    )}
 
-                    {/* Reopen button for finished conversations - only show on desktop */}
-                    {!isMobile && isFinished && onReopenConversation && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6 px-2 text-[10px] mt-2 max-w-full truncate text-blue-600 border-blue-300"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onReopenConversation(conv.id);
-                        }}
-                      >
-                        <RotateCcw className="h-3 w-3 mr-1 flex-shrink-0" />
-                        <span className="truncate">Reabrir</span>
-                      </Button>
-                    )}
-
-                    {/* Swipe hint for mobile */}
-                    {isMobile && (isWaiting || isAttending || isFinished) && (
-                      <p className="text-[9px] text-muted-foreground mt-1.5 italic">
-                        {isWaiting ? '→ Deslize para aceitar' : isFinished ? '→ Deslize para reabrir' : '→ Deslize para liberar/finalizar'}
-                      </p>
-                    )}
                   </div>
 
                   {/* Actions dropdown - desktop only */}
@@ -883,13 +846,35 @@ export function ConversationList({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 flex-shrink-0"
+                          className="h-7 w-7 flex-shrink-0 opacity-60 hover:opacity-100"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {isWaiting && onAcceptConversation && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAcceptConversation(conv.id);
+                            }}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+                            Aceitar conversa
+                          </DropdownMenuItem>
+                        )}
+                        {isFinished && onReopenConversation && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onReopenConversation(conv.id);
+                            }}
+                          >
+                            <RotateCcw className="h-4 w-4 mr-2 text-blue-500" />
+                            Reabrir conversa
+                          </DropdownMenuItem>
+                        )}
                         {onPinConversation && (
                           <DropdownMenuItem
                             onClick={(e) => {
