@@ -249,6 +249,21 @@ const Conexao = () => {
     }
   };
 
+  const handleMetaConnect = async (connection: Connection) => {
+    setConnectingMeta(connection.id);
+    try {
+      const result = await api<Connection>(`/api/connections/${connection.id}/meta-connect`, {
+        method: 'POST',
+      });
+      setConnections(prev => prev.map(c => c.id === connection.id ? result : c));
+      toast.success('Conexão Meta ativada! Token de verificação gerado.');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao conectar Meta');
+    } finally {
+      setConnectingMeta(null);
+    }
+  };
+
 const handleGetQRCode = async (connection: Connection) => {
   setSelectedConnection(connection);
   setQrCodeDialog(true);
