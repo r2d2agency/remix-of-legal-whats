@@ -417,14 +417,16 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   useEffect(() => {
     fetchDiagnostic();
 
-    if (isWapi) {
+    if (isMeta) {
+      // Meta doesn't need event polling
+    } else if (isWapi) {
       fetchWapiEvents();
       fetchWapiSendAttempts();
       fetchEndpointDiscovery();
     } else {
       fetchEvents();
     }
-  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, isWapi]);
+  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, isWapi, isMeta]);
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
