@@ -285,7 +285,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [connection.id, connection.name, connection.instance_id, isWapi]);
+  }, [connection.id, connection.name, connection.instance_id, connection.phone_number, isWapi, isMeta]);
 
   const fetchEvents = useCallback(async () => {
     if (isWapi) return; // Evolution only
