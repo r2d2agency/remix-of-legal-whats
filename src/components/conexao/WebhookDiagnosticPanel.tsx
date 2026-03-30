@@ -150,10 +150,11 @@ interface Props {
 }
 
 export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
-  // Detect W-API: explicit provider OR has instance_id
-  const isWapi = connection.provider === 'wapi' || 
+  // Detect provider type
+  const isMeta = connection.provider === 'meta';
+  const isWapi = !isMeta && (connection.provider === 'wapi' || 
     (!!connection.instance_id && !connection.instance_name) ||
-    (!!connection.instance_id && connection.instance_id.length > 0);
+    (!!connection.instance_id && connection.instance_id.length > 0));
   
   const [loading, setLoading] = useState(true);
   const [reconfiguring, setReconfiguring] = useState(false);
