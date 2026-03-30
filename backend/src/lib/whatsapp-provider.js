@@ -262,6 +262,12 @@ export async function getQRCode(connection) {
 export async function disconnect(connection) {
   const provider = detectProvider(connection);
 
+  if (provider === 'meta') {
+    // Meta Cloud API: just mark as disconnected in DB
+    await query('UPDATE connections SET status = $1, updated_at = NOW() WHERE id = $2', ['disconnected', connection.id]);
+    return true;
+  }
+
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
     return wapiProvider.disconnect(connection.instance_id, resolvedToken);
