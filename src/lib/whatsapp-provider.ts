@@ -4,7 +4,7 @@
 import { evolutionApi, EvolutionConfig, ConnectionState } from "./evolution-api";
 import { wapiApi, WApiConfig, WApiConnectionState } from "./wapi-api";
 
-export type WhatsAppProvider = "evolution" | "wapi";
+export type WhatsAppProvider = "evolution" | "wapi" | "meta";
 
 export interface WhatsAppConnection {
   id: string;
