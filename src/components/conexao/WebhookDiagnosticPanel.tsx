@@ -261,6 +261,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
         const result = await api<DiagnosticResult>(`/api/evolution/${connection.id}/webhook-diagnostic`);
         setDiagnostic(result);
         setWapiDiagnostic(null);
+        setMetaDiagnostic(null);
       }
     } catch (error: any) {
       toast.error(error.message || "Erro ao carregar diagnóstico");
