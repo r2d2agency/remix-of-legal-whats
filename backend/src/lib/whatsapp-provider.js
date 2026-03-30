@@ -463,3 +463,100 @@ export async function sendPresenceComposing(connection, contactPhone) {
     logWarn('whatsapp_provider.presence_error', { error: error.message });
   }
 }
+
+/**
+ * Send message via Meta Cloud API
+ */
+async function sendMetaMessage(connection, phone, content, messageType, mediaUrl) {
+  try {
+    const token = connection.meta_token;
+    const phoneNumberId = connection.meta_phone_number_id;
+
+    if (!token || !phoneNumberId) {
+      return { success: false, error: 'Token ou Phone Number ID não configurados' };
+    }
+
+    // Normalize phone number (remove non-digits)
+    const cleanPhone = String(phone).replace(/\D/g, '');
+
+    let body;
+
+    if (messageType === 'text') {
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'text',
+        text: { body: content },
+      };
+    } else if (messageType === 'image') {
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'image',
+        image: { link: mediaUrl, ...(content ? { caption: content } : {}) },
+      };
+    } else if (messageType === 'audio') {
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'audio',
+        audio: { link: mediaUrl },
+      };
+    } else if (messageType === 'video') {
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'video',
+        video: { link: mediaUrl, ...(content ? { caption: content } : {}) },
+      };
+    } else if (messageType === 'document') {
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'document',
+        document: { link: mediaUrl, ...(content ? { filename: content } : {}) },
+      };
+    } else {
+      // Fallback to text
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'text',
+        text: { body: content || '' },
+      };
+    }
+
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      const errorMsg = result?.error?.message || `HTTP ${response.status}`;
+      logError('meta.send_message_failed', new Error(errorMsg), {
+        connection_id: connection.id,
+        status: response.status,
+      });
+      return { success: false, error: errorMsg };
+    }
+
+    return {
+      success: true,
+      messageId: result?.messages?.[0]?.id || null,
+    };
+  } catch (error) {
+    logError('meta.send_message_exception', error, {
+      connection_id: connection.id,
+    });
+    return { success: false, error: error.message };
+  }
+}
