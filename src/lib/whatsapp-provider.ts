@@ -40,6 +40,11 @@ export interface WhatsAppProviderInterface {
 export function detectProvider(connection: WhatsAppConnection): WhatsAppProvider {
   const provider = String(connection.provider || "").toLowerCase();
 
+  // Meta Cloud API
+  if (provider === "meta") {
+    return "meta";
+  }
+
   // Prioriza credenciais concretas da W-API para cobrir registros legados
   if (connection.instanceId && connection.token) {
     return "wapi";
