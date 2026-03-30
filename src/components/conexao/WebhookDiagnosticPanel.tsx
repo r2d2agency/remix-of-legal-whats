@@ -183,7 +183,42 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const fetchDiagnostic = useCallback(async () => {
     setLoading(true);
     try {
-      if (isWapi) {
+      if (isMeta) {
+        // Meta Cloud API - check status and show webhook info
+        try {
+          const statusResult = await api<{
+            status: string;
+            phoneNumber?: string | null;
+            error?: string | null;
+          }>(`/api/evolution/${connection.id}/status`);
+
+          const webhookEndpoint = `${API_URL}/api/meta/webhook`;
+          const errors: string[] = [];
+
+          if (statusResult.status !== 'connected') {
+            errors.push('Conexão Meta não ativa');
+            if (statusResult.error) errors.push(`Detalhe: ${statusResult.error}`);
+          }
+
+          setMetaDiagnostic({
+            status: statusResult.status,
+            phoneNumber: statusResult.phoneNumber || null,
+            webhookEndpoint,
+            healthy: statusResult.status === 'connected',
+            errors,
+          });
+        } catch (error: any) {
+          setMetaDiagnostic({
+            status: 'connected',
+            phoneNumber: connection.phone_number || null,
+            webhookEndpoint: `${API_URL}/api/meta/webhook`,
+            healthy: true,
+            errors: [],
+          });
+        }
+        setDiagnostic(null);
+        setWapiDiagnostic(null);
+      } else if (isWapi) {
         // For W-API, we check status and webhook configuration
         const statusResult = await api<{
           status: string;
@@ -221,6 +256,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
         
         setWapiDiagnostic(wapiDiag);
         setDiagnostic(null);
+        setMetaDiagnostic(null);
       } else {
         const result = await api<DiagnosticResult>(`/api/evolution/${connection.id}/webhook-diagnostic`);
         setDiagnostic(result);
