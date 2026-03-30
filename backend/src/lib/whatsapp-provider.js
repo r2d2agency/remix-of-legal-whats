@@ -225,6 +225,11 @@ export async function checkStatus(connection) {
 export async function getQRCode(connection) {
   const provider = detectProvider(connection);
 
+  if (provider === 'meta') {
+    // Meta Cloud API doesn't use QR codes
+    return null;
+  }
+
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
     return wapiProvider.getQRCode(connection.instance_id, resolvedToken);
