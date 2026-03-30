@@ -371,12 +371,22 @@ app.post('/api/meta/webhook', async (req, res) => {
             
             if (statusValue === 'read') {
               await dbQuery(
-                `UPDATE messages SET read_at = NOW() WHERE wamid = $1 AND read_at IS NULL`,
+                `UPDATE chat_messages SET status = 'read' WHERE message_id = $1 AND status != 'read'`,
                 [wamid]
               );
             } else if (statusValue === 'delivered') {
               await dbQuery(
-                `UPDATE messages SET delivered_at = NOW() WHERE wamid = $1 AND delivered_at IS NULL`,
+                `UPDATE chat_messages SET status = 'delivered' WHERE message_id = $1 AND status = 'sent'`,
+                [wamid]
+              );
+            } else if (statusValue === 'sent') {
+              await dbQuery(
+                `UPDATE chat_messages SET status = 'sent' WHERE message_id = $1 AND status = 'pending'`,
+                [wamid]
+              );
+            } else if (statusValue === 'failed') {
+              await dbQuery(
+                `UPDATE chat_messages SET status = 'failed' WHERE message_id = $1`,
                 [wamid]
               );
             }
