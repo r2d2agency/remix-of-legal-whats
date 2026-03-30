@@ -430,6 +430,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
+    if (isMeta) return; // Meta doesn't need auto-refresh of events
     const interval = setInterval(() => {
       if (isWapi) {
         fetchWapiEvents();
@@ -441,7 +442,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, isWapi]);
+  }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, isWapi, isMeta]);
 
   if (loading) {
     return (
