@@ -411,7 +411,6 @@ router.post('/:id/meta-connect', async (req, res) => {
     }
 
     // Validate token against Meta API
-    const { default: fetch } = await import('node-fetch');
     const metaResp = await fetch(
       `https://graph.facebook.com/v21.0/${connection.meta_waba_id}?fields=id,name`,
       { headers: { Authorization: `Bearer ${connection.meta_token}` } }
@@ -425,7 +424,6 @@ router.post('/:id/meta-connect', async (req, res) => {
     }
 
     // Generate or regenerate verify token
-    const crypto = await import('crypto');
     const verifyToken = crypto.randomBytes(16).toString('hex');
 
     const result = await query(
