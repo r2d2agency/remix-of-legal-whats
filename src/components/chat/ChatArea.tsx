@@ -92,6 +92,7 @@ import { AIAgentBanner } from "./AIAgentBanner";
 import { ChatMessageBubble } from "./ChatMessageBubble";
 import { ForwardMessageDialog } from "./ForwardMessageDialog";
 import { RequestSignatureDialog } from "./RequestSignatureDialog";
+import { SendTemplateDialog } from "./SendTemplateDialog";
 import {
   TransferDialog,
   DepartmentDialog,
