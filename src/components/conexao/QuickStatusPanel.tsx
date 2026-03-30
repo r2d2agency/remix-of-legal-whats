@@ -49,8 +49,9 @@ export function QuickStatusPanel({ connection, onConfigureWebhooks, onOpenFullDi
   const [checkDuration, setCheckDuration] = useState<number | null>(null);
 
   // Detect provider
+  const isMeta = connection.provider === 'meta';
   const isWapi = connection.provider === 'wapi' || 
-    (!!connection.instance_id && !connection.instance_name);
+    (!isMeta && !!connection.instance_id && !connection.instance_name);
 
   const checkStatus = useCallback(async () => {
     setLoading(true);
