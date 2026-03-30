@@ -56,6 +56,62 @@ async function resolveWapiToken(connection) {
 }
 
 /**
+ * Check Meta Cloud API connection status by validating the token
+ */
+async function checkMetaStatus(connection) {
+  try {
+    const token = connection.meta_token;
+    const phoneNumberId = connection.meta_phone_number_id;
+
+    if (!token || !phoneNumberId) {
+      return {
+        status: 'disconnected',
+        error: 'Token ou Phone Number ID não configurados',
+      };
+    }
+
+    // Validate token by calling the Graph API
+    const response = await fetch(
+      `https://graph.facebook.com/v21.0/${phoneNumberId}?fields=verified_name,display_phone_number`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        status: 'connected',
+        phoneNumber: data.display_phone_number || connection.phone_number || null,
+      };
+    }
+
+    const errorData = await response.json().catch(() => ({}));
+    const errorMsg = errorData?.error?.message || `HTTP ${response.status}`;
+
+    // Token expired or invalid
+    if (response.status === 401 || response.status === 190) {
+      return {
+        status: 'disconnected',
+        error: `Token inválido ou expirado: ${errorMsg}`,
+      };
+    }
+
+    return {
+      status: 'disconnected',
+      error: errorMsg,
+    };
+  } catch (error) {
+    logError('meta.status_check_failed', error, {
+      connection_id: connection?.id,
+    });
+    // If it's a network error, preserve current status
+    if (connection.status === 'connected') {
+      return { status: 'connected', phoneNumber: connection.phone_number, transient: true };
+    }
+    return { status: 'disconnected', error: error.message };
+  }
+}
+
+/**
  * Detect provider from connection data
  */
 export function detectProvider(connection) {
