@@ -150,15 +150,23 @@ interface Props {
 }
 
 export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
-  // Detect W-API: explicit provider OR has instance_id
-  const isWapi = connection.provider === 'wapi' || 
+  // Detect provider type
+  const isMeta = connection.provider === 'meta';
+  const isWapi = !isMeta && (connection.provider === 'wapi' || 
     (!!connection.instance_id && !connection.instance_name) ||
-    (!!connection.instance_id && connection.instance_id.length > 0);
+    (!!connection.instance_id && connection.instance_id.length > 0));
   
   const [loading, setLoading] = useState(true);
   const [reconfiguring, setReconfiguring] = useState(false);
   const [diagnostic, setDiagnostic] = useState<DiagnosticResult | null>(null);
   const [wapiDiagnostic, setWapiDiagnostic] = useState<WapiDiagnosticResult | null>(null);
+  const [metaDiagnostic, setMetaDiagnostic] = useState<{
+    status: string;
+    phoneNumber?: string | null;
+    webhookEndpoint: string;
+    healthy: boolean;
+    errors: string[];
+  } | null>(null);
 
   // Evolution webhook events (persisted on backend)
   const [events, setEvents] = useState<WebhookEvent[]>([]);
@@ -175,7 +183,42 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const fetchDiagnostic = useCallback(async () => {
     setLoading(true);
     try {
-      if (isWapi) {
+      if (isMeta) {
+        // Meta Cloud API - check status and show webhook info
+        try {
+          const statusResult = await api<{
+            status: string;
+            phoneNumber?: string | null;
+            error?: string | null;
+          }>(`/api/evolution/${connection.id}/status`);
+
+          const webhookEndpoint = `${API_URL}/api/meta/webhook`;
+          const errors: string[] = [];
+
+          if (statusResult.status !== 'connected') {
+            errors.push('Conexão Meta não ativa');
+            if (statusResult.error) errors.push(`Detalhe: ${statusResult.error}`);
+          }
+
+          setMetaDiagnostic({
+            status: statusResult.status,
+            phoneNumber: statusResult.phoneNumber || null,
+            webhookEndpoint,
+            healthy: statusResult.status === 'connected',
+            errors,
+          });
+        } catch (error: any) {
+          setMetaDiagnostic({
+            status: 'connected',
+            phoneNumber: connection.phone_number || null,
+            webhookEndpoint: `${API_URL}/api/meta/webhook`,
+            healthy: true,
+            errors: [],
+          });
+        }
+        setDiagnostic(null);
+        setWapiDiagnostic(null);
+      } else if (isWapi) {
         // For W-API, we check status and webhook configuration
         const statusResult = await api<{
           status: string;
@@ -213,10 +256,12 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
         
         setWapiDiagnostic(wapiDiag);
         setDiagnostic(null);
+        setMetaDiagnostic(null);
       } else {
         const result = await api<DiagnosticResult>(`/api/evolution/${connection.id}/webhook-diagnostic`);
         setDiagnostic(result);
         setWapiDiagnostic(null);
+        setMetaDiagnostic(null);
       }
     } catch (error: any) {
       toast.error(error.message || "Erro ao carregar diagnóstico");
@@ -240,7 +285,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [connection.id, connection.name, connection.instance_id, isWapi]);
+  }, [connection.id, connection.name, connection.instance_id, connection.phone_number, isWapi, isMeta]);
 
   const fetchEvents = useCallback(async () => {
     if (isWapi) return; // Evolution only
@@ -372,17 +417,20 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   useEffect(() => {
     fetchDiagnostic();
 
-    if (isWapi) {
+    if (isMeta) {
+      // Meta doesn't need event polling
+    } else if (isWapi) {
       fetchWapiEvents();
       fetchWapiSendAttempts();
       fetchEndpointDiscovery();
     } else {
       fetchEvents();
     }
-  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, isWapi]);
+  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, isWapi, isMeta]);
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
+    if (isMeta) return; // Meta doesn't need auto-refresh of events
     const interval = setInterval(() => {
       if (isWapi) {
         fetchWapiEvents();
@@ -394,7 +442,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, isWapi]);
+  }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, isWapi, isMeta]);
 
   if (loading) {
     return (
@@ -783,7 +831,154 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     );
   }
 
-  // Evolution Diagnostic View (original)
+  // Meta Cloud API Diagnostic View
+  if (isMeta && metaDiagnostic) {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Activity className="h-5 w-5 text-primary" />
+              Diagnóstico Meta Cloud API: {connection.name}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Provedor: <Badge variant="outline" className="ml-1">Meta Cloud API</Badge>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={fetchDiagnostic} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Atualizar
+            </Button>
+            {onClose && (
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                Fechar
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Health Status */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              {metaDiagnostic.healthy ? (
+                <Badge variant="default" className="bg-green-500">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Saudável
+                </Badge>
+              ) : (
+                <Badge variant="destructive">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Problemas Detectados
+                </Badge>
+              )}
+              <Badge variant="outline" className="ml-2">
+                Meta Cloud API
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          {metaDiagnostic.errors.length > 0 && (
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {metaDiagnostic.errors.map((err, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm text-destructive">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>{err}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Status */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              Estado da Conexão
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <StatusIcon ok={metaDiagnostic.status === 'connected'} />
+                <span className="text-muted-foreground">Status:</span>
+                <Badge
+                  variant={metaDiagnostic.status === 'connected' ? "default" : "outline"}
+                  className={metaDiagnostic.status === 'connected' ? "bg-green-500" : ""}
+                >
+                  {metaDiagnostic.status === 'connected' ? "Conectado" : metaDiagnostic.status}
+                </Badge>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Telefone:</span>
+                <span className="ml-2">{metaDiagnostic.phoneNumber || connection.phone_number || "—"}</span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-muted-foreground">Status DB:</span>
+                <span className="ml-2 font-medium">{connection.status}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Webhook Configuration */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Webhook className="h-4 w-4" />
+              Configuração do Webhook Meta
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-muted-foreground">Endpoint do Webhook:</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="text-xs bg-muted px-2 py-1 rounded font-mono flex-1 break-all">
+                    {metaDiagnostic.webhookEndpoint}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 flex-shrink-0"
+                    onClick={() => copyToClipboard(metaDiagnostic.webhookEndpoint)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="rounded-lg bg-accent/50 p-3 space-y-2">
+                <p className="text-xs font-medium">ℹ️ Configuração no Facebook Developers:</p>
+                <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                  <li>Acesse o <strong>Facebook Developers</strong> → seu App → WhatsApp → Configuração</li>
+                  <li>Em <strong>Webhook</strong>, configure a URL de callback acima</li>
+                  <li>O token de verificação é gerado automaticamente pelo sistema</li>
+                  <li>Inscreva-se nos campos: <code className="bg-muted px-1 rounded">messages</code></li>
+                  <li>Certifique-se que o App está em modo <strong>Ao Vivo</strong></li>
+                </ol>
+              </div>
+
+              <div className="rounded-lg bg-accent/50 p-3">
+                <p className="text-xs text-muted-foreground">
+                  <strong>Nota:</strong> A Meta Cloud API não usa Evolution API nem W-API. 
+                  Os webhooks são configurados diretamente no painel do Facebook Developers 
+                  e as mensagens são processadas via Graph API.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
