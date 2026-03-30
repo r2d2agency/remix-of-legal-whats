@@ -244,6 +244,11 @@ export function ChatArea({
   const openDeals = (contactDeals || []).filter(
     (d) => (d as any)?.status && String((d as any).status).toLowerCase() === 'open'
   );
+
+  // Detect if current conversation uses Meta provider
+  const isMetaConnection = connections.some(
+    (c) => c.id === conversation?.connection_id && c.provider === 'meta'
+  );
   
   const {
     isRecording, duration, audioBlob, audioLevels,
