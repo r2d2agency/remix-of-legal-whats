@@ -1072,7 +1072,7 @@ const handleGetQRCode = async (connection: Connection) => {
                             <code className="text-xs bg-background px-2 py-1 rounded border flex-1 break-all">
                               {connection.meta_webhook_verify_token || 'Não gerado'}
                             </code>
-                            {connection.meta_webhook_verify_token && (
+                            {connection.meta_webhook_verify_token ? (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1084,12 +1084,29 @@ const handleGetQRCode = async (connection: Connection) => {
                               >
                                 <Copy className="h-3 w-3" />
                               </Button>
-                            )}
+                            ) : null}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0"
+                              title={connection.meta_webhook_verify_token ? 'Regenerar token' : 'Gerar token'}
+                              disabled={connectingMeta === connection.id}
+                              onClick={() => handleMetaConnect(connection)}
+                            >
+                              {connectingMeta === connection.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3" />
+                              )}
+                            </Button>
                           </div>
                         </div>
                       </div>
                       <p className="text-[10px] text-muted-foreground">
-                        Após configurar, clique em "Verificar e salvar" no Meta Business Suite.
+                        {!connection.meta_webhook_verify_token 
+                          ? 'Clique no ícone ↻ ao lado para gerar o token, depois configure no Meta Business Suite.'
+                          : 'Após configurar, clique em "Verificar e salvar" no Meta Business Suite.'
+                        }
                       </p>
                     </div>
                   )}
