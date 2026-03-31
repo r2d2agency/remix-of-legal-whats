@@ -169,46 +169,171 @@ app.use('/uploads', (req, res, next) => {
 // ===========================
 import { query as dbQuery } from './db.js';
 
+// In-memory buffer for Meta webhook debug
+const metaWebhookLog = [];
+const MAX_META_LOG = 500;
+const META_LOG_PREVIEW_LIMIT = 2500;
+
+function maskMetaValue(value, visibleChars = 6) {
+  const normalized = String(value || '');
+  if (!normalized) return null;
+  if (normalized.length <= visibleChars) return normalized;
+  return `${normalized.slice(0, visibleChars)}…${normalized.slice(-visibleChars)}`;
+}
+
+function toPreview(value, limit = META_LOG_PREVIEW_LIMIT) {
+  if (value == null) return null;
+
+  const serialized = typeof value === 'string'
+    ? value
+    : (() => {
+        try {
+          return JSON.stringify(value);
+        } catch {
+          return '[unserializable]';
+        }
+      })();
+
+  return serialized.length > limit ? `${serialized.slice(0, limit)}…` : serialized;
+}
+
+function getMetaRequestHeaders(req) {
+  return {
+    user_agent: req.get('user-agent') || null,
+    content_type: req.get('content-type') || null,
+    x_hub_signature_256: maskMetaValue(req.get('x-hub-signature-256'), 10),
+    x_forwarded_for: req.get('x-forwarded-for') || null,
+  };
+}
+
+function summarizeMetaPayload(body) {
+  const entries = Array.isArray(body?.entry) ? body.entry : [];
+  const changes = entries.flatMap((entry) => Array.isArray(entry?.changes) ? entry.changes : []);
+
+  return {
+    object: body?.object || null,
+    entry_count: entries.length,
+    entry_ids: entries.map((entry) => entry?.id).filter(Boolean),
+    field_names: changes.map((change) => change?.field).filter(Boolean),
+    phone_number_ids: changes.map((change) => change?.value?.metadata?.phone_number_id).filter(Boolean),
+    has_messages: changes.some((change) => (change?.value?.messages?.length || 0) > 0),
+    has_statuses: changes.some((change) => (change?.value?.statuses?.length || 0) > 0),
+    message_count: changes.reduce((total, change) => total + (change?.value?.messages?.length || 0), 0),
+    status_count: changes.reduce((total, change) => total + (change?.value?.statuses?.length || 0), 0),
+  };
+}
+
+function logMetaEvent(type, data = {}) {
+  metaWebhookLog.unshift({
+    type,
+    level: data.level || (type.includes('error') || type.includes('rejected') || type.includes('not_found') ? 'error' : 'info'),
+    connectionId: data.connection_id || data.connectionId || null,
+    requestId: data.request_id || data.requestId || null,
+    data,
+    timestamp: new Date().toISOString(),
+  });
+
+  if (metaWebhookLog.length > MAX_META_LOG) metaWebhookLog.length = MAX_META_LOG;
+}
+
 // GET: Meta webhook verification (hub.verify_token challenge)
 app.get('/api/meta/webhook', async (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
+  const verifyContext = {
+    request_id: req.requestId || null,
+    method: req.method,
+    headers: getMetaRequestHeaders(req),
+    query: {
+      mode: mode || null,
+      verify_token: maskMetaValue(token),
+      challenge_size: String(challenge || '').length,
+    },
+  };
+
+  logMetaEvent('verify_request_received', verifyContext);
 
   if (mode !== 'subscribe' || !token) {
+    logMetaEvent('verify_request_rejected', {
+      ...verifyContext,
+      reason: 'invalid_mode_or_missing_verify_token',
+      status_code: 403,
+    });
     return res.sendStatus(403);
   }
 
   try {
-    // Find a Meta connection with this verify token
     const result = await dbQuery(
       `SELECT id FROM connections WHERE provider = 'meta' AND meta_webhook_verify_token = $1 LIMIT 1`,
       [token]
     );
+
     if (result.rows.length === 0) {
+      logMetaEvent('verify_token_not_found', {
+        ...verifyContext,
+        reason: 'verify_token_not_found',
+        status_code: 403,
+      });
       console.log('[Meta Webhook] Verify token not found:', token);
       return res.sendStatus(403);
     }
+
+    logMetaEvent('verify_success', {
+      ...verifyContext,
+      connection_id: result.rows[0].id,
+      status_code: 200,
+    });
     console.log('[Meta Webhook] Verification successful for connection:', result.rows[0].id);
     return res.status(200).send(challenge);
   } catch (err) {
+    logMetaEvent('verify_error', {
+      ...verifyContext,
+      error: err.message,
+      status_code: 500,
+    });
     console.error('[Meta Webhook] Verification error:', err.message);
     return res.sendStatus(500);
   }
 });
 
-// In-memory buffer for Meta webhook debug (last 50 events)
-const metaWebhookLog = [];
-const MAX_META_LOG = 50;
-
-function logMetaEvent(type, data) {
-  metaWebhookLog.unshift({ type, data, timestamp: new Date().toISOString() });
-  if (metaWebhookLog.length > MAX_META_LOG) metaWebhookLog.length = MAX_META_LOG;
-}
-
 // GET: Meta webhook debug log
 app.get('/api/meta/webhook-log', async (req, res) => {
-  res.json({ events: metaWebhookLog });
+  const rawLimit = parseInt(req.query.limit, 10);
+  const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 200, 1), MAX_META_LOG);
+  const connectionId = typeof req.query.connectionId === 'string' && req.query.connectionId.trim()
+    ? req.query.connectionId.trim()
+    : null;
+  const includeUnassigned = req.query.includeUnassigned !== 'false';
+
+  const events = metaWebhookLog
+    .filter((entry) => {
+      if (!connectionId) return true;
+      if (entry.connectionId === connectionId) return true;
+      return includeUnassigned && !entry.connectionId;
+    })
+    .slice(0, limit);
+
+  res.json({ events });
+});
+
+app.delete('/api/meta/webhook-log', async (req, res) => {
+  const connectionId = typeof req.query.connectionId === 'string' && req.query.connectionId.trim()
+    ? req.query.connectionId.trim()
+    : null;
+  const previousLength = metaWebhookLog.length;
+
+  if (!connectionId) {
+    metaWebhookLog.length = 0;
+  } else {
+    for (let index = metaWebhookLog.length - 1; index >= 0; index -= 1) {
+      if (metaWebhookLog[index].connectionId === connectionId) {
+        metaWebhookLog.splice(index, 1);
+      }
+    }
+  }
+
+  res.json({ success: true, removed: previousLength - metaWebhookLog.length });
 });
 
 // POST: Meta webhook incoming messages
