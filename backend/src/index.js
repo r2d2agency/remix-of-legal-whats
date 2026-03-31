@@ -197,6 +197,20 @@ app.get('/api/meta/webhook', async (req, res) => {
   }
 });
 
+// In-memory buffer for Meta webhook debug (last 50 events)
+const metaWebhookLog = [];
+const MAX_META_LOG = 50;
+
+function logMetaEvent(type, data) {
+  metaWebhookLog.unshift({ type, data, timestamp: new Date().toISOString() });
+  if (metaWebhookLog.length > MAX_META_LOG) metaWebhookLog.length = MAX_META_LOG;
+}
+
+// GET: Meta webhook debug log
+app.get('/api/meta/webhook-log', async (req, res) => {
+  res.json({ events: metaWebhookLog });
+});
+
 // POST: Meta webhook incoming messages
 app.post('/api/meta/webhook', async (req, res) => {
   // Always respond 200 immediately to Meta
@@ -205,6 +219,15 @@ app.post('/api/meta/webhook', async (req, res) => {
   try {
     const body = req.body;
     
+    logMetaEvent('received', {
+      object: body?.object,
+      entry_count: body?.entry?.length,
+      entry_ids: body?.entry?.map(e => e.id),
+      has_messages: body?.entry?.some(e => e.changes?.some(c => c.value?.messages?.length > 0)),
+      has_statuses: body?.entry?.some(e => e.changes?.some(c => c.value?.statuses?.length > 0)),
+      raw_fields: body?.entry?.flatMap(e => (e.changes || []).map(c => c.field)),
+    });
+
     // Detailed logging for debugging
     console.log('[Meta Webhook] Received payload:', JSON.stringify({
       object: body?.object,
@@ -213,6 +236,7 @@ app.post('/api/meta/webhook', async (req, res) => {
     }));
 
     if (!body?.object || body.object !== 'whatsapp_business_account') {
+      logMetaEvent('ignored', { reason: 'not_whatsapp_business_account', object: body?.object });
       console.log('[Meta Webhook] Ignored: object is not whatsapp_business_account:', body?.object);
       return;
     }
@@ -279,6 +303,7 @@ app.post('/api/meta/webhook', async (req, res) => {
               [phoneNumberId, wabaId, connResult.rows[0].id]
             );
           } else {
+            logMetaEvent('connection_not_found', { phone_number_id: phoneNumberId, waba_id: wabaId, meta_connections_count: connResult.rows.length });
             console.log('[Meta Webhook] Cannot determine connection. Found', connResult.rows.length, 'meta connections. phone_number_id:', phoneNumberId, 'waba_id:', wabaId);
             continue;
           }
@@ -416,8 +441,10 @@ app.post('/api/meta/webhook', async (req, res) => {
               [conversationId]
             );
 
+            logMetaEvent('message_saved', { type: msgType, effectiveType, from: normalizedPhone, conversationId, messageId });
             console.log(`[Meta Webhook] Message saved: ${msgType} (as ${effectiveType}) from ${normalizedPhone} in conversation ${conversationId}`);
           } catch (msgErr) {
+            logMetaEvent('message_error', { error: msgErr.message, from: message?.from });
             console.error('[Meta Webhook] Error processing message:', msgErr.message);
           }
         }
