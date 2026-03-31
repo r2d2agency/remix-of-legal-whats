@@ -338,13 +338,29 @@ app.delete('/api/meta/webhook-log', async (req, res) => {
 
 // POST: Meta webhook incoming messages
 app.post('/api/meta/webhook', async (req, res) => {
+  const body = req.body;
+  const payloadSummary = summarizeMetaPayload(body);
+
+  logMetaEvent('delivery_request_received', {
+    request_id: req.requestId || null,
+    method: req.method,
+    headers: getMetaRequestHeaders(req),
+    payload_summary: payloadSummary,
+    body_preview: toPreview(body),
+  });
+
   // Always respond 200 immediately to Meta
   res.sendStatus(200);
+  logMetaEvent('delivery_acknowledged', {
+    request_id: req.requestId || null,
+    method: req.method,
+    status_code: 200,
+    payload_summary: payloadSummary,
+  });
 
   try {
-    const body = req.body;
-    
     logMetaEvent('received', {
+      request_id: req.requestId || null,
       object: body?.object,
       entry_count: body?.entry?.length,
       entry_ids: body?.entry?.map(e => e.id),
@@ -361,7 +377,11 @@ app.post('/api/meta/webhook', async (req, res) => {
     }));
 
     if (!body?.object || body.object !== 'whatsapp_business_account') {
-      logMetaEvent('ignored', { reason: 'not_whatsapp_business_account', object: body?.object });
+      logMetaEvent('ignored', {
+        request_id: req.requestId || null,
+        reason: 'not_whatsapp_business_account',
+        object: body?.object,
+      });
       console.log('[Meta Webhook] Ignored: object is not whatsapp_business_account:', body?.object);
       return;
     }
@@ -370,12 +390,38 @@ app.post('/api/meta/webhook', async (req, res) => {
       const wabaId = entry.id; // This is the WABA ID from Meta
       
       for (const change of (entry.changes || [])) {
-        if (change.field !== 'messages') continue;
+        if (change.field !== 'messages') {
+          logMetaEvent('change_ignored', {
+            request_id: req.requestId || null,
+            waba_id: wabaId,
+            field: change?.field || null,
+            reason: 'field_not_messages',
+          });
+          continue;
+        }
         const value = change.value;
-        if (!value) continue;
+        if (!value) {
+          logMetaEvent('change_ignored', {
+            request_id: req.requestId || null,
+            waba_id: wabaId,
+            field: change?.field || null,
+            reason: 'empty_change_value',
+          });
+          continue;
+        }
 
         const phoneNumberId = value.metadata?.phone_number_id;
         const displayPhone = value.metadata?.display_phone_number;
+        let connectionMatchStrategy = 'meta_phone_number_id';
+
+        logMetaEvent('change_received', {
+          request_id: req.requestId || null,
+          waba_id: wabaId,
+          phone_number_id: phoneNumberId,
+          display_phone: displayPhone,
+          message_count: value.messages?.length || 0,
+          status_count: value.statuses?.length || 0,
+        });
         
         console.log('[Meta Webhook] Processing change:', JSON.stringify({
           waba_id: wabaId,
@@ -387,6 +433,12 @@ app.post('/api/meta/webhook', async (req, res) => {
         }));
 
         if (!phoneNumberId) {
+          logMetaEvent('change_ignored', {
+            request_id: req.requestId || null,
+            waba_id: wabaId,
+            display_phone: displayPhone,
+            reason: 'missing_phone_number_id',
+          });
           console.log('[Meta Webhook] No phone_number_id in metadata, skipping');
           continue;
         }
@@ -399,6 +451,7 @@ app.post('/api/meta/webhook', async (req, res) => {
         
         // Fallback: match by WABA ID if phone_number_id doesn't match
         if (connResult.rows.length === 0 && wabaId) {
+          connectionMatchStrategy = 'meta_waba_id';
           console.log('[Meta Webhook] No match by phone_number_id, trying waba_id:', wabaId);
           connResult = await dbQuery(
             `SELECT * FROM connections WHERE provider = 'meta' AND meta_waba_id = $1 LIMIT 1`,
@@ -407,6 +460,14 @@ app.post('/api/meta/webhook', async (req, res) => {
           
           // Auto-update the phone_number_id if we found by waba_id
           if (connResult.rows.length > 0) {
+            logMetaEvent('connection_identifiers_synced', {
+              request_id: req.requestId || null,
+              connection_id: connResult.rows[0].id,
+              match_strategy: connectionMatchStrategy,
+              previous_phone_number_id: connResult.rows[0].meta_phone_number_id || null,
+              phone_number_id: phoneNumberId,
+              waba_id: wabaId,
+            });
             console.log('[Meta Webhook] Found by waba_id! Auto-updating meta_phone_number_id from', connResult.rows[0].meta_phone_number_id, 'to', phoneNumberId);
             await dbQuery(
               `UPDATE connections SET meta_phone_number_id = $1 WHERE id = $2`,
@@ -417,11 +478,20 @@ app.post('/api/meta/webhook', async (req, res) => {
 
         // Last resort: if only one meta connection exists, use it
         if (connResult.rows.length === 0) {
+          connectionMatchStrategy = 'single_meta_connection';
           console.log('[Meta Webhook] No match by phone_number_id or waba_id, trying single meta connection fallback');
           connResult = await dbQuery(
             `SELECT * FROM connections WHERE provider = 'meta' LIMIT 2`
           );
           if (connResult.rows.length === 1) {
+            logMetaEvent('connection_identifiers_synced', {
+              request_id: req.requestId || null,
+              connection_id: connResult.rows[0].id,
+              match_strategy: connectionMatchStrategy,
+              previous_phone_number_id: connResult.rows[0].meta_phone_number_id || null,
+              phone_number_id: phoneNumberId,
+              waba_id: wabaId,
+            });
             console.log('[Meta Webhook] Single meta connection found, auto-updating phone_number_id and waba_id');
             await dbQuery(
               `UPDATE connections SET meta_phone_number_id = $1, meta_waba_id = COALESCE(meta_waba_id, $2) WHERE id = $3`,
@@ -435,6 +505,14 @@ app.post('/api/meta/webhook', async (req, res) => {
         }
 
         const connection = connResult.rows[0];
+        logMetaEvent('connection_matched', {
+          request_id: req.requestId || null,
+          connection_id: connection.id,
+          match_strategy: connectionMatchStrategy,
+          phone_number_id: phoneNumberId,
+          waba_id: wabaId,
+          display_phone: displayPhone,
+        });
 
         // Process incoming messages
         for (const message of (value.messages || [])) {
@@ -566,10 +644,23 @@ app.post('/api/meta/webhook', async (req, res) => {
               [conversationId]
             );
 
-            logMetaEvent('message_saved', { type: msgType, effectiveType, from: normalizedPhone, conversationId, messageId });
+            logMetaEvent('message_saved', {
+              request_id: req.requestId || null,
+              connection_id: connection.id,
+              type: msgType,
+              effectiveType,
+              from: normalizedPhone,
+              conversationId,
+              messageId,
+            });
             console.log(`[Meta Webhook] Message saved: ${msgType} (as ${effectiveType}) from ${normalizedPhone} in conversation ${conversationId}`);
           } catch (msgErr) {
-            logMetaEvent('message_error', { error: msgErr.message, from: message?.from });
+            logMetaEvent('message_error', {
+              request_id: req.requestId || null,
+              connection_id: connection.id,
+              error: msgErr.message,
+              from: message?.from,
+            });
             console.error('[Meta Webhook] Error processing message:', msgErr.message);
           }
         }
@@ -579,6 +670,13 @@ app.post('/api/meta/webhook', async (req, res) => {
           try {
             const wamid = status.id;
             const statusValue = status.status; // sent, delivered, read, failed
+            logMetaEvent('status_received', {
+              request_id: req.requestId || null,
+              connection_id: connection.id,
+              message_id: wamid,
+              status: statusValue,
+              recipient_id: status.recipient_id || null,
+            });
             
             if (statusValue === 'read') {
               await dbQuery(
@@ -602,12 +700,24 @@ app.post('/api/meta/webhook', async (req, res) => {
               );
             }
           } catch (statusErr) {
+            logMetaEvent('status_error', {
+              request_id: req.requestId || null,
+              connection_id: connection.id,
+              error: statusErr.message,
+              status: status?.status || null,
+              message_id: status?.id || null,
+            });
             console.error('[Meta Webhook] Error processing status:', statusErr.message);
           }
         }
       }
     }
   } catch (error) {
+    logMetaEvent('delivery_processing_error', {
+      request_id: req.requestId || null,
+      error: error.message,
+      body_preview: toPreview(body),
+    });
     console.error('[Meta Webhook] General error:', error.message);
   }
 });
