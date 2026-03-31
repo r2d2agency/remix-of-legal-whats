@@ -1053,45 +1053,47 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
                 </div>
               </div>
             ) : (
-              <div className="mb-3 rounded-lg border border-border bg-accent/40 p-3 text-xs text-muted-foreground">
-                Aqui você valida tudo: tentativa de verificação, challenge, entrega POST, ACK 200, match da conexão, mensagens/status recebidos e erros de parsing/processamento.
-              </div>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {metaEvents.map((evt, i) => (
-                  <div key={i} className="text-xs border rounded-lg p-2 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={getMetaEventBadgeVariant(evt.type, evt.level)} className="text-[10px]">
-                          {evt.type}
-                        </Badge>
-                        {evt.requestId ? (
-                          <Badge variant="secondary" className="text-[10px] font-mono">
-                            req {evt.requestId.slice(0, 8)}
+              <>
+                <div className="mb-3 rounded-lg border border-border bg-accent/40 p-3 text-xs text-muted-foreground">
+                  Aqui você valida tudo: tentativa de verificação, challenge, entrega POST, ACK 200, match da conexão, mensagens/status recebidos e erros de parsing/processamento.
+                </div>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {metaEvents.map((evt, i) => (
+                    <div key={i} className="text-xs border rounded-lg p-2 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={getMetaEventBadgeVariant(evt.type, evt.level)} className="text-[10px]">
+                            {evt.type}
                           </Badge>
+                          {evt.requestId ? (
+                            <Badge variant="secondary" className="text-[10px] font-mono">
+                              req {evt.requestId.slice(0, 8)}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <span className="text-muted-foreground text-[10px]">
+                          {new Date(evt.timestamp).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                        {evt.connectionId ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono">
+                            conexão {evt.connectionId.slice(0, 8)}
+                          </span>
+                        ) : null}
+                        {evt.level === "error" ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+                            <Bug className="h-3 w-3" /> erro
+                          </span>
                         ) : null}
                       </div>
-                      <span className="text-muted-foreground text-[10px]">
-                        {new Date(evt.timestamp).toLocaleString('pt-BR')}
-                      </span>
+                      <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap break-all bg-muted/50 rounded p-2">
+                        {JSON.stringify(evt.data, null, 2)}
+                      </pre>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-                      {evt.connectionId ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono">
-                          conexão {evt.connectionId.slice(0, 8)}
-                        </span>
-                      ) : null}
-                      {evt.level === "error" ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
-                          <Bug className="h-3 w-3" /> erro
-                        </span>
-                      ) : null}
-                    </div>
-                    <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap break-all bg-muted/50 rounded p-2">
-                      {JSON.stringify(evt.data, null, 2)}
-                    </pre>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
