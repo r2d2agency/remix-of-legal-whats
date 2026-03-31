@@ -180,6 +180,10 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const [endpointDiscovery, setEndpointDiscovery] = useState<EndpointDiscoveryEntry[]>([]);
   const [endpointDiscoveryLoading, setEndpointDiscoveryLoading] = useState(false);
 
+  // Meta webhook events log
+  const [metaEvents, setMetaEvents] = useState<Array<{ type: string; data: any; timestamp: string }>>([]);
+  const [metaEventsLoading, setMetaEventsLoading] = useState(false);
+
   const fetchDiagnostic = useCallback(async () => {
     setLoading(true);
     try {
