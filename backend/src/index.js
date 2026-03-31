@@ -204,25 +204,84 @@ app.post('/api/meta/webhook', async (req, res) => {
 
   try {
     const body = req.body;
-    if (!body?.object || body.object !== 'whatsapp_business_account') return;
+    
+    // Detailed logging for debugging
+    console.log('[Meta Webhook] Received payload:', JSON.stringify({
+      object: body?.object,
+      entry_count: body?.entry?.length,
+      entry_ids: body?.entry?.map(e => e.id),
+    }));
+
+    if (!body?.object || body.object !== 'whatsapp_business_account') {
+      console.log('[Meta Webhook] Ignored: object is not whatsapp_business_account:', body?.object);
+      return;
+    }
 
     for (const entry of (body.entry || [])) {
+      const wabaId = entry.id; // This is the WABA ID from Meta
+      
       for (const change of (entry.changes || [])) {
         if (change.field !== 'messages') continue;
         const value = change.value;
         if (!value) continue;
 
         const phoneNumberId = value.metadata?.phone_number_id;
-        if (!phoneNumberId) continue;
+        const displayPhone = value.metadata?.display_phone_number;
+        
+        console.log('[Meta Webhook] Processing change:', JSON.stringify({
+          waba_id: wabaId,
+          phone_number_id: phoneNumberId,
+          display_phone: displayPhone,
+          messages_count: value.messages?.length || 0,
+          statuses_count: value.statuses?.length || 0,
+          contacts: value.contacts?.map(c => ({ name: c.profile?.name, wa_id: c.wa_id })),
+        }));
 
-        // Find the connection for this phone number ID
-        const connResult = await dbQuery(
+        if (!phoneNumberId) {
+          console.log('[Meta Webhook] No phone_number_id in metadata, skipping');
+          continue;
+        }
+
+        // Find the connection - try by phone_number_id first, then fallback to waba_id
+        let connResult = await dbQuery(
           `SELECT * FROM connections WHERE provider = 'meta' AND meta_phone_number_id = $1 LIMIT 1`,
           [phoneNumberId]
         );
+        
+        // Fallback: match by WABA ID if phone_number_id doesn't match
+        if (connResult.rows.length === 0 && wabaId) {
+          console.log('[Meta Webhook] No match by phone_number_id, trying waba_id:', wabaId);
+          connResult = await dbQuery(
+            `SELECT * FROM connections WHERE provider = 'meta' AND meta_waba_id = $1 LIMIT 1`,
+            [wabaId]
+          );
+          
+          // Auto-update the phone_number_id if we found by waba_id
+          if (connResult.rows.length > 0) {
+            console.log('[Meta Webhook] Found by waba_id! Auto-updating meta_phone_number_id from', connResult.rows[0].meta_phone_number_id, 'to', phoneNumberId);
+            await dbQuery(
+              `UPDATE connections SET meta_phone_number_id = $1 WHERE id = $2`,
+              [phoneNumberId, connResult.rows[0].id]
+            );
+          }
+        }
+
+        // Last resort: if only one meta connection exists, use it
         if (connResult.rows.length === 0) {
-          console.log('[Meta Webhook] No connection found for phone_number_id:', phoneNumberId);
-          continue;
+          console.log('[Meta Webhook] No match by phone_number_id or waba_id, trying single meta connection fallback');
+          connResult = await dbQuery(
+            `SELECT * FROM connections WHERE provider = 'meta' LIMIT 2`
+          );
+          if (connResult.rows.length === 1) {
+            console.log('[Meta Webhook] Single meta connection found, auto-updating phone_number_id and waba_id');
+            await dbQuery(
+              `UPDATE connections SET meta_phone_number_id = $1, meta_waba_id = COALESCE(meta_waba_id, $2) WHERE id = $3`,
+              [phoneNumberId, wabaId, connResult.rows[0].id]
+            );
+          } else {
+            console.log('[Meta Webhook] Cannot determine connection. Found', connResult.rows.length, 'meta connections. phone_number_id:', phoneNumberId, 'waba_id:', wabaId);
+            continue;
+          }
         }
 
         const connection = connResult.rows[0];
