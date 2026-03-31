@@ -23,6 +23,7 @@ import {
   Copy,
   Play,
   Radio,
+  Bug,
 } from "lucide-react";
 
 interface Connection {
@@ -181,7 +182,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const [endpointDiscoveryLoading, setEndpointDiscoveryLoading] = useState(false);
 
   // Meta webhook events log
-  const [metaEvents, setMetaEvents] = useState<Array<{ type: string; data: any; timestamp: string }>>([]);
+  const [metaEvents, setMetaEvents] = useState<Array<{ type: string; data: any; timestamp: string; level?: string; connectionId?: string | null; requestId?: string | null }>>([]);
   const [metaEventsLoading, setMetaEventsLoading] = useState(false);
 
   const fetchDiagnostic = useCallback(async () => {
@@ -421,14 +422,36 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const fetchMetaEvents = useCallback(async () => {
     setMetaEventsLoading(true);
     try {
-      const result = await api<{ events: Array<{ type: string; data: any; timestamp: string }> }>(`/api/meta/webhook-log`);
+      const result = await api<{ events: Array<{ type: string; data: any; timestamp: string; level?: string; connectionId?: string | null; requestId?: string | null }> }>(`/api/meta/webhook-log?connectionId=${connection.id}&limit=200`);
       setMetaEvents(result.events || []);
     } catch {
       // ignore
     } finally {
       setMetaEventsLoading(false);
     }
-  }, []);
+  }, [connection.id]);
+
+  const handleClearMetaEvents = async () => {
+    try {
+      await api(`/api/meta/webhook-log?connectionId=${connection.id}`, { method: "DELETE" });
+      setMetaEvents([]);
+      toast.success("Logs Meta limpos");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao limpar logs Meta");
+    }
+  };
+
+  const getMetaEventBadgeVariant = (eventType: string, level?: string) => {
+    if (level === "error" || eventType.includes("error") || eventType.includes("rejected") || eventType.includes("not_found")) {
+      return "destructive" as const;
+    }
+
+    if (eventType.includes("success") || eventType.includes("saved") || eventType.includes("matched") || eventType.includes("acknowledged")) {
+      return "default" as const;
+    }
+
+    return "outline" as const;
+  };
 
   useEffect(() => {
     fetchDiagnostic();
@@ -1001,12 +1024,18 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Activity className="h-4 w-4" />
-                Eventos do Webhook Meta (últimos 50)
+                Eventos do Webhook Meta
               </CardTitle>
-              <Button variant="outline" size="sm" onClick={fetchMetaEvents} disabled={metaEventsLoading}>
-                <RefreshCw className={`h-3 w-3 mr-1 ${metaEventsLoading ? "animate-spin" : ""}`} />
-                Atualizar
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={fetchMetaEvents} disabled={metaEventsLoading}>
+                  <RefreshCw className={`h-3 w-3 mr-1 ${metaEventsLoading ? "animate-spin" : ""}`} />
+                  Atualizar
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleClearMetaEvents}>
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Limpar
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -1024,18 +1053,40 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
                 </div>
               </div>
             ) : (
-              <div className="space-y-2 max-h-80 overflow-y-auto">
+              <div className="mb-3 rounded-lg border border-border bg-accent/40 p-3 text-xs text-muted-foreground">
+                Aqui você valida tudo: tentativa de verificação, challenge, entrega POST, ACK 200, match da conexão, mensagens/status recebidos e erros de parsing/processamento.
+              </div>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
                 {metaEvents.map((evt, i) => (
                   <div key={i} className="text-xs border rounded-lg p-2 space-y-1">
                     <div className="flex items-center justify-between">
-                      <Badge variant={evt.type === 'message_saved' ? 'default' : evt.type === 'message_error' || evt.type === 'connection_not_found' ? 'destructive' : 'outline'} className="text-[10px]">
-                        {evt.type}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getMetaEventBadgeVariant(evt.type, evt.level)} className="text-[10px]">
+                          {evt.type}
+                        </Badge>
+                        {evt.requestId ? (
+                          <Badge variant="secondary" className="text-[10px] font-mono">
+                            req {evt.requestId.slice(0, 8)}
+                          </Badge>
+                        ) : null}
+                      </div>
                       <span className="text-muted-foreground text-[10px]">
                         {new Date(evt.timestamp).toLocaleString('pt-BR')}
                       </span>
                     </div>
-                    <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap break-all bg-muted/50 rounded p-1">
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                      {evt.connectionId ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono">
+                          conexão {evt.connectionId.slice(0, 8)}
+                        </span>
+                      ) : null}
+                      {evt.level === "error" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+                          <Bug className="h-3 w-3" /> erro
+                        </span>
+                      ) : null}
+                    </div>
+                    <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap break-all bg-muted/50 rounded p-2">
                       {JSON.stringify(evt.data, null, 2)}
                     </pre>
                   </div>
