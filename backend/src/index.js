@@ -440,8 +440,10 @@ app.post('/api/meta/webhook', async (req, res) => {
               [conversationId]
             );
 
+            logMetaEvent('message_saved', { type: msgType, effectiveType, from: normalizedPhone, conversationId, messageId });
             console.log(`[Meta Webhook] Message saved: ${msgType} (as ${effectiveType}) from ${normalizedPhone} in conversation ${conversationId}`);
           } catch (msgErr) {
+            logMetaEvent('message_error', { error: msgErr.message, from: message?.from });
             console.error('[Meta Webhook] Error processing message:', msgErr.message);
           }
         }
