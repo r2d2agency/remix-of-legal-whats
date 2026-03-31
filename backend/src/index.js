@@ -197,6 +197,20 @@ app.get('/api/meta/webhook', async (req, res) => {
   }
 });
 
+// In-memory buffer for Meta webhook debug (last 50 events)
+const metaWebhookLog = [];
+const MAX_META_LOG = 50;
+
+function logMetaEvent(type, data) {
+  metaWebhookLog.unshift({ type, data, timestamp: new Date().toISOString() });
+  if (metaWebhookLog.length > MAX_META_LOG) metaWebhookLog.length = MAX_META_LOG;
+}
+
+// GET: Meta webhook debug log
+app.get('/api/meta/webhook-log', async (req, res) => {
+  res.json({ events: metaWebhookLog });
+});
+
 // POST: Meta webhook incoming messages
 app.post('/api/meta/webhook', async (req, res) => {
   // Always respond 200 immediately to Meta
