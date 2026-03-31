@@ -303,6 +303,7 @@ app.post('/api/meta/webhook', async (req, res) => {
               [phoneNumberId, wabaId, connResult.rows[0].id]
             );
           } else {
+            logMetaEvent('connection_not_found', { phone_number_id: phoneNumberId, waba_id: wabaId, meta_connections_count: connResult.rows.length });
             console.log('[Meta Webhook] Cannot determine connection. Found', connResult.rows.length, 'meta connections. phone_number_id:', phoneNumberId, 'waba_id:', wabaId);
             continue;
           }
