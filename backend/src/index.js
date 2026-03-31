@@ -784,6 +784,17 @@ app.get('/api/debug/google-config', (req, res) => {
 
 // Global error handler with CORS headers
 app.use((err, req, res, next) => {
+  if (req.originalUrl?.startsWith('/api/meta/webhook')) {
+    logMetaEvent('delivery_parse_error', {
+      request_id: req.requestId || null,
+      method: req.method,
+      headers: getMetaRequestHeaders(req),
+      status_code: err?.status || 500,
+      error: err?.message || 'Unknown Meta webhook error',
+      body_preview: toPreview(req.body),
+    });
+  }
+
   logError('http.unhandled_error', err, {
     status_code: err?.status || 500,
   });
