@@ -1691,7 +1691,7 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     const { content, message_type = 'text', media_url, media_mimetype, quoted_message_id } = req.body;
     const connectionIds = await getUserConnections(req.userId);
 
-    // Get conversation with connection details (including W-API fields)
+    // Get conversation with connection details (including W-API and Meta fields)
     const convResult = await query(
       `SELECT 
         conv.*,
@@ -1701,6 +1701,9 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
         conn.provider,
         conn.instance_id,
         conn.wapi_token,
+        conn.meta_token,
+        conn.meta_phone_number_id,
+        conn.meta_waba_id,
         conn.status as connection_status
       FROM conversations conv
       JOIN connections conn ON conn.id = conv.connection_id
