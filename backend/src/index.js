@@ -219,6 +219,15 @@ app.post('/api/meta/webhook', async (req, res) => {
   try {
     const body = req.body;
     
+    logMetaEvent('received', {
+      object: body?.object,
+      entry_count: body?.entry?.length,
+      entry_ids: body?.entry?.map(e => e.id),
+      has_messages: body?.entry?.some(e => e.changes?.some(c => c.value?.messages?.length > 0)),
+      has_statuses: body?.entry?.some(e => e.changes?.some(c => c.value?.statuses?.length > 0)),
+      raw_fields: body?.entry?.flatMap(e => (e.changes || []).map(c => c.field)),
+    });
+
     // Detailed logging for debugging
     console.log('[Meta Webhook] Received payload:', JSON.stringify({
       object: body?.object,
@@ -227,6 +236,7 @@ app.post('/api/meta/webhook', async (req, res) => {
     }));
 
     if (!body?.object || body.object !== 'whatsapp_business_account') {
+      logMetaEvent('ignored', { reason: 'not_whatsapp_business_account', object: body?.object });
       console.log('[Meta Webhook] Ignored: object is not whatsapp_business_account:', body?.object);
       return;
     }
