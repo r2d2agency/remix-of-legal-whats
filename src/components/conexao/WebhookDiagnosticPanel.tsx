@@ -994,6 +994,56 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Meta Webhook Events Log */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Eventos do Webhook Meta (últimos 50)
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={fetchMetaEvents} disabled={metaEventsLoading}>
+                <RefreshCw className={`h-3 w-3 mr-1 ${metaEventsLoading ? "animate-spin" : ""}`} />
+                Atualizar
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {metaEvents.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground text-sm">
+                <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>Nenhum evento recebido.</p>
+                <p className="text-xs mt-1">Se você enviou uma mensagem de teste e nada apareceu aqui, o webhook da Meta não está enviando eventos para este servidor.</p>
+                <div className="mt-3 text-xs text-left bg-accent/50 rounded-lg p-3 space-y-1">
+                  <p className="font-medium">Verifique:</p>
+                  <p>1. O App está em modo <strong>Ao Vivo</strong> (Live)</p>
+                  <p>2. O campo <strong>messages</strong> está inscrito no webhook</p>
+                  <p>3. A URL de callback está correta e acessível</p>
+                  <p>4. O Verify Token corresponde ao gerado no sistema</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {metaEvents.map((evt, i) => (
+                  <div key={i} className="text-xs border rounded-lg p-2 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Badge variant={evt.type === 'message_saved' ? 'default' : evt.type === 'message_error' || evt.type === 'connection_not_found' ? 'destructive' : 'outline'} className="text-[10px]">
+                        {evt.type}
+                      </Badge>
+                      <span className="text-muted-foreground text-[10px]">
+                        {new Date(evt.timestamp).toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+                    <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap break-all bg-muted/50 rounded p-1">
+                      {JSON.stringify(evt.data, null, 2)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     );
   }
