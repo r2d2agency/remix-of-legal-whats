@@ -328,7 +328,7 @@ async function processMessageInternal({
     const userId = agent.default_user_id || agent.created_by;
 
     if (tools.length > 0) {
-      const toolExecutor = createToolExecutor(organizationId, userId);
+      const toolExecutor = createToolExecutor(organizationId, userId, agent);
       result = await callAIWithTools(aiConfig, messages, {
         temperature: parseFloat(agent.temperature) || 0.7,
         maxTokens: parseInt(agent.max_tokens, 10) || 1000,
@@ -963,6 +963,13 @@ async function buildToolsForAgent(agent, capabilities, organizationId) {
     tools.push(buildGenerateContentTool());
   }
 
+  if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
+    tools.push(buildAppBarberServicesTool());
+    tools.push(buildAppBarberAvailabilityTool());
+    tools.push(buildAppBarberAppointmentTool());
+    tools.push(buildAppBarberHistoryTool());
+  }
+
   if (capabilities.includes('call_agent')) {
     const callConfig = typeof agent.call_agent_config === 'string'
       ? JSON.parse(agent.call_agent_config || '{}')
@@ -1182,9 +1189,193 @@ function buildCallAgentTool(availableAgents) {
   };
 }
 
-// ==================== TOOL EXECUTOR ====================
+// ==================== APPBARBER TOOLS ====================
 
-function createToolExecutor(organizationId, userId) {
+function buildAppBarberServicesTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_services',
+      description: 'Lista os serviços disponíveis para agendamento na barbearia/salão (ex: corte, barba, etc). Use para informar o cliente sobre opções, preços e durações.',
+      parameters: {
+        type: 'object',
+        properties: {
+          professional_code: { type: 'integer', description: 'Código do profissional para filtrar serviços (opcional)' },
+          service_code: { type: 'integer', description: 'Código de um serviço específico (opcional)' },
+        },
+        required: [],
+      },
+    },
+  };
+}
+
+function buildAppBarberAvailabilityTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_availability',
+      description: 'Consulta horários disponíveis para agendamento em uma data específica. Retorna profissionais e seus horários livres. Use para oferecer opções de horários ao cliente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: { type: 'string', description: 'Data para consultar disponibilidade no formato YYYY-MM-DD (ex: 2025-01-15)' },
+          service_code: { type: 'integer', description: 'Código do serviço desejado (opcional, obtido via appbarber_services)' },
+          combo_code: { type: 'integer', description: 'Código do combo de serviços (opcional)' },
+        },
+        required: ['start_date'],
+      },
+    },
+  };
+}
+
+function buildAppBarberAppointmentTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_appointment',
+      description: 'Cria um agendamento para o cliente na barbearia/salão. Requer nome, telefone, data/hora, profissional e serviço. Use após confirmar disponibilidade com o cliente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          customer_name: { type: 'string', description: 'Nome do cliente' },
+          customer_phone: { type: 'string', description: 'Telefone do cliente com DDD (ex: 5511999998888)' },
+          start_date: { type: 'string', description: 'Data e hora do agendamento no formato "YYYY-MM-DD HH:mm" (ex: "2025-01-20 14:30")' },
+          professional_code: { type: 'integer', description: 'Código do profissional escolhido' },
+          service_code: { type: 'integer', description: 'Código do serviço' },
+          duration: { type: 'integer', description: 'Duração do serviço em minutos' },
+          observation: { type: 'string', description: 'Observação sobre o agendamento (opcional)' },
+        },
+        required: ['customer_name', 'customer_phone', 'start_date', 'professional_code', 'service_code', 'duration'],
+      },
+    },
+  };
+}
+
+function buildAppBarberHistoryTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_history',
+      description: 'Consulta histórico de agendamentos do estabelecimento em um período. Use para verificar agendamentos passados ou futuros de um cliente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: { type: 'string', description: 'Data inicial (formato YYYY-MM-DD)' },
+          end_date: { type: 'string', description: 'Data final (formato YYYY-MM-DD, máximo 31 dias após start_date)' },
+          status_type: { type: 'integer', description: 'Status: 1=Agendado, 2=Realizado, 3=Cancelado, 4=Bloqueado, 5=Ausente' },
+        },
+        required: ['start_date', 'end_date'],
+      },
+    },
+  };
+}
+
+async function executeAppBarberToolDirect(toolName, args, agent) {
+  try {
+    const appbarber_api_key = agent.appbarber_api_key;
+    const appbarber_establishment_code = agent.appbarber_establishment_code;
+
+    if (!appbarber_api_key || !appbarber_establishment_code) {
+      return 'Erro: Credenciais do AppBarber não configuradas no agente.';
+    }
+
+    const baseUrl = 'https://api.appbarber.com';
+    const headers = { 'X-API-Key': appbarber_api_key, 'Content-Type': 'application/json' };
+
+    switch (toolName) {
+      case 'appbarber_services': {
+        const params = new URLSearchParams({
+          establishment_code: appbarber_establishment_code,
+          type: '1',
+        });
+        if (args.professional_code) params.set('professional_code', String(args.professional_code));
+        if (args.service_code) params.set('service_code', String(args.service_code));
+
+        const resp = await fetch(`${baseUrl}/v1/services?${params}`, { headers });
+        const data = await resp.json();
+        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
+        
+        const services = (data.data || []).map(s => 
+          `• ${s.service_description} (código: ${s.service_code}) - R$ ${s.service_value} - ${s.service_interval} min`
+        ).join('\n');
+        return services || 'Nenhum serviço encontrado.';
+      }
+
+      case 'appbarber_availability': {
+        const params = new URLSearchParams({
+          establishment_code: appbarber_establishment_code,
+          start_date: args.start_date,
+        });
+        if (args.service_code) params.set('service_code', String(args.service_code));
+        if (args.combo_code) params.set('combo_code', String(args.combo_code));
+
+        const resp = await fetch(`${baseUrl}/v1/availability?${params}`, { headers });
+        const data = await resp.json();
+        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
+
+        const availability = (data.data || []).map(p => {
+          const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).join(', ');
+          return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}):\n   Horários: ${slots || 'Sem horários disponíveis'}`;
+        }).join('\n\n');
+        return availability || 'Nenhum horário disponível para esta data.';
+      }
+
+      case 'appbarber_appointment': {
+        const body = {
+          customer_phone: args.customer_phone,
+          customer_name: args.customer_name,
+          establishment_code: parseInt(appbarber_establishment_code),
+          start_date: args.start_date,
+          observation: args.observation || '',
+          professionals: [{ professional_code: args.professional_code }],
+          services: [{ service_code: args.service_code, duration: args.duration }],
+        };
+
+        const resp = await fetch(`${baseUrl}/v1/appointments`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!resp.ok || (data.data && data.data.error !== 0)) {
+          return `Erro ao agendar: ${data.data?.result || data.error || 'Erro desconhecido'}`;
+        }
+
+        const code = data.data?.appointment_code;
+        return `✅ Agendamento criado com sucesso! Código: ${code || 'N/A'}. Cliente: ${args.customer_name}, Data: ${args.start_date}.`;
+      }
+
+      case 'appbarber_history': {
+        const params = new URLSearchParams({
+          establishment_code: appbarber_establishment_code,
+          type: '1',
+          start_date: args.start_date,
+          end_date: args.end_date,
+        });
+        if (args.status_type) params.set('status_type', String(args.status_type));
+
+        const resp = await fetch(`${baseUrl}/v1/appointments/history?${params}`, { headers });
+        const data = await resp.json();
+        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
+
+        const history = (data.data || []).map(a => 
+          `• ${a.client_name} - ${a.service_description} com ${a.employee_name} - ${a.scheduling_start} - Status: ${a.scheduling_status}`
+        ).join('\n');
+        return history || 'Nenhum agendamento encontrado no período.';
+      }
+
+      default:
+        return 'Ferramenta AppBarber desconhecida';
+    }
+  } catch (error) {
+    logError('ai_agent_processor.appbarber_tool_error', error);
+    return `Erro na integração AppBarber: ${error.message}`;
+  }
+}
+
+
+
+function createToolExecutor(organizationId, userId, agent) {
   return async (toolName, args) => {
     switch (toolName) {
       case 'create_deal':
@@ -1205,6 +1396,11 @@ function createToolExecutor(organizationId, userId) {
         return executeGenerateContent(args);
       case 'consult_specialist_agent':
         return executeCallAgent(organizationId, args.agent_name, args.question);
+      case 'appbarber_services':
+      case 'appbarber_availability':
+      case 'appbarber_appointment':
+      case 'appbarber_history':
+        return executeAppBarberToolDirect(toolName, args, agent);
       default:
         return 'Ferramenta desconhecida';
     }
@@ -1729,7 +1925,7 @@ O histórico completo da conversa está abaixo. Você DEVE:
     const startTime = Date.now();
 
     if (tools.length > 0) {
-      const toolExecutor = createToolExecutor(organizationId, userId);
+      const toolExecutor = createToolExecutor(organizationId, userId, agent);
       result = await callAIWithTools(aiConfig, messages, {
         temperature: parseFloat(agent.temperature) || 0.7,
         maxTokens: parseInt(agent.max_tokens, 10) || 1000,

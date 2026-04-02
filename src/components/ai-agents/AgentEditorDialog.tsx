@@ -24,7 +24,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Bot, Brain, MessageSquare, Settings, Zap, Shield,
-  Sparkles, X, Plus, Save, Loader2, Phone, BellRing, CalendarDays
+  Sparkles, X, Plus, Save, Loader2, Phone, BellRing, CalendarDays, Scissors
 } from 'lucide-react';
 import { useAIAgents, AIAgent, AgentCapability, AIModels, CallAgentConfig, CallAgentRule } from '@/hooks/use-ai-agents';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,6 +53,7 @@ const ALL_CAPABILITIES: { id: AgentCapability; label: string; description: strin
   { id: 'summarize_history', label: 'Resumir Histórico', description: 'Resume interações anteriores com o cliente' },
   { id: 'qualify_leads', label: 'Qualificar Leads', description: 'Scoring automático baseado em dados' },
   { id: 'call_agent', label: 'Chamar Outro Agente', description: 'Consulta outro agente especialista para informações' },
+  { id: 'appbarber', label: 'AppBarber (Agendamento)', description: 'Integra com AppBarber para consultar serviços, horários e agendar clientes' },
 ];
 
 const DEFAULT_SYSTEM_PROMPT = `Você é um assistente virtual profissional e prestativo. Seu objetivo é ajudar os clientes de forma clara, objetiva e amigável.
@@ -136,6 +137,8 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     notify_external_phone: '',
     notify_external_summary: true,
     default_user_id: '' as string,
+    appbarber_api_key: '',
+    appbarber_establishment_code: '',
   });
 
   const { createAgent, updateAgent, getAIModels, getAgents } = useAIAgents();
@@ -178,6 +181,8 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           notify_external_phone: (agent as any).notify_external_phone || '',
           notify_external_summary: (agent as any).notify_external_summary !== false,
           default_user_id: (agent as any).default_user_id || '',
+          appbarber_api_key: '',
+          appbarber_establishment_code: (agent as any).appbarber_establishment_code || '',
         });
       } else {
         setFormData({
@@ -208,6 +213,8 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           notify_external_phone: '',
           notify_external_summary: true,
           default_user_id: '',
+          appbarber_api_key: '',
+          appbarber_establishment_code: '',
         });
       }
     }
@@ -599,7 +606,46 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                   </div>
                 )}
 
-                {/* Call Agent Configuration */}
+                {/* AppBarber Configuration */}
+                {formData.capabilities.includes('appbarber') && (
+                  <div className="mt-4 space-y-3 border-t pt-4">
+                    <div className="flex items-center gap-2">
+                      <Scissors className="h-4 w-4 text-primary" />
+                      <h4 className="font-medium text-sm">Integração AppBarber</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Configure as credenciais do AppBarber para que a IA possa consultar serviços, horários e criar agendamentos automaticamente.
+                    </p>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs">API Key</Label>
+                        <Input
+                          type="password"
+                          value={formData.appbarber_api_key}
+                          onChange={(e) => setFormData(prev => ({ ...prev, appbarber_api_key: e.target.value }))}
+                          placeholder="Ex: ec03cbd6-0c41-4a0e-..."
+                          className="text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Código do Estabelecimento</Label>
+                        <Input
+                          value={formData.appbarber_establishment_code}
+                          onChange={(e) => setFormData(prev => ({ ...prev, appbarber_establishment_code: e.target.value }))}
+                          placeholder="Ex: 21951279"
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                    {(!formData.appbarber_api_key && !formData.appbarber_establishment_code) && (
+                      <p className="text-xs text-amber-500">
+                        ⚠️ Preencha a API Key e o código do estabelecimento para ativar a integração.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+
                 {formData.capabilities.includes('call_agent') && (
                   <div className="mt-4 space-y-3 border-t pt-4">
                     <div className="flex items-center gap-2">

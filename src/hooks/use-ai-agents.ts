@@ -73,7 +73,8 @@ export type AgentCapability =
   | 'summarize_history'
   | 'qualify_leads'
   | 'call_agent'
-  | 'transcribe_audio';
+  | 'transcribe_audio'
+  | 'appbarber';
 
 export interface CallAgentRule {
   agent_id: string;
@@ -119,6 +120,8 @@ export interface AIAgent {
   default_user_id: string | null;
   lead_scoring_criteria: Record<string, unknown>;
   call_agent_config: CallAgentConfig;
+  appbarber_api_key: string | null;
+  appbarber_establishment_code: string | null;
   auto_create_deal_funnel_id: string | null;
   auto_create_deal_stage_id: string | null;
   total_conversations: number;
