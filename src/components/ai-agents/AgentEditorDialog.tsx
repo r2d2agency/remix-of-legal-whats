@@ -24,7 +24,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Bot, Brain, MessageSquare, Settings, Zap, Shield,
-  Sparkles, X, Plus, Save, Loader2, Phone, BellRing, CalendarDays
+  Sparkles, X, Plus, Save, Loader2, Phone, BellRing, CalendarDays, Scissors
 } from 'lucide-react';
 import { useAIAgents, AIAgent, AgentCapability, AIModels, CallAgentConfig, CallAgentRule } from '@/hooks/use-ai-agents';
 import { useAuth } from '@/contexts/AuthContext';
