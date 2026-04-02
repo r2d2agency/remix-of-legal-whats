@@ -853,8 +853,8 @@ router.post('/:connectionId/sync-conversations/batch', authenticate, async (req,
         const isGroup = remoteJid.includes('@g.us');
 
         const convResult = await query(
-          `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, last_message_at, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())
+          `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, last_message_at, created_at, updated_at, attendance_status)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW(), 'waiting')
            ON CONFLICT (connection_id, remote_jid) DO UPDATE SET
              contact_name = COALESCE(EXCLUDED.contact_name, conversations.contact_name), updated_at = NOW()
            RETURNING id, (xmax = 0) as is_new`,
