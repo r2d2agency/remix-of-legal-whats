@@ -941,3 +941,235 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     </Dialog>
   );
 }
+
+// ==================== APPBARBER CONFIG SECTION ====================
+
+function AppBarberConfigSection({ agentId, formData, setFormData }: {
+  agentId: string | null;
+  formData: any;
+  setFormData: React.Dispatch<React.SetStateAction<any>>;
+}) {
+  const { getAppBarberServices, saveAppBarberService, deleteAppBarberService, syncAppBarberServices } = useAIAgents();
+  const [services, setServices] = useState<AppBarberService[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [newService, setNewService] = useState({ service_code: '', service_description: '', service_value: '', service_interval: '30' });
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  const loadServices = useCallback(async () => {
+    if (!agentId) return;
+    const data = await getAppBarberServices(agentId);
+    setServices(data);
+  }, [agentId, getAppBarberServices]);
+
+  useEffect(() => {
+    loadServices();
+  }, [loadServices]);
+
+  const handleSync = async () => {
+    if (!agentId) return;
+    setSyncing(true);
+    const result = await syncAppBarberServices(agentId);
+    if (result) {
+      toast.success(`${result.imported} serviços importados da API`);
+      loadServices();
+    } else {
+      toast.error('Erro ao sincronizar. Verifique as credenciais.');
+    }
+    setSyncing(false);
+  };
+
+  const handleAddService = async () => {
+    if (!agentId || !newService.service_code || !newService.service_description) return;
+    const saved = await saveAppBarberService(agentId, {
+      service_code: parseInt(newService.service_code),
+      service_description: newService.service_description,
+      service_value: parseFloat(newService.service_value) || 0,
+      service_interval: parseInt(newService.service_interval) || 30,
+    });
+    if (saved) {
+      toast.success('Serviço adicionado');
+      setNewService({ service_code: '', service_description: '', service_value: '', service_interval: '30' });
+      setShowAddForm(false);
+      loadServices();
+    }
+  };
+
+  const handleDelete = async (serviceId: string) => {
+    if (!agentId) return;
+    await deleteAppBarberService(agentId, serviceId);
+    toast.success('Serviço removido');
+    loadServices();
+  };
+
+  const handleToggle = async (service: AppBarberService) => {
+    if (!agentId) return;
+    await saveAppBarberService(agentId, {
+      service_code: service.service_code,
+      service_description: service.service_description,
+      service_value: service.service_value,
+      service_interval: service.service_interval,
+      is_active: !service.is_active,
+    });
+    loadServices();
+  };
+
+  return (
+    <div className="mt-4 space-y-3 border-t pt-4">
+      <div className="flex items-center gap-2">
+        <Scissors className="h-4 w-4 text-primary" />
+        <h4 className="font-medium text-sm">Integração AppBarber</h4>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Configure as credenciais e gerencie os serviços localmente para reduzir chamadas à API.
+      </p>
+
+      {/* Credentials */}
+      <div className="space-y-3">
+        <div>
+          <Label className="text-xs">API Key</Label>
+          <Input
+            type="password"
+            value={formData.appbarber_api_key}
+            onChange={(e) => setFormData((prev: any) => ({ ...prev, appbarber_api_key: e.target.value }))}
+            placeholder="Ex: ec03cbd6-0c41-4a0e-..."
+            className="text-sm"
+          />
+        </div>
+        <div>
+          <Label className="text-xs">Código do Estabelecimento</Label>
+          <Input
+            value={formData.appbarber_establishment_code}
+            onChange={(e) => setFormData((prev: any) => ({ ...prev, appbarber_establishment_code: e.target.value }))}
+            placeholder="Ex: 21951279"
+            className="text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Services Management */}
+      {agentId && (
+        <div className="space-y-3 border-t pt-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-primary" />
+              <h4 className="font-medium text-sm">Serviços Cadastrados</h4>
+              <Badge variant="secondary" className="text-xs">{services.length}</Badge>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="text-xs h-7">
+                <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+                Sincronizar da API
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowAddForm(!showAddForm)} className="text-xs h-7">
+                <Plus className="h-3 w-3 mr-1" />
+                Adicionar
+              </Button>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            💡 Serviços são consultados localmente (sem custo). Apenas disponibilidade e agendamento usam a API.
+          </p>
+
+          {/* Add form */}
+          {showAddForm && (
+            <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Código</Label>
+                  <Input
+                    type="number"
+                    value={newService.service_code}
+                    onChange={(e) => setNewService(prev => ({ ...prev, service_code: e.target.value }))}
+                    placeholder="Ex: 101"
+                    className="text-sm h-8"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Descrição</Label>
+                  <Input
+                    value={newService.service_description}
+                    onChange={(e) => setNewService(prev => ({ ...prev, service_description: e.target.value }))}
+                    placeholder="Ex: Corte Masculino"
+                    className="text-sm h-8"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Valor (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={newService.service_value}
+                    onChange={(e) => setNewService(prev => ({ ...prev, service_value: e.target.value }))}
+                    placeholder="45.00"
+                    className="text-sm h-8"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Duração (min)</Label>
+                  <Input
+                    type="number"
+                    value={newService.service_interval}
+                    onChange={(e) => setNewService(prev => ({ ...prev, service_interval: e.target.value }))}
+                    placeholder="30"
+                    className="text-sm h-8"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)} className="text-xs h-7">Cancelar</Button>
+                <Button size="sm" onClick={handleAddService} className="text-xs h-7">
+                  <Save className="h-3 w-3 mr-1" />
+                  Salvar
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Services list */}
+          {services.length > 0 ? (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {services.map((s) => (
+                <div key={s.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
+                  <div className="flex items-center gap-3 flex-1">
+                    <Switch
+                      checked={s.is_active}
+                      onCheckedChange={() => handleToggle(s)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className={`font-medium ${!s.is_active ? 'text-muted-foreground line-through' : ''}`}>
+                        {s.service_description}
+                      </span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        (cód: {s.service_code})
+                      </span>
+                    </div>
+                    <span className="text-xs font-medium text-primary">
+                      R$ {Number(s.service_value).toFixed(2)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {s.service_interval}min
+                    </span>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(s.id)} className="h-7 w-7 p-0 ml-2">
+                    <Trash2 className="h-3 w-3 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-xs text-muted-foreground border rounded-lg">
+              Nenhum serviço cadastrado. Use "Sincronizar da API" para importar ou adicione manualmente.
+            </div>
+          )}
+        </div>
+      )}
+
+      {!agentId && (
+        <p className="text-xs text-amber-500">
+          ⚠️ Salve o agente primeiro para gerenciar os serviços.
+        </p>
+      )}
+    </div>
+  );
+}
