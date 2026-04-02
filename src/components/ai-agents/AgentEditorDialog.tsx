@@ -961,6 +961,40 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
     setServices(data);
   }, [agentId, getAppBarberServices]);
 
+  const fetchServicesFromBrowser = async () => {
+    const apiKey = String(formData.appbarber_api_key || '').trim();
+    const establishmentCode = String(formData.appbarber_establishment_code || '').trim();
+
+    if (!apiKey || !establishmentCode) {
+      throw new Error('Preencha a API Key e o código do estabelecimento.');
+    }
+
+    const params = new URLSearchParams({ establishment_code: establishmentCode, type: '1' });
+    const response = await fetch(`https://api.appbarber.com/v1/services?${params.toString()}`, {
+      headers: {
+        Accept: 'application/json',
+        'X-API-Key': apiKey,
+      },
+    });
+
+    const rawText = await response.text();
+    let payload: any = null;
+
+    try {
+      payload = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      payload = null;
+    }
+
+    if (!response.ok) {
+      const message = payload?.message || payload?.error || rawText || `Erro ${response.status}`;
+      throw new Error(message);
+    }
+
+    const services = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+    return services.filter((service: any) => service?.service_code && service?.service_description);
+  };
+
   useEffect(() => {
     loadServices();
   }, [loadServices]);
@@ -968,15 +1002,31 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
   const handleSync = async () => {
     if (!agentId) return;
     setSyncing(true);
-    const result = await syncAppBarberServices(agentId, {
-      appbarber_api_key: formData.appbarber_api_key || undefined,
-      appbarber_establishment_code: formData.appbarber_establishment_code || undefined,
-    });
-    if (result) {
-      toast.success(`${result.imported} serviços importados da API`);
+    try {
+      const result = await syncAppBarberServices(agentId, {
+        appbarber_api_key: formData.appbarber_api_key || undefined,
+        appbarber_establishment_code: formData.appbarber_establishment_code || undefined,
+      });
+
+      toast.success(`${result?.imported || 0} serviços importados da API`);
       loadServices();
-    } else {
-      toast.error('Erro ao sincronizar. Verifique se a API Key e código do estabelecimento estão corretos e salvos.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao sincronizar serviços';
+
+      if (message.includes('APPBARBER_CLOUDFLARE_BLOCK') || message.toLowerCase().includes('cloudflare')) {
+        try {
+          const browserServices = await fetchServicesFromBrowser();
+          const fallbackResult = await syncAppBarberServices(agentId, {
+            services: browserServices,
+          });
+          toast.success(`${fallbackResult?.imported || browserServices.length} serviços importados via navegador`);
+          loadServices();
+        } catch (fallbackErr) {
+          toast.error(fallbackErr instanceof Error ? fallbackErr.message : 'Falha ao importar serviços via navegador');
+        }
+      } else {
+        toast.error(message);
+      }
     }
     setSyncing(false);
   };
