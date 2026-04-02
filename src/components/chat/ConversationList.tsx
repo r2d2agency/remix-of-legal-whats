@@ -839,6 +839,38 @@ export function ConversationList({
 
                   </div>
 
+                  {/* Accept button - visible for waiting conversations */}
+                  {isWaiting && onAcceptConversation && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700 text-white flex-shrink-0 gap-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAcceptConversation(conv.id);
+                      }}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Aceitar
+                    </Button>
+                  )}
+
+                  {/* Finish button - visible for attending conversations */}
+                  {isAttending && onFinishConversation && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs flex-shrink-0 gap-1 text-muted-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFinishConversation(conv.id);
+                      }}
+                    >
+                      <CheckCheck className="h-3.5 w-3.5" />
+                      Finalizar
+                    </Button>
+                  )}
+
                   {/* Actions dropdown - desktop only */}
                   {!isMobile && (
                     <DropdownMenu>
