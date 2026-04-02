@@ -963,6 +963,13 @@ async function buildToolsForAgent(agent, capabilities, organizationId) {
     tools.push(buildGenerateContentTool());
   }
 
+  if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
+    tools.push(buildAppBarberServicesTool());
+    tools.push(buildAppBarberAvailabilityTool());
+    tools.push(buildAppBarberAppointmentTool());
+    tools.push(buildAppBarberHistoryTool());
+  }
+
   if (capabilities.includes('call_agent')) {
     const callConfig = typeof agent.call_agent_config === 'string'
       ? JSON.parse(agent.call_agent_config || '{}')
