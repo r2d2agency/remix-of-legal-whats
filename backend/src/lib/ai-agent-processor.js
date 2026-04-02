@@ -1212,6 +1212,11 @@ function createToolExecutor(organizationId, userId) {
         return executeGenerateContent(args);
       case 'consult_specialist_agent':
         return executeCallAgent(organizationId, args.agent_name, args.question);
+      case 'appbarber_services':
+      case 'appbarber_availability':
+      case 'appbarber_appointment':
+      case 'appbarber_history':
+        return executeAppBarberTool(toolName, args, organizationId);
       default:
         return 'Ferramenta desconhecida';
     }
