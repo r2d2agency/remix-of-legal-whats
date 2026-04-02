@@ -1230,7 +1230,7 @@ function buildAppBarberAppointmentTool() {
     type: 'function',
     function: {
       name: 'appbarber_appointment',
-      description: 'Cria um agendamento para o cliente na barbearia/salão. Requer nome, telefone, data/hora, profissional e serviço. Use após confirmar disponibilidade com o cliente.',
+      description: 'Cria um agendamento (COBRA por consulta na API). IMPORTANTE: Só use DEPOIS de ter TODOS os dados confirmados pelo cliente: nome, telefone, data/hora, profissional e serviço. Confirme cada dado antes de chamar.',
       parameters: {
         type: 'object',
         properties: {
