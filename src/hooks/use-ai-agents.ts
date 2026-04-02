@@ -138,6 +138,20 @@ export interface AIAgent {
   active_sessions?: number;
 }
 
+export interface AppBarberService {
+  id: string;
+  agent_id: string;
+  organization_id: string;
+  service_code: number;
+  service_description: string;
+  service_value: number;
+  service_interval: number;
+  is_active: boolean;
+  synced_from_api: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface KnowledgeSource {
   id: string;
   agent_id: string;
