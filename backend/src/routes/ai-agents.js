@@ -2014,4 +2014,111 @@ router.post('/templates', authenticate, async (req, res) => {
   }
 });
 
+// ==================== APPBARBER SERVICES (LOCAL CACHE) ====================
+
+// List cached services for an agent
+router.get('/:agentId/appbarber-services', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+
+    const result = await query(
+      `SELECT * FROM appbarber_services WHERE agent_id = $1 AND organization_id = $2 ORDER BY service_description`,
+      [req.params.agentId, userCtx.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    logError('appbarber_services.list_error', error);
+    res.status(500).json({ error: 'Erro ao listar serviços' });
+  }
+});
+
+// Add/update a service manually
+router.post('/:agentId/appbarber-services', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+
+    const { service_code, service_description, service_value, service_interval, is_active } = req.body;
+
+    const result = await query(
+      `INSERT INTO appbarber_services (agent_id, organization_id, service_code, service_description, service_value, service_interval, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (agent_id, service_code) 
+       DO UPDATE SET service_description = $4, service_value = $5, service_interval = $6, is_active = $7, updated_at = NOW()
+       RETURNING *`,
+      [req.params.agentId, userCtx.organization_id, service_code, service_description, service_value || 0, service_interval || 30, is_active !== false]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    logError('appbarber_services.create_error', error);
+    res.status(500).json({ error: 'Erro ao salvar serviço' });
+  }
+});
+
+// Delete a service
+router.delete('/:agentId/appbarber-services/:serviceId', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+
+    await query(
+      `DELETE FROM appbarber_services WHERE id = $1 AND agent_id = $2 AND organization_id = $3`,
+      [req.params.serviceId, req.params.agentId, userCtx.organization_id]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    logError('appbarber_services.delete_error', error);
+    res.status(500).json({ error: 'Erro ao deletar serviço' });
+  }
+});
+
+// Sync services from AppBarber API (one-time import)
+router.post('/:agentId/appbarber-services/sync', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+
+    // Get agent credentials
+    const agentResult = await query(
+      `SELECT appbarber_api_key, appbarber_establishment_code FROM ai_agents WHERE id = $1 AND organization_id = $2`,
+      [req.params.agentId, userCtx.organization_id]
+    );
+    const agent = agentResult.rows[0];
+    if (!agent?.appbarber_api_key || !agent?.appbarber_establishment_code) {
+      return res.status(400).json({ error: 'Credenciais AppBarber não configuradas no agente' });
+    }
+
+    // Fetch from API
+    const params = new URLSearchParams({
+      establishment_code: agent.appbarber_establishment_code,
+      type: '1',
+    });
+    const resp = await fetch(`https://api.appbarber.com/v1/services?${params}`, {
+      headers: { 'X-API-Key': agent.appbarber_api_key, 'Content-Type': 'application/json' },
+    });
+    const data = await resp.json();
+    if (!resp.ok) return res.status(400).json({ error: `Erro AppBarber: ${data.error || resp.status}` });
+
+    const services = data.data || [];
+    let imported = 0;
+
+    for (const s of services) {
+      await query(
+        `INSERT INTO appbarber_services (agent_id, organization_id, service_code, service_description, service_value, service_interval, synced_from_api)
+         VALUES ($1, $2, $3, $4, $5, $6, true)
+         ON CONFLICT (agent_id, service_code) 
+         DO UPDATE SET service_description = $4, service_value = $5, service_interval = $6, synced_from_api = true, updated_at = NOW()`,
+        [req.params.agentId, userCtx.organization_id, s.service_code, s.service_description, s.service_value || 0, s.service_interval || 30]
+      );
+      imported++;
+    }
+
+    res.json({ ok: true, imported, total: services.length });
+  } catch (error) {
+    logError('appbarber_services.sync_error', error);
+    res.status(500).json({ error: 'Erro ao sincronizar serviços' });
+  }
+});
+
 export default router;

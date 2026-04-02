@@ -138,6 +138,20 @@ export interface AIAgent {
   active_sessions?: number;
 }
 
+export interface AppBarberService {
+  id: string;
+  agent_id: string;
+  organization_id: string;
+  service_code: number;
+  service_description: string;
+  service_value: number;
+  service_interval: number;
+  is_active: boolean;
+  synced_from_api: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface KnowledgeSource {
   id: string;
   agent_id: string;
@@ -563,6 +577,48 @@ export const useAIAgents = () => {
     }
   }, []);
 
+  // ==================== APPBARBER SERVICES ====================
+
+  const getAppBarberServices = useCallback(async (agentId: string): Promise<AppBarberService[]> => {
+    try {
+      return await api<AppBarberService[]>(`/api/ai-agents/${agentId}/appbarber-services`, { auth: true });
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const saveAppBarberService = useCallback(async (agentId: string, data: Partial<AppBarberService>): Promise<AppBarberService | null> => {
+    try {
+      return await api<AppBarberService>(`/api/ai-agents/${agentId}/appbarber-services`, {
+        method: 'POST',
+        body: data,
+        auth: true,
+      });
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const deleteAppBarberService = useCallback(async (agentId: string, serviceId: string): Promise<boolean> => {
+    try {
+      await api(`/api/ai-agents/${agentId}/appbarber-services/${serviceId}`, { method: 'DELETE', auth: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const syncAppBarberServices = useCallback(async (agentId: string): Promise<{ imported: number } | null> => {
+    try {
+      return await api<{ imported: number }>(`/api/ai-agents/${agentId}/appbarber-services/sync`, {
+        method: 'POST',
+        auth: true,
+      });
+    } catch {
+      return null;
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -591,5 +647,10 @@ export const useAIAgents = () => {
     createPromptTemplate,
     // Diagnóstico em tempo real
     getRealtimeLogs,
+    // AppBarber Services
+    getAppBarberServices,
+    saveAppBarberService,
+    deleteAppBarberService,
+    syncAppBarberServices,
   };
 };

@@ -1196,13 +1196,10 @@ function buildAppBarberServicesTool() {
     type: 'function',
     function: {
       name: 'appbarber_services',
-      description: 'Lista os serviços disponíveis para agendamento na barbearia/salão (ex: corte, barba, etc). Use para informar o cliente sobre opções, preços e durações.',
+      description: 'Lista os serviços disponíveis para agendamento (cache local, sem custo de API). Use SEMPRE esta ferramenta primeiro para mostrar opções ao cliente antes de qualquer outra consulta AppBarber.',
       parameters: {
         type: 'object',
-        properties: {
-          professional_code: { type: 'integer', description: 'Código do profissional para filtrar serviços (opcional)' },
-          service_code: { type: 'integer', description: 'Código de um serviço específico (opcional)' },
-        },
+        properties: {},
         required: [],
       },
     },
@@ -1214,15 +1211,15 @@ function buildAppBarberAvailabilityTool() {
     type: 'function',
     function: {
       name: 'appbarber_availability',
-      description: 'Consulta horários disponíveis para agendamento em uma data específica. Retorna profissionais e seus horários livres. Use para oferecer opções de horários ao cliente.',
+      description: 'Consulta horários disponíveis para agendamento (COBRA por consulta na API). IMPORTANTE: Só use DEPOIS de ter confirmado com o cliente: 1) qual serviço deseja, 2) qual data. Nunca chame sem ter esses dados.',
       parameters: {
         type: 'object',
         properties: {
           start_date: { type: 'string', description: 'Data para consultar disponibilidade no formato YYYY-MM-DD (ex: 2025-01-15)' },
-          service_code: { type: 'integer', description: 'Código do serviço desejado (opcional, obtido via appbarber_services)' },
+          service_code: { type: 'integer', description: 'Código do serviço desejado (OBRIGATÓRIO, obtido via appbarber_services)' },
           combo_code: { type: 'integer', description: 'Código do combo de serviços (opcional)' },
         },
-        required: ['start_date'],
+        required: ['start_date', 'service_code'],
       },
     },
   };
@@ -1233,7 +1230,7 @@ function buildAppBarberAppointmentTool() {
     type: 'function',
     function: {
       name: 'appbarber_appointment',
-      description: 'Cria um agendamento para o cliente na barbearia/salão. Requer nome, telefone, data/hora, profissional e serviço. Use após confirmar disponibilidade com o cliente.',
+      description: 'Cria um agendamento (COBRA por consulta na API). IMPORTANTE: Só use DEPOIS de ter TODOS os dados confirmados pelo cliente: nome, telefone, data/hora, profissional e serviço. Confirme cada dado antes de chamar.',
       parameters: {
         type: 'object',
         properties: {
@@ -1284,21 +1281,21 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
 
     switch (toolName) {
       case 'appbarber_services': {
-        const params = new URLSearchParams({
-          establishment_code: appbarber_establishment_code,
-          type: '1',
-        });
-        if (args.professional_code) params.set('professional_code', String(args.professional_code));
-        if (args.service_code) params.set('service_code', String(args.service_code));
-
-        const resp = await fetch(`${baseUrl}/v1/services?${params}`, { headers });
-        const data = await resp.json();
-        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
-        
-        const services = (data.data || []).map(s => 
-          `• ${s.service_description} (código: ${s.service_code}) - R$ ${s.service_value} - ${s.service_interval} min`
+        // Query from local cached services table (no API cost)
+        const result = await query(
+          `SELECT service_code, service_description, service_value, service_interval 
+           FROM appbarber_services 
+           WHERE agent_id = $1 AND is_active = true 
+           ORDER BY service_description`,
+          [agent.id]
+        );
+        if (result.rows.length === 0) {
+          return 'Nenhum serviço cadastrado. Peça ao administrador para sincronizar os serviços do AppBarber.';
+        }
+        const services = result.rows.map(s => 
+          `• ${s.service_description} (código: ${s.service_code}) - R$ ${parseFloat(s.service_value).toFixed(2)} - ${s.service_interval} min`
         ).join('\n');
-        return services || 'Nenhum serviço encontrado.';
+        return services;
       }
 
       case 'appbarber_availability': {

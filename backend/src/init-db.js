@@ -2474,6 +2474,24 @@ DO $$ BEGIN
   ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'appbarber';
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
+-- AppBarber cached services table
+CREATE TABLE IF NOT EXISTS appbarber_services (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agent_id UUID REFERENCES ai_agents(id) ON DELETE CASCADE NOT NULL,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    service_code INTEGER NOT NULL,
+    service_description VARCHAR(255) NOT NULL,
+    service_value DECIMAL(10,2) DEFAULT 0,
+    service_interval INTEGER DEFAULT 30,
+    is_active BOOLEAN DEFAULT true,
+    synced_from_api BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(agent_id, service_code)
+);
+CREATE INDEX IF NOT EXISTS idx_appbarber_services_agent ON appbarber_services(agent_id);
+CREATE INDEX IF NOT EXISTS idx_appbarber_services_org ON appbarber_services(organization_id);
+
 ALTER TABLE ai_knowledge_chunks ADD COLUMN IF NOT EXISTS embedding JSONB;
 ALTER TABLE ai_knowledge_chunks ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);
 
