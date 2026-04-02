@@ -608,15 +608,18 @@ export const useAIAgents = () => {
     }
   }, []);
 
-  const syncAppBarberServices = useCallback(async (agentId: string, credentials?: { appbarber_api_key?: string; appbarber_establishment_code?: string }): Promise<{ imported: number } | null> => {
+  const syncAppBarberServices = useCallback(async (agentId: string, credentials?: { appbarber_api_key?: string; appbarber_establishment_code?: string; services?: unknown[] }): Promise<{ imported: number; total?: number; source?: string; code?: string } | null> => {
     try {
-      return await api<{ imported: number }>(`/api/ai-agents/${agentId}/appbarber-services/sync`, {
+      return await api<{ imported: number; total?: number; source?: string; code?: string }>(`/api/ai-agents/${agentId}/appbarber-services/sync`, {
         method: 'POST',
         body: credentials || {},
         auth: true,
       });
-    } catch {
-      return null;
+    } catch (err) {
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error('Erro ao sincronizar serviços');
     }
   }, []);
 
