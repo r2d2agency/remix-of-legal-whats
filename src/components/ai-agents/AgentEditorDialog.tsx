@@ -1148,7 +1148,32 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
         </div>
       </div>
 
-      {/* Services Management */}
+      {/* Validate Button */}
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant={validationResult === 'valid' ? 'default' : validationResult === 'invalid' ? 'destructive' : 'outline'}
+          onClick={handleValidateToken}
+          disabled={validating || !formData.appbarber_api_key || !formData.appbarber_establishment_code}
+          className="text-xs h-8"
+        >
+          {validating ? (
+            <><RefreshCw className="h-3 w-3 mr-1 animate-spin" />Validando...</>
+          ) : validationResult === 'valid' ? (
+            <><CheckCircle2 className="h-3 w-3 mr-1" />Token Válido</>
+          ) : validationResult === 'invalid' ? (
+            <><XCircle className="h-3 w-3 mr-1" />Token Inválido</>
+          ) : (
+            <><ShieldCheck className="h-3 w-3 mr-1" />Validar API Key</>
+          )}
+        </Button>
+        {validationResult === 'valid' && (
+          <span className="text-xs text-green-600">✓ Conexão verificada</span>
+        )}
+        {validationResult === 'invalid' && (
+          <span className="text-xs text-destructive">✗ Verifique as credenciais</span>
+        )}
+      </div>
       {agentId && (
         <div className="space-y-3 border-t pt-3">
           <div className="flex items-center justify-between">
