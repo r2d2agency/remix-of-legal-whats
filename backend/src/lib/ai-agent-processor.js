@@ -1196,13 +1196,10 @@ function buildAppBarberServicesTool() {
     type: 'function',
     function: {
       name: 'appbarber_services',
-      description: 'Lista os serviços disponíveis para agendamento na barbearia/salão (ex: corte, barba, etc). Use para informar o cliente sobre opções, preços e durações.',
+      description: 'Lista os serviços disponíveis para agendamento (cache local, sem custo de API). Use SEMPRE esta ferramenta primeiro para mostrar opções ao cliente antes de qualquer outra consulta AppBarber.',
       parameters: {
         type: 'object',
-        properties: {
-          professional_code: { type: 'integer', description: 'Código do profissional para filtrar serviços (opcional)' },
-          service_code: { type: 'integer', description: 'Código de um serviço específico (opcional)' },
-        },
+        properties: {},
         required: [],
       },
     },
