@@ -53,6 +53,7 @@ const ALL_CAPABILITIES: { id: AgentCapability; label: string; description: strin
   { id: 'summarize_history', label: 'Resumir Histórico', description: 'Resume interações anteriores com o cliente' },
   { id: 'qualify_leads', label: 'Qualificar Leads', description: 'Scoring automático baseado em dados' },
   { id: 'call_agent', label: 'Chamar Outro Agente', description: 'Consulta outro agente especialista para informações' },
+  { id: 'appbarber', label: 'AppBarber (Agendamento)', description: 'Integra com AppBarber para consultar serviços, horários e agendar clientes' },
 ];
 
 const DEFAULT_SYSTEM_PROMPT = `Você é um assistente virtual profissional e prestativo. Seu objetivo é ajudar os clientes de forma clara, objetiva e amigável.
