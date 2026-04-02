@@ -1580,6 +1580,87 @@ function buildAppBarberHistoryTool() {
   };
 }
 
+function normalizeAppBarberMoney(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(/\./g, '').replace(',', '.');
+    const parsed = parseFloat(normalized);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function extractAppBarberServices(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
+function isAppBarberCloudflareBlock(response, rawText) {
+  const server = response.headers.get('server') || '';
+  return response.status === 403
+    && server.toLowerCase().includes('cloudflare')
+    && /attention required|cloudflare/i.test(rawText || '');
+}
+
+function getAppBarberErrorMessage(response, payload, rawText) {
+  if (isAppBarberCloudflareBlock(response, rawText)) {
+    return 'A AppBarber bloqueou a conexão do servidor via Cloudflare.';
+  }
+
+  if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message;
+  if (typeof payload?.error === 'string' && payload.error.trim()) return payload.error;
+  if (typeof payload?.detail === 'string' && payload.detail.trim()) return payload.detail;
+
+  if (typeof rawText === 'string' && rawText.trim()) {
+    return rawText.replace(/\s+/g, ' ').trim().slice(0, 220);
+  }
+
+  return `Status ${response.status}`;
+}
+
+async function readAppBarberResponse(response) {
+  const rawText = await response.text().catch(() => '');
+  let payload = null;
+
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      payload = null;
+    }
+  }
+
+  return { rawText, payload };
+}
+
+async function importAppBarberServices(agentId, organizationId, services) {
+  let imported = 0;
+
+  for (const service of services) {
+    if (!service?.service_code || !service?.service_description) continue;
+
+    await query(
+      `INSERT INTO appbarber_services (agent_id, organization_id, service_code, service_description, service_value, service_interval, synced_from_api)
+       VALUES ($1, $2, $3, $4, $5, $6, true)
+       ON CONFLICT (agent_id, service_code)
+       DO UPDATE SET service_description = $4, service_value = $5, service_interval = $6, synced_from_api = true, updated_at = NOW()`,
+      [
+        agentId,
+        organizationId,
+        service.service_code,
+        service.service_description,
+        normalizeAppBarberMoney(service.service_value),
+        parseInt(String(service.service_interval || 30), 10) || 30,
+      ]
+    );
+
+    imported++;
+  }
+
+  return imported;
+}
+
 async function executeAppBarberTool(toolName, args, agent) {
   try {
     const apiKey = agent.appbarber_api_key;
@@ -1587,7 +1668,11 @@ async function executeAppBarberTool(toolName, args, agent) {
     if (!apiKey || !estCode) return 'Credenciais AppBarber não configuradas.';
 
     const baseUrl = 'https://api.appbarber.com';
-    const headers = { 'X-API-Key': apiKey, 'Content-Type': 'application/json' };
+    const headers = {
+      Accept: 'application/json',
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+    };
 
     switch (toolName) {
       case 'appbarber_services': {
@@ -1595,16 +1680,17 @@ async function executeAppBarberTool(toolName, args, agent) {
         if (args.professional_code) params.set('professional_code', String(args.professional_code));
         if (args.service_code) params.set('service_code', String(args.service_code));
         const resp = await fetch(`${baseUrl}/v1/services?${params}`, { headers });
-        const data = await resp.json();
-        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
-        return (data.data || []).map(s => `• ${s.service_description} (código: ${s.service_code}) - R$ ${s.service_value} - ${s.service_interval} min`).join('\n') || 'Nenhum serviço.';
+        const { rawText, payload } = await readAppBarberResponse(resp);
+        if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
+        return extractAppBarberServices(payload).map(s => `• ${s.service_description} (código: ${s.service_code}) - R$ ${s.service_value} - ${s.service_interval} min`).join('\n') || 'Nenhum serviço.';
       }
       case 'appbarber_availability': {
         const params = new URLSearchParams({ establishment_code: estCode, start_date: args.start_date });
         if (args.service_code) params.set('service_code', String(args.service_code));
         const resp = await fetch(`${baseUrl}/v1/availability?${params}`, { headers });
-        const data = await resp.json();
-        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
+        const { rawText, payload } = await readAppBarberResponse(resp);
+        if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
+        const data = payload || {};
         return (data.data || []).map(p => {
           const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).join(', ');
           return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}): ${slots || 'Sem horários'}`;
@@ -1619,16 +1705,18 @@ async function executeAppBarberTool(toolName, args, agent) {
           services: [{ service_code: args.service_code, duration: args.duration }],
         };
         const resp = await fetch(`${baseUrl}/v1/appointments`, { method: 'POST', headers, body: JSON.stringify(body) });
-        const data = await resp.json();
-        if (!resp.ok || (data.data?.error !== 0)) return `Erro ao agendar: ${data.data?.result || data.error || 'Erro desconhecido'}`;
+        const { rawText, payload } = await readAppBarberResponse(resp);
+        const data = payload || {};
+        if (!resp.ok || (data.data?.error !== 0)) return `Erro ao agendar: ${data.data?.result || getAppBarberErrorMessage(resp, payload, rawText)}`;
         return `✅ Agendamento criado! Código: ${data.data?.appointment_code || 'N/A'}. ${args.customer_name} em ${args.start_date}.`;
       }
       case 'appbarber_history': {
         const params = new URLSearchParams({ establishment_code: estCode, type: '1', start_date: args.start_date, end_date: args.end_date });
         if (args.status_type) params.set('status_type', String(args.status_type));
         const resp = await fetch(`${baseUrl}/v1/appointments/history?${params}`, { headers });
-        const data = await resp.json();
-        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
+        const { rawText, payload } = await readAppBarberResponse(resp);
+        if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
+        const data = payload || {};
         return (data.data || []).map(a => `• ${a.client_name} - ${a.service_description} com ${a.employee_name} - ${a.scheduling_start} - ${a.scheduling_status}`).join('\n') || 'Nenhum agendamento.';
       }
       default: return 'Ferramenta desconhecida';
@@ -2079,6 +2167,11 @@ router.post('/:agentId/appbarber-services/sync', authenticate, async (req, res) 
     const userCtx = await getUserContext(req.userId);
     if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
 
+    if (Array.isArray(req.body?.services) && req.body.services.length > 0) {
+      const imported = await importAppBarberServices(req.params.agentId, userCtx.organization_id, req.body.services);
+      return res.json({ ok: true, imported, total: req.body.services.length, source: 'browser' });
+    }
+
     // Get agent credentials (allow override from body for first-time sync before save)
     const agentResult = await query(
       `SELECT appbarber_api_key, appbarber_establishment_code FROM ai_agents WHERE id = $1 AND organization_id = $2`,
@@ -2100,29 +2193,39 @@ router.post('/:agentId/appbarber-services/sync', authenticate, async (req, res) 
     logInfo('appbarber_sync', { agentId: req.params.agentId, estCode, apiKeyPrefix: apiKey.substring(0, 8) + '...' });
     
     const resp = await fetch(`https://api.appbarber.com/v1/services?${params}`, {
-      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
     });
-    const data = await resp.json();
+    const { rawText, payload } = await readAppBarberResponse(resp);
     
     if (!resp.ok) {
-      const errorMsg = data?.message || data?.error || JSON.stringify(data) || `Status ${resp.status}`;
-      logError('appbarber_sync_api_error', { status: resp.status, error: errorMsg });
+      const errorMsg = getAppBarberErrorMessage(resp, payload, rawText);
+
+      if (isAppBarberCloudflareBlock(resp, rawText)) {
+        logError('appbarber_sync_cloudflare_block', new Error(errorMsg), {
+          agentId: req.params.agentId,
+          status: resp.status,
+          estCode,
+        });
+        return res.status(502).json({
+          error: 'A AppBarber bloqueou a conexão do servidor via Cloudflare. Tente sincronizar pelo navegador neste painel.',
+          code: 'APPBARBER_CLOUDFLARE_BLOCK',
+        });
+      }
+
+      logError('appbarber_sync_api_error', new Error(errorMsg), {
+        agentId: req.params.agentId,
+        status: resp.status,
+        estCode,
+      });
       return res.status(400).json({ error: `Erro AppBarber (${resp.status}): ${errorMsg}` });
     }
 
-    const services = data.data || [];
-    let imported = 0;
-
-    for (const s of services) {
-      await query(
-        `INSERT INTO appbarber_services (agent_id, organization_id, service_code, service_description, service_value, service_interval, synced_from_api)
-         VALUES ($1, $2, $3, $4, $5, $6, true)
-         ON CONFLICT (agent_id, service_code) 
-         DO UPDATE SET service_description = $4, service_value = $5, service_interval = $6, synced_from_api = true, updated_at = NOW()`,
-        [req.params.agentId, userCtx.organization_id, s.service_code, s.service_description, s.service_value || 0, s.service_interval || 30]
-      );
-      imported++;
-    }
+    const services = extractAppBarberServices(payload);
+    const imported = await importAppBarberServices(req.params.agentId, userCtx.organization_id, services);
 
     res.json({ ok: true, imported, total: services.length });
   } catch (error) {
