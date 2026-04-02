@@ -182,7 +182,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           notify_external_phone: (agent as any).notify_external_phone || '',
           notify_external_summary: (agent as any).notify_external_summary !== false,
           default_user_id: (agent as any).default_user_id || '',
-          appbarber_api_key: '',
+          appbarber_api_key: (agent as any).appbarber_api_key || '',
           appbarber_establishment_code: (agent as any).appbarber_establishment_code || '',
         });
       } else {
