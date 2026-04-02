@@ -134,7 +134,9 @@ router.post('/', authenticate, async (req, res) => {
       lead_scoring_criteria = {},
       auto_create_deal_funnel_id,
       auto_create_deal_stage_id,
-      call_agent_config = {}
+      call_agent_config = {},
+      appbarber_api_key,
+      appbarber_establishment_code
     } = req.body;
 
     if (!name) {
