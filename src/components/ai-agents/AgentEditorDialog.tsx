@@ -1009,9 +1009,28 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
     return services.filter((service: any) => service?.service_code && service?.service_description);
   };
 
+  const handleValidateToken = async () => {
+    setValidating(true);
+    setValidationResult('idle');
+    try {
+      await fetchServicesFromBrowser();
+      setValidationResult('valid');
+      toast.success('API Key válida! Conexão com AppBarber OK.');
+    } catch (err) {
+      setValidationResult('invalid');
+      toast.error(err instanceof Error ? err.message : 'API Key inválida ou erro de conexão');
+    } finally {
+      setValidating(false);
+    }
+  };
+
   useEffect(() => {
     loadServices();
   }, [loadServices]);
+
+  useEffect(() => {
+    setValidationResult('idle');
+  }, [formData.appbarber_api_key, formData.appbarber_establishment_code]);
 
   const handleSync = async () => {
     if (!agentId) return;
