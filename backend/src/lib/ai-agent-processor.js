@@ -1270,23 +1270,15 @@ function buildAppBarberHistoryTool() {
   };
 }
 
-async function executeAppBarberTool(toolName, args, organizationId) {
-  // Get the agent's AppBarber credentials from the current processing context
-  // We need to get the active session's agent to retrieve credentials
+async function executeAppBarberToolDirect(toolName, args, agent) {
   try {
-    // Find the agent with AppBarber credentials for this org
-    const agentResult = await query(
-      `SELECT appbarber_api_key, appbarber_establishment_code FROM ai_agents 
-       WHERE organization_id = $1 AND appbarber_api_key IS NOT NULL AND appbarber_establishment_code IS NOT NULL 
-       LIMIT 1`,
-      [organizationId]
-    );
-    
-    if (agentResult.rows.length === 0) {
+    const appbarber_api_key = agent.appbarber_api_key;
+    const appbarber_establishment_code = agent.appbarber_establishment_code;
+
+    if (!appbarber_api_key || !appbarber_establishment_code) {
       return 'Erro: Credenciais do AppBarber não configuradas no agente.';
     }
 
-    const { appbarber_api_key, appbarber_establishment_code } = agentResult.rows[0];
     const baseUrl = 'https://api.appbarber.com';
     const headers = { 'X-API-Key': appbarber_api_key, 'Content-Type': 'application/json' };
 
