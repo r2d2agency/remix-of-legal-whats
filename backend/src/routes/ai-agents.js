@@ -1695,6 +1695,14 @@ router.post('/:id/test', authenticate, async (req, res) => {
       tools.push(buildGenerateContentTool());
     }
 
+    // APPBARBER tool
+    if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
+      tools.push(buildAppBarberServicesTool());
+      tools.push(buildAppBarberAvailabilityTool());
+      tools.push(buildAppBarberAppointmentTool());
+      tools.push(buildAppBarberHistoryTool());
+    }
+
     let result;
     let toolCallsExecuted = [];
 
