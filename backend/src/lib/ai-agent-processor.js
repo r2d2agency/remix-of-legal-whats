@@ -1383,7 +1383,7 @@ async function executeAppBarberTool(toolName, args, organizationId) {
 
 
 
-function createToolExecutor(organizationId, userId) {
+function createToolExecutor(organizationId, userId, agent) {
   return async (toolName, args) => {
     switch (toolName) {
       case 'create_deal':
@@ -1408,7 +1408,7 @@ function createToolExecutor(organizationId, userId) {
       case 'appbarber_availability':
       case 'appbarber_appointment':
       case 'appbarber_history':
-        return executeAppBarberTool(toolName, args, organizationId);
+        return executeAppBarberToolDirect(toolName, args, agent);
       default:
         return 'Ferramenta desconhecida';
     }
