@@ -1211,15 +1211,15 @@ function buildAppBarberAvailabilityTool() {
     type: 'function',
     function: {
       name: 'appbarber_availability',
-      description: 'Consulta horários disponíveis para agendamento em uma data específica. Retorna profissionais e seus horários livres. Use para oferecer opções de horários ao cliente.',
+      description: 'Consulta horários disponíveis para agendamento (COBRA por consulta na API). IMPORTANTE: Só use DEPOIS de ter confirmado com o cliente: 1) qual serviço deseja, 2) qual data. Nunca chame sem ter esses dados.',
       parameters: {
         type: 'object',
         properties: {
           start_date: { type: 'string', description: 'Data para consultar disponibilidade no formato YYYY-MM-DD (ex: 2025-01-15)' },
-          service_code: { type: 'integer', description: 'Código do serviço desejado (opcional, obtido via appbarber_services)' },
+          service_code: { type: 'integer', description: 'Código do serviço desejado (OBRIGATÓRIO, obtido via appbarber_services)' },
           combo_code: { type: 'integer', description: 'Código do combo de serviços (opcional)' },
         },
-        required: ['start_date'],
+        required: ['start_date', 'service_code'],
       },
     },
   };
