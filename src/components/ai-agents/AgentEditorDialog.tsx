@@ -1003,30 +1003,20 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
     if (!agentId) return;
     setSyncing(true);
     try {
+      // Always fetch directly from the browser to avoid Cloudflare blocks on server
+      const browserServices = await fetchServicesFromBrowser();
+      if (!browserServices.length) {
+        toast.warning('Nenhum serviço encontrado na API AppBarber.');
+        setSyncing(false);
+        return;
+      }
       const result = await syncAppBarberServices(agentId, {
-        appbarber_api_key: formData.appbarber_api_key || undefined,
-        appbarber_establishment_code: formData.appbarber_establishment_code || undefined,
+        services: browserServices,
       });
-
-      toast.success(`${result?.imported || 0} serviços importados da API`);
+      toast.success(`${result?.imported || browserServices.length} serviços importados com sucesso`);
       loadServices();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao sincronizar serviços';
-
-      if (message.includes('APPBARBER_CLOUDFLARE_BLOCK') || message.toLowerCase().includes('cloudflare')) {
-        try {
-          const browserServices = await fetchServicesFromBrowser();
-          const fallbackResult = await syncAppBarberServices(agentId, {
-            services: browserServices,
-          });
-          toast.success(`${fallbackResult?.imported || browserServices.length} serviços importados via navegador`);
-          loadServices();
-        } catch (fallbackErr) {
-          toast.error(fallbackErr instanceof Error ? fallbackErr.message : 'Falha ao importar serviços via navegador');
-        }
-      } else {
-        toast.error(message);
-      }
+      toast.error(err instanceof Error ? err.message : 'Erro ao sincronizar serviços');
     }
     setSyncing(false);
   };
