@@ -1730,6 +1730,11 @@ router.post('/:id/test', authenticate, async (req, res) => {
             return await executeSuggestActions(args);
           case 'generate_content':
             return await executeGenerateContent(args);
+          case 'appbarber_services':
+          case 'appbarber_availability':
+          case 'appbarber_appointment':
+          case 'appbarber_history':
+            return await executeAppBarberTool(toolName, args, agent);
           default:
             return 'Ferramenta desconhecida';
         }
