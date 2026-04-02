@@ -957,6 +957,9 @@ ALTER TABLE conversations ADD COLUMN IF NOT EXISTS accepted_by UUID REFERENCES u
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_conversations_attendance_status ON conversations(attendance_status);
 CREATE INDEX IF NOT EXISTS idx_conversations_accepted_by ON conversations(accepted_by);
+
+-- Fix existing conversations with NULL attendance_status
+UPDATE conversations SET attendance_status = 'waiting' WHERE attendance_status IS NULL;
 `;
 
 // Step 13: Chatbots System
