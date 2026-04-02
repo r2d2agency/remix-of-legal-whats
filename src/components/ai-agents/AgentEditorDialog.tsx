@@ -25,7 +25,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Bot, Brain, MessageSquare, Settings, Zap, Shield,
   Sparkles, X, Plus, Save, Loader2, Phone, BellRing, CalendarDays, Scissors,
-  RefreshCw, Trash2, Package
+  RefreshCw, Trash2, Package, CheckCircle2, XCircle, ShieldCheck
 } from 'lucide-react';
 import { useAIAgents, AIAgent, AgentCapability, AIModels, CallAgentConfig, CallAgentRule, AppBarberService } from '@/hooks/use-ai-agents';
 import { useAuth } from '@/contexts/AuthContext';
@@ -954,6 +954,8 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
   const { getAppBarberServices, saveAppBarberService, deleteAppBarberService } = useAIAgents();
   const [services, setServices] = useState<AppBarberService[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<'idle' | 'valid' | 'invalid'>('idle');
   const [newService, setNewService] = useState({ service_code: '', service_description: '', service_value: '', service_interval: '30' });
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -1007,9 +1009,28 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
     return services.filter((service: any) => service?.service_code && service?.service_description);
   };
 
+  const handleValidateToken = async () => {
+    setValidating(true);
+    setValidationResult('idle');
+    try {
+      await fetchServicesFromBrowser();
+      setValidationResult('valid');
+      toast.success('API Key válida! Conexão com AppBarber OK.');
+    } catch (err) {
+      setValidationResult('invalid');
+      toast.error(err instanceof Error ? err.message : 'API Key inválida ou erro de conexão');
+    } finally {
+      setValidating(false);
+    }
+  };
+
   useEffect(() => {
     loadServices();
   }, [loadServices]);
+
+  useEffect(() => {
+    setValidationResult('idle');
+  }, [formData.appbarber_api_key, formData.appbarber_establishment_code]);
 
   const handleSync = async () => {
     if (!agentId) return;
@@ -1127,7 +1148,32 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
         </div>
       </div>
 
-      {/* Services Management */}
+      {/* Validate Button */}
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant={validationResult === 'valid' ? 'default' : validationResult === 'invalid' ? 'destructive' : 'outline'}
+          onClick={handleValidateToken}
+          disabled={validating || !formData.appbarber_api_key || !formData.appbarber_establishment_code}
+          className="text-xs h-8"
+        >
+          {validating ? (
+            <><RefreshCw className="h-3 w-3 mr-1 animate-spin" />Validando...</>
+          ) : validationResult === 'valid' ? (
+            <><CheckCircle2 className="h-3 w-3 mr-1" />Token Válido</>
+          ) : validationResult === 'invalid' ? (
+            <><XCircle className="h-3 w-3 mr-1" />Token Inválido</>
+          ) : (
+            <><ShieldCheck className="h-3 w-3 mr-1" />Validar API Key</>
+          )}
+        </Button>
+        {validationResult === 'valid' && (
+          <span className="text-xs text-green-600">✓ Conexão verificada</span>
+        )}
+        {validationResult === 'invalid' && (
+          <span className="text-xs text-destructive">✗ Verifique as credenciais</span>
+        )}
+      </div>
       {agentId && (
         <div className="space-y-3 border-t pt-3">
           <div className="flex items-center justify-between">
