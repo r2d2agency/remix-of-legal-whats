@@ -275,13 +275,15 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
         ai_api_key: formData.ai_api_key || undefined, // Não enviar se vazio
       };
 
-      if (agent?.id) {
-        await updateAgent(agent.id, payload);
-        toast.success('Agente atualizado');
-      } else {
-        await createAgent(payload);
-        toast.success('Agente criado');
+      const savedAgent = agent?.id
+        ? await updateAgent(agent.id, payload)
+        : await createAgent(payload);
+
+      if (!savedAgent) {
+        throw new Error(agent?.id ? 'Não foi possível salvar as alterações do agente.' : 'Não foi possível criar o agente.');
       }
+
+      toast.success(agent?.id ? 'Agente atualizado' : 'Agente criado');
       onSaved();
      } catch (err) {
        const msg = err instanceof Error && err.message ? err.message : 'Erro ao salvar agente';
@@ -949,11 +951,21 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
   formData: any;
   setFormData: React.Dispatch<React.SetStateAction<any>>;
 }) {
-  const { getAppBarberServices, saveAppBarberService, deleteAppBarberService, syncAppBarberServices } = useAIAgents();
+  const { getAppBarberServices, saveAppBarberService, deleteAppBarberService } = useAIAgents();
   const [services, setServices] = useState<AppBarberService[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [newService, setNewService] = useState({ service_code: '', service_description: '', service_value: '', service_interval: '30' });
   const [showAddForm, setShowAddForm] = useState(false);
+
+  const normalizeServiceValue = (value: unknown) => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().replace(/\./g, '').replace(',', '.');
+      const parsed = parseFloat(normalized);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+    return 0;
+  };
 
   const loadServices = useCallback(async () => {
     if (!agentId) return;
@@ -1003,22 +1015,48 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
     if (!agentId) return;
     setSyncing(true);
     try {
-      // Always fetch directly from the browser to avoid Cloudflare blocks on server
       const browserServices = await fetchServicesFromBrowser();
       if (!browserServices.length) {
         toast.warning('Nenhum serviço encontrado na API AppBarber.');
         setSyncing(false);
         return;
       }
-      const result = await syncAppBarberServices(agentId, {
-        services: browserServices,
-      });
-      toast.success(`${result?.imported || browserServices.length} serviços importados com sucesso`);
-      loadServices();
+
+      const normalizedServices = browserServices
+        .map((service: any) => ({
+          service_code: parseInt(String(service.service_code), 10),
+          service_description: String(service.service_description || '').trim(),
+          service_value: normalizeServiceValue(service.service_value),
+          service_interval: parseInt(String(service.service_interval || 30), 10) || 30,
+          is_active: true,
+        }))
+        .filter((service) => Number.isFinite(service.service_code) && !!service.service_description);
+
+      const results = await Promise.allSettled(
+        normalizedServices.map((service) => saveAppBarberService(agentId, service))
+      );
+
+      const imported = results.filter(
+        (result): result is PromiseFulfilledResult<AppBarberService | null> => result.status === 'fulfilled' && !!result.value
+      ).length;
+
+      if (!imported) {
+        throw new Error('Não foi possível importar os serviços para a tabela local.');
+      }
+
+      const failed = normalizedServices.length - imported;
+      toast.success(
+        failed > 0
+          ? `${imported} serviços importados (${failed} falharam)`
+          : `${imported} serviços importados com sucesso`
+      );
+
+      await loadServices();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao sincronizar serviços');
+    } finally {
+      setSyncing(false);
     }
-    setSyncing(false);
   };
 
   const handleAddService = async () => {
