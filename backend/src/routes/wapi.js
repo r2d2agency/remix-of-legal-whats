@@ -853,8 +853,8 @@ router.post('/:connectionId/sync-conversations/batch', authenticate, async (req,
         const isGroup = remoteJid.includes('@g.us');
 
         const convResult = await query(
-          `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, last_message_at, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())
+          `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, last_message_at, created_at, updated_at, attendance_status)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW(), 'waiting')
            ON CONFLICT (connection_id, remote_jid) DO UPDATE SET
              contact_name = COALESCE(EXCLUDED.contact_name, conversations.contact_name), updated_at = NOW()
            RETURNING id, (xmax = 0) as is_new`,
@@ -945,8 +945,8 @@ router.post('/:connectionId/sync-conversations', authenticate, async (req, res) 
         const remoteJid = chat.jid || `${chat.phone}@s.whatsapp.net`;
         const isGroup = remoteJid.includes('@g.us');
         const convResult = await query(
-          `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, last_message_at, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())
+          `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, last_message_at, created_at, updated_at, attendance_status)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW(), 'waiting')
            ON CONFLICT (connection_id, remote_jid) DO UPDATE SET contact_name = COALESCE(EXCLUDED.contact_name, conversations.contact_name), updated_at = NOW()
            RETURNING id, (xmax = 0) as is_new`,
           [connectionId, remoteJid, chat.name || chat.phone, chat.phone, isGroup]
@@ -2094,8 +2094,8 @@ async function handleOutgoingMessage(connection, payload) {
         : (payload.chat?.pushName || cleanPhone);
       
       const newConv = await query(
-        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 0)
+        `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 0, 'waiting')
          RETURNING id`,
         [connection.id, remoteJid, contactName, isGroup ? null : cleanPhone, isGroup, isGroup ? contactName : null]
       );
