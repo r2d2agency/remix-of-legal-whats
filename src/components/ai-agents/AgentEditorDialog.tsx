@@ -968,12 +968,15 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
   const handleSync = async () => {
     if (!agentId) return;
     setSyncing(true);
-    const result = await syncAppBarberServices(agentId);
+    const result = await syncAppBarberServices(agentId, {
+      appbarber_api_key: formData.appbarber_api_key || undefined,
+      appbarber_establishment_code: formData.appbarber_establishment_code || undefined,
+    });
     if (result) {
       toast.success(`${result.imported} serviços importados da API`);
       loadServices();
     } else {
-      toast.error('Erro ao sincronizar. Verifique as credenciais.');
+      toast.error('Erro ao sincronizar. Verifique se a API Key e código do estabelecimento estão corretos e salvos.');
     }
     setSyncing(false);
   };

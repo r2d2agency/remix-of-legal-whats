@@ -2079,26 +2079,36 @@ router.post('/:agentId/appbarber-services/sync', authenticate, async (req, res) 
     const userCtx = await getUserContext(req.userId);
     if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
 
-    // Get agent credentials
+    // Get agent credentials (allow override from body for first-time sync before save)
     const agentResult = await query(
       `SELECT appbarber_api_key, appbarber_establishment_code FROM ai_agents WHERE id = $1 AND organization_id = $2`,
       [req.params.agentId, userCtx.organization_id]
     );
     const agent = agentResult.rows[0];
-    if (!agent?.appbarber_api_key || !agent?.appbarber_establishment_code) {
-      return res.status(400).json({ error: 'Credenciais AppBarber não configuradas no agente' });
+    const apiKey = req.body.appbarber_api_key || agent?.appbarber_api_key;
+    const estCode = req.body.appbarber_establishment_code || agent?.appbarber_establishment_code;
+
+    if (!apiKey || !estCode) {
+      return res.status(400).json({ error: 'Credenciais AppBarber não configuradas. Salve a API Key e o código do estabelecimento no agente primeiro.' });
     }
 
     // Fetch from API
     const params = new URLSearchParams({
-      establishment_code: agent.appbarber_establishment_code,
+      establishment_code: estCode,
       type: '1',
     });
+    logInfo('appbarber_sync', { agentId: req.params.agentId, estCode, apiKeyPrefix: apiKey.substring(0, 8) + '...' });
+    
     const resp = await fetch(`https://api.appbarber.com/v1/services?${params}`, {
-      headers: { 'X-API-Key': agent.appbarber_api_key, 'Content-Type': 'application/json' },
+      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
     });
     const data = await resp.json();
-    if (!resp.ok) return res.status(400).json({ error: `Erro AppBarber: ${data.error || resp.status}` });
+    
+    if (!resp.ok) {
+      const errorMsg = data?.message || data?.error || JSON.stringify(data) || `Status ${resp.status}`;
+      logError('appbarber_sync_api_error', { status: resp.status, error: errorMsg });
+      return res.status(400).json({ error: `Erro AppBarber (${resp.status}): ${errorMsg}` });
+    }
 
     const services = data.data || [];
     let imported = 0;
@@ -2117,7 +2127,7 @@ router.post('/:agentId/appbarber-services/sync', authenticate, async (req, res) 
     res.json({ ok: true, imported, total: services.length });
   } catch (error) {
     logError('appbarber_services.sync_error', error);
-    res.status(500).json({ error: 'Erro ao sincronizar serviços' });
+    res.status(500).json({ error: 'Erro ao sincronizar serviços: ' + (error.message || 'erro interno') });
   }
 });
 
