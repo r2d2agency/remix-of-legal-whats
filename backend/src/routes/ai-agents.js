@@ -208,7 +208,8 @@ router.patch('/:id', authenticate, async (req, res) => {
       'default_department_id', 'default_user_id',
       'lead_scoring_criteria', 'auto_create_deal_funnel_id', 'auto_create_deal_stage_id',
       'call_agent_config',
-      'notify_external_enabled', 'notify_external_phone', 'notify_external_summary'
+      'notify_external_enabled', 'notify_external_phone', 'notify_external_summary',
+      'appbarber_api_key', 'appbarber_establishment_code'
     ];
 
     const updates = [];
