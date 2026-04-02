@@ -1597,10 +1597,21 @@ function extractAppBarberServices(payload) {
 }
 
 function isAppBarberCloudflareBlock(response, rawText) {
-  const server = response.headers.get('server') || '';
-  return response.status === 403
-    && server.toLowerCase().includes('cloudflare')
-    && /attention required|cloudflare/i.test(rawText || '');
+  const server = (response.headers.get('server') || '').toLowerCase();
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  const text = typeof rawText === 'string' ? rawText.toLowerCase() : '';
+  const looksLikeHtml = contentType.includes('text/html') || text.includes('<html') || text.includes('<!doctype html');
+  const looksLikeChallenge = text.includes('just a moment')
+    || text.includes('attention required')
+    || text.includes('cf-browser-verification')
+    || text.includes('challenge-platform')
+    || text.includes('cf-ray')
+    || text.includes('cloudflare');
+
+  return response.status === 403 && (
+    (server.includes('cloudflare') && looksLikeHtml)
+    || (looksLikeHtml && looksLikeChallenge)
+  );
 }
 
 function getAppBarberErrorMessage(response, payload, rawText) {
