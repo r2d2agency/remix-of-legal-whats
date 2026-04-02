@@ -1281,21 +1281,21 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
 
     switch (toolName) {
       case 'appbarber_services': {
-        const params = new URLSearchParams({
-          establishment_code: appbarber_establishment_code,
-          type: '1',
-        });
-        if (args.professional_code) params.set('professional_code', String(args.professional_code));
-        if (args.service_code) params.set('service_code', String(args.service_code));
-
-        const resp = await fetch(`${baseUrl}/v1/services?${params}`, { headers });
-        const data = await resp.json();
-        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
-        
-        const services = (data.data || []).map(s => 
-          `• ${s.service_description} (código: ${s.service_code}) - R$ ${s.service_value} - ${s.service_interval} min`
+        // Query from local cached services table (no API cost)
+        const result = await query(
+          `SELECT service_code, service_description, service_value, service_interval 
+           FROM appbarber_services 
+           WHERE agent_id = $1 AND is_active = true 
+           ORDER BY service_description`,
+          [agent.id]
+        );
+        if (result.rows.length === 0) {
+          return 'Nenhum serviço cadastrado. Peça ao administrador para sincronizar os serviços do AppBarber.';
+        }
+        const services = result.rows.map(s => 
+          `• ${s.service_description} (código: ${s.service_code}) - R$ ${parseFloat(s.service_value).toFixed(2)} - ${s.service_interval} min`
         ).join('\n');
-        return services || 'Nenhum serviço encontrado.';
+        return services;
       }
 
       case 'appbarber_availability': {
