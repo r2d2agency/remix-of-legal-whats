@@ -154,11 +154,12 @@ router.post('/', authenticate, async (req, res) => {
         default_department_id, default_user_id,
         lead_scoring_criteria, auto_create_deal_funnel_id, auto_create_deal_stage_id,
         call_agent_config,
+        appbarber_api_key, appbarber_establishment_code,
         created_by
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
          $11, $12, $13, $14::agent_capability[], $15, $16, $17, $18::text[], $19,
-        $20, $21, $22, $23, $24, $25, $26
+        $20, $21, $22, $23, $24, $25, $26, $27, $28
       ) RETURNING *
     `, [
       userCtx.organization_id, name, description, avatar_url,
@@ -171,6 +172,7 @@ router.post('/', authenticate, async (req, res) => {
       default_department_id || null, default_user_id || null,
       JSON.stringify(lead_scoring_criteria), auto_create_deal_funnel_id || null, auto_create_deal_stage_id || null,
       JSON.stringify(call_agent_config),
+      appbarber_api_key || null, appbarber_establishment_code || null,
       userCtx.id
     ]);
 
