@@ -954,6 +954,8 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
   const { getAppBarberServices, saveAppBarberService, deleteAppBarberService } = useAIAgents();
   const [services, setServices] = useState<AppBarberService[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<'idle' | 'valid' | 'invalid'>('idle');
   const [newService, setNewService] = useState({ service_code: '', service_description: '', service_value: '', service_interval: '30' });
   const [showAddForm, setShowAddForm] = useState(false);
 
