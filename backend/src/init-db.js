@@ -2461,7 +2461,19 @@ DO $$ BEGIN
   ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS inactivity_message TEXT DEFAULT 'Como não recebi sua resposta, vou encerrar nosso atendimento por aqui. Se precisar, é só me chamar novamente! 😊';
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 
--- RAG columns for ai_knowledge_chunks
+-- AppBarber integration columns
+DO $$ BEGIN
+  ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS appbarber_api_key TEXT;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+DO $$ BEGIN
+  ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS appbarber_establishment_code VARCHAR(50);
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+-- Add appbarber capability to enum
+DO $$ BEGIN
+  ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'appbarber';
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
 ALTER TABLE ai_knowledge_chunks ADD COLUMN IF NOT EXISTS embedding JSONB;
 ALTER TABLE ai_knowledge_chunks ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);
 
