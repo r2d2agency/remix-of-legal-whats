@@ -606,7 +606,46 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                   </div>
                 )}
 
-                {/* Call Agent Configuration */}
+                {/* AppBarber Configuration */}
+                {formData.capabilities.includes('appbarber') && (
+                  <div className="mt-4 space-y-3 border-t pt-4">
+                    <div className="flex items-center gap-2">
+                      <Scissors className="h-4 w-4 text-primary" />
+                      <h4 className="font-medium text-sm">Integração AppBarber</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Configure as credenciais do AppBarber para que a IA possa consultar serviços, horários e criar agendamentos automaticamente.
+                    </p>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs">API Key</Label>
+                        <Input
+                          type="password"
+                          value={formData.appbarber_api_key}
+                          onChange={(e) => setFormData(prev => ({ ...prev, appbarber_api_key: e.target.value }))}
+                          placeholder="Ex: ec03cbd6-0c41-4a0e-..."
+                          className="text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Código do Estabelecimento</Label>
+                        <Input
+                          value={formData.appbarber_establishment_code}
+                          onChange={(e) => setFormData(prev => ({ ...prev, appbarber_establishment_code: e.target.value }))}
+                          placeholder="Ex: 21951279"
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                    {(!formData.appbarber_api_key && !formData.appbarber_establishment_code) && (
+                      <p className="text-xs text-amber-500">
+                        ⚠️ Preencha a API Key e o código do estabelecimento para ativar a integração.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+
                 {formData.capabilities.includes('call_agent') && (
                   <div className="mt-4 space-y-3 border-t pt-4">
                     <div className="flex items-center gap-2">
