@@ -328,7 +328,7 @@ async function processMessageInternal({
     const userId = agent.default_user_id || agent.created_by;
 
     if (tools.length > 0) {
-      const toolExecutor = createToolExecutor(organizationId, userId);
+      const toolExecutor = createToolExecutor(organizationId, userId, agent);
       result = await callAIWithTools(aiConfig, messages, {
         temperature: parseFloat(agent.temperature) || 0.7,
         maxTokens: parseInt(agent.max_tokens, 10) || 1000,
