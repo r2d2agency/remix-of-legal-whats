@@ -236,14 +236,35 @@ export function ScheduleMessageDialog({
 
           {/* Message content */}
           <div className="space-y-2">
-            <Label>Mensagem {mediaUrl ? "(legenda)" : ""}</Label>
+            <Label>Mensagem {mediaUrl ? (sendTextSeparate ? "" : "(legenda)") : ""}</Label>
             <Textarea
-              placeholder={mediaUrl ? "Digite uma legenda (opcional)..." : "Digite a mensagem..."}
+              placeholder={mediaUrl && !sendTextSeparate ? "Digite uma legenda (opcional)..." : "Digite a mensagem..."}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={3}
             />
           </div>
+
+          {/* Send text separate toggle - only show when both media and text exist */}
+          {mediaUrl && content.trim() && (
+            <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50 border">
+              <div className="flex items-center gap-2 min-w-0">
+                <SplitSquareHorizontal className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Enviar texto separado</p>
+                  <p className="text-xs text-muted-foreground">
+                    {sendTextSeparate 
+                      ? "Mídia e texto serão enviados como mensagens separadas" 
+                      : "Texto será enviado como legenda do anexo"}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={sendTextSeparate}
+                onCheckedChange={setSendTextSeparate}
+              />
+            </div>
+          )}
 
           {/* Date picker */}
           <div className="space-y-2">
