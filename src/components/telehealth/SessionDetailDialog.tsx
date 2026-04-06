@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { RefreshCw, FileText, Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, Upload, Brain, Mic } from 'lucide-react';
-import { TelehealthSession } from '@/hooks/use-telehealth';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RefreshCw, FileText, Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, Upload, Mic, ListTodo, ClipboardList, AlertCircle, FileCheck, CalendarPlus, Plus } from 'lucide-react';
+import { TelehealthSession, AnalysisType } from '@/hooks/use-telehealth';
 import { cn } from '@/lib/utils';
 
 interface SessionDetailDialogProps {
@@ -12,6 +14,9 @@ interface SessionDetailDialogProps {
   open: boolean;
   onClose: () => void;
   onRetry: (id: string) => void;
+  onAnalyze?: (id: string, type: AnalysisType) => Promise<any>;
+  onCreateTask?: (task: { titulo: string; descricao: string; responsavel?: string; prazo?: string; prioridade?: string }) => void;
+  onScheduleReturn?: (retorno: { descricao: string; data_sugerida?: string; participantes?: string[] }) => void;
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
@@ -19,19 +24,192 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = 
   recording: { label: 'Gravando', color: 'bg-destructive text-destructive-foreground', icon: Mic },
   processing: { label: 'Processando', color: 'bg-blue-500 text-white', icon: Loader2 },
   transcribing: { label: 'Transcrevendo', color: 'bg-blue-500 text-white', icon: Loader2 },
-  organizing: { label: 'Organizando', color: 'bg-purple-500 text-white', icon: Brain },
   completed: { label: 'Concluído', color: 'bg-green-500 text-white', icon: CheckCircle2 },
   error: { label: 'Erro', color: 'bg-destructive text-destructive-foreground', icon: XCircle },
 };
 
-const PIPELINE_STEPS = ['processing', 'transcribing', 'organizing', 'completed'];
+const PIPELINE_STEPS = ['processing', 'transcribing', 'completed'];
 
-export function SessionDetailDialog({ session, open, onClose, onRetry }: SessionDetailDialogProps) {
+const ANALYSIS_OPTIONS: { type: AnalysisType; label: string; icon: any; desc: string }[] = [
+  { type: 'resumo', label: 'Resumo da Reunião', icon: FileCheck, desc: 'Gera um resumo executivo com pontos principais' },
+  { type: 'ata', label: 'Ata da Reunião', icon: ClipboardList, desc: 'Ata formal com pauta, discussões e deliberações' },
+  { type: 'pendencias', label: 'Pendências', icon: AlertCircle, desc: 'Identifica itens em aberto e compromissos' },
+  { type: 'tarefas', label: 'Tarefas e Ações', icon: ListTodo, desc: 'Extrai tarefas, responsáveis e próximos passos' },
+];
+
+export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze, onCreateTask, onScheduleReturn }: SessionDetailDialogProps) {
+  const [analyzingType, setAnalyzingType] = useState<AnalysisType | null>(null);
+  const [activeAnalysis, setActiveAnalysis] = useState<AnalysisType | null>(null);
+
   if (!session) return null;
 
   const statusInfo = STATUS_MAP[session.status] || STATUS_MAP.waiting;
   const StatusIcon = statusInfo.icon;
   const currentStepIndex = PIPELINE_STEPS.indexOf(session.status);
+  const hasTranscript = !!session.transcript;
+  const structuredContent = session.structured_content || {};
+
+  const handleAnalyze = async (type: AnalysisType) => {
+    if (!onAnalyze) return;
+    setAnalyzingType(type);
+    const result = await onAnalyze(session.id, type);
+    setAnalyzingType(null);
+    if (result) {
+      setActiveAnalysis(type);
+      // Update local structured content
+      structuredContent[type] = result.data;
+    }
+  };
+
+  const renderAnalysisResult = (type: AnalysisType) => {
+    const data = structuredContent[type];
+    if (!data) return null;
+
+    if (data.raw) {
+      return <p className="text-sm whitespace-pre-wrap">{data.raw || data.resumo}</p>;
+    }
+
+    switch (type) {
+      case 'resumo':
+        return (
+          <div className="space-y-3">
+            {data.titulo && <h4 className="font-medium">{data.titulo}</h4>}
+            {data.participantes?.length > 0 && (
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Participantes:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {data.participantes.map((p: string, i: number) => (
+                    <Badge key={i} variant="secondary" className="text-xs">{p}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {data.resumo && <p className="text-sm">{data.resumo}</p>}
+            {data.pontos_principais?.length > 0 && (
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Pontos Principais:</span>
+                <ul className="list-disc list-inside text-sm mt-1 space-y-1">
+                  {data.pontos_principais.map((p: string, i: number) => <li key={i}>{p}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'ata':
+        return (
+          <div className="space-y-3">
+            {data.titulo && <h4 className="font-medium">{data.titulo}</h4>}
+            {data.participantes?.length > 0 && (
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Participantes:</span>
+                <span className="text-sm ml-1">{data.participantes.join(', ')}</span>
+              </div>
+            )}
+            {data.pauta?.length > 0 && (
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Pauta:</span>
+                <ul className="list-decimal list-inside text-sm mt-1 space-y-1">
+                  {data.pauta.map((p: string, i: number) => <li key={i}>{p}</li>)}
+                </ul>
+              </div>
+            )}
+            {data.discussoes?.length > 0 && (
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Discussões:</span>
+                <div className="space-y-2 mt-1">
+                  {data.discussoes.map((d: any, i: number) => (
+                    <div key={i} className="p-2 bg-muted rounded text-sm">
+                      <strong>{d.tema}</strong>: {d.detalhes}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {data.deliberacoes?.length > 0 && (
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Deliberações:</span>
+                <ul className="list-disc list-inside text-sm mt-1 space-y-1">
+                  {data.deliberacoes.map((d: string, i: number) => <li key={i}>{d}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'pendencias':
+        return (
+          <div className="space-y-2">
+            {data.pendencias?.map((p: any, i: number) => (
+              <div key={i} className="flex items-start gap-2 p-2 bg-muted rounded text-sm">
+                <AlertCircle className={cn("h-4 w-4 mt-0.5 shrink-0", p.prioridade === 'alta' ? 'text-destructive' : p.prioridade === 'media' ? 'text-yellow-500' : 'text-muted-foreground')} />
+                <div className="flex-1">
+                  <p>{p.descricao}</p>
+                  <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                    {p.responsavel && <span>👤 {p.responsavel}</span>}
+                    {p.prazo && <span>📅 {p.prazo}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+
+      case 'tarefas':
+        return (
+          <div className="space-y-4">
+            {data.tarefas?.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-sm font-medium text-muted-foreground">Tarefas Identificadas:</span>
+                {data.tarefas.map((t: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 p-3 border rounded-lg text-sm">
+                    <ListTodo className={cn("h-4 w-4 mt-0.5 shrink-0", t.prioridade === 'alta' ? 'text-destructive' : t.prioridade === 'media' ? 'text-yellow-500' : 'text-green-500')} />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium">{t.titulo}</p>
+                      {t.descricao && <p className="text-muted-foreground mt-0.5">{t.descricao}</p>}
+                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                        {t.responsavel && <span>👤 {t.responsavel}</span>}
+                        {t.prazo && <span>📅 {t.prazo}</span>}
+                      </div>
+                    </div>
+                    {onCreateTask && (
+                      <Button size="sm" variant="outline" className="shrink-0 gap-1" onClick={() => onCreateTask(t)}>
+                        <Plus className="h-3 w-3" /> Criar
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {data.retornos?.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-sm font-medium text-muted-foreground">Retornos Sugeridos:</span>
+                {data.retornos.map((r: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 p-3 border rounded-lg text-sm border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/30">
+                    <CalendarPlus className="h-4 w-4 mt-0.5 shrink-0 text-blue-500" />
+                    <div className="flex-1 min-w-0">
+                      <p>{r.descricao}</p>
+                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                        {r.data_sugerida && <span>📅 {r.data_sugerida}</span>}
+                        {r.participantes?.length > 0 && <span>👥 {r.participantes.join(', ')}</span>}
+                      </div>
+                    </div>
+                    {onScheduleReturn && (
+                      <Button size="sm" variant="outline" className="shrink-0 gap-1" onClick={() => onScheduleReturn(r)}>
+                        <CalendarPlus className="h-3 w-3" /> Agendar
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      default:
+        return <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(data, null, 2)}</pre>;
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -40,19 +218,18 @@ export function SessionDetailDialog({ session, open, onClose, onRetry }: Session
           <DialogTitle className="flex items-center gap-2">
             <span className="truncate">{session.title || 'Sessão sem título'}</span>
             <Badge className={cn('shrink-0', statusInfo.color)}>
-              <StatusIcon className={cn("h-3 w-3 mr-1", session.status === 'transcribing' || session.status === 'organizing' || session.status === 'processing' ? 'animate-spin' : '')} />
+              <StatusIcon className={cn("h-3 w-3 mr-1", ['processing', 'transcribing'].includes(session.status) && 'animate-spin')} />
               {statusInfo.label}
             </Badge>
           </DialogTitle>
         </DialogHeader>
 
-        {/* Processing pipeline tracker */}
-        {['processing', 'transcribing', 'organizing', 'completed', 'error'].includes(session.status) && (
+        {/* Pipeline tracker */}
+        {['processing', 'transcribing', 'completed', 'error'].includes(session.status) && (
           <div className="flex items-center gap-1 px-1">
             {[
               { key: 'processing', label: 'Enviado', icon: Upload },
               { key: 'transcribing', label: 'Transcrevendo', icon: Mic },
-              { key: 'organizing', label: 'Organizando', icon: Brain },
               { key: 'completed', label: 'Concluído', icon: CheckCircle2 },
             ].map((step, i) => {
               const stepIdx = PIPELINE_STEPS.indexOf(step.key);
@@ -73,7 +250,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry }: Session
                     </div>
                     <span className="text-[10px] font-medium">{step.label}</span>
                   </div>
-                  {i < 3 && <div className={cn("flex-1 h-0.5 mx-1", isDone ? "bg-green-500" : "bg-muted")} />}
+                  {i < 2 && <div className={cn("flex-1 h-0.5 mx-1", isDone ? "bg-green-500" : "bg-muted")} />}
                 </div>
               );
             })}
@@ -94,7 +271,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry }: Session
           <TabsList>
             <TabsTrigger value="info">Informações</TabsTrigger>
             <TabsTrigger value="transcript">Transcrição</TabsTrigger>
-            <TabsTrigger value="structured">Conteúdo Estruturado</TabsTrigger>
+            <TabsTrigger value="analysis">Análise IA</TabsTrigger>
             <TabsTrigger value="audit">Auditoria</TabsTrigger>
           </TabsList>
 
@@ -128,43 +305,55 @@ export function SessionDetailDialog({ session, open, onClose, onRetry }: Session
               )}
             </TabsContent>
 
-            <TabsContent value="structured" className="p-4 m-0">
-              {session.structured_content ? (
-                <div className="space-y-4">
-                  {session.structured_content.resumo && (
-                    <div><h4 className="font-medium text-sm mb-1">Resumo</h4><p className="text-sm">{session.structured_content.resumo}</p></div>
-                  )}
-                  {session.structured_content.pontos_principais?.length > 0 && (
-                    <div><h4 className="font-medium text-sm mb-1">Pontos Principais</h4>
-                      <ul className="list-disc list-inside text-sm space-y-1">
-                        {session.structured_content.pontos_principais.map((p: string, i: number) => <li key={i}>{p}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {session.structured_content.decisoes?.length > 0 && (
-                    <div><h4 className="font-medium text-sm mb-1">Decisões</h4>
-                      <ul className="list-disc list-inside text-sm space-y-1">
-                        {session.structured_content.decisoes.map((d: string, i: number) => <li key={i}>{d}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {session.structured_content.acoes?.length > 0 && (
-                    <div><h4 className="font-medium text-sm mb-1">Ações</h4>
-                      <div className="space-y-2">
-                        {session.structured_content.acoes.map((a: any, i: number) => (
-                          <div key={i} className="p-2 bg-muted rounded text-sm">
-                            <strong>{a.responsavel}</strong>: {a.acao} {a.prazo && <span className="text-muted-foreground">— {a.prazo}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {session.structured_content.observacoes && (
-                    <div><h4 className="font-medium text-sm mb-1">Observações</h4><p className="text-sm">{session.structured_content.observacoes}</p></div>
-                  )}
-                </div>
+            <TabsContent value="analysis" className="p-4 m-0 space-y-4">
+              {!hasTranscript ? (
+                <p className="text-sm text-muted-foreground">Aguardando transcrição para habilitar análises.</p>
               ) : (
-                <p className="text-sm text-muted-foreground">Conteúdo estruturado não disponível ainda.</p>
+                <>
+                  {/* Action buttons */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {ANALYSIS_OPTIONS.map(opt => {
+                      const Icon = opt.icon;
+                      const isLoading = analyzingType === opt.type;
+                      const hasResult = !!structuredContent[opt.type];
+                      return (
+                        <Button
+                          key={opt.type}
+                          variant={hasResult ? 'default' : 'outline'}
+                          className="h-auto flex-col items-start gap-1 p-3 text-left"
+                          disabled={!!analyzingType}
+                          onClick={() => hasResult ? setActiveAnalysis(opt.type) : handleAnalyze(opt.type)}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+                            <span className="text-sm font-medium">{opt.label}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground font-normal">{hasResult ? 'Clique para ver' : opt.desc}</span>
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Active analysis result */}
+                  {activeAnalysis && structuredContent[activeAnalysis] && (
+                    <Card>
+                      <CardHeader className="py-3 px-4 flex-row items-center justify-between">
+                        <CardTitle className="text-sm">
+                          {ANALYSIS_OPTIONS.find(o => o.type === activeAnalysis)?.label}
+                        </CardTitle>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={() => handleAnalyze(activeAnalysis)} disabled={!!analyzingType}>
+                            <RefreshCw className={cn("h-3 w-3", analyzingType === activeAnalysis && "animate-spin")} /> Refazer
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setActiveAnalysis(null)}>✕</Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4 pt-0">
+                        {renderAnalysisResult(activeAnalysis)}
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
               )}
             </TabsContent>
 

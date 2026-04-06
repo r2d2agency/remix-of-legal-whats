@@ -5,11 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useTelehealth, TelehealthSession } from '@/hooks/use-telehealth';
+import { useTelehealth, TelehealthSession, AnalysisType } from '@/hooks/use-telehealth';
 import { RecordingModal } from '@/components/telehealth/RecordingModal';
 import { SessionDetailDialog } from '@/components/telehealth/SessionDetailDialog';
 import { NewSessionDialog } from '@/components/telehealth/NewSessionDialog';
-import { Plus, Search, Mic, Trash2, Eye, Clock, CheckCircle2, XCircle, Loader2, Brain, RefreshCw } from 'lucide-react';
+import { Plus, Search, Mic, Trash2, Eye, Clock, CheckCircle2, XCircle, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -18,13 +18,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   recording: { label: 'Gravando', color: 'bg-destructive text-destructive-foreground', icon: Mic },
   processing: { label: 'Processando', color: 'bg-blue-500 text-white', icon: Loader2 },
   transcribing: { label: 'Transcrevendo', color: 'bg-blue-500 text-white', icon: Loader2 },
-  organizing: { label: 'Organizando', color: 'bg-purple-500 text-white', icon: Brain },
   completed: { label: 'Concluído', color: 'bg-green-500 text-white', icon: CheckCircle2 },
   error: { label: 'Erro', color: 'bg-destructive text-destructive-foreground', icon: XCircle },
 };
 
 export default function Teleatendimento() {
-  const { sessions, isLoading, fetchSessions, createSession, updateSession, uploadAudio, retryProcessing, deleteSession, fetchSession } = useTelehealth();
+  const { sessions, isLoading, fetchSessions, createSession, updateSession, uploadAudio, retryProcessing, deleteSession, fetchSession, analyzeSession } = useTelehealth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -38,7 +37,7 @@ export default function Teleatendimento() {
 
   // Poll for processing sessions
   useEffect(() => {
-    const hasProcessing = sessions.some(s => ['processing', 'transcribing', 'organizing'].includes(s.status));
+    const hasProcessing = sessions.some(s => ['processing', 'transcribing'].includes(s.status));
     if (!hasProcessing) return;
     const interval = setInterval(() => {
       fetchSessions({ status: statusFilter === 'all' ? undefined : statusFilter, search: search || undefined });
@@ -83,6 +82,26 @@ export default function Teleatendimento() {
     await retryProcessing(id);
     fetchSessions();
   }, [retryProcessing, fetchSessions]);
+
+  const handleAnalyze = useCallback(async (id: string, type: AnalysisType) => {
+    const result = await analyzeSession(id, type);
+    if (result) {
+      // Refresh session detail
+      const updated = await fetchSession(id);
+      if (updated) setDetailSession(updated);
+    }
+    return result;
+  }, [analyzeSession, fetchSession]);
+
+  const handleCreateTask = useCallback((task: any) => {
+    toast.success(`Tarefa "${task.titulo}" criada! (integração com Kanban em breve)`);
+    // TODO: integrate with task-boards API
+  }, []);
+
+  const handleScheduleReturn = useCallback((retorno: any) => {
+    toast.success(`Retorno agendado: ${retorno.descricao}`);
+    // TODO: integrate with CRM tasks/calendar
+  }, []);
 
   return (
     <MainLayout>
@@ -145,7 +164,7 @@ export default function Teleatendimento() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-medium truncate">{session.title || 'Sem título'}</h3>
                           <Badge className={cn('shrink-0 text-xs', statusInfo.color)}>
-                            <StatusIcon className={cn("h-3 w-3 mr-1", ['processing', 'transcribing', 'organizing'].includes(session.status) && 'animate-spin')} />
+                            <StatusIcon className={cn("h-3 w-3 mr-1", ['processing', 'transcribing'].includes(session.status) && 'animate-spin')} />
                             {statusInfo.label}
                           </Badge>
                         </div>
@@ -196,6 +215,9 @@ export default function Teleatendimento() {
         open={showDetail}
         onClose={() => setShowDetail(false)}
         onRetry={handleRetry}
+        onAnalyze={handleAnalyze}
+        onCreateTask={handleCreateTask}
+        onScheduleReturn={handleScheduleReturn}
       />
     </MainLayout>
   );
