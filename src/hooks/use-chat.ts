@@ -80,6 +80,14 @@ export interface ChatMessage {
   is_deleted?: boolean;
   is_forwarded?: boolean;
   transcript?: string | null;
+  link_preview?: {
+    url?: string;
+    canonicalUrl?: string;
+    title?: string;
+    description?: string;
+    thumbnail?: string;
+    previewType?: number;
+  } | null;
 }
 
 export interface TeamMember {
