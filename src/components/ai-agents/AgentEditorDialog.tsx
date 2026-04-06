@@ -951,7 +951,7 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
   formData: any;
   setFormData: React.Dispatch<React.SetStateAction<any>>;
 }) {
-  const { getAppBarberServices, saveAppBarberService, deleteAppBarberService } = useAIAgents();
+  const { getAppBarberServices, saveAppBarberService, deleteAppBarberService, syncAppBarberServices } = useAIAgents();
   const [services, setServices] = useState<AppBarberService[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -959,63 +959,34 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
   const [newService, setNewService] = useState({ service_code: '', service_description: '', service_value: '', service_interval: '30' });
   const [showAddForm, setShowAddForm] = useState(false);
 
-  const normalizeServiceValue = (value: unknown) => {
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    if (typeof value === 'string') {
-      const normalized = value.trim().replace(/\./g, '').replace(',', '.');
-      const parsed = parseFloat(normalized);
-      if (!Number.isNaN(parsed)) return parsed;
-    }
-    return 0;
-  };
-
   const loadServices = useCallback(async () => {
     if (!agentId) return;
     const data = await getAppBarberServices(agentId);
     setServices(data);
   }, [agentId, getAppBarberServices]);
 
-  const fetchServicesFromBrowser = async () => {
+  const handleValidateToken = async () => {
     const apiKey = String(formData.appbarber_api_key || '').trim();
     const establishmentCode = String(formData.appbarber_establishment_code || '').trim();
 
     if (!apiKey || !establishmentCode) {
-      throw new Error('Preencha a API Key e o código do estabelecimento.');
+      toast.error('Preencha a API Key e o código do estabelecimento.');
+      return;
     }
 
-    const params = new URLSearchParams({ establishment_code: establishmentCode, type: '1' });
-    const response = await fetch(`https://api.appbarber.com/v1/services?${params.toString()}`, {
-      headers: {
-        Accept: 'application/json',
-        'X-API-Key': apiKey,
-      },
-    });
-
-    const rawText = await response.text();
-    let payload: any = null;
-
-    try {
-      payload = rawText ? JSON.parse(rawText) : null;
-    } catch {
-      payload = null;
-    }
-
-    if (!response.ok) {
-      const message = payload?.message || payload?.error || rawText || `Erro ${response.status}`;
-      throw new Error(message);
-    }
-
-    const services = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
-    return services.filter((service: any) => service?.service_code && service?.service_description);
-  };
-
-  const handleValidateToken = async () => {
     setValidating(true);
     setValidationResult('idle');
     try {
-      await fetchServicesFromBrowser();
+      const result = await api<{ ok: boolean; total?: number }>('/api/ai-agents/appbarber/validate', {
+        method: 'POST',
+        body: {
+          appbarber_api_key: apiKey,
+          appbarber_establishment_code: establishmentCode,
+        },
+        auth: true,
+      });
       setValidationResult('valid');
-      toast.success('API Key válida! Conexão com AppBarber OK.');
+      toast.success(`API Key válida! ${result.total ?? 0} serviço(s) encontrado(s).`);
     } catch (err) {
       setValidationResult('invalid');
       toast.error(err instanceof Error ? err.message : 'API Key inválida ou erro de conexão');
@@ -1036,40 +1007,22 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
     if (!agentId) return;
     setSyncing(true);
     try {
-      const browserServices = await fetchServicesFromBrowser();
-      if (!browserServices.length) {
+      const result = await syncAppBarberServices(agentId, {
+        appbarber_api_key: String(formData.appbarber_api_key || '').trim(),
+        appbarber_establishment_code: String(formData.appbarber_establishment_code || '').trim(),
+      });
+
+      if (!result?.imported) {
         toast.warning('Nenhum serviço encontrado na API AppBarber.');
         setSyncing(false);
         return;
       }
 
-      const normalizedServices = browserServices
-        .map((service: any) => ({
-          service_code: parseInt(String(service.service_code), 10),
-          service_description: String(service.service_description || '').trim(),
-          service_value: normalizeServiceValue(service.service_value),
-          service_interval: parseInt(String(service.service_interval || 30), 10) || 30,
-          is_active: true,
-        }))
-        .filter((service) => Number.isFinite(service.service_code) && !!service.service_description);
-
-      const results = await Promise.allSettled(
-        normalizedServices.map((service) => saveAppBarberService(agentId, service))
-      );
-
-      const imported = results.filter(
-        (result): result is PromiseFulfilledResult<AppBarberService | null> => result.status === 'fulfilled' && !!result.value
-      ).length;
-
-      if (!imported) {
-        throw new Error('Não foi possível importar os serviços para a tabela local.');
-      }
-
-      const failed = normalizedServices.length - imported;
+      const failed = Math.max((result.total ?? result.imported) - result.imported, 0);
       toast.success(
         failed > 0
-          ? `${imported} serviços importados (${failed} falharam)`
-          : `${imported} serviços importados com sucesso`
+          ? `${result.imported} serviços importados (${failed} falharam)`
+          : `${result.imported} serviços importados com sucesso`
       );
 
       await loadServices();

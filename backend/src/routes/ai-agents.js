@@ -1645,6 +1645,37 @@ async function readAppBarberResponse(response) {
   return { rawText, payload };
 }
 
+async function fetchAppBarberServicesFromApi({ apiKey, estCode, professionalCode, serviceCode }) {
+  const params = new URLSearchParams({
+    establishment_code: String(estCode),
+    type: '1',
+  });
+
+  if (professionalCode) params.set('professional_code', String(professionalCode));
+  if (serviceCode) params.set('service_code', String(serviceCode));
+
+  const response = await fetch(`https://api.appbarber.com/v1/services?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+      'X-API-Key': apiKey,
+      'User-Agent': 'curl/8.7.1',
+    },
+  });
+
+  const { rawText, payload } = await readAppBarberResponse(response);
+
+  if (!response.ok) {
+    const error = new Error(getAppBarberErrorMessage(response, payload, rawText));
+    error.status = response.status;
+    error.code = isAppBarberCloudflareBlock(response, rawText)
+      ? 'APPBARBER_CLOUDFLARE_BLOCK'
+      : 'APPBARBER_API_ERROR';
+    throw error;
+  }
+
+  return extractAppBarberServices(payload);
+}
+
 async function importAppBarberServices(agentId, organizationId, services) {
   let imported = 0;
 
@@ -2172,6 +2203,36 @@ router.delete('/:agentId/appbarber-services/:serviceId', authenticate, async (re
   }
 });
 
+// Validate AppBarber credentials without importing
+router.post('/appbarber/validate', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+
+    const apiKey = String(req.body?.appbarber_api_key || '').trim();
+    const estCode = String(req.body?.appbarber_establishment_code || '').trim();
+
+    if (!apiKey || !estCode) {
+      return res.status(400).json({ error: 'Informe a API Key e o código do estabelecimento.' });
+    }
+
+    const services = await fetchAppBarberServicesFromApi({ apiKey, estCode });
+    return res.json({ ok: true, total: services.length });
+  } catch (error) {
+    if (error.code === 'APPBARBER_CLOUDFLARE_BLOCK') {
+      return res.status(502).json({
+        error: 'A AppBarber bloqueou a conexão do servidor via Cloudflare.',
+        code: error.code,
+      });
+    }
+
+    return res.status(400).json({
+      error: error.message || 'Erro ao validar credenciais AppBarber.',
+      code: error.code || 'APPBARBER_VALIDATE_ERROR',
+    });
+  }
+});
+
 // Sync services from AppBarber API (one-time import)
 router.post('/:agentId/appbarber-services/sync', authenticate, async (req, res) => {
   try {
@@ -2196,49 +2257,33 @@ router.post('/:agentId/appbarber-services/sync', authenticate, async (req, res) 
       return res.status(400).json({ error: 'Credenciais AppBarber não configuradas. Salve a API Key e o código do estabelecimento no agente primeiro.' });
     }
 
-    // Fetch from API
-    const params = new URLSearchParams({
-      establishment_code: estCode,
-      type: '1',
-    });
     logInfo('appbarber_sync', { agentId: req.params.agentId, estCode, apiKeyPrefix: apiKey.substring(0, 8) + '...' });
-    
-    const resp = await fetch(`https://api.appbarber.com/v1/services?${params}`, {
-      headers: {
-        Accept: 'application/json',
-        'X-API-Key': apiKey,
-        'Content-Type': 'application/json',
-      },
-    });
-    const { rawText, payload } = await readAppBarberResponse(resp);
-    
-    if (!resp.ok) {
-      const errorMsg = getAppBarberErrorMessage(resp, payload, rawText);
 
-      if (isAppBarberCloudflareBlock(resp, rawText)) {
-        logError('appbarber_sync_cloudflare_block', new Error(errorMsg), {
+    try {
+      const services = await fetchAppBarberServicesFromApi({ apiKey, estCode });
+      const imported = await importAppBarberServices(req.params.agentId, userCtx.organization_id, services);
+
+      return res.json({ ok: true, imported, total: services.length, source: 'server' });
+    } catch (error) {
+      if (error.code === 'APPBARBER_CLOUDFLARE_BLOCK') {
+        logError('appbarber_sync_cloudflare_block', error, {
           agentId: req.params.agentId,
-          status: resp.status,
+          status: error.status,
           estCode,
         });
         return res.status(502).json({
-          error: 'A AppBarber bloqueou a conexão do servidor via Cloudflare. Tente sincronizar pelo navegador neste painel.',
-          code: 'APPBARBER_CLOUDFLARE_BLOCK',
+          error: 'A AppBarber bloqueou a conexão do servidor via Cloudflare.',
+          code: error.code,
         });
       }
 
-      logError('appbarber_sync_api_error', new Error(errorMsg), {
+      logError('appbarber_sync_api_error', error, {
         agentId: req.params.agentId,
-        status: resp.status,
+        status: error.status,
         estCode,
       });
-      return res.status(400).json({ error: `Erro AppBarber (${resp.status}): ${errorMsg}` });
+      return res.status(400).json({ error: `Erro AppBarber: ${error.message || 'falha ao consultar serviços'}` });
     }
-
-    const services = extractAppBarberServices(payload);
-    const imported = await importAppBarberServices(req.params.agentId, userCtx.organization_id, services);
-
-    res.json({ ok: true, imported, total: services.length });
   } catch (error) {
     logError('appbarber_services.sync_error', error);
     res.status(500).json({ error: 'Erro ao sincronizar serviços: ' + (error.message || 'erro interno') });
