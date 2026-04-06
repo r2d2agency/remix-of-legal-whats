@@ -37,7 +37,7 @@ export default function Teleatendimento() {
 
   // Poll for processing sessions
   useEffect(() => {
-    const hasProcessing = sessions.some(s => ['processing', 'transcribing', 'organizing'].includes(s.status));
+    const hasProcessing = sessions.some(s => ['processing', 'transcribing'].includes(s.status));
     if (!hasProcessing) return;
     const interval = setInterval(() => {
       fetchSessions({ status: statusFilter === 'all' ? undefined : statusFilter, search: search || undefined });
