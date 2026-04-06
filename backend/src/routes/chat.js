@@ -2802,7 +2802,7 @@ router.get('/conversations/:id/scheduled', authenticate, async (req, res) => {
 router.post('/conversations/:id/schedule', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const { content, message_type = 'text', media_url, media_mimetype, scheduled_at, timezone = 'America/Sao_Paulo' } = req.body;
+    const { content, message_type = 'text', media_url, media_mimetype, scheduled_at, timezone = 'America/Sao_Paulo', send_text_separate = false } = req.body;
     const connectionIds = await getUserConnections(req.userId);
 
     if (!scheduled_at) {
@@ -2826,8 +2826,8 @@ router.post('/conversations/:id/schedule', authenticate, async (req, res) => {
 
     const result = await query(
       `INSERT INTO scheduled_messages 
-        (conversation_id, connection_id, sender_id, content, message_type, media_url, media_mimetype, scheduled_at, timezone)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        (conversation_id, connection_id, sender_id, content, message_type, media_url, media_mimetype, scheduled_at, timezone, send_text_separate)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         id,
@@ -2838,7 +2838,8 @@ router.post('/conversations/:id/schedule', authenticate, async (req, res) => {
         media_url || null,
         media_mimetype || null,
         scheduledDate,
-        timezone
+        timezone,
+        send_text_separate
       ]
     );
 

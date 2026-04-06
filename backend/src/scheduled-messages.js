@@ -77,15 +77,109 @@ export async function executeScheduledMessages() {
         wapi_token: msg.wapi_token,
       };
 
-      const result = await sendWhatsAppMessage(
-        connection,
-        msg.remote_jid,
-        msg.content,
-        msg.message_type,
-        msg.media_url
-      );
+      // Check if we need to send text separately from media
+      const shouldSendSeparate = msg.send_text_separate && msg.media_url && msg.content;
 
-      if (result.success) {
+      if (shouldSendSeparate) {
+        // Step 1: Send media without caption
+        const mediaResult = await sendWhatsAppMessage(
+          connection,
+          msg.remote_jid,
+          null, // no caption
+          msg.message_type,
+          msg.media_url
+        );
+
+        if (!mediaResult.success) {
+          await query(
+            `UPDATE scheduled_messages 
+             SET status = 'failed', error_message = $1, updated_at = NOW() 
+             WHERE id = $2`,
+            [mediaResult.error || 'Falha ao enviar mídia', msg.id]
+          );
+          stats.failed++;
+          console.log(`  ✗ Failed to send scheduled media ${msg.id}: ${mediaResult.error}`);
+          continue;
+        }
+
+        // Save media message to chat_messages
+        await query(
+          `INSERT INTO chat_messages 
+            (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, status, timestamp)
+           VALUES ($1, $2, true, $3, NULL, $4, $5, $6, 'sent', NOW())`,
+          [
+            msg.conversation_id,
+            mediaResult.messageId || null,
+            msg.sender_id,
+            msg.message_type,
+            msg.media_url,
+            msg.media_mimetype,
+          ]
+        );
+
+        // Small delay between the two messages
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Step 2: Send text as separate message
+        const textResult = await sendWhatsAppMessage(
+          connection,
+          msg.remote_jid,
+          msg.content,
+          'text',
+          null
+        );
+
+        if (!textResult.success) {
+          console.log(`  ⚠ Media sent but text failed for ${msg.id}: ${textResult.error}`);
+          // Still mark as sent since media went through, but note the error
+        }
+
+        // Save text message to chat_messages
+        if (textResult.success) {
+          await query(
+            `INSERT INTO chat_messages 
+              (conversation_id, message_id, from_me, sender_id, content, message_type, status, timestamp)
+             VALUES ($1, $2, true, $3, $4, 'text', 'sent', NOW())`,
+            [
+              msg.conversation_id,
+              textResult.messageId || null,
+              msg.sender_id,
+              msg.content,
+            ]
+          );
+        }
+
+        // Update scheduled message as sent
+        await query(
+          `UPDATE scheduled_messages 
+           SET status = 'sent', sent_at = NOW(), updated_at = NOW() 
+           WHERE id = $1`,
+          [msg.id]
+        );
+
+      } else {
+        // Standard: send as single message (media with caption or text only)
+        var result = await sendWhatsAppMessage(
+          connection,
+          msg.remote_jid,
+          msg.content,
+          msg.message_type,
+          msg.media_url
+        );
+
+        if (!result.success) {
+          await query(
+            `UPDATE scheduled_messages 
+             SET status = 'failed', error_message = $1, updated_at = NOW() 
+             WHERE id = $2`,
+            [result.error || 'Unknown error', msg.id]
+          );
+          stats.failed++;
+          console.log(`  ✗ Failed to send scheduled message ${msg.id}: ${result.error}`);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+
         // Update scheduled message as sent
         await query(
           `UPDATE scheduled_messages 
@@ -109,6 +203,10 @@ export async function executeScheduledMessages() {
             msg.media_mimetype,
           ]
         );
+      }
+
+      // result variable for the success path logging
+      const finalSuccess = true;
 
         // Update conversation last_message_at
         await query(
