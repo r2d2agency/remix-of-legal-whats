@@ -1655,7 +1655,7 @@ async function handleIncomingMessage(connection, payload) {
 
     // IMPORTANT: Extract message content BEFORE creating conversation
     // This prevents creating empty conversations when message is invalid/empty
-    const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype, waMediaKey } = extractMessageContent(payload);
+    const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype, waMediaKey, linkPreview } = extractMessageContent(payload);
 
     console.log('[W-API] Pre-check extracted content:', {
       messageType,
