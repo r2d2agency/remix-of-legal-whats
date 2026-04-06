@@ -83,6 +83,26 @@ export default function Teleatendimento() {
     fetchSessions();
   }, [retryProcessing, fetchSessions]);
 
+  const handleAnalyze = useCallback(async (id: string, type: AnalysisType) => {
+    const result = await analyzeSession(id, type);
+    if (result) {
+      // Refresh session detail
+      const updated = await fetchSession(id);
+      if (updated) setDetailSession(updated);
+    }
+    return result;
+  }, [analyzeSession, fetchSession]);
+
+  const handleCreateTask = useCallback((task: any) => {
+    toast.success(`Tarefa "${task.titulo}" criada! (integração com Kanban em breve)`);
+    // TODO: integrate with task-boards API
+  }, []);
+
+  const handleScheduleReturn = useCallback((retorno: any) => {
+    toast.success(`Retorno agendado: ${retorno.descricao}`);
+    // TODO: integrate with CRM tasks/calendar
+  }, []);
+
   return (
     <MainLayout>
       <div className="p-4 md:p-6 space-y-6">
