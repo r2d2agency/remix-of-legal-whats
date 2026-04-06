@@ -122,6 +122,13 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
     ],
   },
   {
+    title: "Teleatendimento",
+    icon: Video,
+    items: [
+      { name: "Sessões", href: "/teleatendimento", icon: Video, pageKey: 'teleatendimento' },
+    ],
+  },
+  {
     title: "Minha Conta",
     icon: User,
     items: [
