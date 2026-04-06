@@ -63,26 +63,42 @@ export function LinkPreview({ url, savedPreview }: LinkPreviewProps) {
         onClick={(e) => e.stopPropagation()}
       >
         {savedPreview.thumbnail && (
-          <img
-            src={savedPreview.thumbnail}
-            alt={savedPreview.title || ''}
-            className="w-full h-32 object-cover"
-            loading="lazy"
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-          />
-        )}
-        <div className="p-2.5 space-y-0.5">
-          {savedPreview.title && (
-            <p className="text-xs font-medium line-clamp-2 text-foreground">{savedPreview.title}</p>
-          )}
-          {savedPreview.description && (
-            <p className="text-[11px] text-muted-foreground line-clamp-2">{savedPreview.description}</p>
-          )}
-          <div className="flex items-center gap-1 text-[10px] text-primary pt-0.5">
-            <ExternalLink className="h-3 w-3" />
-            <span className="truncate">{getDomain(savedPreview.canonicalUrl || savedPreview.url || url)}</span>
+          <div className="flex items-start gap-2.5 p-2.5">
+            <img
+              src={savedPreview.thumbnail}
+              alt={savedPreview.title || ''}
+              className="w-16 h-16 rounded object-cover flex-shrink-0"
+              loading="lazy"
+              onError={(e) => { e.currentTarget.parentElement!.style.display = 'none'; }}
+            />
+            <div className="min-w-0 flex-1 space-y-0.5">
+              {savedPreview.title && (
+                <p className="text-xs font-medium line-clamp-2 text-foreground">{savedPreview.title}</p>
+              )}
+              {savedPreview.description && (
+                <p className="text-[11px] text-muted-foreground line-clamp-2">{savedPreview.description}</p>
+              )}
+              <div className="flex items-center gap-1 text-[10px] text-primary pt-0.5">
+                <ExternalLink className="h-3 w-3" />
+                <span className="truncate">{getDomain(savedPreview.canonicalUrl || savedPreview.url || url)}</span>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+        {!savedPreview.thumbnail && (
+          <div className="p-2.5 space-y-0.5">
+            {savedPreview.title && (
+              <p className="text-xs font-medium line-clamp-2 text-foreground">{savedPreview.title}</p>
+            )}
+            {savedPreview.description && (
+              <p className="text-[11px] text-muted-foreground line-clamp-2">{savedPreview.description}</p>
+            )}
+            <div className="flex items-center gap-1 text-[10px] text-primary pt-0.5">
+              <ExternalLink className="h-3 w-3" />
+              <span className="truncate">{getDomain(savedPreview.canonicalUrl || savedPreview.url || url)}</span>
+            </div>
+          </div>
+        )}
       </a>
     );
   }
@@ -152,29 +168,48 @@ function LinkPreviewFetched({ url }: { url: string }) {
       onClick={(e) => e.stopPropagation()}
     >
       {og.image && (
-        <img
-          src={og.image}
-          alt={og.title || ''}
-          className="w-full h-32 object-cover"
-          loading="lazy"
-          onError={(e) => { e.currentTarget.style.display = 'none'; }}
-        />
-      )}
-      <div className="p-2.5 space-y-0.5">
-        {og.siteName && (
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{og.siteName}</p>
-        )}
-        {og.title && (
-          <p className="text-xs font-medium line-clamp-2 text-foreground">{og.title}</p>
-        )}
-        {og.description && (
-          <p className="text-[11px] text-muted-foreground line-clamp-2">{og.description}</p>
-        )}
-        <div className="flex items-center gap-1 text-[10px] text-primary pt-0.5">
-          <ExternalLink className="h-3 w-3" />
-          <span className="truncate">{getDomain(url)}</span>
+        <div className="flex items-start gap-2.5 p-2.5">
+          <img
+            src={og.image}
+            alt={og.title || ''}
+            className="w-16 h-16 rounded object-cover flex-shrink-0"
+            loading="lazy"
+            onError={(e) => { e.currentTarget.parentElement!.style.display = 'none'; }}
+          />
+          <div className="min-w-0 flex-1 space-y-0.5">
+            {og.siteName && (
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{og.siteName}</p>
+            )}
+            {og.title && (
+              <p className="text-xs font-medium line-clamp-2 text-foreground">{og.title}</p>
+            )}
+            {og.description && (
+              <p className="text-[11px] text-muted-foreground line-clamp-2">{og.description}</p>
+            )}
+            <div className="flex items-center gap-1 text-[10px] text-primary pt-0.5">
+              <ExternalLink className="h-3 w-3" />
+              <span className="truncate">{getDomain(url)}</span>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+      {!og.image && (
+        <div className="p-2.5 space-y-0.5">
+          {og.siteName && (
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{og.siteName}</p>
+          )}
+          {og.title && (
+            <p className="text-xs font-medium line-clamp-2 text-foreground">{og.title}</p>
+          )}
+          {og.description && (
+            <p className="text-[11px] text-muted-foreground line-clamp-2">{og.description}</p>
+          )}
+          <div className="flex items-center gap-1 text-[10px] text-primary pt-0.5">
+            <ExternalLink className="h-3 w-3" />
+            <span className="truncate">{getDomain(url)}</span>
+          </div>
+        </div>
+      )}
     </a>
   );
 }
