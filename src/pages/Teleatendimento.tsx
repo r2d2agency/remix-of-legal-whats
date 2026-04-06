@@ -215,6 +215,9 @@ export default function Teleatendimento() {
         open={showDetail}
         onClose={() => setShowDetail(false)}
         onRetry={handleRetry}
+        onAnalyze={handleAnalyze}
+        onCreateTask={handleCreateTask}
+        onScheduleReturn={handleScheduleReturn}
       />
     </MainLayout>
   );
