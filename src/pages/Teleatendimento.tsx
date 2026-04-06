@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useTelehealth, TelehealthSession } from '@/hooks/use-telehealth';
+import { useTelehealth, TelehealthSession, AnalysisType } from '@/hooks/use-telehealth';
 import { RecordingModal } from '@/components/telehealth/RecordingModal';
 import { SessionDetailDialog } from '@/components/telehealth/SessionDetailDialog';
 import { NewSessionDialog } from '@/components/telehealth/NewSessionDialog';
