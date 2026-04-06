@@ -138,6 +138,7 @@ export function ScheduleMessageDialog({
     setContent("");
     setDate(undefined);
     setTime("09:00");
+    setSendTextSeparate(false);
     clearMedia();
     
     // Close dialog after scheduling
