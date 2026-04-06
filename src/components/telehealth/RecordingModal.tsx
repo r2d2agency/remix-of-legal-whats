@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { AudioWaveform } from '@/components/chat/AudioWaveform';
-import { Mic, Square, Pause, Play, Upload, X, FileText, Image, AlertTriangle, Loader2 } from 'lucide-react';
+import { Mic, Square, Pause, Play, Upload, X, FileText, Image, AlertTriangle, Loader2, Monitor, MicOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUpload } from '@/hooks/use-upload';
 import { toast } from 'sonner';
+
+type AudioSource = 'mic' | 'screen' | 'both';
 
 interface RecordingModalProps {
   open: boolean;
@@ -27,11 +29,14 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
   const [attachments, setAttachments] = useState<Array<{ name: string; url: string; type: string }>>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [audioSource, setAudioSource] = useState<AudioSource>('mic');
+  const [screenShareActive, setScreenShareActive] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -57,25 +62,98 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
 
   const startRecording = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 },
-      });
-      streamRef.current = stream;
-      chunksRef.current = [];
-
       const ctx = new AudioContext();
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.8;
-      ctx.createMediaStreamSource(stream).connect(analyser);
+
+      const destination = ctx.createMediaStreamDestination();
+      let micStream: MediaStream | null = null;
+      let screenStream: MediaStream | null = null;
+
+      // Get mic audio (for 'mic' or 'both' modes)
+      if (audioSource === 'mic' || audioSource === 'both') {
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 },
+        });
+        streamRef.current = micStream;
+        const micSource = ctx.createMediaStreamSource(micStream);
+        micSource.connect(analyser);
+        micSource.connect(destination);
+      }
+
+      // Get screen/system audio (for 'screen' or 'both' modes)
+      if (audioSource === 'screen' || audioSource === 'both') {
+        try {
+          screenStream = await navigator.mediaDevices.getDisplayMedia({
+            audio: true,
+            video: true, // video is required by some browsers to enable audio
+          });
+          screenStreamRef.current = screenStream;
+          setScreenShareActive(true);
+
+          // Check if we actually got audio tracks
+          const audioTracks = screenStream.getAudioTracks();
+          if (audioTracks.length === 0) {
+            toast.warning('Nenhum áudio do sistema detectado. Certifique-se de marcar "Compartilhar áudio" na janela de compartilhamento.');
+            if (audioSource === 'screen') {
+              // No fallback - cleanup and return
+              screenStream.getTracks().forEach(t => t.stop());
+              if (micStream) micStream.getTracks().forEach(t => t.stop());
+              ctx.close();
+              setScreenShareActive(false);
+              return;
+            }
+          } else {
+            // Create audio-only stream from screen share
+            const screenAudioStream = new MediaStream(audioTracks);
+            const screenSource = ctx.createMediaStreamSource(screenAudioStream);
+            screenSource.connect(analyser);
+            screenSource.connect(destination);
+          }
+
+          // Listen for screen share stop (user clicks "Stop sharing")
+          screenStream.getVideoTracks().forEach(track => {
+            track.onended = () => {
+              setScreenShareActive(false);
+              toast.info('Compartilhamento de tela encerrado');
+              // If recording only screen, stop recording
+              if (audioSource === 'screen' && mediaRecorderRef.current?.state === 'recording') {
+                // Auto-finish
+                finishRecordingRef.current?.();
+              }
+            };
+          });
+        } catch (screenErr: any) {
+          if (screenErr.name === 'NotAllowedError') {
+            toast.error('Compartilhamento de tela cancelado pelo usuário');
+          } else {
+            toast.error('Erro ao capturar áudio do sistema: ' + (screenErr.message || ''));
+          }
+          // Cleanup mic if we already got it
+          if (micStream) micStream.getTracks().forEach(t => t.stop());
+          ctx.close();
+          return;
+        }
+      }
+
+      // If only mic (no screen), connect mic to analyser directly
+      if (audioSource === 'mic' && micStream) {
+        // Already connected above
+      }
+
       audioContextRef.current = ctx;
       analyserRef.current = analyser;
+
+      // Use the mixed destination stream for recording
+      const recordingStream = destination.stream;
 
       const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
         : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/wav';
 
-      const recorder = new MediaRecorder(stream, { mimeType: mime });
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(recordingStream, { mimeType: mime });
       mediaRecorderRef.current = recorder;
       recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.start(100);
@@ -85,10 +163,13 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
 
       timerRef.current = setInterval(() => setDuration(d => d + 1), 1000);
       animFrameRef.current = requestAnimationFrame(updateLevels);
-    } catch (e) {
-      toast.error('Erro ao acessar microfone');
+    } catch (e: any) {
+      toast.error('Erro ao iniciar gravação: ' + (e.message || ''));
     }
-  }, [updateLevels]);
+  }, [updateLevels, audioSource]);
+
+  // Ref to allow screen share end handler to call finish
+  const finishRecordingRef = useRef<(() => void) | null>(null);
 
   const pauseRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state === 'recording') {
@@ -110,7 +191,9 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (animFrameRef.current) { cancelAnimationFrame(animFrameRef.current); animFrameRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (screenStreamRef.current) { screenStreamRef.current.getTracks().forEach(t => t.stop()); screenStreamRef.current = null; }
     if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; analyserRef.current = null; }
+    setScreenShareActive(false);
   }, []);
 
   const finishRecording = useCallback(() => {
@@ -128,6 +211,11 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
     recorder.stop();
   }, [duration, reason, notes, attachments, cleanup, onFinish]);
 
+  // Keep ref in sync
+  useEffect(() => {
+    finishRecordingRef.current = finishRecording;
+  }, [finishRecording]);
+
   const cancelRecording = useCallback(() => {
     if (mediaRecorderRef.current) mediaRecorderRef.current.stop();
     cleanup();
@@ -138,7 +226,6 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
     onClose();
   }, [cleanup, onClose]);
 
-  // Cleanup on unmount
   useEffect(() => () => cleanup(), [cleanup]);
 
   const handleFilesDrop = useCallback(async (files: FileList | File[]) => {
@@ -160,10 +247,15 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
     return `${m}:${(s % 60).toString().padStart(2, '0')}`;
   };
 
+  const sourceLabels: Record<AudioSource, { label: string; icon: any; desc: string }> = {
+    mic: { label: 'Microfone', icon: Mic, desc: 'Grava apenas o áudio do seu microfone' },
+    screen: { label: 'Áudio do Sistema', icon: Monitor, desc: 'Captura o áudio do sistema (Zoom, Meet, etc.)' },
+    both: { label: 'Mic + Sistema', icon: Monitor, desc: 'Mixa microfone + áudio do sistema' },
+  };
+
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="max-w-3xl h-[90vh] flex flex-col p-0 gap-0" onInteractOutside={e => e.preventDefault()}>
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div>
             <h2 className="text-lg font-semibold">Gravação - {sessionTitle || 'Nova Sessão'}</h2>
@@ -175,6 +267,51 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Audio source selector - only before recording starts */}
+          {!isRecording && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Fonte de Áudio</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {(Object.keys(sourceLabels) as AudioSource[]).map(key => {
+                  const item = sourceLabels[key];
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setAudioSource(key)}
+                      className={cn(
+                        "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all text-center",
+                        audioSource === key
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border hover:border-primary/40"
+                      )}
+                    >
+                      <Icon className="h-6 w-6" />
+                      <span className="text-sm font-medium">{item.label}</span>
+                      <span className="text-xs text-muted-foreground">{item.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Active source badge during recording */}
+          {isRecording && (
+            <div className="flex items-center justify-center gap-2">
+              <Badge variant="outline" className="gap-1.5">
+                {audioSource === 'mic' && <><Mic className="h-3 w-3" /> Microfone</>}
+                {audioSource === 'screen' && <><Monitor className="h-3 w-3" /> Áudio do Sistema</>}
+                {audioSource === 'both' && <><Monitor className="h-3 w-3" /> Mic + Sistema</>}
+              </Badge>
+              {screenShareActive && (
+                <Badge className="bg-green-500 text-white gap-1">
+                  <Monitor className="h-3 w-3" /> Compartilhando
+                </Badge>
+              )}
+            </div>
+          )}
+
           {/* Timer + Waveform */}
           <div className="flex flex-col items-center space-y-4">
             <div className={cn(
@@ -190,11 +327,11 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
               </div>
             )}
 
-            {/* Controls */}
             <div className="flex items-center gap-4">
               {!isRecording ? (
                 <Button size="lg" onClick={startRecording} className="gap-2">
-                  <Mic className="h-5 w-5" /> Iniciar Gravação
+                  {audioSource === 'mic' ? <Mic className="h-5 w-5" /> : <Monitor className="h-5 w-5" />}
+                  {audioSource === 'screen' ? 'Compartilhar e Gravar' : 'Iniciar Gravação'}
                 </Button>
               ) : (
                 <>
@@ -214,6 +351,25 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
               )}
             </div>
           </div>
+
+          {/* Screen share info */}
+          {!isRecording && (audioSource === 'screen' || audioSource === 'both') && (
+            <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+              <Monitor className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+              <div className="text-sm text-blue-700 dark:text-blue-400">
+                <p className="font-medium">Como funciona:</p>
+                <ol className="list-decimal ml-4 mt-1 space-y-1">
+                  <li>Clique em "Compartilhar e Gravar"</li>
+                  <li>Selecione a aba ou janela do Zoom/Meet</li>
+                  <li><strong>Marque "Compartilhar áudio"</strong> na janela de seleção</li>
+                  <li>O sistema irá capturar todo o áudio da reunião</li>
+                </ol>
+                <p className="mt-2 text-xs opacity-75">
+                  Funciona melhor no Chrome/Edge. Firefox pode ter suporte limitado para captura de áudio do sistema.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Form fields */}
           <div className="space-y-4">
