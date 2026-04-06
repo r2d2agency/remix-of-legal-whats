@@ -1846,15 +1846,25 @@ const handleGetQRCode = async (connection: Connection) => {
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Token Permanente (deixe em branco para manter o atual)</Label>
-                    <Input 
-                      type="password"
-                      placeholder="Novo token (opcional)"
-                      value={editMetaToken}
-                      onChange={(e) => setEditMetaToken(e.target.value)}
-                    />
+                    <Label>Token de Acesso Permanente</Label>
+                    {editingConnection.meta_token && !editMetaToken && (
+                      <div className="flex items-center gap-2 p-2 rounded bg-muted text-xs font-mono">
+                        <span>{'•'.repeat(20)}{editingConnection.meta_token.slice(-6)}</span>
+                        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditMetaToken(editingConnection.meta_token || '')}>
+                          Alterar
+                        </Button>
+                      </div>
+                    )}
+                    {(!editingConnection.meta_token || editMetaToken !== '') && (
+                      <Input 
+                        type="password"
+                        placeholder={editingConnection.meta_token ? "Novo token" : "EAAxxxxxxx..."}
+                        value={editMetaToken}
+                        onChange={(e) => setEditMetaToken(e.target.value)}
+                      />
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      Por segurança, o token atual não é exibido. Preencha apenas se quiser alterar.
+                      {editingConnection.meta_token ? 'Token salvo. Clique em Alterar para substituir.' : 'Insira o token permanente do Meta Business Suite.'}
                     </p>
                   </div>
                   {editingConnection.meta_webhook_verify_token && (
