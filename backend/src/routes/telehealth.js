@@ -19,6 +19,18 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
 
+// Helper to get user's organization
+async function getUserOrganization(userId) {
+  const result = await query(
+    `SELECT om.organization_id, om.role, u.name
+     FROM organization_members om
+     JOIN users u ON u.id = om.user_id
+     WHERE om.user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0] || null;
+}
+
 // Init tables
 async function ensureTables() {
   try {
@@ -96,9 +108,11 @@ async function getAIConfig(userId) {
 // LIST sessions
 router.get('/', authenticate, async (req, res) => {
   try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
     const { status, contact_id, deal_id, search } = req.query;
     let sql = `SELECT * FROM telehealth_sessions WHERE organization_id = $1 AND deleted_at IS NULL`;
-    const params = [req.user.organization_id];
+    const params = [org.organization_id];
     let idx = 2;
     if (status) { sql += ` AND status = $${idx++}`; params.push(status); }
     if (contact_id) { sql += ` AND contact_id = $${idx++}`; params.push(contact_id); }
@@ -116,9 +130,11 @@ router.get('/', authenticate, async (req, res) => {
 // GET single session
 router.get('/:id', authenticate, async (req, res) => {
   try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
     const r = await query(
       `SELECT * FROM telehealth_sessions WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
-      [req.params.id, req.user.organization_id]
+      [req.params.id, org.organization_id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'Sessão não encontrada' });
     const logs = await query(
@@ -135,13 +151,15 @@ router.get('/:id', authenticate, async (req, res) => {
 // CREATE session
 router.post('/', authenticate, async (req, res) => {
   try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
     const { title, reason, contact_id, contact_name, deal_id, deal_title, consent_given } = req.body;
     const r = await query(
       `INSERT INTO telehealth_sessions (organization_id, created_by, title, reason, contact_id, contact_name, deal_id, deal_title, consent_given)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [req.user.organization_id, req.user.id, title, reason, contact_id || null, contact_name || null, deal_id || null, deal_title || null, consent_given || false]
+      [org.organization_id, req.userId, title, reason, contact_id || null, contact_name || null, deal_id || null, deal_title || null, consent_given || false]
     );
-    await auditLog(r.rows[0].id, req.user.organization_id, req.user.id, req.user.name, 'session_created');
+    await auditLog(r.rows[0].id, org.organization_id, req.userId, org.name, 'session_created');
     res.json(r.rows[0]);
   } catch (e) {
     logError('Create telehealth session error', e);
@@ -152,6 +170,8 @@ router.post('/', authenticate, async (req, res) => {
 // UPDATE session (notes, reason, attachments, etc)
 router.patch('/:id', authenticate, async (req, res) => {
   try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
     const allowed = ['title', 'reason', 'notes', 'contact_id', 'contact_name', 'deal_id', 'deal_title', 'consent_given', 'attachments', 'status'];
     const sets = [];
     const params = [];
@@ -164,13 +184,13 @@ router.patch('/:id', authenticate, async (req, res) => {
     }
     if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar' });
     sets.push(`updated_at = NOW()`);
-    params.push(req.params.id, req.user.organization_id);
+    params.push(req.params.id, org.organization_id);
     const r = await query(
       `UPDATE telehealth_sessions SET ${sets.join(', ')} WHERE id = $${idx++} AND organization_id = $${idx} RETURNING *`,
       params
     );
     if (!r.rows.length) return res.status(404).json({ error: 'Sessão não encontrada' });
-    await auditLog(r.rows[0].id, req.user.organization_id, req.user.id, req.user.name, 'session_updated', { fields: Object.keys(req.body) });
+    await auditLog(r.rows[0].id, org.organization_id, req.userId, org.name, 'session_updated', { fields: Object.keys(req.body) });
     res.json(r.rows[0]);
   } catch (e) {
     logError('Update telehealth session error', e);
@@ -181,6 +201,8 @@ router.patch('/:id', authenticate, async (req, res) => {
 // UPLOAD audio
 router.post('/:id/audio', authenticate, upload.single('audio'), async (req, res) => {
   try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
     if (!req.file) return res.status(400).json({ error: 'Arquivo de áudio obrigatório' });
     const reason = req.headers['x-session-reason'] || '';
     const notes = req.headers['x-session-notes'] || '';
@@ -194,13 +216,13 @@ router.post('/:id/audio', authenticate, upload.single('audio'), async (req, res)
         reason = COALESCE(NULLIF($5,''), reason), notes = COALESCE(NULLIF($6,''), notes),
         status = 'processing', audio_expires_at = $7, updated_at = NOW()
        WHERE id = $8 AND organization_id = $9 RETURNING *`,
-      [audioUrl, req.file.size, duration, req.file.mimetype, reason, notes, expiresAt, req.params.id, req.user.organization_id]
+      [audioUrl, req.file.size, duration, req.file.mimetype, reason, notes, expiresAt, req.params.id, org.organization_id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'Sessão não encontrada' });
-    await auditLog(r.rows[0].id, req.user.organization_id, req.user.id, req.user.name, 'audio_uploaded', { size: req.file.size, duration });
+    await auditLog(r.rows[0].id, org.organization_id, req.userId, org.name, 'audio_uploaded', { size: req.file.size, duration });
 
     // Start async processing
-    processSession(r.rows[0].id, req.user.id, req.user.organization_id, req.user.name).catch(e => logError('Process session error', e));
+    processSession(r.rows[0].id, req.userId, org.organization_id, org.name).catch(e => logError('Process session error', e));
 
     res.json(r.rows[0]);
   } catch (e) {
@@ -212,14 +234,16 @@ router.post('/:id/audio', authenticate, upload.single('audio'), async (req, res)
 // RETRY processing
 router.post('/:id/retry', authenticate, async (req, res) => {
   try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
     const r = await query(
       `UPDATE telehealth_sessions SET status = 'processing', error_message = NULL, retry_count = retry_count + 1, updated_at = NOW()
        WHERE id = $1 AND organization_id = $2 AND status = 'error' RETURNING *`,
-      [req.params.id, req.user.organization_id]
+      [req.params.id, org.organization_id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'Sessão não encontrada ou não está em erro' });
-    await auditLog(r.rows[0].id, req.user.organization_id, req.user.id, req.user.name, 'retry_processing');
-    processSession(r.rows[0].id, req.user.id, req.user.organization_id, req.user.name).catch(e => logError('Retry process error', e));
+    await auditLog(r.rows[0].id, org.organization_id, req.userId, org.name, 'retry_processing');
+    processSession(r.rows[0].id, req.userId, org.organization_id, org.name).catch(e => logError('Retry process error', e));
     res.json(r.rows[0]);
   } catch (e) {
     logError('Retry telehealth error', e);
@@ -230,12 +254,14 @@ router.post('/:id/retry', authenticate, async (req, res) => {
 // DELETE session (soft)
 router.delete('/:id', authenticate, async (req, res) => {
   try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
     const r = await query(
       `UPDATE telehealth_sessions SET deleted_at = NOW() WHERE id = $1 AND organization_id = $2 RETURNING id`,
-      [req.params.id, req.user.organization_id]
+      [req.params.id, org.organization_id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'Sessão não encontrada' });
-    await auditLog(req.params.id, req.user.organization_id, req.user.id, req.user.name, 'session_deleted');
+    await auditLog(req.params.id, org.organization_id, req.userId, org.name, 'session_deleted');
     res.json({ success: true });
   } catch (e) {
     logError('Delete telehealth session error', e);
@@ -246,9 +272,11 @@ router.delete('/:id', authenticate, async (req, res) => {
 // GET audit logs for session
 router.get('/:id/audit', authenticate, async (req, res) => {
   try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
     const r = await query(
       `SELECT * FROM telehealth_audit_logs WHERE session_id = $1 AND organization_id = $2 ORDER BY created_at ASC`,
-      [req.params.id, req.user.organization_id]
+      [req.params.id, org.organization_id]
     );
     res.json(r.rows);
   } catch (e) {
