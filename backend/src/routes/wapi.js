@@ -2490,11 +2490,26 @@ function extractMessageContent(payload) {
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
-  // Extended text message
+  // Extended text message (with link preview data)
   if (msgContent.extendedTextMessage) {
-    content = msgContent.extendedTextMessage.text || '';
+    const ext = msgContent.extendedTextMessage;
+    content = ext.text || '';
     messageType = 'text';
-    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
+    // Extract WhatsApp-provided link preview metadata
+    let linkPreview = null;
+    if (ext.matchedText || ext.canonicalUrl || ext.title || ext.description) {
+      linkPreview = {};
+      if (ext.matchedText) linkPreview.url = ext.matchedText;
+      if (ext.canonicalUrl) linkPreview.canonicalUrl = ext.canonicalUrl;
+      if (ext.title) linkPreview.title = ext.title;
+      if (ext.description) linkPreview.description = ext.description;
+      if (ext.jpegThumbnail) {
+        const thumb = typeof ext.jpegThumbnail === 'string' ? ext.jpegThumbnail : null;
+        if (thumb) linkPreview.thumbnail = thumb.startsWith('data:') ? thumb : `data:image/jpeg;base64,${thumb}`;
+      }
+      if (ext.previewType !== undefined) linkPreview.previewType = ext.previewType;
+    }
+    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey, linkPreview };
   }
 
   // Image message

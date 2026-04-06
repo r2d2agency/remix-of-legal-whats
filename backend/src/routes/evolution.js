@@ -1835,10 +1835,23 @@ async function handleMessageUpsert(connection, data) {
       content = msgContent.conversation;
       messageType = 'text';
     } else if (msgContent.extendedTextMessage) {
-      content = msgContent.extendedTextMessage.text;
+      const ext = msgContent.extendedTextMessage;
+      content = ext.text;
       messageType = 'text';
-      if (msgContent.extendedTextMessage.contextInfo?.quotedMessage) {
-        quotedMessageId = msgContent.extendedTextMessage.contextInfo.stanzaId;
+      if (ext.contextInfo?.quotedMessage) {
+        quotedMessageId = ext.contextInfo.stanzaId;
+      }
+      // Extract link preview metadata
+      if (ext.matchedText || ext.canonicalUrl || ext.title || ext.description) {
+        linkPreview = {};
+        if (ext.matchedText) linkPreview.url = ext.matchedText;
+        if (ext.canonicalUrl) linkPreview.canonicalUrl = ext.canonicalUrl;
+        if (ext.title) linkPreview.title = ext.title;
+        if (ext.description) linkPreview.description = ext.description;
+        if (ext.jpegThumbnail) {
+          const thumb = typeof ext.jpegThumbnail === 'string' ? ext.jpegThumbnail : null;
+          if (thumb) linkPreview.thumbnail = thumb.startsWith('data:') ? thumb : `data:image/jpeg;base64,${thumb}`;
+        }
       }
     } else if (msgContent.imageMessage) {
       messageType = 'image';
