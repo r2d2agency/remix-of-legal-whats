@@ -766,6 +766,7 @@ app.use('/api/lead-gleego', leadGleegoRoutes);
 app.use('/api/global-agents', globalAgentsRoutes);
 app.use('/api/meta', metaTemplatesRoutes);
 app.use('/api/doc-signatures', docSignaturesRoutes);
+app.use('/api/telehealth', telehealthRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
