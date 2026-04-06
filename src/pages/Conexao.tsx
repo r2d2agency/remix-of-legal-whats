@@ -97,12 +97,15 @@ const Conexao = () => {
   // Diagnostic panel state (full panel view)
   const [diagnosticPanelOpen, setDiagnosticPanelOpen] = useState(false);
   
-  // Edit connection state (W-API)
+  // Edit connection state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingConnection, setEditingConnection] = useState<Connection | null>(null);
   const [editName, setEditName] = useState("");
   const [editInstanceId, setEditInstanceId] = useState("");
   const [editWapiToken, setEditWapiToken] = useState("");
+  const [editMetaToken, setEditMetaToken] = useState("");
+  const [editMetaPhoneNumberId, setEditMetaPhoneNumberId] = useState("");
+  const [editMetaWabaId, setEditMetaWabaId] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [diagnosticConnection, setDiagnosticConnection] = useState<Connection | null>(null);
   
