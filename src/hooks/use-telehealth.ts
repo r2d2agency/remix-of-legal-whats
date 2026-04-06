@@ -1,0 +1,156 @@
+import { useState, useCallback } from 'react';
+import { toast } from 'sonner';
+import { api, API_URL, getAuthToken } from '@/lib/api';
+
+export interface TelehealthSession {
+  id: string;
+  organization_id: string;
+  created_by: string;
+  title: string | null;
+  reason: string | null;
+  notes: string | null;
+  contact_id: string | null;
+  contact_name: string | null;
+  deal_id: string | null;
+  deal_title: string | null;
+  status: 'waiting' | 'recording' | 'processing' | 'transcribing' | 'organizing' | 'completed' | 'error';
+  audio_url: string | null;
+  audio_size: number | null;
+  audio_duration: number | null;
+  transcript: string | null;
+  structured_content: any;
+  error_message: string | null;
+  retry_count: number;
+  consent_given: boolean;
+  attachments: Array<{ name: string; url: string; type: string }>;
+  audio_expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  audit_logs?: AuditLog[];
+}
+
+export interface AuditLog {
+  id: string;
+  session_id: string;
+  user_id: string;
+  user_name: string;
+  action: string;
+  details: any;
+  created_at: string;
+}
+
+export function useTelehealth() {
+  const [sessions, setSessions] = useState<TelehealthSession[]>([]);
+  const [currentSession, setCurrentSession] = useState<TelehealthSession | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchSessions = useCallback(async (filters?: { status?: string; contact_id?: string; deal_id?: string; search?: string }) => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filters?.status) params.set('status', filters.status);
+      if (filters?.contact_id) params.set('contact_id', filters.contact_id);
+      if (filters?.deal_id) params.set('deal_id', filters.deal_id);
+      if (filters?.search) params.set('search', filters.search);
+      const qs = params.toString();
+      const data = await api<TelehealthSession[]>(`/api/telehealth${qs ? '?' + qs : ''}`, { auth: true });
+      setSessions(data);
+    } catch (e: any) {
+      toast.error('Erro ao carregar sessões');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const fetchSession = useCallback(async (id: string) => {
+    try {
+      const data = await api<TelehealthSession>(`/api/telehealth/${id}`, { auth: true });
+      setCurrentSession(data);
+      return data;
+    } catch (e: any) {
+      toast.error('Erro ao carregar sessão');
+      return null;
+    }
+  }, []);
+
+  const createSession = useCallback(async (data: Partial<TelehealthSession>) => {
+    try {
+      const session = await api<TelehealthSession>('/api/telehealth', { method: 'POST', body: data, auth: true });
+      toast.success('Sessão criada');
+      return session;
+    } catch (e: any) {
+      toast.error('Erro ao criar sessão');
+      return null;
+    }
+  }, []);
+
+  const updateSession = useCallback(async (id: string, data: Partial<TelehealthSession>) => {
+    try {
+      const session = await api<TelehealthSession>(`/api/telehealth/${id}`, { method: 'PATCH', body: data, auth: true });
+      toast.success('Sessão atualizada');
+      return session;
+    } catch (e: any) {
+      toast.error('Erro ao atualizar sessão');
+      return null;
+    }
+  }, []);
+
+  const uploadAudio = useCallback(async (sessionId: string, audioBlob: Blob, reason: string, notes: string, duration: number) => {
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+      const token = getAuthToken();
+      const resp = await fetch(`${API_URL}/api/telehealth/${sessionId}/audio`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-Session-Reason': encodeURIComponent(reason),
+          'X-Session-Notes': encodeURIComponent(notes),
+          'X-Session-Duration': String(duration),
+        },
+        body: formData,
+      });
+      if (!resp.ok) throw new Error('Upload falhou');
+      const session = await resp.json();
+      toast.success('Áudio enviado para processamento');
+      return session;
+    } catch (e: any) {
+      toast.error('Erro ao enviar áudio');
+      return null;
+    }
+  }, []);
+
+  const retryProcessing = useCallback(async (id: string) => {
+    try {
+      const session = await api<TelehealthSession>(`/api/telehealth/${id}/retry`, { method: 'POST', auth: true });
+      toast.success('Reprocessamento iniciado');
+      return session;
+    } catch (e: any) {
+      toast.error('Erro ao tentar novamente');
+      return null;
+    }
+  }, []);
+
+  const deleteSession = useCallback(async (id: string) => {
+    try {
+      await api(`/api/telehealth/${id}`, { method: 'DELETE', auth: true });
+      toast.success('Sessão excluída');
+    } catch (e: any) {
+      toast.error('Erro ao excluir sessão');
+    }
+  }, []);
+
+  return {
+    sessions,
+    currentSession,
+    isLoading,
+    fetchSessions,
+    fetchSession,
+    createSession,
+    updateSession,
+    uploadAudio,
+    retryProcessing,
+    deleteSession,
+  };
+}

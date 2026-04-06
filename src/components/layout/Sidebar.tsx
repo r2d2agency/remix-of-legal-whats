@@ -39,6 +39,7 @@ import {
   Ghost,
   FolderKanban,
   BarChart4,
+  Video,
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
 import gleegoLogo from "@/assets/gleego-logo.png";
@@ -118,6 +119,13 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
       { name: "API Integração", href: "/api-docs", icon: Code, pageKey: 'api_docs', adminOnly: true },
       { name: "CTWA Analytics", href: "/ctwa-analytics", icon: MousePointerClick, pageKey: 'ctwa_analytics', adminOnly: true },
       { name: "Lead Gleego", href: "/lead-gleego", icon: BarChart4, pageKey: 'lead_gleego', moduleKey: 'lead_gleego' as const },
+    ],
+  },
+  {
+    title: "Teleatendimento",
+    icon: Video,
+    items: [
+      { name: "Sessões", href: "/teleatendimento", icon: Video, pageKey: 'teleatendimento' },
     ],
   },
   {

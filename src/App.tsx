@@ -60,6 +60,7 @@ import MetaTemplates from "./pages/MetaTemplates";
 import Assinaturas from "./pages/Assinaturas";
 import AssinarDocumento from "./pages/AssinarDocumento";
 import VerificarDocumento from "./pages/VerificarDocumento";
+import Teleatendimento from "./pages/Teleatendimento";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -157,6 +158,7 @@ const App = () => (
             <Route path="/respostas-rapidas" element={<ProtectedRoute><RespostasRapidas /></ProtectedRoute>} />
             <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
             <Route path="/assinaturas" element={<ProtectedRoute><Assinaturas /></ProtectedRoute>} />
+            <Route path="/teleatendimento" element={<ProtectedRoute><Teleatendimento /></ProtectedRoute>} />
             <Route path="/api-docs" element={<ApiDocumentation />} />
             <Route path="/f/:slug" element={<PublicFormPage />} />
             <Route path="/assinar/:token" element={<AssinarDocumento />} />
