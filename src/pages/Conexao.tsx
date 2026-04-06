@@ -685,9 +685,19 @@ const handleGetQRCode = async (connection: Connection) => {
     }
 
     const isWapi = editingConnection.provider === 'wapi' || !!editingConnection.instance_id;
+    const isMeta = editingConnection.provider === 'meta';
     
     if (isWapi && !editInstanceId.trim()) {
       toast.error('Instance ID é obrigatório');
+      return;
+    }
+
+    if (isMeta && !editMetaPhoneNumberId.trim()) {
+      toast.error('Phone Number ID é obrigatório');
+      return;
+    }
+    if (isMeta && !editMetaWabaId.trim()) {
+      toast.error('WABA ID é obrigatório');
       return;
     }
 
@@ -702,6 +712,14 @@ const handleGetQRCode = async (connection: Connection) => {
         }
       }
 
+      if (isMeta) {
+        body.meta_phone_number_id = editMetaPhoneNumberId;
+        body.meta_waba_id = editMetaWabaId;
+        if (editMetaToken.trim()) {
+          body.meta_token = editMetaToken;
+        }
+      }
+
       await api(`/api/connections/${editingConnection.id}`, {
         method: 'PATCH',
         body,
@@ -709,7 +727,12 @@ const handleGetQRCode = async (connection: Connection) => {
 
       setConnections(prev => prev.map(c => 
         c.id === editingConnection.id 
-          ? { ...c, name: editName, instance_id: editInstanceId } 
+          ? { 
+              ...c, 
+              name: editName, 
+              instance_id: editInstanceId,
+              ...(isMeta ? { meta_phone_number_id: editMetaPhoneNumberId, meta_waba_id: editMetaWabaId } : {}),
+            } 
           : c
       ));
 
