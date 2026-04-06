@@ -23,7 +23,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 };
 
 export default function Teleatendimento() {
-  const { sessions, isLoading, fetchSessions, createSession, updateSession, uploadAudio, retryProcessing, deleteSession, fetchSession } = useTelehealth();
+  const { sessions, isLoading, fetchSessions, createSession, updateSession, uploadAudio, retryProcessing, deleteSession, fetchSession, analyzeSession } = useTelehealth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showNewDialog, setShowNewDialog] = useState(false);
