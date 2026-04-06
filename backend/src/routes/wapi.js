@@ -1919,9 +1919,9 @@ async function handleIncomingMessage(connection, payload) {
     // Insert message into chat_messages table
     try {
       await query(
-        `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, status, timestamp)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'received', NOW())`,
-        [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone]
+        `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, status, timestamp, link_preview)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'received', NOW(), $10)`,
+        [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone, linkPreview ? JSON.stringify(linkPreview) : null]
       );
 
       console.log('[W-API] Message saved. Type:', messageType, 'ConvID:', conversationId, 'MsgID:', messageId, 'MediaURL:', effectiveMediaUrl?.slice?.(0, 100));
