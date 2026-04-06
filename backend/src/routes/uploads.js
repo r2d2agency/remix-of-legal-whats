@@ -3,9 +3,11 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { Readable } from 'stream';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
+const PROXIED_MEDIA_HOSTS = new Set(['lookaside.fbsbx.com']);
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -220,6 +222,71 @@ router.get('/public/:stored/:downloadName', (req, res) => {
   } catch (error) {
     console.error('Public download error:', error);
     return res.status(500).json({ error: 'Erro ao baixar arquivo' });
+  }
+});
+
+// Public proxy for temporary external media URLs that don't expose CORS headers.
+// Scoped to trusted WhatsApp media hosts to avoid turning this into a generic open proxy.
+router.get('/proxy', async (req, res) => {
+  try {
+    const rawUrl = String(req.query.url || '').trim();
+    if (!rawUrl) {
+      return res.status(400).json({ error: 'URL obrigatória' });
+    }
+
+    let targetUrl;
+    try {
+      targetUrl = new URL(rawUrl);
+    } catch {
+      return res.status(400).json({ error: 'URL inválida' });
+    }
+
+    if (!['http:', 'https:'].includes(targetUrl.protocol)) {
+      return res.status(400).json({ error: 'Protocolo inválido' });
+    }
+
+    if (!PROXIED_MEDIA_HOSTS.has(targetUrl.hostname.toLowerCase())) {
+      return res.status(403).json({ error: 'Host não permitido' });
+    }
+
+    const upstream = await fetch(targetUrl.toString(), {
+      redirect: 'follow',
+      headers: {
+        Accept: '*/*',
+      },
+    });
+
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ error: 'Falha ao carregar mídia' });
+    }
+
+    const contentType = upstream.headers.get('content-type');
+    const contentLength = upstream.headers.get('content-length');
+    const contentDisposition = upstream.headers.get('content-disposition');
+    const cacheControl = upstream.headers.get('cache-control');
+
+    if (contentType) res.setHeader('Content-Type', contentType);
+    if (contentLength) res.setHeader('Content-Length', contentLength);
+    if (contentDisposition) res.setHeader('Content-Disposition', contentDisposition);
+    res.setHeader('Cache-Control', cacheControl || 'public, max-age=300');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    if (!upstream.body) {
+      return res.status(204).end();
+    }
+
+    Readable.fromWeb(upstream.body).on('error', (streamError) => {
+      console.error('Media proxy stream error:', streamError);
+      if (!res.headersSent) {
+        res.status(500).end();
+      } else {
+        res.end();
+      }
+    }).pipe(res);
+  } catch (error) {
+    console.error('Media proxy error:', error);
+    return res.status(500).json({ error: 'Erro ao carregar mídia' });
   }
 });
 
