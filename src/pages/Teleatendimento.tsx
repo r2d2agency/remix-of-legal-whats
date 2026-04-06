@@ -9,7 +9,7 @@ import { useTelehealth, TelehealthSession, AnalysisType } from '@/hooks/use-tele
 import { RecordingModal } from '@/components/telehealth/RecordingModal';
 import { SessionDetailDialog } from '@/components/telehealth/SessionDetailDialog';
 import { NewSessionDialog } from '@/components/telehealth/NewSessionDialog';
-import { Plus, Search, Mic, Trash2, Eye, Clock, CheckCircle2, XCircle, Loader2, Brain, RefreshCw } from 'lucide-react';
+import { Plus, Search, Mic, Trash2, Eye, Clock, CheckCircle2, XCircle, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
