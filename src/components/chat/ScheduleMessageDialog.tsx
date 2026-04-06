@@ -17,7 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarClock, Loader2, Trash2, Image, X, FileText } from "lucide-react";
+import { CalendarClock, Loader2, Trash2, Image, X, FileText, SplitSquareHorizontal } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";

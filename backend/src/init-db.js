@@ -817,7 +817,8 @@ CREATE TABLE IF NOT EXISTS scheduled_messages (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Quick Replies (Chat productivity)
+ALTER TABLE scheduled_messages ADD COLUMN IF NOT EXISTS send_text_separate BOOLEAN DEFAULT false;
+
 CREATE TABLE IF NOT EXISTS quick_replies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,

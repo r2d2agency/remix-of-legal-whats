@@ -486,8 +486,10 @@ export const useChat = () => {
     content?: string;
     message_type?: string;
     media_url?: string;
+    media_mimetype?: string;
     scheduled_at: string;
     timezone?: string;
+    send_text_separate?: boolean;
   }): Promise<ScheduledMessage> => {
     const data = await api<ScheduledMessage>(`/api/chat/conversations/${conversationId}/schedule`, {
       method: 'POST',
