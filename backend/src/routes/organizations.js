@@ -136,7 +136,8 @@ router.get('/:id([0-9a-fA-F-]{36})/connections', async (req, res) => {
     }
     
     const result = await query(
-      `SELECT id, name, phone_number, status, provider 
+      `SELECT id, name, phone_number, status, provider, instance_id,
+              meta_phone_number_id, meta_waba_id, meta_token, meta_webhook_verify_token
        FROM connections 
        WHERE organization_id = $1 
        ORDER BY name`,
