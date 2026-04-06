@@ -97,12 +97,15 @@ const Conexao = () => {
   // Diagnostic panel state (full panel view)
   const [diagnosticPanelOpen, setDiagnosticPanelOpen] = useState(false);
   
-  // Edit connection state (W-API)
+  // Edit connection state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingConnection, setEditingConnection] = useState<Connection | null>(null);
   const [editName, setEditName] = useState("");
   const [editInstanceId, setEditInstanceId] = useState("");
   const [editWapiToken, setEditWapiToken] = useState("");
+  const [editMetaToken, setEditMetaToken] = useState("");
+  const [editMetaPhoneNumberId, setEditMetaPhoneNumberId] = useState("");
+  const [editMetaWabaId, setEditMetaWabaId] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [diagnosticConnection, setDiagnosticConnection] = useState<Connection | null>(null);
   
@@ -666,7 +669,10 @@ const handleGetQRCode = async (connection: Connection) => {
     setEditingConnection(connection);
     setEditName(connection.name);
     setEditInstanceId(connection.instance_id || '');
-    setEditWapiToken(''); // Don't show existing token for security
+    setEditWapiToken('');
+    setEditMetaToken('');
+    setEditMetaPhoneNumberId(connection.meta_phone_number_id || '');
+    setEditMetaWabaId(connection.meta_waba_id || '');
     setEditDialogOpen(true);
   };
 
@@ -679,9 +685,19 @@ const handleGetQRCode = async (connection: Connection) => {
     }
 
     const isWapi = editingConnection.provider === 'wapi' || !!editingConnection.instance_id;
+    const isMeta = editingConnection.provider === 'meta';
     
     if (isWapi && !editInstanceId.trim()) {
       toast.error('Instance ID é obrigatório');
+      return;
+    }
+
+    if (isMeta && !editMetaPhoneNumberId.trim()) {
+      toast.error('Phone Number ID é obrigatório');
+      return;
+    }
+    if (isMeta && !editMetaWabaId.trim()) {
+      toast.error('WABA ID é obrigatório');
       return;
     }
 
@@ -696,6 +712,14 @@ const handleGetQRCode = async (connection: Connection) => {
         }
       }
 
+      if (isMeta) {
+        body.meta_phone_number_id = editMetaPhoneNumberId;
+        body.meta_waba_id = editMetaWabaId;
+        if (editMetaToken.trim()) {
+          body.meta_token = editMetaToken;
+        }
+      }
+
       await api(`/api/connections/${editingConnection.id}`, {
         method: 'PATCH',
         body,
@@ -703,7 +727,12 @@ const handleGetQRCode = async (connection: Connection) => {
 
       setConnections(prev => prev.map(c => 
         c.id === editingConnection.id 
-          ? { ...c, name: editName, instance_id: editInstanceId } 
+          ? { 
+              ...c, 
+              name: editName, 
+              instance_id: editInstanceId,
+              ...(isMeta ? { meta_phone_number_id: editMetaPhoneNumberId, meta_waba_id: editMetaWabaId } : {}),
+            } 
           : c
       ));
 
@@ -1734,6 +1763,9 @@ const handleGetQRCode = async (connection: Connection) => {
               setEditName('');
               setEditInstanceId('');
               setEditWapiToken('');
+              setEditMetaToken('');
+              setEditMetaPhoneNumberId('');
+              setEditMetaWabaId('');
             }
           }}
         >
@@ -1741,7 +1773,9 @@ const handleGetQRCode = async (connection: Connection) => {
             <DialogHeader>
               <DialogTitle>Editar Conexão</DialogTitle>
               <DialogDescription>
-                {editingConnection && (editingConnection.provider === 'wapi' || !!editingConnection.instance_id)
+                {editingConnection?.provider === 'meta'
+                  ? 'Atualize os dados da sua conexão Meta Cloud API.'
+                  : editingConnection && (editingConnection.provider === 'wapi' || !!editingConnection.instance_id)
                   ? 'Atualize os dados da sua conexão W-API.'
                   : 'Dê um nome amigável para sua conexão.'}
               </DialogDescription>
@@ -1782,6 +1816,71 @@ const handleGetQRCode = async (connection: Connection) => {
                       Por segurança, o token atual não é exibido.
                     </p>
                   </div>
+                </>
+              )}
+
+              {/* Meta API specific fields */}
+              {editingConnection?.provider === 'meta' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>WABA ID</Label>
+                    <Input 
+                      placeholder="WhatsApp Business Account ID"
+                      value={editMetaWabaId}
+                      onChange={(e) => setEditMetaWabaId(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      ID da conta WhatsApp Business no Meta Business Suite
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone Number ID</Label>
+                    <Input 
+                      placeholder="ID do número de telefone"
+                      value={editMetaPhoneNumberId}
+                      onChange={(e) => setEditMetaPhoneNumberId(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Encontrado em WhatsApp &gt; API Setup no Meta Developers
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Token Permanente (deixe em branco para manter o atual)</Label>
+                    <Input 
+                      type="password"
+                      placeholder="Novo token (opcional)"
+                      value={editMetaToken}
+                      onChange={(e) => setEditMetaToken(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Por segurança, o token atual não é exibido. Preencha apenas se quiser alterar.
+                    </p>
+                  </div>
+                  {editingConnection.meta_webhook_verify_token && (
+                    <div className="space-y-2">
+                      <Label>Webhook Verify Token</Label>
+                      <div className="flex gap-2">
+                        <Input 
+                          readOnly
+                          value={editingConnection.meta_webhook_verify_token}
+                          className="font-mono text-xs"
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => {
+                            navigator.clipboard.writeText(editingConnection.meta_webhook_verify_token!);
+                            toast.success('Verify Token copiado!');
+                          }}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Use este token ao configurar o webhook no Meta Developers
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
             </div>
