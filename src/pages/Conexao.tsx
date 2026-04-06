@@ -1763,6 +1763,9 @@ const handleGetQRCode = async (connection: Connection) => {
               setEditName('');
               setEditInstanceId('');
               setEditWapiToken('');
+              setEditMetaToken('');
+              setEditMetaPhoneNumberId('');
+              setEditMetaWabaId('');
             }
           }}
         >
