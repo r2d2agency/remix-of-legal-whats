@@ -18,7 +18,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   recording: { label: 'Gravando', color: 'bg-destructive text-destructive-foreground', icon: Mic },
   processing: { label: 'Processando', color: 'bg-blue-500 text-white', icon: Loader2 },
   transcribing: { label: 'Transcrevendo', color: 'bg-blue-500 text-white', icon: Loader2 },
-  organizing: { label: 'Organizando', color: 'bg-purple-500 text-white', icon: Brain },
   completed: { label: 'Concluído', color: 'bg-green-500 text-white', icon: CheckCircle2 },
   error: { label: 'Erro', color: 'bg-destructive text-destructive-foreground', icon: XCircle },
 };
