@@ -205,49 +205,36 @@ export async function executeScheduledMessages() {
         );
       }
 
-      // result variable for the success path logging
-      const finalSuccess = true;
+      // Update conversation last_message_at
+      await query(
+        `UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
+        [msg.conversation_id]
+      );
 
-        // Update conversation last_message_at
-        await query(
-          `UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
-          [msg.conversation_id]
-        );
+      // Create alert for user about sent scheduled message
+      const convInfo = await query(
+        `SELECT contact_name, contact_phone FROM conversations WHERE id = $1`,
+        [msg.conversation_id]
+      );
+      const contactName = convInfo.rows[0]?.contact_name || convInfo.rows[0]?.contact_phone || 'Contato';
+      
+      await query(
+        `INSERT INTO user_alerts (user_id, type, title, message, metadata)
+         VALUES ($1, 'scheduled_message_sent', $2, $3, $4)`,
+        [
+          msg.sender_id,
+          '📅 Mensagem agendada enviada',
+          `Mensagem enviada para ${contactName}`,
+          JSON.stringify({
+            conversation_id: msg.conversation_id,
+            scheduled_message_id: msg.id,
+            message_preview: msg.content?.substring(0, 100),
+          })
+        ]
+      );
 
-        // Create alert for user about sent scheduled message
-        const convInfo = await query(
-          `SELECT contact_name, contact_phone FROM conversations WHERE id = $1`,
-          [msg.conversation_id]
-        );
-        const contactName = convInfo.rows[0]?.contact_name || convInfo.rows[0]?.contact_phone || 'Contato';
-        
-        await query(
-          `INSERT INTO user_alerts (user_id, type, title, message, metadata)
-           VALUES ($1, 'scheduled_message_sent', $2, $3, $4)`,
-          [
-            msg.sender_id,
-            '📅 Mensagem agendada enviada',
-            `Mensagem enviada para ${contactName}`,
-            JSON.stringify({
-              conversation_id: msg.conversation_id,
-              scheduled_message_id: msg.id,
-              message_preview: msg.content?.substring(0, 100),
-            })
-          ]
-        );
-
-        stats.sent++;
-        console.log(`  ✓ Sent scheduled message ${msg.id}`);
-      } else {
-        await query(
-          `UPDATE scheduled_messages 
-           SET status = 'failed', error_message = $1, updated_at = NOW() 
-           WHERE id = $2`,
-          [result.error || 'Unknown error', msg.id]
-        );
-        stats.failed++;
-        console.log(`  ✗ Failed to send scheduled message ${msg.id}: ${result.error}`);
-      }
+      stats.sent++;
+      console.log(`  ✓ Sent scheduled message ${msg.id}`);
 
       // Small delay between messages to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 500));
