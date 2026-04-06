@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS scheduled_messages (
   message_type VARCHAR(50) DEFAULT 'text',
   media_url TEXT,
   media_mimetype VARCHAR(100),
+  send_text_separate BOOLEAN DEFAULT false,
   scheduled_at TIMESTAMP NOT NULL,
   timezone VARCHAR(50) DEFAULT 'America/Sao_Paulo',
   status VARCHAR(20) DEFAULT 'pending', -- pending, sent, failed, cancelled

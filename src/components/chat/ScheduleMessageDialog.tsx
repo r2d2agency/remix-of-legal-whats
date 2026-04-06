@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -17,7 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarClock, Loader2, Trash2, Image, X, FileText } from "lucide-react";
+import { CalendarClock, Loader2, Trash2, Image, X, FileText, SplitSquareHorizontal } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ interface ScheduleMessageDialogProps {
     media_url?: string;
     media_mimetype?: string;
     scheduled_at: string;
+    send_text_separate?: boolean;
   }) => Promise<void>;
   scheduledMessages: ScheduledMessage[];
   onCancelScheduled: (id: string) => Promise<void>;
@@ -58,6 +60,7 @@ export function ScheduleMessageDialog({
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [mediaMimetype, setMediaMimetype] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"text" | "image" | "document">("text");
+  const [sendTextSeparate, setSendTextSeparate] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { uploadFile, isUploading } = useUpload();
@@ -128,12 +131,14 @@ export function ScheduleMessageDialog({
       media_url: mediaUrl || undefined,
       media_mimetype: mediaMimetype || undefined,
       scheduled_at: scheduledDate.toISOString(),
+      send_text_separate: mediaUrl && content.trim() ? sendTextSeparate : undefined,
     });
 
     // Reset form
     setContent("");
     setDate(undefined);
     setTime("09:00");
+    setSendTextSeparate(false);
     clearMedia();
     
     // Close dialog after scheduling
@@ -231,14 +236,35 @@ export function ScheduleMessageDialog({
 
           {/* Message content */}
           <div className="space-y-2">
-            <Label>Mensagem {mediaUrl ? "(legenda)" : ""}</Label>
+            <Label>Mensagem {mediaUrl ? (sendTextSeparate ? "" : "(legenda)") : ""}</Label>
             <Textarea
-              placeholder={mediaUrl ? "Digite uma legenda (opcional)..." : "Digite a mensagem..."}
+              placeholder={mediaUrl && !sendTextSeparate ? "Digite uma legenda (opcional)..." : "Digite a mensagem..."}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={3}
             />
           </div>
+
+          {/* Send text separate toggle - only show when both media and text exist */}
+          {mediaUrl && content.trim() && (
+            <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50 border">
+              <div className="flex items-center gap-2 min-w-0">
+                <SplitSquareHorizontal className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Enviar texto separado</p>
+                  <p className="text-xs text-muted-foreground">
+                    {sendTextSeparate 
+                      ? "Mídia e texto serão enviados como mensagens separadas" 
+                      : "Texto será enviado como legenda do anexo"}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={sendTextSeparate}
+                onCheckedChange={setSendTextSeparate}
+              />
+            </div>
+          )}
 
           {/* Date picker */}
           <div className="space-y-2">
