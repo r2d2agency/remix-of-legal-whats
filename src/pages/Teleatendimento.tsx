@@ -164,7 +164,7 @@ export default function Teleatendimento() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-medium truncate">{session.title || 'Sem título'}</h3>
                           <Badge className={cn('shrink-0 text-xs', statusInfo.color)}>
-                            <StatusIcon className={cn("h-3 w-3 mr-1", ['processing', 'transcribing', 'organizing'].includes(session.status) && 'animate-spin')} />
+                            <StatusIcon className={cn("h-3 w-3 mr-1", ['processing', 'transcribing'].includes(session.status) && 'animate-spin')} />
                             {statusInfo.label}
                           </Badge>
                         </div>
