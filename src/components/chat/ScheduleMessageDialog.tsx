@@ -131,6 +131,7 @@ export function ScheduleMessageDialog({
       media_url: mediaUrl || undefined,
       media_mimetype: mediaMimetype || undefined,
       scheduled_at: scheduledDate.toISOString(),
+      send_text_separate: mediaUrl && content.trim() ? sendTextSeparate : undefined,
     });
 
     // Reset form
