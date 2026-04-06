@@ -284,7 +284,7 @@ router.get('/:id/audit', authenticate, async (req, res) => {
   }
 });
 
-// Async processing pipeline
+// Async processing pipeline - transcription only (no auto-organize)
 async function processSession(sessionId, userId, orgId, userName) {
   try {
     // Step 1: Transcription
@@ -305,7 +305,6 @@ async function processSession(sessionId, userId, orgId, userName) {
     // Check file size - chunk if > 20MB
     const stats = fs.statSync(audioPath);
     if (stats.size > 20 * 1024 * 1024) {
-      // Chunk with ffmpeg
       const chunkDir = path.join(uploadDir, `chunks-${sessionId}`);
       if (!fs.existsSync(chunkDir)) fs.mkdirSync(chunkDir, { recursive: true });
       try {
@@ -323,20 +322,12 @@ async function processSession(sessionId, userId, orgId, userName) {
       transcript = await transcribeAudio(audioPath, aiConfig);
     }
 
-    await query(`UPDATE telehealth_sessions SET transcript = $1, updated_at = NOW() WHERE id = $2`, [transcript, sessionId]);
-    await auditLog(sessionId, orgId, userId, userName, 'transcription_completed');
-
-    // Step 2: Organize with AI
-    await query(`UPDATE telehealth_sessions SET status = 'organizing', updated_at = NOW() WHERE id = $1`, [sessionId]);
-    await auditLog(sessionId, orgId, userId, userName, 'organization_started');
-
-    const structured = await organizeTranscript(transcript, session.reason, session.notes, aiConfig);
-
+    // Complete after transcription - no auto-organize
     await query(
-      `UPDATE telehealth_sessions SET structured_content = $1, status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $2`,
-      [JSON.stringify(structured), sessionId]
+      `UPDATE telehealth_sessions SET transcript = $1, status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $2`,
+      [transcript, sessionId]
     );
-    await auditLog(sessionId, orgId, userId, userName, 'processing_completed');
+    await auditLog(sessionId, orgId, userId, userName, 'transcription_completed');
 
   } catch (e) {
     logError(`Telehealth processing error session=${sessionId}`, e);
@@ -355,6 +346,7 @@ async function transcribeAudio(audioPath, aiConfig) {
     form.append('file', fs.createReadStream(audioPath));
     form.append('model', 'whisper-1');
     form.append('language', 'pt');
+    form.append('prompt', 'Identifique e diferencie os participantes da reunião quando possível, usando formatos como "Participante 1:", "João:", etc.');
 
     const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
@@ -366,11 +358,11 @@ async function transcribeAudio(audioPath, aiConfig) {
     return data.text || '';
   }
 
-  // Gemini fallback - read as base64
+  // Gemini fallback
   const audioData = fs.readFileSync(audioPath).toString('base64');
   const messages = [
     { role: 'user', content: [
-      { type: 'text', text: 'Transcreva o áudio a seguir em português. Retorne apenas a transcrição, sem comentários.' },
+      { type: 'text', text: 'Transcreva o áudio a seguir em português. Identifique e diferencie os participantes quando possível (ex: "Participante 1:", "João:"). Retorne apenas a transcrição.' },
       { type: 'input_audio', input_audio: { data: audioData, format: 'webm' } }
     ]}
   ];
@@ -378,36 +370,82 @@ async function transcribeAudio(audioPath, aiConfig) {
   return result || '';
 }
 
-async function organizeTranscript(transcript, reason, notes, aiConfig) {
-  const systemPrompt = `Você é um assistente médico/empresarial especializado em organizar transcrições de reuniões e teleconsultas.
-Organize a transcrição em um JSON estruturado com os seguintes campos:
-{
-  "resumo": "Resumo executivo da reunião",
-  "participantes": ["lista de participantes mencionados"],
-  "pontos_principais": ["pontos-chave discutidos"],
-  "decisoes": ["decisões tomadas"],
-  "acoes": [{"responsavel": "...", "acao": "...", "prazo": "..."}],
-  "observacoes": "observações adicionais relevantes"
-}
-Retorne APENAS o JSON, sem markdown ou texto adicional.`;
+// On-demand AI analysis of transcript
+const AI_PROMPTS = {
+  resumo: {
+    label: 'Resumo da Reunião',
+    prompt: `Analise a transcrição a seguir e gere um resumo executivo claro e objetivo da reunião. 
+Identifique os participantes mencionados, os principais temas discutidos e as conclusões.
+Retorne um JSON: { "titulo": "...", "participantes": ["..."], "resumo": "...", "pontos_principais": ["..."] }`
+  },
+  ata: {
+    label: 'Ata da Reunião',
+    prompt: `Analise a transcrição e gere uma ata formal da reunião em formato JSON:
+{ "titulo": "...", "data": "...", "participantes": ["..."], "pauta": ["..."], "discussoes": [{"tema": "...", "detalhes": "..."}], "deliberacoes": ["..."], "encerramento": "..." }`
+  },
+  pendencias: {
+    label: 'Pendências',
+    prompt: `Analise a transcrição e identifique todas as pendências, itens em aberto e compromissos assumidos. 
+Retorne JSON: { "pendencias": [{"descricao": "...", "responsavel": "...", "prazo": "...", "prioridade": "alta|media|baixa"}] }`
+  },
+  tarefas: {
+    label: 'Tarefas e Ações',
+    prompt: `Analise a transcrição e extraia TODAS as tarefas, ações a serem tomadas e próximos passos mencionados.
+Retorne JSON: { "tarefas": [{"titulo": "...", "descricao": "...", "responsavel": "...", "prazo": "...", "prioridade": "alta|media|baixa"}], "retornos": [{"descricao": "...", "data_sugerida": "...", "participantes": ["..."]}] }`
+  },
+};
 
-  const userMessage = `Motivo da reunião: ${reason || 'Não informado'}
-Anotações: ${notes || 'Nenhuma'}
-Transcrição:
-${transcript}`;
-
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userMessage }
-  ];
-
-  const result = await callAI(aiConfig, messages, { temperature: 0.2, maxTokens: 4000 });
+// POST /:id/analyze - on-demand AI analysis
+router.post('/:id/analyze', authenticate, async (req, res) => {
   try {
-    const cleaned = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch {
-    return { resumo: result, raw: true };
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    const { prompt_type } = req.body;
+    if (!prompt_type || !AI_PROMPTS[prompt_type]) {
+      return res.status(400).json({ error: 'Tipo de análise inválido', available: Object.keys(AI_PROMPTS) });
+    }
+
+    const session = (await query(
+      `SELECT * FROM telehealth_sessions WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+      [req.params.id, org.organization_id]
+    )).rows[0];
+    if (!session) return res.status(404).json({ error: 'Sessão não encontrada' });
+    if (!session.transcript) return res.status(400).json({ error: 'Sessão ainda não possui transcrição' });
+
+    const aiConfig = await getAIConfig(req.userId);
+    if (!aiConfig) return res.status(400).json({ error: 'Configuração de IA não encontrada' });
+
+    const promptConfig = AI_PROMPTS[prompt_type];
+    const messages = [
+      { role: 'system', content: `${promptConfig.prompt}\nRetorne APENAS o JSON, sem markdown ou texto adicional.` },
+      { role: 'user', content: `Motivo da reunião: ${session.reason || 'Não informado'}\nAnotações: ${session.notes || 'Nenhuma'}\n\nTranscrição:\n${session.transcript}` }
+    ];
+
+    const result = await callAI(aiConfig, messages, { temperature: 0.2, maxTokens: 4000 });
+    let parsed;
+    try {
+      const cleaned = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      parsed = { raw: result };
+    }
+
+    // Save to structured_content (merge with existing)
+    const existing = session.structured_content || {};
+    existing[prompt_type] = parsed;
+    await query(
+      `UPDATE telehealth_sessions SET structured_content = $1, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(existing), session.id]
+    );
+
+    await auditLog(session.id, org.organization_id, req.userId, org.name, `ai_analysis_${prompt_type}`, { prompt_type });
+
+    res.json({ type: prompt_type, data: parsed });
+  } catch (e) {
+    logError('Telehealth analyze error', e);
+    res.status(500).json({ error: e.message });
   }
-}
+});
 
 export default router;

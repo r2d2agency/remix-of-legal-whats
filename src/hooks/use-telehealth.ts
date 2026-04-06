@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { api, API_URL, getAuthToken } from '@/lib/api';
 
+export type AnalysisType = 'resumo' | 'ata' | 'pendencias' | 'tarefas';
+
 export interface TelehealthSession {
   id: string;
   organization_id: string;
@@ -13,12 +15,12 @@ export interface TelehealthSession {
   contact_name: string | null;
   deal_id: string | null;
   deal_title: string | null;
-  status: 'waiting' | 'recording' | 'processing' | 'transcribing' | 'organizing' | 'completed' | 'error';
+  status: 'waiting' | 'recording' | 'processing' | 'transcribing' | 'completed' | 'error';
   audio_url: string | null;
   audio_size: number | null;
   audio_duration: number | null;
   transcript: string | null;
-  structured_content: any;
+  structured_content: Record<string, any> | null;
   error_message: string | null;
   retry_count: number;
   consent_given: boolean;
@@ -113,7 +115,7 @@ export function useTelehealth() {
       });
       if (!resp.ok) throw new Error('Upload falhou');
       const session = await resp.json();
-      toast.success('Áudio enviado para processamento');
+      toast.success('Áudio enviado para transcrição');
       return session;
     } catch (e: any) {
       toast.error('Erro ao enviar áudio');
@@ -128,6 +130,21 @@ export function useTelehealth() {
       return session;
     } catch (e: any) {
       toast.error('Erro ao tentar novamente');
+      return null;
+    }
+  }, []);
+
+  const analyzeSession = useCallback(async (id: string, promptType: AnalysisType) => {
+    try {
+      const result = await api<{ type: string; data: any }>(`/api/telehealth/${id}/analyze`, {
+        method: 'POST',
+        body: { prompt_type: promptType },
+        auth: true,
+      });
+      toast.success('Análise concluída');
+      return result;
+    } catch (e: any) {
+      toast.error('Erro ao analisar sessão');
       return null;
     }
   }, []);
@@ -151,6 +168,7 @@ export function useTelehealth() {
     updateSession,
     uploadAudio,
     retryProcessing,
+    analyzeSession,
     deleteSession,
   };
 }
