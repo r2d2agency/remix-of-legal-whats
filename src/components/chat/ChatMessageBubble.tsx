@@ -384,7 +384,7 @@ export function ChatMessageBubble({
               {renderTextWithLinks(msg.content, searchQuery, highlightText)}
             </p>
             {extractUrls(msg.content).slice(0, 1).map((url) => (
-              <LinkPreview key={url} url={url} />
+              <LinkPreview key={url} url={url} savedPreview={msg.link_preview} />
             ))}
           </>
         ) : null}

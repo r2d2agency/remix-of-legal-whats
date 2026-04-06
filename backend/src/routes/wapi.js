@@ -1655,7 +1655,7 @@ async function handleIncomingMessage(connection, payload) {
 
     // IMPORTANT: Extract message content BEFORE creating conversation
     // This prevents creating empty conversations when message is invalid/empty
-    const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype, waMediaKey } = extractMessageContent(payload);
+    const { messageType, content, mediaUrl: rawMediaUrl, mediaMimetype, waMediaKey, linkPreview } = extractMessageContent(payload);
 
     console.log('[W-API] Pre-check extracted content:', {
       messageType,
@@ -1919,9 +1919,9 @@ async function handleIncomingMessage(connection, payload) {
     // Insert message into chat_messages table
     try {
       await query(
-        `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, status, timestamp)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'received', NOW())`,
-        [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone]
+        `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, wa_media_key, from_me, sender_name, sender_phone, status, timestamp, link_preview)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'received', NOW(), $10)`,
+        [conversationId, messageId, content, messageType, effectiveMediaUrl, effectiveMediaMimetype, waMediaKey, senderName, senderPhone, linkPreview ? JSON.stringify(linkPreview) : null]
       );
 
       console.log('[W-API] Message saved. Type:', messageType, 'ConvID:', conversationId, 'MsgID:', messageId, 'MediaURL:', effectiveMediaUrl?.slice?.(0, 100));
@@ -2490,11 +2490,26 @@ function extractMessageContent(payload) {
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
-  // Extended text message
+  // Extended text message (with link preview data)
   if (msgContent.extendedTextMessage) {
-    content = msgContent.extendedTextMessage.text || '';
+    const ext = msgContent.extendedTextMessage;
+    content = ext.text || '';
     messageType = 'text';
-    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
+    // Extract WhatsApp-provided link preview metadata
+    let linkPreview = null;
+    if (ext.matchedText || ext.canonicalUrl || ext.title || ext.description) {
+      linkPreview = {};
+      if (ext.matchedText) linkPreview.url = ext.matchedText;
+      if (ext.canonicalUrl) linkPreview.canonicalUrl = ext.canonicalUrl;
+      if (ext.title) linkPreview.title = ext.title;
+      if (ext.description) linkPreview.description = ext.description;
+      if (ext.jpegThumbnail) {
+        const thumb = typeof ext.jpegThumbnail === 'string' ? ext.jpegThumbnail : null;
+        if (thumb) linkPreview.thumbnail = thumb.startsWith('data:') ? thumb : `data:image/jpeg;base64,${thumb}`;
+      }
+      if (ext.previewType !== undefined) linkPreview.previewType = ext.previewType;
+    }
+    return { messageType, content, mediaUrl, mediaMimetype, waMediaKey, linkPreview };
   }
 
   // Image message
