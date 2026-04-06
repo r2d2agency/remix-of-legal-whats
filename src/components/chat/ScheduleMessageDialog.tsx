@@ -60,6 +60,7 @@ export function ScheduleMessageDialog({
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [mediaMimetype, setMediaMimetype] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"text" | "image" | "document">("text");
+  const [sendTextSeparate, setSendTextSeparate] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { uploadFile, isUploading } = useUpload();
