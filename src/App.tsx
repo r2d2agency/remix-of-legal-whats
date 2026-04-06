@@ -60,6 +60,7 @@ import MetaTemplates from "./pages/MetaTemplates";
 import Assinaturas from "./pages/Assinaturas";
 import AssinarDocumento from "./pages/AssinarDocumento";
 import VerificarDocumento from "./pages/VerificarDocumento";
+import Teleatendimento from "./pages/Teleatendimento";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
