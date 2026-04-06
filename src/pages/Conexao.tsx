@@ -669,7 +669,10 @@ const handleGetQRCode = async (connection: Connection) => {
     setEditingConnection(connection);
     setEditName(connection.name);
     setEditInstanceId(connection.instance_id || '');
-    setEditWapiToken(''); // Don't show existing token for security
+    setEditWapiToken('');
+    setEditMetaToken('');
+    setEditMetaPhoneNumberId(connection.meta_phone_number_id || '');
+    setEditMetaWabaId(connection.meta_waba_id || '');
     setEditDialogOpen(true);
   };
 
