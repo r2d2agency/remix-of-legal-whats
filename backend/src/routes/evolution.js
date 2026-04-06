@@ -1828,6 +1828,7 @@ async function handleMessageUpsert(connection, data) {
     let mediaUrl = null;
     let mediaMimetype = null;
     let quotedMessageId = null;
+    let linkPreview = null;
 
     // msgContent already declared above (line 870)
 
