@@ -46,6 +46,18 @@ interface ApiOptions {
   auth?: boolean;
 }
 
+class HttpError extends Error {
+  status?: number;
+  response?: unknown;
+
+  constructor(message: string, status?: number, response?: unknown) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+    this.response = response;
+  }
+}
+
 export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promise<T> => {
   const { method = 'GET', body, auth = true } = options;
 
@@ -123,15 +135,19 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
           // Fallback para same-origin somente em GET, evitando duplicidade em mutações
           const shouldTryNextBase = method === 'GET' && baseIndex < baseCandidates.length - 1 && response.status >= 500;
           if (shouldTryNextBase) {
-            lastError = new Error(`${baseMsg}${details}`);
+            lastError = new HttpError(`${baseMsg}${details}`, response.status, data);
             break;
           }
 
-          throw new Error(`${baseMsg}${details}`);
+          throw new HttpError(`${baseMsg}${details}`, response.status, data);
         }
 
         return data as T;
       } catch (error: any) {
+        if (error instanceof HttpError) {
+          throw error;
+        }
+
         const canRetry = attempt < retries && shouldRetry(method);
         if (canRetry) {
           await sleep(250 * Math.pow(2, attempt));

@@ -1,5 +1,21 @@
 import { API_URL } from "@/lib/api";
 
+const MEDIA_PROXY_URL = API_URL ? `${API_URL}/api/uploads/proxy` : "/api/uploads/proxy";
+const PROXIED_MEDIA_HOSTS = new Set(["lookaside.fbsbx.com"]);
+
+function toAbsoluteExternalUrl(url: string): string {
+  return url.startsWith("//") ? `https:${url}` : url;
+}
+
+function shouldProxyExternalMedia(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return PROXIED_MEDIA_HOSTS.has(hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Normaliza URLs de mídia vindas do backend.
  * - Se vier absoluta (http/https/data/blob) mantém.
@@ -10,8 +26,15 @@ export function resolveMediaUrl(url?: string | null): string | null {
   const u = String(url).trim();
   if (!u) return null;
 
-  if (/^(https?:|data:|blob:)/i.test(u)) return u;
-  if (u.startsWith("//")) return `https:${u}`;
+  if (/^(data:|blob:)/i.test(u)) return u;
+
+  if (/^https?:/i.test(u) || u.startsWith("//")) {
+    const absoluteUrl = toAbsoluteExternalUrl(u);
+    if (shouldProxyExternalMedia(absoluteUrl)) {
+      return `${MEDIA_PROXY_URL}?url=${encodeURIComponent(absoluteUrl)}`;
+    }
+    return absoluteUrl;
+  }
 
   if (u.startsWith("/")) return `${API_URL}${u}`;
   return `${API_URL}/${u}`;
