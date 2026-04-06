@@ -2006,12 +2006,13 @@ async function handleMessageUpsert(connection, data) {
     try {
       const insertResult = await query(
         `INSERT INTO chat_messages 
-          (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, sender_name, sender_phone, status, timestamp)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          (conversation_id, message_id, from_me, content, message_type, media_url, media_mimetype, quoted_message_id, sender_name, sender_phone, status, timestamp, link_preview)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%'
          DO UPDATE SET 
            media_url = COALESCE(EXCLUDED.media_url, chat_messages.media_url),
            media_mimetype = COALESCE(EXCLUDED.media_mimetype, chat_messages.media_mimetype),
+           link_preview = COALESCE(EXCLUDED.link_preview, chat_messages.link_preview),
            status = CASE WHEN chat_messages.status = 'pending' THEN 'sent' ELSE chat_messages.status END
          RETURNING id`,
         [
@@ -2026,7 +2027,8 @@ async function handleMessageUpsert(connection, data) {
           senderName,
           senderPhone,
           fromMe ? 'sent' : 'received',
-          timestamp
+          timestamp,
+          linkPreview ? JSON.stringify(linkPreview) : null
         ]
       );
 
