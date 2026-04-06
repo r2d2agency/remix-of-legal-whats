@@ -36,6 +36,7 @@ interface ScheduleMessageDialogProps {
     media_url?: string;
     media_mimetype?: string;
     scheduled_at: string;
+    send_text_separate?: boolean;
   }) => Promise<void>;
   scheduledMessages: ScheduledMessage[];
   onCancelScheduled: (id: string) => Promise<void>;
