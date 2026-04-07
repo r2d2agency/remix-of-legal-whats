@@ -1875,20 +1875,36 @@ router.post('/conversations/:id/send-template', authenticate, async (req, res) =
     const templateComponents = [];
     const bodyComp = (components || []).find(c => (c.type || '').toUpperCase() === 'BODY');
     const headerComp = (components || []).find(c => (c.type || '').toUpperCase() === 'HEADER');
+    const buttonsComps = (components || []).filter(c => (c.type || '').toUpperCase() === 'BUTTONS');
 
-    if (headerComp?.text) {
-      const headerParams = (headerComp.text.match(/\{\{(\d+)\}\}/g) || []);
-      if (headerParams.length > 0) {
-        templateComponents.push({
-          type: 'header',
-          parameters: headerParams.map(p => ({
-            type: 'text',
-            text: (param_values || {})[p] || `exemplo_${p.replace(/\D/g, '')}`,
-          })),
-        });
+    // Handle header component
+    if (headerComp) {
+      const headerFormat = (headerComp.format || '').toUpperCase();
+      if (headerFormat === 'IMAGE' || headerFormat === 'VIDEO' || headerFormat === 'DOCUMENT') {
+        // Media header — check if param_values has a media URL
+        const mediaUrl = (param_values || {})['{{header_media}}'] || (param_values || {})['header_media'];
+        if (mediaUrl) {
+          const mediaType = headerFormat.toLowerCase();
+          templateComponents.push({
+            type: 'header',
+            parameters: [{ type: mediaType, [mediaType]: { link: mediaUrl } }],
+          });
+        }
+      } else if (headerComp.text) {
+        const headerParams = (headerComp.text.match(/\{\{(\d+)\}\}/g) || []);
+        if (headerParams.length > 0) {
+          templateComponents.push({
+            type: 'header',
+            parameters: headerParams.map(p => ({
+              type: 'text',
+              text: String((param_values || {})[p] || '').trim() || ' ',
+            })),
+          });
+        }
       }
     }
 
+    // Handle body component
     if (bodyComp?.text) {
       const bodyParams = (bodyComp.text.match(/\{\{(\d+)\}\}/g) || []);
       if (bodyParams.length > 0) {
@@ -1896,10 +1912,28 @@ router.post('/conversations/:id/send-template', authenticate, async (req, res) =
           type: 'body',
           parameters: bodyParams.map(p => ({
             type: 'text',
-            text: (param_values || {})[p] || `exemplo_${p.replace(/\D/g, '')}`,
+            text: String((param_values || {})[p] || '').trim() || ' ',
           })),
         });
       }
+    }
+
+    // Handle button URL parameters (e.g. {{1}} in button URLs)
+    for (const btnComp of buttonsComps) {
+      const buttons = btnComp.buttons || [];
+      buttons.forEach((btn, idx) => {
+        if (btn.type === 'URL' && btn.url && btn.url.includes('{{')) {
+          const btnParamValue = (param_values || {})[`{{button_${idx}}}`] || (param_values || {})[`button_${idx}`];
+          if (btnParamValue) {
+            templateComponents.push({
+              type: 'button',
+              sub_type: 'url',
+              index: String(idx),
+              parameters: [{ type: 'text', text: String(btnParamValue).trim() }],
+            });
+          }
+        }
+      });
     }
 
     // Send template via Meta API
