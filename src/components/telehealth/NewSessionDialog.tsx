@@ -47,8 +47,8 @@ export function NewSessionDialog({ open, onClose, onCreate }: NewSessionDialogPr
             <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Motivo da reunião..." rows={2} />
           </div>
           <div>
-            <Label>Contato / Paciente</Label>
-            <Input value={contactName} onChange={e => setContactName(e.target.value)} placeholder="Nome do contato (opcional)" />
+            <Label>Contato / Participante</Label>
+            <Input value={contactName} onChange={e => setContactName(e.target.value)} placeholder="Nome do participante (opcional)" />
           </div>
           <div>
             <Label>Negociação Vinculada</Label>
