@@ -1948,6 +1948,8 @@ router.post('/conversations/:id/send-template', authenticate, async (req, res) =
       },
     };
 
+    console.log('[Template Send] Payload:', JSON.stringify(metaBody, null, 2));
+
     const response = await fetch(
       `https://graph.facebook.com/v21.0/${conversation.meta_phone_number_id}/messages`,
       {
