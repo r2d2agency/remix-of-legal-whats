@@ -1929,8 +1929,10 @@ router.post('/conversations/:id/send-template', authenticate, async (req, res) =
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      const errorMsg = result?.error?.message || result?.error?.error_user_msg || `HTTP ${response.status}`;
-      return res.status(response.status).json({ error: errorMsg, details: result?.error });
+      const metaErr = result?.error || {};
+      const errorMsg = metaErr.error_user_msg || metaErr.message || `HTTP ${response.status}`;
+      console.error('Meta template send error:', { status: response.status, metaBody, metaError: metaErr });
+      return res.status(response.status).json({ error: errorMsg, meta_error_code: metaErr.code, meta_error_subcode: metaErr.error_subcode });
     }
 
     const metaMessageId = result?.messages?.[0]?.id || `template_${Date.now()}`;
