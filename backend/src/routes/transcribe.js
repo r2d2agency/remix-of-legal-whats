@@ -1,6 +1,7 @@
 // Transcription route
 import express from 'express';
 import multer from 'multer';
+import FormData from 'form-data';
 import { authenticate } from '../middleware/auth.js';
 import { query } from '../db.js';
 import { callAI } from '../lib/ai-caller.js';
@@ -81,18 +82,22 @@ router.post('/', authenticate, upload.single('audio'), async (req, res) => {
     let transcript;
 
     if (aiConfig.provider === 'openai') {
-      // OpenAI: use Whisper API for transcription
-      const formData = new FormData();
-      const blob = new Blob([audioFile.buffer], { type: mimeType });
-      // Whisper accepts mp3, mp4, mpeg, mpga, m4a, wav, webm
+      // OpenAI: use Whisper API for transcription via form-data (Node.js compatible)
       const ext = mimeType.includes('wav') ? 'wav' : mimeType.includes('webm') ? 'webm' : 'mp3';
-      formData.append('file', blob, `audio.${ext}`);
+      const formData = new FormData();
+      formData.append('file', audioFile.buffer, {
+        filename: `audio.${ext}`,
+        contentType: mimeType,
+      });
       formData.append('model', 'whisper-1');
       formData.append('language', 'pt');
 
       const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${aiConfig.apiKey}` },
+        headers: {
+          'Authorization': `Bearer ${aiConfig.apiKey}`,
+          ...formData.getHeaders(),
+        },
         body: formData,
       });
 
