@@ -4,6 +4,7 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { logInfo, logError } from '../logger.js';
 import { callAI } from '../lib/ai-caller.js';
+import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
