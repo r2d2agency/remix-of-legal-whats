@@ -1,6 +1,7 @@
 // Transcription route
 import express from 'express';
 import multer from 'multer';
+import FormData from 'form-data';
 import { authenticate } from '../middleware/auth.js';
 import { query } from '../db.js';
 import { callAI } from '../lib/ai-caller.js';
