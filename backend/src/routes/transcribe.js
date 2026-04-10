@@ -1,7 +1,7 @@
 // Transcription route
 import express from 'express';
 import multer from 'multer';
-import FormData from 'form-data';
+// form-data replaced by native FormData
 import { authenticate } from '../middleware/auth.js';
 import { query } from '../db.js';
 import { callAI } from '../lib/ai-caller.js';
@@ -82,13 +82,11 @@ router.post('/', authenticate, upload.single('audio'), async (req, res) => {
     let transcript;
 
     if (aiConfig.provider === 'openai') {
-      // OpenAI: use Whisper API for transcription via form-data (Node.js compatible)
+      // OpenAI: use Whisper API with native FormData + File
       const ext = mimeType.includes('wav') ? 'wav' : mimeType.includes('webm') ? 'webm' : 'mp3';
+      const audioBlob = new File([audioFile.buffer], `audio.${ext}`, { type: mimeType });
       const formData = new FormData();
-      formData.append('file', audioFile.buffer, {
-        filename: `audio.${ext}`,
-        contentType: mimeType,
-      });
+      formData.append('file', audioBlob);
       formData.append('model', 'whisper-1');
       formData.append('language', 'pt');
 
@@ -96,7 +94,6 @@ router.post('/', authenticate, upload.single('audio'), async (req, res) => {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${aiConfig.apiKey}`,
-          ...formData.getHeaders(),
         },
         body: formData,
       });
