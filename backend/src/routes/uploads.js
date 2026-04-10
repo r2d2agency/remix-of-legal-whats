@@ -5,9 +5,11 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { Readable } from 'stream';
 import { authenticate } from '../middleware/auth.js';
+import { query } from '../db.js';
 
 const router = express.Router();
 const PROXIED_MEDIA_HOSTS = new Set(['lookaside.fbsbx.com']);
+const META_MEDIA_HOSTS = new Set(['lookaside.fbsbx.com']);
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -227,6 +229,7 @@ router.get('/public/:stored/:downloadName', (req, res) => {
 
 // Public proxy for temporary external media URLs that don't expose CORS headers.
 // Scoped to trusted WhatsApp media hosts to avoid turning this into a generic open proxy.
+// For Meta media (lookaside.fbsbx.com), tries to authenticate with meta_token from connection.
 router.get('/proxy', async (req, res) => {
   try {
     const rawUrl = String(req.query.url || '').trim();
@@ -249,11 +252,59 @@ router.get('/proxy', async (req, res) => {
       return res.status(403).json({ error: 'Host não permitido' });
     }
 
+    // Build upstream headers
+    const upstreamHeaders = { Accept: '*/*' };
+
+    // For Meta media hosts, look up meta_token to authenticate the download
+    if (META_MEDIA_HOSTS.has(targetUrl.hostname.toLowerCase())) {
+      try {
+        // Try to get meta_token from any active meta connection
+        // First try from auth header if present
+        let metaToken = null;
+        const authHeader = req.headers.authorization;
+        if (authHeader) {
+          try {
+            const jwt = await import('jsonwebtoken');
+            const jwtLib = jwt.default || jwt;
+            const decoded = jwtLib.verify(authHeader.replace('Bearer ', ''), process.env.JWT_SECRET);
+            if (decoded && decoded.userId) {
+              const result = await query(
+                `SELECT c.meta_token FROM connections c
+                 JOIN organization_members om ON om.organization_id = c.organization_id
+                 WHERE om.user_id = $1 AND c.provider = 'meta' AND c.meta_token IS NOT NULL
+                 LIMIT 1`,
+                [decoded.userId]
+              );
+              if (result.rows.length > 0) {
+                metaToken = result.rows[0].meta_token;
+              }
+            }
+          } catch (e) {
+            // JWT decode failed, continue without token
+          }
+        }
+
+        // Fallback: try to find any meta connection with a token
+        if (!metaToken) {
+          const result = await query(
+            `SELECT meta_token FROM connections WHERE provider = 'meta' AND meta_token IS NOT NULL LIMIT 1`
+          );
+          if (result.rows.length > 0) {
+            metaToken = result.rows[0].meta_token;
+          }
+        }
+
+        if (metaToken) {
+          upstreamHeaders['Authorization'] = `Bearer ${metaToken}`;
+        }
+      } catch (e) {
+        console.error('Meta token lookup error:', e.message);
+      }
+    }
+
     const upstream = await fetch(targetUrl.toString(), {
       redirect: 'follow',
-      headers: {
-        Accept: '*/*',
-      },
+      headers: upstreamHeaders,
     });
 
     if (!upstream.ok) {
