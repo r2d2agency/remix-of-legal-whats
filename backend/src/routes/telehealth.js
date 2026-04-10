@@ -4,7 +4,6 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { logInfo, logError } from '../logger.js';
 import { callAI } from '../lib/ai-caller.js';
-import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
@@ -342,16 +341,21 @@ async function processSession(sessionId, userId, orgId, userName) {
 
 async function transcribeAudio(audioPath, aiConfig) {
   if (aiConfig.provider === 'openai' || !aiConfig.provider) {
-    const FormData = (await import('form-data')).default;
+    const audioBuffer = fs.readFileSync(audioPath);
+    const ext = path.extname(audioPath).replace('.', '') || 'webm';
+    const mimeMap = { webm: 'audio/webm', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4' };
+    const mime = mimeMap[ext] || 'audio/webm';
+    const audioFile = new File([audioBuffer], `recording.${ext}`, { type: mime });
+
     const form = new FormData();
-    form.append('file', fs.createReadStream(audioPath));
+    form.append('file', audioFile);
     form.append('model', 'whisper-1');
     form.append('language', 'pt');
     form.append('prompt', 'Identifique e diferencie os participantes da reunião quando possível, usando formatos como "Participante 1:", "João:", etc.');
 
     const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${aiConfig.apiKey}`, ...form.getHeaders() },
+      headers: { 'Authorization': `Bearer ${aiConfig.apiKey}` },
       body: form,
     });
     if (!resp.ok) throw new Error(`Whisper error: ${resp.status} ${await resp.text()}`);
