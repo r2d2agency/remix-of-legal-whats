@@ -5,9 +5,11 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { Readable } from 'stream';
 import { authenticate } from '../middleware/auth.js';
+import { query } from '../db.js';
 
 const router = express.Router();
 const PROXIED_MEDIA_HOSTS = new Set(['lookaside.fbsbx.com']);
+const META_MEDIA_HOSTS = new Set(['lookaside.fbsbx.com']);
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
