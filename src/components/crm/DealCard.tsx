@@ -181,6 +181,14 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
           </div>
         )}
 
+        {/* Loss Reason */}
+        {isLost && deal.lost_reason && (
+          <div className="flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400 mb-2 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1.5">
+            <MessageSquareWarning className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span className="line-clamp-2">{deal.lost_reason}</span>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center justify-between pt-2 border-t mt-2 gap-1 flex-wrap">
           <div className="flex items-center gap-2">
