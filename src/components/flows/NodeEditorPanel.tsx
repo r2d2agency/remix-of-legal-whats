@@ -812,6 +812,82 @@ function InputNodeEditor({ content, onChange }: { content: Record<string, any>; 
 }
 
 // ============ Condition Node Editor ============
+// CRM Deal fields badge panel for conditions
+function CRMDealFieldsBadgePanel({ onInsert }: { onInsert: (variable: string) => void }) {
+  const [customFields, setCustomFields] = useState<Array<{ field_name: string; label: string }>>([]);
+  const [expanded, setExpanded] = useState(false);
+
+  const standardFields = [
+    { variable: 'deal_title', label: 'Título' },
+    { variable: 'deal_value', label: 'Valor' },
+    { variable: 'deal_status', label: 'Status' },
+    { variable: 'deal_stage_name', label: 'Etapa' },
+    { variable: 'deal_funnel_name', label: 'Funil' },
+    { variable: 'deal_company_name', label: 'Empresa' },
+    { variable: 'deal_source', label: 'Origem' },
+    { variable: 'deal_probability', label: 'Probabilidade' },
+  ];
+
+  useEffect(() => {
+    loadCustomFields();
+  }, []);
+
+  const loadCustomFields = async () => {
+    try {
+      const fields = await api<Array<{ field_name: string; label: string }>>('/api/crm/custom-fields?entity_type=deal');
+      setCustomFields(fields || []);
+    } catch (e) {
+      // silently fail
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <button 
+        type="button"
+        className="text-xs text-primary hover:underline flex items-center gap-1"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <GitBranch className="h-3 w-3" />
+        Campos do Card CRM {expanded ? '▲' : '▼'}
+      </button>
+      {expanded && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1">
+            {standardFields.map(f => (
+              <Badge
+                key={f.variable}
+                variant="secondary"
+                className="cursor-pointer hover:bg-primary hover:text-primary-foreground text-[10px]"
+                onClick={() => onInsert(f.variable)}
+              >
+                {f.label}
+              </Badge>
+            ))}
+          </div>
+          {customFields.length > 0 && (
+            <>
+              <p className="text-[10px] text-muted-foreground">Campos personalizados:</p>
+              <div className="flex flex-wrap gap-1">
+                {customFields.map(f => (
+                  <Badge
+                    key={f.field_name}
+                    variant="outline"
+                    className="cursor-pointer hover:bg-accent text-[10px]"
+                    onClick={() => onInsert(f.field_name)}
+                  >
+                    {f.label || f.field_name}
+                  </Badge>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConditionNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
   const rules: ConditionRule[] = content.rules || [{ id: 'rule_1', variable: '', operator: 'equals', value: '' }];
 
@@ -879,8 +955,9 @@ function ConditionNodeEditor({ content, onChange }: { content: Record<string, an
                 <Input
                   value={rule.variable}
                   onChange={(e) => updateRule(rule.id, 'variable', e.target.value)}
-                  placeholder="Variável (ex: nome_cliente)"
+                  placeholder="Variável (ex: deal_stage_name)"
                 />
+                <CRMDealFieldsBadgePanel onInsert={(v) => updateRule(rule.id, 'variable', v)} />
                 <VariablesBadgePanel onInsert={(v) => {
                   const clean = v.replace(/[{}]/g, '');
                   updateRule(rule.id, 'variable', clean);

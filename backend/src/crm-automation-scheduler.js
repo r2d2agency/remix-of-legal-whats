@@ -123,9 +123,11 @@ async function executeFlowForDeal(automation, organizationId) {
 
     // Get deal data for additional variables
     const dealResult = await query(
-      `SELECT d.*, co.name as company_name
+      `SELECT d.*, co.name as company_name, s.name as stage_name, f.name as funnel_name
        FROM crm_deals d
        LEFT JOIN crm_companies co ON co.id = d.company_id
+       LEFT JOIN crm_stages s ON s.id = d.stage_id
+       LEFT JOIN crm_funnels f ON f.id = d.funnel_id
        WHERE d.id = $1`,
       [automation.deal_id]
     );
@@ -178,6 +180,14 @@ async function executeFlowForDeal(automation, organizationId) {
       email: contact.email || '',
       deal_title: deal.title || '',
       deal_value: deal.value || 0,
+      deal_status: deal.status || '',
+      deal_stage_id: deal.stage_id || '',
+      deal_stage_name: deal.stage_name || '',
+      deal_funnel_id: deal.funnel_id || '',
+      deal_funnel_name: deal.funnel_name || '',
+      deal_company_name: deal.company_name || '',
+      deal_source: deal.source || '',
+      deal_probability: deal.probability || 0,
       company_name: deal.company_name || '',
       // CRM specific
       deal_id: automation.deal_id,
