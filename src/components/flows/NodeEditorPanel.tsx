@@ -43,9 +43,12 @@ function VariablesBadgePanel({ onInsert }: { onInsert: (variable: string) => voi
       for (const wh of webhooks) {
         if (wh.field_mapping) {
           for (const [sourceField, targetField] of Object.entries(wh.field_mapping)) {
-            if (targetField === 'custom_fields') {
-              const cleanName = sourceField.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-              customVars.add(cleanName || sourceField);
+            if (targetField === 'custom_fields' || (typeof targetField === 'string' && targetField.startsWith('custom_fields:'))) {
+              // Use alias if defined (custom_fields:varName), otherwise derive from source
+              const varName = typeof targetField === 'string' && targetField.includes(':')
+                ? targetField.split(':')[1]
+                : sourceField.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+              customVars.add(varName || sourceField);
             }
           }
         }
