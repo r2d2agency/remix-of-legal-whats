@@ -139,12 +139,76 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
           isNewWin && "animate-scale-in"
         )}
       >
-        {/* Status Badge */}
-        {getStatusBadge() && (
-          <div className="mb-2">
-            {getStatusBadge()}
-          </div>
-        )}
+        {/* Status Badge + Quick Action Buttons */}
+        <div className="flex items-center justify-between mb-2">
+          {getStatusBadge() || <span />}
+          
+          {/* Quick status buttons */}
+          {onStatusChange && !isDragging && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+              {deal.status !== 'won' && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-full hover:bg-green-100 dark:hover:bg-green-900/30 text-green-500 hover:text-green-600 hover:scale-110 transition-all"
+                      onClick={(e) => { e.stopPropagation(); onStatusChange(deal.id, 'won'); }}
+                    >
+                      <ThumbsUp className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top"><p>Ganhou</p></TooltipContent>
+                </Tooltip>
+              )}
+              {deal.status !== 'lost' && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 hover:text-red-600 hover:scale-110 transition-all"
+                      onClick={(e) => { e.stopPropagation(); onStatusChange(deal.id, 'lost'); }}
+                    >
+                      <ThumbsDown className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top"><p>Perdeu</p></TooltipContent>
+                </Tooltip>
+              )}
+              {deal.status === 'open' && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-600 hover:scale-110 transition-all"
+                      onClick={(e) => { e.stopPropagation(); onStatusChange(deal.id, 'paused'); }}
+                    >
+                      <Pause className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top"><p>Pausar</p></TooltipContent>
+                </Tooltip>
+              )}
+              {(deal.status === 'paused' || deal.status === 'won' || deal.status === 'lost') && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500 hover:text-blue-600 hover:scale-110 transition-all"
+                      onClick={(e) => { e.stopPropagation(); onStatusChange(deal.id, 'open'); }}
+                    >
+                      <Play className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top"><p>Reabrir</p></TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Title & Value */}
         <div className="flex items-start justify-between gap-2 mb-2 min-w-0">
