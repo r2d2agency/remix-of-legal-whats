@@ -878,6 +878,10 @@ function ConditionNodeEditor({ content, onChange }: { content: Record<string, an
                   onChange={(e) => updateRule(rule.id, 'variable', e.target.value)}
                   placeholder="Variável (ex: nome_cliente)"
                 />
+                <VariablesBadgePanel onInsert={(v) => {
+                  const clean = v.replace(/[{}]/g, '');
+                  updateRule(rule.id, 'variable', clean);
+                }} />
                 <Select
                   value={rule.operator}
                   onValueChange={(v) => updateRule(rule.id, 'operator', v)}
