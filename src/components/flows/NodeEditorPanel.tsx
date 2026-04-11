@@ -25,6 +25,92 @@ import {
 import { FlowNodeData } from '@/components/chatbots/FlowNodes';
 import { useUpload } from '@/hooks/use-upload';
 import { toast } from 'sonner';
+import { api } from '@/lib/api';
+
+// Reusable variables badge panel for flow editors
+function VariablesBadgePanel({ onInsert }: { onInsert: (variable: string) => void }) {
+  const [webhookVars, setWebhookVars] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    loadWebhookVars();
+  }, []);
+
+  const loadWebhookVars = async () => {
+    try {
+      const webhooks = await api<Array<{ field_mapping: Record<string, string> }>>('/api/lead-webhooks');
+      const customVars = new Set<string>();
+      for (const wh of webhooks) {
+        if (wh.field_mapping) {
+          for (const [sourceField, targetField] of Object.entries(wh.field_mapping)) {
+            if (targetField === 'custom_fields') {
+              const cleanName = sourceField.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+              customVars.add(cleanName || sourceField);
+            }
+          }
+        }
+      }
+      setWebhookVars(Array.from(customVars));
+    } catch (e) {
+      // Silently fail
+    }
+  };
+
+  const systemVars = [
+    { name: 'nome', label: 'Nome do contato' },
+    { name: 'telefone', label: 'Telefone' },
+    { name: 'email', label: 'E-mail' },
+    { name: 'deal_title', label: 'Título negociação' },
+    { name: 'deal_value', label: 'Valor negociação' },
+    { name: 'company_name', label: 'Empresa' },
+  ];
+
+  return (
+    <div className="p-3 bg-muted rounded-lg space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium">📌 Variáveis disponíveis:</p>
+        {webhookVars.length > 0 && (
+          <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={() => setExpanded(!expanded)}>
+            {expanded ? 'Menos' : `+${webhookVars.length} webhook`}
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {systemVars.map(v => (
+          <Badge
+            key={v.name}
+            variant="secondary"
+            className="text-xs cursor-pointer hover:bg-primary/20"
+            title={v.label}
+            onClick={() => onInsert(`{${v.name}}`)}
+          >
+            {`{${v.name}}`}
+          </Badge>
+        ))}
+      </div>
+      {expanded && webhookVars.length > 0 && (
+        <div className="space-y-1 pt-1 border-t">
+          <p className="text-[10px] text-muted-foreground font-medium">Campos de Webhook:</p>
+          <div className="flex flex-wrap gap-1">
+            {webhookVars.map(v => (
+              <Badge
+                key={v}
+                variant="outline"
+                className="text-xs cursor-pointer hover:bg-accent border-dashed"
+                onClick={() => onInsert(`{${v}}`)}
+              >
+                {`{${v}}`}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+      <p className="text-[10px] text-muted-foreground">
+        Clique para inserir. Variáveis de webhook ficam disponíveis quando o lead vem de um webhook com campos personalizados.
+      </p>
+    </div>
+  );
+}
 
 interface NodeEditorPanelProps {
   node: Node<FlowNodeData>;
