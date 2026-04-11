@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CRMDeal } from "@/hooks/use-crm";
 import { cn } from "@/lib/utils";
-import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake, TrendingUp, TrendingDown, Activity, FolderKanban, Webhook } from "lucide-react";
+import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake, TrendingUp, TrendingDown, Activity, FolderKanban, Webhook, MessageSquareWarning } from "lucide-react";
 import { differenceInHours, parseISO } from "date-fns";
 import { analyzeDeal } from "./PredictiveAnalytics";
 
@@ -178,6 +178,14 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
             <User className="h-3 w-3" />
             <span className="truncate">{primaryContact.name}</span>
+          </div>
+        )}
+
+        {/* Loss Reason */}
+        {isLost && deal.lost_reason && (
+          <div className="flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400 mb-2 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1.5">
+            <MessageSquareWarning className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span className="line-clamp-2">{deal.lost_reason}</span>
           </div>
         )}
 
