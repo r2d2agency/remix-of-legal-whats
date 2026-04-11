@@ -98,6 +98,8 @@ export interface CRMDeal {
   probability: number;
   expected_close_date?: string;
   status: 'open' | 'won' | 'lost' | 'paused';
+  lost_reason?: string;
+  loss_reason_id?: string;
   description?: string;
   tags?: string[];
   stage_name?: string;
