@@ -192,6 +192,7 @@ async function executeFlowForDeal(automation, organizationId) {
       // CRM specific
       deal_id: automation.deal_id,
       automation_id: automation.id,
+      custom_fields: dealCustomFields,
       // Inject custom fields as top-level variables
       ...dealCustomFields,
     };
@@ -398,6 +399,35 @@ async function checkForResponses() {
   }
 }
 
+function getConditionFieldValue(dealData, variable) {
+  if (!variable) return undefined;
+
+  if (Object.prototype.hasOwnProperty.call(dealData, variable)) {
+    return dealData[variable];
+  }
+
+  const normalizedVariable = String(variable).trim();
+  if (!normalizedVariable) return undefined;
+
+  if (normalizedVariable.startsWith('custom_fields.')) {
+    const rawKey = normalizedVariable.slice('custom_fields.'.length);
+    if (Object.prototype.hasOwnProperty.call(dealData, rawKey)) {
+      return dealData[rawKey];
+    }
+  }
+
+  const parts = normalizedVariable.split('.');
+  let current = dealData;
+  for (const part of parts) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined;
+    }
+    current = current[part];
+  }
+
+  return current;
+}
+
 // Main execution function
 export async function executeCRMAutomations() {
   logInfo('🤖 [CRM-AUTOMATION] Starting execution...');
@@ -473,7 +503,8 @@ export async function executeCRMAutomations() {
 
 // Evaluate a single condition rule against deal data
 function evaluateConditionRule(dealData, rule) {
-  const fieldValue = String(dealData[rule.variable] || '').toLowerCase();
+  const rawFieldValue = getConditionFieldValue(dealData, rule.variable);
+  const fieldValue = String(rawFieldValue ?? '').toLowerCase();
   const compareValue = String(rule.value || '').toLowerCase();
 
   switch (rule.operator) {
@@ -485,8 +516,8 @@ function evaluateConditionRule(dealData, rule) {
     case 'ends_with': return fieldValue.endsWith(compareValue);
     case 'is_empty': return fieldValue === '';
     case 'is_not_empty': return fieldValue !== '';
-    case 'greater_than': return parseFloat(dealData[rule.variable]) > parseFloat(rule.value);
-    case 'less_than': return parseFloat(dealData[rule.variable]) < parseFloat(rule.value);
+    case 'greater_than': return parseFloat(rawFieldValue) > parseFloat(rule.value);
+    case 'less_than': return parseFloat(rawFieldValue) < parseFloat(rule.value);
     default: return false;
   }
 }
@@ -557,6 +588,7 @@ export async function onDealStageChanged(dealId, newStageId, organizationId) {
       deal_company_name: deal.company_name || '',
       deal_source: deal.source || '',
       deal_probability: deal.probability || 0,
+      custom_fields: customFields,
       ...customFields,
     };
 
