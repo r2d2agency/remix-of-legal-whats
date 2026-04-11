@@ -106,9 +106,11 @@ router.post('/receive/:token', async (req, res) => {
     for (const [sourceField, targetField] of Object.entries(fieldMapping)) {
       const value = getNestedValue(payload, sourceField);
       if (value !== undefined && value !== null) {
-        if (targetField === 'custom_fields') {
-          mappedData.custom_fields[sourceField] = value;
-          mappingLog[sourceField] = { target: `custom_fields.${sourceField}`, value: String(value), source: 'mapping' };
+        if (targetField === 'custom_fields' || targetField.startsWith('custom_fields:')) {
+          // Support "custom_fields:varName" format for named variables
+          const varName = targetField.includes(':') ? targetField.split(':')[1] : sourceField.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+          mappedData.custom_fields[varName] = value;
+          mappingLog[sourceField] = { target: `custom_fields.${varName}`, value: String(value), source: 'mapping' };
         } else if (targetField in mappedData) {
           mappedData[targetField] = value;
           mappingLog[sourceField] = { target: targetField, value: String(value), source: 'mapping' };
