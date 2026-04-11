@@ -370,9 +370,7 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
             rows={5}
             className="resize-none"
           />
-          <p className="text-xs text-muted-foreground">
-            Use {'{variavel}'} para inserir variáveis coletadas
-          </p>
+          <VariablesBadgePanel onInsert={(v) => onChange({ ...content, text: (content.text || '') + ' ' + v })} />
         </div>
         <div className="flex items-center justify-between">
           <Label className="text-sm">Simular digitação</Label>
@@ -1067,7 +1065,7 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
           <div className="p-3 bg-muted rounded-lg space-y-1">
             <p className="text-xs font-medium">Variáveis disponíveis:</p>
             <div className="flex flex-wrap gap-1">
-              {['{nome}', '{telefone}', '{email}', '{mensagem}'].map(v => (
+              {['{nome}', '{telefone}', '{email}', '{mensagem}', '{deal_title}', '{deal_value}', '{company_name}'].map(v => (
                 <Badge key={v} variant="secondary" className="text-xs cursor-pointer hover:bg-primary/20"
                   onClick={() => onChange({ ...content, email_body: (content.email_body || '') + ' ' + v })}
                 >
@@ -1076,6 +1074,7 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
               ))}
             </div>
           </div>
+          <VariablesBadgePanel onInsert={(v) => onChange({ ...content, email_body: (content.email_body || '') + ' ' + v })} />
           <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
             <p className="text-xs text-muted-foreground">
               💡 Configure o SMTP em <strong>Configurações → E-mail</strong> antes de usar esta ação.
@@ -1121,18 +1120,7 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
               Use {'{variavel}'} para inserir dados coletados no fluxo
             </p>
           </div>
-          <div className="p-3 bg-muted rounded-lg space-y-1">
-            <p className="text-xs font-medium">Variáveis disponíveis:</p>
-            <div className="flex flex-wrap gap-1">
-              {['{nome}', '{telefone}', '{email}', '{mensagem}'].map(v => (
-                <Badge key={v} variant="secondary" className="text-xs cursor-pointer hover:bg-primary/20"
-                  onClick={() => onChange({ ...content, external_message: (content.external_message || '') + ' ' + v })}
-                >
-                  {v}
-                </Badge>
-              ))}
-            </div>
-          </div>
+          <VariablesBadgePanel onInsert={(v) => onChange({ ...content, external_message: (content.external_message || '') + ' ' + v })} />
         </div>
       )}
     </div>
