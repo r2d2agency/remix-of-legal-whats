@@ -1,6 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { query } from '../db.js';
+import { onDealStageChanged } from '../crm-automation-scheduler.js';
 import { authenticate } from '../middleware/auth.js';
 import { logInfo, logError } from '../logger.js';
 
@@ -466,6 +467,12 @@ router.post('/receive/:token', async (req, res) => {
           logError('[Lead Webhook] Error creating alert', alertError);
           // Don't fail the webhook, just log the error
         }
+      }
+
+      try {
+        await onDealStageChanged(dealId, webhook.stage_id, webhook.organization_id);
+      } catch (automationError) {
+        logError('[Lead Webhook] Error triggering stage automation', automationError);
       }
 
       responseMessage = `Lead criado como negociação: ${dealId}`;
