@@ -672,17 +672,81 @@ async function processActionNode(content, connection, phone, variables) {
           }
         }
         break;
+      case 'notify_external':
       case 'external_notification':
         // Send message to external number
-        if (content.external_phone && content.external_message) {
-          const msg = replaceVariables(content.external_message, variables);
-          const targetPhone = replaceVariables(content.external_phone, variables);
+        if (content.external_phone || content.phone_number) {
+          const extPhone = content.external_phone || content.phone_number;
+          const extMsg = content.external_message || content.notification_message || '';
+          const msg = replaceVariables(extMsg, variables);
+          const targetPhone = replaceVariables(extPhone, variables);
           const sendResult = await whatsappProvider.sendMessage(connection, targetPhone, msg, 'text');
           if (!sendResult?.success) {
             throw new Error(sendResult?.error || 'Falha ao enviar notificação externa');
           }
         }
         break;
+
+      case 'move_kanban': {
+        // Move or create a card in a specific board/column
+        const boardId = content.board_id;
+        const columnId = content.column_id;
+        if (!boardId || !columnId) {
+          console.log('Flow action: move_kanban missing board_id or column_id');
+          break;
+        }
+
+        const orgResult2 = await query(
+          'SELECT organization_id FROM connections WHERE id = $1',
+          [connection.id]
+        );
+        if (orgResult2.rows.length === 0) break;
+        const orgId2 = orgResult2.rows[0].organization_id;
+
+        const contactName = variables.nome || variables.name || variables.nome_cliente || phone;
+        const cardTitle = content.card_title 
+          ? replaceVariables(content.card_title, variables) 
+          : `${contactName} - Fluxo automático`;
+
+        // Check if there's already a card for this contact in this board
+        const existingCard = await query(
+          `SELECT id, column_id FROM task_cards 
+           WHERE board_id = $1 AND organization_id = $2 AND contact_phone = $3
+           ORDER BY created_at DESC LIMIT 1`,
+          [boardId, orgId2, phone]
+        );
+
+        if (existingCard.rows.length > 0) {
+          // Move existing card to target column
+          const card = existingCard.rows[0];
+          if (card.column_id !== columnId) {
+            const nextPos = await query(
+              `SELECT COALESCE(MAX(position), -1) + 1 as pos FROM task_cards WHERE column_id = $1`,
+              [columnId]
+            );
+            await query(
+              `UPDATE task_cards SET column_id = $1, position = $2, updated_at = NOW() WHERE id = $3`,
+              [columnId, nextPos.rows[0].pos, card.id]
+            );
+            console.log(`Flow action: Moved card ${card.id} to column ${columnId}`);
+          } else {
+            console.log(`Flow action: Card ${card.id} already in target column`);
+          }
+        } else {
+          // Create new card
+          const nextPos = await query(
+            `SELECT COALESCE(MAX(position), -1) + 1 as pos FROM task_cards WHERE column_id = $1`,
+            [columnId]
+          );
+          await query(
+            `INSERT INTO task_cards (organization_id, board_id, column_id, title, contact_phone, contact_name, position, source_module)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'flow')`,
+            [orgId2, boardId, columnId, cardTitle, phone, contactName, nextPos.rows[0].pos]
+          );
+          console.log(`Flow action: Created card in board ${boardId}, column ${columnId}`);
+        }
+        break;
+      }
     }
     return { success: true };
   } catch (error) {
