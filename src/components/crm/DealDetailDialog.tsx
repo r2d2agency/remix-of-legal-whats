@@ -633,16 +633,80 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                 <MessageSquare className="h-4 w-4 mr-2" />
                 Chat
               </Button>
-              <Select value={currentDeal?.status} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="open">Em aberto</SelectItem>
-                  <SelectItem value="won">Ganho</SelectItem>
-                  <SelectItem value="lost">Perdido</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-1 border rounded-lg p-1 bg-muted/30">
+                {currentDeal?.status !== 'won' && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={currentDeal?.status === 'won' ? 'default' : 'ghost'}
+                        size="icon"
+                        className="h-8 w-8 rounded-md hover:bg-green-100 dark:hover:bg-green-900/30 text-green-500 hover:text-green-600 transition-all hover:scale-110"
+                        onClick={() => handleStatusChange('won')}
+                      >
+                        <ThumbsUp className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Marcar como Ganho</p></TooltipContent>
+                  </Tooltip>
+                )}
+                {currentDeal?.status !== 'lost' && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={currentDeal?.status === 'lost' ? 'default' : 'ghost'}
+                        size="icon"
+                        className="h-8 w-8 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 hover:text-red-600 transition-all hover:scale-110"
+                        onClick={() => handleStatusChange('lost')}
+                      >
+                        <ThumbsDown className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Marcar como Perdido</p></TooltipContent>
+                  </Tooltip>
+                )}
+                {currentDeal?.status === 'open' && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-600 transition-all hover:scale-110"
+                        onClick={() => handleStatusChange('paused')}
+                      >
+                        <Pause className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Pausar</p></TooltipContent>
+                  </Tooltip>
+                )}
+                {(currentDeal?.status === 'paused' || currentDeal?.status === 'won' || currentDeal?.status === 'lost') && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500 hover:text-blue-600 transition-all hover:scale-110"
+                        onClick={() => handleStatusChange('open')}
+                      >
+                        <Play className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent><p>Reabrir</p></TooltipContent>
+                  </Tooltip>
+                )}
+                {/* Current status label */}
+                <Badge variant="outline" className={cn(
+                  "text-xs ml-1",
+                  currentDeal?.status === 'won' && "border-green-500 text-green-600 bg-green-50 dark:bg-green-950/30",
+                  currentDeal?.status === 'lost' && "border-red-500 text-red-600 bg-red-50 dark:bg-red-950/30",
+                  currentDeal?.status === 'paused' && "border-gray-400 text-gray-500 bg-gray-50 dark:bg-gray-800/50",
+                  currentDeal?.status === 'open' && "border-primary/30"
+                )}>
+                  {currentDeal?.status === 'won' ? 'Ganho' : 
+                   currentDeal?.status === 'lost' ? 'Perdido' : 
+                   currentDeal?.status === 'paused' ? 'Pausado' : 'Em aberto'}
+                </Badge>
+              </div>
             </div>
           </div>
         </DialogHeader>
