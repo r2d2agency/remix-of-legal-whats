@@ -266,13 +266,17 @@ router.post('/receive/:token', async (req, res) => {
       
       dealTitle = dealTitle.trim() || mappedData.name || 'Novo Lead';
 
-      // Create deal with source tracking
+      // Create deal with source tracking and custom_fields
+      const dealCustomFields = Object.keys(mappedData.custom_fields).length > 0
+        ? JSON.stringify(mappedData.custom_fields)
+        : '{}';
+
       const dealResult = await query(
         `INSERT INTO crm_deals (
            organization_id, funnel_id, stage_id, company_id,
            title, value, probability, status, description,
-           owner_id, created_by, source
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8, $9, $10, $11)
+           owner_id, created_by, source, custom_fields
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8, $9, $10, $11, $12)
          RETURNING id`,
         [
           webhook.organization_id,
@@ -285,7 +289,8 @@ router.post('/receive/:token', async (req, res) => {
           description,
           assignedOwnerId,
           webhook.created_by,
-          `Webhook: ${webhook.name}`
+          `Webhook: ${webhook.name}`,
+          dealCustomFields
         ]
       );
       

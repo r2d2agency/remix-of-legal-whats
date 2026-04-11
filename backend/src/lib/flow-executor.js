@@ -151,6 +151,31 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start',
       ...initialVariables, // Allow campaigns to override/inject variables
     };
 
+    // Try to load deal custom_fields if this conversation has a linked deal
+    try {
+      const dealVarsResult = await query(
+        `SELECT d.custom_fields FROM crm_deals d
+         JOIN crm_deal_contacts dc ON dc.deal_id = d.id
+         JOIN contacts c ON c.id = dc.contact_id
+         WHERE c.phone = $1 AND d.status = 'open'
+         ORDER BY d.updated_at DESC LIMIT 1`,
+        [conversation.contact_phone]
+      );
+      if (dealVarsResult.rows[0]?.custom_fields) {
+        const cf = typeof dealVarsResult.rows[0].custom_fields === 'string'
+          ? JSON.parse(dealVarsResult.rows[0].custom_fields)
+          : dealVarsResult.rows[0].custom_fields;
+        // Inject custom fields as variables (don't override existing)
+        for (const [k, v] of Object.entries(cf)) {
+          if (!(k in variables) && v !== null && v !== undefined) {
+            variables[k] = v;
+          }
+        }
+      }
+    } catch (cfErr) {
+      console.log('Flow executor: Could not load deal custom_fields:', cfErr.message);
+    }
+
     // Create or update flow session to track state.
     // IMPORTANT: keep this compatible with backend/src/routes/flows.js (manual start)
     // so keyword-triggered flows can also be continued by webhooks.
