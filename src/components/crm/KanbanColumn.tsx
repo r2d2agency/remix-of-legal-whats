@@ -114,51 +114,8 @@ function SortableDealItem({
         }}
         isNewWin={isNewWin}
         isDragging={isDragging}
+        onStatusChange={onStatusChange}
       />
-      
-      {/* Quick actions menu */}
-      {onStatusChange && !isDragging && (
-        <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="secondary" 
-                size="icon" 
-                className="h-6 w-6"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-              {deal.status !== 'won' && (
-                <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'won')}>
-                  <Trophy className="h-4 w-4 mr-2 text-green-500" />
-                  Marcar como Ganho
-                </DropdownMenuItem>
-              )}
-              {deal.status !== 'lost' && (
-                <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'lost')}>
-                  <XCircle className="h-4 w-4 mr-2 text-red-500" />
-                  Marcar como Perdido
-                </DropdownMenuItem>
-              )}
-              {deal.status !== 'paused' && deal.status !== 'won' && deal.status !== 'lost' && (
-                <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'paused')}>
-                  <Pause className="h-4 w-4 mr-2 text-gray-500" />
-                  Pausar Negociação
-                </DropdownMenuItem>
-              )}
-              {(deal.status === 'paused' || deal.status === 'won' || deal.status === 'lost') && (
-                <DropdownMenuItem onClick={() => onStatusChange(deal.id, 'open')}>
-                  <Play className="h-4 w-4 mr-2 text-blue-500" />
-                  Reabrir Negociação
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
     </div>
   );
 }
