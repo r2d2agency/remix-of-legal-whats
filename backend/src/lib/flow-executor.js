@@ -151,29 +151,53 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start',
       ...initialVariables, // Allow campaigns to override/inject variables
     };
 
-    // Try to load deal custom_fields if this conversation has a linked deal
+    // Try to load deal context + custom_fields if this conversation has a linked deal
     try {
       const dealVarsResult = await query(
-        `SELECT d.custom_fields FROM crm_deals d
+        `SELECT d.id as deal_id, d.title as deal_title, d.value as deal_value, d.status as deal_status,
+                d.funnel_id as deal_funnel_id, d.stage_id as deal_stage_id, d.custom_fields,
+                d.source as deal_source, d.probability as deal_probability,
+                s.name as deal_stage_name, f.name as deal_funnel_name,
+                co.name as deal_company_name
+         FROM crm_deals d
          JOIN crm_deal_contacts dc ON dc.deal_id = d.id
          JOIN contacts c ON c.id = dc.contact_id
+         LEFT JOIN crm_stages s ON s.id = d.stage_id
+         LEFT JOIN crm_funnels f ON f.id = d.funnel_id
+         LEFT JOIN crm_companies co ON co.id = d.company_id
          WHERE c.phone = $1 AND d.status = 'open'
          ORDER BY d.updated_at DESC LIMIT 1`,
         [conversation.contact_phone]
       );
-      if (dealVarsResult.rows[0]?.custom_fields) {
-        const cf = typeof dealVarsResult.rows[0].custom_fields === 'string'
-          ? JSON.parse(dealVarsResult.rows[0].custom_fields)
-          : dealVarsResult.rows[0].custom_fields;
-        // Inject custom fields as variables (don't override existing)
-        for (const [k, v] of Object.entries(cf)) {
-          if (!(k in variables) && v !== null && v !== undefined) {
-            variables[k] = v;
+      if (dealVarsResult.rows[0]) {
+        const deal = dealVarsResult.rows[0];
+        // Inject standard deal fields
+        variables.deal_id = deal.deal_id || '';
+        variables.deal_title = deal.deal_title || '';
+        variables.deal_value = deal.deal_value || 0;
+        variables.deal_status = deal.deal_status || '';
+        variables.deal_stage_id = deal.deal_stage_id || '';
+        variables.deal_stage_name = deal.deal_stage_name || '';
+        variables.deal_funnel_id = deal.deal_funnel_id || '';
+        variables.deal_funnel_name = deal.deal_funnel_name || '';
+        variables.deal_company_name = deal.deal_company_name || '';
+        variables.deal_source = deal.deal_source || '';
+        variables.deal_probability = deal.deal_probability || 0;
+
+        // Inject custom fields
+        if (deal.custom_fields) {
+          const cf = typeof deal.custom_fields === 'string'
+            ? JSON.parse(deal.custom_fields)
+            : deal.custom_fields;
+          for (const [k, v] of Object.entries(cf)) {
+            if (!(k in variables) && v !== null && v !== undefined) {
+              variables[k] = v;
+            }
           }
         }
       }
     } catch (cfErr) {
-      console.log('Flow executor: Could not load deal custom_fields:', cfErr.message);
+      console.log('Flow executor: Could not load deal context:', cfErr.message);
     }
 
     // Create or update flow session to track state.
