@@ -610,55 +610,92 @@ Content-Type: application/json
                     Mapeie campos do payload recebido para os campos do CRM
                   </p>
 
-                  {Object.entries(form.field_mapping).map(([source, target], index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <Input
-                        placeholder="Campo origem (ex: custom_fields.novo_campo)"
-                        value={source}
-                        onChange={(e) => {
-                          const newMapping = { ...form.field_mapping };
-                          delete newMapping[source];
-                          newMapping[e.target.value] = target;
-                          setForm({ ...form, field_mapping: newMapping });
-                        }}
-                        className="flex-1"
-                      />
-                      <span className="text-muted-foreground">→</span>
-                      <Select
-                        value={target}
-                        onValueChange={(v) => {
-                          setForm({ 
-                            ...form, 
-                            field_mapping: { ...form.field_mapping, [source]: v }
-                          });
-                        }}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="name">Nome</SelectItem>
-                          <SelectItem value="email">Email</SelectItem>
-                          <SelectItem value="phone">Telefone</SelectItem>
-                          <SelectItem value="company_name">Empresa</SelectItem>
-                          <SelectItem value="value">Valor</SelectItem>
-                          <SelectItem value="description">Descrição</SelectItem>
-                          <SelectItem value="custom_fields">Campo personalizado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          const newMapping = { ...form.field_mapping };
-                          delete newMapping[source];
-                          setForm({ ...form, field_mapping: newMapping });
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                  {Object.entries(form.field_mapping).map(([source, target], index) => {
+                    // Parse variable alias: target can be "custom_fields:myVar"
+                    const isCustom = target === 'custom_fields' || target.startsWith('custom_fields:');
+                    const varAlias = isCustom && target.includes(':') ? target.split(':')[1] : '';
+                    const baseTarget = isCustom ? 'custom_fields' : target;
+
+                    return (
+                      <Card key={index} className="p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-muted-foreground">Mapeamento {index + 1}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => {
+                              const newMapping = { ...form.field_mapping };
+                              delete newMapping[source];
+                              setForm({ ...form, field_mapping: newMapping });
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Campo origem</Label>
+                          <Input
+                            placeholder="ex: custom_fields.novo_campo"
+                            value={source}
+                            onChange={(e) => {
+                              const newMapping = { ...form.field_mapping };
+                              delete newMapping[source];
+                              newMapping[e.target.value] = target;
+                              setForm({ ...form, field_mapping: newMapping });
+                            }}
+                            className="text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Destino CRM</Label>
+                          <Select
+                            value={baseTarget}
+                            onValueChange={(v) => {
+                              const newVal = v === 'custom_fields' && varAlias ? `custom_fields:${varAlias}` : v;
+                              setForm({
+                                ...form,
+                                field_mapping: { ...form.field_mapping, [source]: newVal }
+                              });
+                            }}
+                          >
+                            <SelectTrigger className="text-sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="name">Nome</SelectItem>
+                              <SelectItem value="email">Email</SelectItem>
+                              <SelectItem value="phone">Telefone</SelectItem>
+                              <SelectItem value="company_name">Empresa</SelectItem>
+                              <SelectItem value="value">Valor</SelectItem>
+                              <SelectItem value="description">Descrição</SelectItem>
+                              <SelectItem value="custom_fields">Campo personalizado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {isCustom && (
+                          <div>
+                            <Label className="text-xs">Nome da variável</Label>
+                            <Input
+                              placeholder="ex: cidade_franquia"
+                              value={varAlias}
+                              onChange={(e) => {
+                                const cleanName = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
+                                setForm({
+                                  ...form,
+                                  field_mapping: { ...form.field_mapping, [source]: `custom_fields:${cleanName}` }
+                                });
+                              }}
+                              className="text-sm"
+                            />
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              Use em fluxos e disparos como <Badge variant="outline" className="text-[10px] px-1 py-0">{`{${varAlias || 'nome_var'}}`}</Badge>
+                            </p>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
 
                   <Button
                     variant="outline"
