@@ -16,6 +16,12 @@ export interface StageAutomation {
   fallback_stage_name?: string;
   is_active: boolean;
   execute_immediately: boolean;
+  conditions?: Array<{ id: string; variable: string; operator: string; value: string }>;
+  condition_logic?: string;
+  condition_true_flow_id?: string | null;
+  condition_true_stage_id?: string | null;
+  condition_false_flow_id?: string | null;
+  condition_false_stage_id?: string | null;
   created_at: string;
   updated_at: string;
 }
