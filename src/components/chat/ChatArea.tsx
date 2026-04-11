@@ -942,7 +942,15 @@ export function ChatArea({
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => { toggleConversationMute(conversation.id); toast.success(isConversationMuted(conversation.id) ? 'Notificações ativadas' : 'Conversa silenciada'); }}>
                 {isConversationMuted(conversation.id) ? <Bell className="h-4 w-4 mr-2" /> : <BellOff className="h-4 w-4 mr-2" />}
-                {isConversationMuted(conversation.id) ? 'Ativar notificações' : 'Silenciar conversa'}
+              {isConversationMuted(conversation.id) ? 'Ativar notificações' : 'Silenciar conversa'}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Exportar conversa</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => { exportConversationAsTxt(conversation, messages); toast.success("Conversa exportada como TXT"); }}>
+                <Download className="h-4 w-4 mr-2" />Exportar TXT
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { exportConversationAsPdf(conversation, messages); toast.success("Preparando PDF para impressão..."); }}>
+                <FileText className="h-4 w-4 mr-2" />Exportar PDF
               </DropdownMenuItem>
               {!isViewOnly && (
                 <>
