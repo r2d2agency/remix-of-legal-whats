@@ -638,7 +638,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant={currentDeal?.status === 'won' ? 'default' : 'ghost'}
+                        variant="ghost"
                         size="icon"
                         className="h-8 w-8 rounded-md hover:bg-green-100 dark:hover:bg-green-900/30 text-green-500 hover:text-green-600 transition-all hover:scale-110"
                         onClick={() => handleStatusChange('won')}
@@ -653,7 +653,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant={currentDeal?.status === 'lost' ? 'default' : 'ghost'}
+                        variant="ghost"
                         size="icon"
                         className="h-8 w-8 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 hover:text-red-600 transition-all hover:scale-110"
                         onClick={() => handleStatusChange('lost')}
