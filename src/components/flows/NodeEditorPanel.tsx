@@ -930,25 +930,25 @@ function ConditionNodeEditor({ content, onChange }: { content: Record<string, an
 function ActionNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
   const [tags, setTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
   const [loadingTags, setLoadingTags] = useState(false);
-  const [boards, setBoards] = useState<Array<{ id: string; name: string; is_global: boolean }>>([]);
-  const [columns, setColumns] = useState<Array<{ id: string; name: string; color: string; position: number }>>([]);
-  const [loadingBoards, setLoadingBoards] = useState(false);
-  const [loadingColumns, setLoadingColumns] = useState(false);
+  const [funnels, setFunnels] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  const [stages, setStages] = useState<Array<{ id: string; name: string; color: string; position: number }>>([]);
+  const [loadingFunnels, setLoadingFunnels] = useState(false);
+  const [loadingStages, setLoadingStages] = useState(false);
 
   useEffect(() => {
     if (content.action_type === 'add_tag' || content.action_type === 'remove_tag') {
       loadTags();
     }
     if (content.action_type === 'move_kanban') {
-      loadBoards();
+      loadFunnels();
     }
   }, [content.action_type]);
 
   useEffect(() => {
-    if (content.action_type === 'move_kanban' && content.board_id) {
-      loadColumns(content.board_id);
+    if (content.action_type === 'move_kanban' && content.funnel_id) {
+      loadStages(content.funnel_id);
     }
-  }, [content.board_id, content.action_type]);
+  }, [content.funnel_id, content.action_type]);
 
   const loadTags = async () => {
     setLoadingTags(true);
@@ -963,29 +963,29 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
     }
   };
 
-  const loadBoards = async () => {
-    setLoadingBoards(true);
+  const loadFunnels = async () => {
+    setLoadingFunnels(true);
     try {
       const { api } = await import('@/lib/api');
-      const data = await api<Array<{ id: string; name: string; is_global: boolean }>>('/api/task-boards/boards');
-      setBoards(data);
+      const data = await api<Array<{ id: string; name: string; color: string }>>('/api/crm/funnels');
+      setFunnels(data);
     } catch (error) {
-      console.error('Error loading boards:', error);
+      console.error('Error loading funnels:', error);
     } finally {
-      setLoadingBoards(false);
+      setLoadingFunnels(false);
     }
   };
 
-  const loadColumns = async (boardId: string) => {
-    setLoadingColumns(true);
+  const loadStages = async (funnelId: string) => {
+    setLoadingStages(true);
     try {
       const { api } = await import('@/lib/api');
-      const data = await api<Array<{ id: string; name: string; color: string; position: number }>>(`/api/task-boards/boards/${boardId}/columns`);
-      setColumns(data.sort((a, b) => a.position - b.position));
+      const data = await api<{ stages: Array<{ id: string; name: string; color: string; position: number }> }>(`/api/crm/funnels/${funnelId}`);
+      setStages((data.stages || []).sort((a, b) => a.position - b.position));
     } catch (error) {
-      console.error('Error loading columns:', error);
+      console.error('Error loading stages:', error);
     } finally {
-      setLoadingColumns(false);
+      setLoadingStages(false);
     }
   };
 
