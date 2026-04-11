@@ -930,12 +930,25 @@ function ConditionNodeEditor({ content, onChange }: { content: Record<string, an
 function ActionNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
   const [tags, setTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
   const [loadingTags, setLoadingTags] = useState(false);
+  const [boards, setBoards] = useState<Array<{ id: string; name: string; is_global: boolean }>>([]);
+  const [columns, setColumns] = useState<Array<{ id: string; name: string; color: string; position: number }>>([]);
+  const [loadingBoards, setLoadingBoards] = useState(false);
+  const [loadingColumns, setLoadingColumns] = useState(false);
 
   useEffect(() => {
     if (content.action_type === 'add_tag' || content.action_type === 'remove_tag') {
       loadTags();
     }
+    if (content.action_type === 'move_kanban') {
+      loadBoards();
+    }
   }, [content.action_type]);
+
+  useEffect(() => {
+    if (content.action_type === 'move_kanban' && content.board_id) {
+      loadColumns(content.board_id);
+    }
+  }, [content.board_id, content.action_type]);
 
   const loadTags = async () => {
     setLoadingTags(true);
@@ -947,6 +960,32 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
       console.error('Error loading tags:', error);
     } finally {
       setLoadingTags(false);
+    }
+  };
+
+  const loadBoards = async () => {
+    setLoadingBoards(true);
+    try {
+      const { api } = await import('@/lib/api');
+      const data = await api<Array<{ id: string; name: string; is_global: boolean }>>('/api/task-boards/boards');
+      setBoards(data);
+    } catch (error) {
+      console.error('Error loading boards:', error);
+    } finally {
+      setLoadingBoards(false);
+    }
+  };
+
+  const loadColumns = async (boardId: string) => {
+    setLoadingColumns(true);
+    try {
+      const { api } = await import('@/lib/api');
+      const data = await api<Array<{ id: string; name: string; color: string; position: number }>>(`/api/task-boards/boards/${boardId}/columns`);
+      setColumns(data.sort((a, b) => a.position - b.position));
+    } catch (error) {
+      console.error('Error loading columns:', error);
+    } finally {
+      setLoadingColumns(false);
     }
   };
 
