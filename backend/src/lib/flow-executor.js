@@ -692,15 +692,39 @@ async function processActionNode(content, connection, phone, variables) {
 }
 
 /**
- * Replace variables in text
+ * Replace variables in text - supports {var}, {{var}}, and {obj.key} dot notation
  */
 function replaceVariables(text, variables) {
   if (!text) return text;
   
-  // Replace {{var}} and {var} patterns
+  // Replace {{var.path}} and {var.path} patterns with dot notation support
   return text
-    .replace(/\{\{(\w+)\}\}/g, (match, varName) => variables[varName] || match)
-    .replace(/\{(\w+)\}/g, (match, varName) => variables[varName] || match);
+    .replace(/\{\{([\w.]+)\}\}/g, (match, varPath) => {
+      const val = getVariableValue(variables, varPath);
+      return val !== undefined ? String(val) : match;
+    })
+    .replace(/\{([\w.]+)\}/g, (match, varPath) => {
+      const val = getVariableValue(variables, varPath);
+      return val !== undefined ? String(val) : match;
+    });
+}
+
+/**
+ * Get variable value supporting dot notation (e.g. "custom_fields.campo1" or just "campo1")
+ */
+function getVariableValue(variables, path) {
+  // Direct match first
+  if (path in variables && variables[path] !== undefined) {
+    return variables[path];
+  }
+  // Dot notation
+  const parts = path.split('.');
+  let current = variables;
+  for (const part of parts) {
+    if (current === null || current === undefined || typeof current !== 'object') return undefined;
+    current = current[part];
+  }
+  return current;
 }
 
 /**
