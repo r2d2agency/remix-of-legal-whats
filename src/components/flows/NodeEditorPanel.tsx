@@ -930,25 +930,25 @@ function ConditionNodeEditor({ content, onChange }: { content: Record<string, an
 function ActionNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
   const [tags, setTags] = useState<Array<{ id: string; name: string; color: string }>>([]);
   const [loadingTags, setLoadingTags] = useState(false);
-  const [boards, setBoards] = useState<Array<{ id: string; name: string; is_global: boolean }>>([]);
-  const [columns, setColumns] = useState<Array<{ id: string; name: string; color: string; position: number }>>([]);
-  const [loadingBoards, setLoadingBoards] = useState(false);
-  const [loadingColumns, setLoadingColumns] = useState(false);
+  const [funnels, setFunnels] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  const [stages, setStages] = useState<Array<{ id: string; name: string; color: string; position: number }>>([]);
+  const [loadingFunnels, setLoadingFunnels] = useState(false);
+  const [loadingStages, setLoadingStages] = useState(false);
 
   useEffect(() => {
     if (content.action_type === 'add_tag' || content.action_type === 'remove_tag') {
       loadTags();
     }
     if (content.action_type === 'move_kanban') {
-      loadBoards();
+      loadFunnels();
     }
   }, [content.action_type]);
 
   useEffect(() => {
-    if (content.action_type === 'move_kanban' && content.board_id) {
-      loadColumns(content.board_id);
+    if (content.action_type === 'move_kanban' && content.funnel_id) {
+      loadStages(content.funnel_id);
     }
-  }, [content.board_id, content.action_type]);
+  }, [content.funnel_id, content.action_type]);
 
   const loadTags = async () => {
     setLoadingTags(true);
@@ -963,29 +963,29 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
     }
   };
 
-  const loadBoards = async () => {
-    setLoadingBoards(true);
+  const loadFunnels = async () => {
+    setLoadingFunnels(true);
     try {
       const { api } = await import('@/lib/api');
-      const data = await api<Array<{ id: string; name: string; is_global: boolean }>>('/api/task-boards/boards');
-      setBoards(data);
+      const data = await api<Array<{ id: string; name: string; color: string }>>('/api/crm/funnels');
+      setFunnels(data);
     } catch (error) {
-      console.error('Error loading boards:', error);
+      console.error('Error loading funnels:', error);
     } finally {
-      setLoadingBoards(false);
+      setLoadingFunnels(false);
     }
   };
 
-  const loadColumns = async (boardId: string) => {
-    setLoadingColumns(true);
+  const loadStages = async (funnelId: string) => {
+    setLoadingStages(true);
     try {
       const { api } = await import('@/lib/api');
-      const data = await api<Array<{ id: string; name: string; color: string; position: number }>>(`/api/task-boards/boards/${boardId}/columns`);
-      setColumns(data.sort((a, b) => a.position - b.position));
+      const data = await api<{ stages: Array<{ id: string; name: string; color: string; position: number }> }>(`/api/crm/funnels/${funnelId}`);
+      setStages((data.stages || []).sort((a, b) => a.position - b.position));
     } catch (error) {
-      console.error('Error loading columns:', error);
+      console.error('Error loading stages:', error);
     } finally {
-      setLoadingColumns(false);
+      setLoadingStages(false);
     }
   };
 
@@ -1174,39 +1174,39 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
       {content.action_type === 'move_kanban' && (
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Quadro Kanban</Label>
-            {loadingBoards ? (
+            <Label>Funil CRM</Label>
+            {loadingFunnels ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Carregando quadros...
+                Carregando funis...
               </div>
-            ) : boards.length === 0 ? (
+            ) : funnels.length === 0 ? (
               <div className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
-                Nenhum quadro encontrado. Crie um quadro no módulo de Tarefas.
+                Nenhum funil encontrado. Crie um funil no CRM primeiro.
               </div>
             ) : (
               <Select
-                value={content.board_id || undefined}
+                value={content.funnel_id || undefined}
                 onValueChange={(v) => {
-                  const selectedBoard = boards.find(b => b.id === v);
+                  const selectedFunnel = funnels.find(f => f.id === v);
                   onChange({ 
                     ...content, 
-                    board_id: v, 
-                    board_name: selectedBoard?.name || '',
-                    column_id: '',
-                    column_name: ''
+                    funnel_id: v, 
+                    funnel_name: selectedFunnel?.name || '',
+                    stage_id: '',
+                    stage_name: ''
                   });
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um quadro" />
+                  <SelectValue placeholder="Selecione um funil" />
                 </SelectTrigger>
                 <SelectContent>
-                  {boards.map((board) => (
-                    <SelectItem key={board.id} value={board.id}>
+                  {funnels.map((funnel) => (
+                    <SelectItem key={funnel.id} value={funnel.id}>
                       <div className="flex items-center gap-2">
-                        <span>{board.is_global ? '🌐' : '👤'}</span>
-                        {board.name}
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: funnel.color }} />
+                        {funnel.name}
                       </div>
                     </SelectItem>
                   ))}
@@ -1215,39 +1215,39 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
             )}
           </div>
 
-          {content.board_id && (
+          {content.funnel_id && (
             <div className="space-y-2">
-              <Label>Coluna de destino</Label>
-              {loadingColumns ? (
+              <Label>Etapa de destino</Label>
+              {loadingStages ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Carregando colunas...
+                  Carregando etapas...
                 </div>
-              ) : columns.length === 0 ? (
+              ) : stages.length === 0 ? (
                 <div className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
-                  Nenhuma coluna neste quadro.
+                  Nenhuma etapa neste funil.
                 </div>
               ) : (
                 <Select
-                  value={content.column_id || undefined}
+                  value={content.stage_id || undefined}
                   onValueChange={(v) => {
-                    const selectedColumn = columns.find(c => c.id === v);
+                    const selectedStage = stages.find(s => s.id === v);
                     onChange({ 
                       ...content, 
-                      column_id: v, 
-                      column_name: selectedColumn?.name || ''
+                      stage_id: v, 
+                      stage_name: selectedStage?.name || ''
                     });
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione a coluna" />
+                    <SelectValue placeholder="Selecione a etapa" />
                   </SelectTrigger>
                   <SelectContent>
-                    {columns.map((col) => (
-                      <SelectItem key={col.id} value={col.id}>
+                    {stages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
                         <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: col.color }} />
-                          {col.name}
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
+                          {stage.name}
                         </div>
                       </SelectItem>
                     ))}
@@ -1258,23 +1258,23 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
           )}
 
           <div className="space-y-2">
-            <Label>Título do card (opcional)</Label>
+            <Label>Título da negociação (opcional)</Label>
             <Input
-              value={content.card_title || ''}
-              onChange={(e) => onChange({ ...content, card_title: e.target.value })}
+              value={content.deal_title || ''}
+              onChange={(e) => onChange({ ...content, deal_title: e.target.value })}
               placeholder="{nome} - Novo lead via fluxo"
             />
             <p className="text-xs text-muted-foreground">
-              Se não informado, cria/move baseado no contato do fluxo
+              Se já existir uma negociação do contato, ela será movida para a etapa selecionada
             </p>
           </div>
 
           <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-1">
             <p className="text-xs text-muted-foreground">
-              📋 Esta ação cria um card no quadro/coluna selecionado, ou move um card existente do contato para a coluna de destino.
+              📋 Move a negociação do contato para a etapa selecionada no funil CRM. Se não existir negociação, cria uma nova automaticamente.
             </p>
           </div>
-          <VariablesBadgePanel onInsert={(v) => onChange({ ...content, card_title: (content.card_title || '') + ' ' + v })} />
+          <VariablesBadgePanel onInsert={(v) => onChange({ ...content, deal_title: (content.deal_title || '') + ' ' + v })} />
         </div>
       )}
     </div>
