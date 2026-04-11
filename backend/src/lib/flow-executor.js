@@ -688,7 +688,7 @@ async function processActionNode(content, connection, phone, variables) {
         break;
 
       case 'move_kanban': {
-        // Move or create a CRM deal in a specific funnel/stage
+        // Move an existing CRM deal to a specific funnel/stage
         const funnelId = content.funnel_id;
         const stageId = content.stage_id;
         if (!funnelId || !stageId) {
@@ -703,86 +703,41 @@ async function processActionNode(content, connection, phone, variables) {
         if (orgResult2.rows.length === 0) break;
         const orgId2 = orgResult2.rows[0].organization_id;
 
-        const contactName = variables.nome || variables.name || variables.nome_cliente || phone;
-        const dealTitle = content.deal_title 
-          ? replaceVariables(content.deal_title, variables) 
-          : `${contactName} - Fluxo automático`;
+        const cleanPhone = phone.replace(/\D/g, '').slice(-11);
 
-        // Find existing deal for this contact in this funnel by matching phone
+        // Find existing open deal for this contact (in any funnel)
         const existingDeal = await query(
-          `SELECT d.id, d.stage_id FROM crm_deals d
+          `SELECT d.id, d.stage_id, d.funnel_id FROM crm_deals d
            JOIN crm_deal_contacts dc ON dc.deal_id = d.id
            JOIN contacts cnt ON cnt.id = dc.contact_id
-           WHERE d.funnel_id = $1 AND d.organization_id = $2 AND d.status = 'open'
-             AND regexp_replace(COALESCE(cnt.phone, ''), '\\D', '', 'g') LIKE '%' || $3 || '%'
-           ORDER BY d.created_at DESC LIMIT 1`,
-          [funnelId, orgId2, phone.replace(/\D/g, '').slice(-11)]
+           WHERE d.organization_id = $1 AND d.status = 'open'
+             AND regexp_replace(COALESCE(cnt.phone, ''), '\\D', '', 'g') LIKE '%' || $2 || '%'
+           ORDER BY d.last_activity_at DESC NULLS LAST, d.created_at DESC LIMIT 1`,
+          [orgId2, cleanPhone]
         );
 
         if (existingDeal.rows.length > 0) {
-          // Move existing deal to target stage
           const deal = existingDeal.rows[0];
-          if (deal.stage_id !== stageId) {
+          const changes = {};
+          if (deal.funnel_id !== funnelId) changes.funnel_id = funnelId;
+          if (deal.stage_id !== stageId) changes.stage_id = stageId;
+
+          if (Object.keys(changes).length > 0) {
             await query(
-              `UPDATE crm_deals SET stage_id = $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2`,
-              [stageId, deal.id]
+              `UPDATE crm_deals SET funnel_id = $1, stage_id = $2, last_activity_at = NOW(), updated_at = NOW() WHERE id = $3`,
+              [funnelId, stageId, deal.id]
             );
             await query(
               `INSERT INTO crm_deal_history (deal_id, action, from_value, to_value, notes)
                VALUES ($1, 'stage_changed', $2, $3, 'Movido automaticamente via fluxo')`,
               [deal.id, deal.stage_id, stageId]
             );
-            console.log(`Flow action: Moved CRM deal ${deal.id} to stage ${stageId}`);
+            console.log(`Flow action: Moved CRM deal ${deal.id} from stage ${deal.stage_id} to stage ${stageId} (funnel ${funnelId})`);
           } else {
-            console.log(`Flow action: Deal ${deal.id} already in target stage`);
+            console.log(`Flow action: Deal ${deal.id} already in target funnel/stage`);
           }
         } else {
-          // Try to find or create a company + contact, then create a deal
-          // Find contact by phone
-          let contactId = null;
-          const contactResult = await query(
-            `SELECT id FROM contacts WHERE organization_id = $1 
-             AND regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') LIKE '%' || $2 || '%'
-             LIMIT 1`,
-            [orgId2, phone.replace(/\D/g, '').slice(-11)]
-          );
-          if (contactResult.rows.length > 0) {
-            contactId = contactResult.rows[0].id;
-          }
-
-          // Find default company or create one
-          let companyId = null;
-          const defaultCompany = await query(
-            `SELECT id FROM crm_companies WHERE organization_id = $1 ORDER BY created_at ASC LIMIT 1`,
-            [orgId2]
-          );
-          if (defaultCompany.rows.length > 0) {
-            companyId = defaultCompany.rows[0].id;
-          } else {
-            const newCompany = await query(
-              `INSERT INTO crm_companies (organization_id, name) VALUES ($1, 'Sem empresa') RETURNING id`,
-              [orgId2]
-            );
-            companyId = newCompany.rows[0].id;
-          }
-
-          // Create the deal
-          const newDeal = await query(
-            `INSERT INTO crm_deals (organization_id, funnel_id, stage_id, company_id, title, source)
-             VALUES ($1, $2, $3, $4, $5, 'Fluxo automático') RETURNING id`,
-            [orgId2, funnelId, stageId, companyId, dealTitle]
-          );
-
-          // Link contact to deal if found
-          if (contactId && newDeal.rows.length > 0) {
-            await query(
-              `INSERT INTO crm_deal_contacts (deal_id, contact_id, is_primary) VALUES ($1, $2, true)
-               ON CONFLICT (deal_id, contact_id) DO NOTHING`,
-              [newDeal.rows[0].id, contactId]
-            );
-          }
-
-          console.log(`Flow action: Created CRM deal in funnel ${funnelId}, stage ${stageId}`);
+          console.log(`Flow action: No open deal found for phone ${cleanPhone}, skipping move`);
         }
         break;
       }
