@@ -1007,6 +1007,7 @@ function ActionNodeEditor({ content, onChange }: { content: Record<string, any>;
             <SelectItem value="send_email">Enviar e-mail</SelectItem>
             <SelectItem value="notify">Notificar equipe</SelectItem>
             <SelectItem value="notify_external">Notificar externa (WhatsApp)</SelectItem>
+            <SelectItem value="move_kanban">Mover card no Kanban</SelectItem>
             <SelectItem value="close_conversation">Encerrar conversa</SelectItem>
           </SelectContent>
         </Select>
