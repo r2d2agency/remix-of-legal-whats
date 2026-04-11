@@ -377,12 +377,22 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
                             ))}
                             {customFields.map(f => (
                               <Badge
-                                key={f.field_name}
+                                key={`cf-${f.field_name}`}
                                 variant="outline"
                                 className="cursor-pointer hover:bg-accent text-[9px] h-4 px-1"
                                 onClick={() => updateCondition(rule.id, 'variable', f.field_name)}
                               >
                                 {f.label || f.field_name}
+                              </Badge>
+                            ))}
+                            {webhookVars.filter(w => !customFields.some(c => c.field_name === w.field_name)).map(f => (
+                              <Badge
+                                key={`wh-${f.field_name}`}
+                                variant="outline"
+                                className="cursor-pointer hover:bg-accent text-[9px] h-4 px-1 border-blue-500/50 text-blue-600 dark:text-blue-400"
+                                onClick={() => updateCondition(rule.id, 'variable', f.field_name)}
+                              >
+                                🔗 {f.label}
                               </Badge>
                             ))}
                           </div>
