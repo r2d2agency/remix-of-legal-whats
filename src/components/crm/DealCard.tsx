@@ -18,7 +18,7 @@ interface DealCardProps {
 }
 
 export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
-  function DealCard({ deal, isDragging, onClick, isNewWin }, ref) {
+  function DealCard({ deal, isDragging, onClick, isNewWin, onStatusChange }, ref) {
     // Calculate inactivity
     const hoursInactive = differenceInHours(new Date(), parseISO(deal.last_activity_at));
     const isInactive = deal.inactivity_hours && hoursInactive >= deal.inactivity_hours;
