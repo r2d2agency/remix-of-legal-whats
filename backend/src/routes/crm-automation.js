@@ -72,14 +72,20 @@ router.put('/stages/:stageId/automation', async (req, res) => {
       execute_immediately,
       schedule_days,
       schedule_start_time,
-      schedule_end_time
+      schedule_end_time,
+      conditions,
+      condition_logic,
+      condition_true_flow_id,
+      condition_true_stage_id,
+      condition_false_flow_id,
+      condition_false_stage_id
     } = req.body;
 
     // Upsert automation
     const result = await query(
       `INSERT INTO crm_stage_automations 
-       (stage_id, flow_id, wait_hours, next_stage_id, fallback_funnel_id, fallback_stage_id, is_active, execute_immediately, schedule_days, schedule_start_time, schedule_end_time)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       (stage_id, flow_id, wait_hours, next_stage_id, fallback_funnel_id, fallback_stage_id, is_active, execute_immediately, schedule_days, schedule_start_time, schedule_end_time, conditions, condition_logic, condition_true_flow_id, condition_true_stage_id, condition_false_flow_id, condition_false_stage_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        ON CONFLICT (stage_id) 
        DO UPDATE SET
          flow_id = EXCLUDED.flow_id,
@@ -92,6 +98,12 @@ router.put('/stages/:stageId/automation', async (req, res) => {
          schedule_days = EXCLUDED.schedule_days,
          schedule_start_time = EXCLUDED.schedule_start_time,
          schedule_end_time = EXCLUDED.schedule_end_time,
+         conditions = EXCLUDED.conditions,
+         condition_logic = EXCLUDED.condition_logic,
+         condition_true_flow_id = EXCLUDED.condition_true_flow_id,
+         condition_true_stage_id = EXCLUDED.condition_true_stage_id,
+         condition_false_flow_id = EXCLUDED.condition_false_flow_id,
+         condition_false_stage_id = EXCLUDED.condition_false_stage_id,
          updated_at = NOW()
        RETURNING *`,
       [
@@ -105,7 +117,13 @@ router.put('/stages/:stageId/automation', async (req, res) => {
         execute_immediately !== false,
         schedule_days ? JSON.stringify(schedule_days) : JSON.stringify([1,2,3,4,5]),
         schedule_start_time || '08:00',
-        schedule_end_time || '18:00'
+        schedule_end_time || '18:00',
+        conditions ? JSON.stringify(conditions) : '[]',
+        condition_logic || 'and',
+        condition_true_flow_id || null,
+        condition_true_stage_id || null,
+        condition_false_flow_id || null,
+        condition_false_stage_id || null
       ]
     );
 

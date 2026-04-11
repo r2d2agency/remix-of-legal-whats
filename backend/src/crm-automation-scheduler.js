@@ -471,6 +471,47 @@ export async function executeCRMAutomations() {
   }
 }
 
+// Evaluate a single condition rule against deal data
+function evaluateConditionRule(dealData, rule) {
+  const fieldValue = String(dealData[rule.variable] || '').toLowerCase();
+  const compareValue = String(rule.value || '').toLowerCase();
+
+  switch (rule.operator) {
+    case 'equals': case 'equal': return fieldValue === compareValue;
+    case 'not_equals': case 'not_equal': return fieldValue !== compareValue;
+    case 'contains': return fieldValue.includes(compareValue);
+    case 'not_contains': return !fieldValue.includes(compareValue);
+    case 'starts_with': return fieldValue.startsWith(compareValue);
+    case 'ends_with': return fieldValue.endsWith(compareValue);
+    case 'is_empty': return fieldValue === '';
+    case 'is_not_empty': return fieldValue !== '';
+    case 'greater_than': return parseFloat(dealData[rule.variable]) > parseFloat(rule.value);
+    case 'less_than': return parseFloat(dealData[rule.variable]) < parseFloat(rule.value);
+    default: return false;
+  }
+}
+
+// Evaluate all conditions for a stage automation against deal data
+function evaluateConditions(conditions, conditionLogic, dealData) {
+  if (!conditions || !Array.isArray(conditions) || conditions.length === 0) {
+    return null; // No conditions = skip conditional logic, use default flow
+  }
+
+  const logic = conditionLogic || 'and';
+  let result = logic === 'and';
+
+  for (const rule of conditions) {
+    const ruleResult = evaluateConditionRule(dealData, rule);
+    if (logic === 'and') {
+      result = result && ruleResult;
+    } else {
+      result = result || ruleResult;
+    }
+  }
+
+  return result;
+}
+
 // Trigger automation when a deal enters a new stage
 export async function onDealStageChanged(dealId, newStageId, organizationId) {
   try {
@@ -486,6 +527,78 @@ export async function onDealStageChanged(dealId, newStageId, organizationId) {
     }
 
     const config = automationConfig.rows[0];
+
+    // Get deal data + custom fields for condition evaluation
+    const dealResult = await query(
+      `SELECT d.*, s.name as stage_name, f.name as funnel_name, co.name as company_name
+       FROM crm_deals d
+       LEFT JOIN crm_stages s ON s.id = d.stage_id
+       LEFT JOIN crm_funnels f ON f.id = d.funnel_id
+       LEFT JOIN crm_companies co ON co.id = d.company_id
+       WHERE d.id = $1`,
+      [dealId]
+    );
+    const deal = dealResult.rows[0] || {};
+
+    // Build deal data map for condition evaluation
+    let customFields = {};
+    try {
+      customFields = typeof deal.custom_fields === 'string'
+        ? JSON.parse(deal.custom_fields || '{}')
+        : (deal.custom_fields || {});
+    } catch (e) { customFields = {}; }
+
+    const dealData = {
+      deal_title: deal.title || '',
+      deal_value: deal.value || 0,
+      deal_status: deal.status || '',
+      deal_stage_name: deal.stage_name || '',
+      deal_funnel_name: deal.funnel_name || '',
+      deal_company_name: deal.company_name || '',
+      deal_source: deal.source || '',
+      deal_probability: deal.probability || 0,
+      ...customFields,
+    };
+
+    // Evaluate conditions
+    const conditions = typeof config.conditions === 'string'
+      ? JSON.parse(config.conditions || '[]')
+      : (config.conditions || []);
+    const conditionResult = evaluateConditions(conditions, config.condition_logic, dealData);
+
+    // Determine which flow and stage to use based on condition result
+    let effectiveFlowId = config.flow_id;
+    let effectiveNextStageId = config.next_stage_id;
+
+    if (conditionResult !== null) {
+      // Conditions exist - use conditional paths
+      if (conditionResult === true) {
+        effectiveFlowId = config.condition_true_flow_id || config.flow_id;
+        effectiveNextStageId = config.condition_true_stage_id || config.next_stage_id;
+      } else {
+        effectiveFlowId = config.condition_false_flow_id || config.flow_id;
+        effectiveNextStageId = config.condition_false_stage_id || config.next_stage_id;
+      }
+
+      // If condition result has a stage to move to immediately (and no flow), move directly
+      const moveStageId = conditionResult ? config.condition_true_stage_id : config.condition_false_stage_id;
+      const moveFlowId = conditionResult ? config.condition_true_flow_id : config.condition_false_flow_id;
+
+      if (moveStageId && !moveFlowId) {
+        // Direct move without flow
+        await query(
+          `UPDATE crm_deals SET stage_id = $1, funnel_id = COALESCE((SELECT funnel_id FROM crm_stages WHERE id = $1), funnel_id), last_activity_at = NOW(), updated_at = NOW() WHERE id = $2`,
+          [moveStageId, dealId]
+        );
+        await query(
+          `INSERT INTO crm_deal_history (deal_id, action, from_value, to_value, notes)
+           VALUES ($1, 'stage_changed', $2, $3, 'Movido automaticamente por condição da automação')`,
+          [dealId, newStageId, moveStageId]
+        );
+        logInfo(`Condition ${conditionResult ? 'TRUE' : 'FALSE'}: Moved deal ${dealId} to stage ${moveStageId} directly`);
+        return;
+      }
+    }
 
     // Get contact phone for the deal
     const contactResult = await query(
@@ -505,7 +618,7 @@ export async function onDealStageChanged(dealId, newStageId, organizationId) {
       [dealId]
     );
 
-    // Create new automation
+    // Create new automation with resolved flow/stage
     const waitUntil = new Date();
     waitUntil.setHours(waitUntil.getHours() + (config.wait_hours || 24));
 
@@ -513,10 +626,10 @@ export async function onDealStageChanged(dealId, newStageId, organizationId) {
       `INSERT INTO crm_deal_automations 
        (deal_id, stage_id, automation_id, status, flow_id, wait_until, contact_phone, next_stage_id)
        VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7)`,
-      [dealId, newStageId, config.id, config.flow_id, waitUntil, contactPhone, config.next_stage_id]
+      [dealId, newStageId, config.id, effectiveFlowId, waitUntil, contactPhone, effectiveNextStageId]
     );
 
-    logInfo(`Automation queued for deal ${dealId} in stage ${newStageId}`);
+    logInfo(`Automation queued for deal ${dealId} in stage ${newStageId} (condition: ${conditionResult})`);
   } catch (error) {
     logError('Error triggering stage automation:', error);
   }
