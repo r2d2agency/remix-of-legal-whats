@@ -6,10 +6,7 @@ import { CRMDeal, CRMStage } from "@/hooks/use-crm";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trophy, XCircle, Pause, Play } from "lucide-react";
 
 interface KanbanColumnProps {
   stage: CRMStage;
