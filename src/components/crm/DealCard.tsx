@@ -1,9 +1,11 @@
 import { forwardRef, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CRMDeal } from "@/hooks/use-crm";
 import { cn } from "@/lib/utils";
-import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake, TrendingUp, TrendingDown, Activity, FolderKanban, Webhook, MessageSquareWarning } from "lucide-react";
+import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake, TrendingUp, TrendingDown, Activity, FolderKanban, Webhook, MessageSquareWarning, ThumbsUp, ThumbsDown, Play } from "lucide-react";
 import { differenceInHours, parseISO } from "date-fns";
 import { analyzeDeal } from "./PredictiveAnalytics";
 
@@ -12,6 +14,7 @@ interface DealCardProps {
   isDragging?: boolean;
   onClick: (e: React.MouseEvent) => void;
   isNewWin?: boolean;
+  onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open') => void;
 }
 
 export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
