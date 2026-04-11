@@ -90,9 +90,10 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
   const [loadingFlows, setLoadingFlows] = useState(false);
   const { getFlows } = useFlows();
   const [customFields, setCustomFields] = useState<Array<{ field_name: string; label: string }>>([]);
+  const [webhookVars, setWebhookVars] = useState<Array<{ field_name: string; label: string }>>([]);
   const [allFunnelStages, setAllFunnelStages] = useState<Record<string, CRMStage[]>>({});
 
-  // Load flows
+  // Load flows + fields
   useEffect(() => {
     async function loadFlows() {
       setLoadingFlows(true);
@@ -103,6 +104,7 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
     if (isOpen) {
       loadFlows();
       loadCustomFields();
+      loadWebhookVars();
     }
   }, [isOpen, getFlows]);
 
@@ -110,6 +112,31 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
     try {
       const fields = await api<Array<{ field_name: string; label: string }>>('/api/crm/custom-fields?entity_type=deal');
       setCustomFields(fields || []);
+    } catch (e) {}
+  };
+
+  const loadWebhookVars = async () => {
+    try {
+      const webhooks = await api<Array<{ field_mapping: Record<string, string> }>>('/api/lead-webhooks');
+      const vars = new Map<string, string>();
+      for (const wh of webhooks) {
+        if (wh.field_mapping) {
+          for (const [sourceField, targetField] of Object.entries(wh.field_mapping)) {
+            if (targetField === 'custom_fields' || (typeof targetField === 'string' && targetField.startsWith('custom_fields:'))) {
+              const varName = typeof targetField === 'string' && targetField.includes(':')
+                ? targetField.split(':')[1]
+                : sourceField.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+              if (varName) {
+                vars.set(varName, sourceField);
+              }
+            }
+          }
+        }
+      }
+      setWebhookVars(Array.from(vars.entries()).map(([field_name, source]) => ({
+        field_name,
+        label: field_name,
+      })));
     } catch (e) {}
   };
 
