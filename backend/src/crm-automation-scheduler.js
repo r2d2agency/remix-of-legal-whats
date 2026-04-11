@@ -161,7 +161,17 @@ async function executeFlowForDeal(automation, organizationId) {
       return false;
     }
 
-    // Create flow session with deal variables
+    // Parse deal custom_fields and inject as variables
+    let dealCustomFields = {};
+    try {
+      dealCustomFields = typeof deal.custom_fields === 'string'
+        ? JSON.parse(deal.custom_fields || '{}')
+        : (deal.custom_fields || {});
+    } catch (e) {
+      dealCustomFields = {};
+    }
+
+    // Create flow session with deal variables + custom fields
     const variables = {
       nome: contact.name || '',
       telefone: contact.phone || automation.contact_phone || '',
@@ -171,7 +181,9 @@ async function executeFlowForDeal(automation, organizationId) {
       company_name: deal.company_name || '',
       // CRM specific
       deal_id: automation.deal_id,
-      automation_id: automation.id
+      automation_id: automation.id,
+      // Inject custom fields as top-level variables
+      ...dealCustomFields,
     };
 
     const sessionResult = await query(

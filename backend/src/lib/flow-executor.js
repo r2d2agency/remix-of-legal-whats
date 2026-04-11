@@ -151,6 +151,31 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start',
       ...initialVariables, // Allow campaigns to override/inject variables
     };
 
+    // Try to load deal custom_fields if this conversation has a linked deal
+    try {
+      const dealVarsResult = await query(
+        `SELECT d.custom_fields FROM crm_deals d
+         JOIN crm_deal_contacts dc ON dc.deal_id = d.id
+         JOIN contacts c ON c.id = dc.contact_id
+         WHERE c.phone = $1 AND d.status = 'open'
+         ORDER BY d.updated_at DESC LIMIT 1`,
+        [conversation.contact_phone]
+      );
+      if (dealVarsResult.rows[0]?.custom_fields) {
+        const cf = typeof dealVarsResult.rows[0].custom_fields === 'string'
+          ? JSON.parse(dealVarsResult.rows[0].custom_fields)
+          : dealVarsResult.rows[0].custom_fields;
+        // Inject custom fields as variables (don't override existing)
+        for (const [k, v] of Object.entries(cf)) {
+          if (!(k in variables) && v !== null && v !== undefined) {
+            variables[k] = v;
+          }
+        }
+      }
+    } catch (cfErr) {
+      console.log('Flow executor: Could not load deal custom_fields:', cfErr.message);
+    }
+
     // Create or update flow session to track state.
     // IMPORTANT: keep this compatible with backend/src/routes/flows.js (manual start)
     // so keyword-triggered flows can also be continued by webhooks.
@@ -667,15 +692,39 @@ async function processActionNode(content, connection, phone, variables) {
 }
 
 /**
- * Replace variables in text
+ * Replace variables in text - supports {var}, {{var}}, and {obj.key} dot notation
  */
 function replaceVariables(text, variables) {
   if (!text) return text;
   
-  // Replace {{var}} and {var} patterns
+  // Replace {{var.path}} and {var.path} patterns with dot notation support
   return text
-    .replace(/\{\{(\w+)\}\}/g, (match, varName) => variables[varName] || match)
-    .replace(/\{(\w+)\}/g, (match, varName) => variables[varName] || match);
+    .replace(/\{\{([\w.]+)\}\}/g, (match, varPath) => {
+      const val = getVariableValue(variables, varPath);
+      return val !== undefined ? String(val) : match;
+    })
+    .replace(/\{([\w.]+)\}/g, (match, varPath) => {
+      const val = getVariableValue(variables, varPath);
+      return val !== undefined ? String(val) : match;
+    });
+}
+
+/**
+ * Get variable value supporting dot notation (e.g. "custom_fields.campo1" or just "campo1")
+ */
+function getVariableValue(variables, path) {
+  // Direct match first
+  if (path in variables && variables[path] !== undefined) {
+    return variables[path];
+  }
+  // Dot notation
+  const parts = path.split('.');
+  let current = variables;
+  for (const part of parts) {
+    if (current === null || current === undefined || typeof current !== 'object') return undefined;
+    current = current[part];
+  }
+  return current;
 }
 
 /**
