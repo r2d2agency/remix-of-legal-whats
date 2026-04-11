@@ -29,11 +29,17 @@ router.use(authenticate);
   // Self-healing: funnel connection_id
   try { await query(`ALTER TABLE crm_funnels ADD COLUMN IF NOT EXISTS connection_id UUID REFERENCES connections(id) ON DELETE SET NULL`); } catch(e) {}
 
-  // Self-healing: automation schedule columns
+  // Self-healing: automation schedule + conditions columns
   const autoCols = [
     { name: 'schedule_days', type: "JSONB DEFAULT '[1,2,3,4,5]'" },
     { name: 'schedule_start_time', type: "VARCHAR(5) DEFAULT '08:00'" },
     { name: 'schedule_end_time', type: "VARCHAR(5) DEFAULT '18:00'" },
+    { name: 'conditions', type: "JSONB DEFAULT '[]'" },
+    { name: 'condition_true_flow_id', type: "UUID REFERENCES flows(id) ON DELETE SET NULL" },
+    { name: 'condition_true_stage_id', type: "UUID REFERENCES crm_stages(id) ON DELETE SET NULL" },
+    { name: 'condition_false_flow_id', type: "UUID REFERENCES flows(id) ON DELETE SET NULL" },
+    { name: 'condition_false_stage_id', type: "UUID REFERENCES crm_stages(id) ON DELETE SET NULL" },
+    { name: 'condition_logic', type: "VARCHAR(5) DEFAULT 'and'" },
   ];
   for (const col of autoCols) {
     try { await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS ${col.name} ${col.type}`); } catch(e) {}
