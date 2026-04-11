@@ -130,7 +130,7 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         role="article"
         aria-label={`Negociação: ${deal.title}, ${formatCurrency(deal.value)}${isWon ? ', ganho' : isLost ? ', perdido' : isPaused ? ', pausado' : ''}`}
         className={cn(
-          "p-3 cursor-grab active:cursor-grabbing overflow-hidden",
+          "p-3 cursor-grab active:cursor-grabbing overflow-hidden group",
           "transition-all duration-200 ease-out",
           "hover:shadow-md hover:-translate-y-0.5",
           isDragging && "shadow-2xl scale-105 rotate-2 ring-2 ring-primary/50 cursor-grabbing",
