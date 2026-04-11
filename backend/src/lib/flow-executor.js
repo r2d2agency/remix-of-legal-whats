@@ -688,11 +688,11 @@ async function processActionNode(content, connection, phone, variables) {
         break;
 
       case 'move_kanban': {
-        // Move or create a card in a specific board/column
-        const boardId = content.board_id;
-        const columnId = content.column_id;
-        if (!boardId || !columnId) {
-          console.log('Flow action: move_kanban missing board_id or column_id');
+        // Move or create a CRM deal in a specific funnel/stage
+        const funnelId = content.funnel_id;
+        const stageId = content.stage_id;
+        if (!funnelId || !stageId) {
+          console.log('Flow action: move_kanban missing funnel_id or stage_id');
           break;
         }
 
@@ -704,46 +704,85 @@ async function processActionNode(content, connection, phone, variables) {
         const orgId2 = orgResult2.rows[0].organization_id;
 
         const contactName = variables.nome || variables.name || variables.nome_cliente || phone;
-        const cardTitle = content.card_title 
-          ? replaceVariables(content.card_title, variables) 
+        const dealTitle = content.deal_title 
+          ? replaceVariables(content.deal_title, variables) 
           : `${contactName} - Fluxo automático`;
 
-        // Check if there's already a card for this contact in this board
-        const existingCard = await query(
-          `SELECT id, column_id FROM task_cards 
-           WHERE board_id = $1 AND organization_id = $2 AND contact_phone = $3
-           ORDER BY created_at DESC LIMIT 1`,
-          [boardId, orgId2, phone]
+        // Find existing deal for this contact in this funnel by matching phone
+        const existingDeal = await query(
+          `SELECT d.id, d.stage_id FROM crm_deals d
+           JOIN crm_deal_contacts dc ON dc.deal_id = d.id
+           JOIN contacts cnt ON cnt.id = dc.contact_id
+           WHERE d.funnel_id = $1 AND d.organization_id = $2 AND d.status = 'open'
+             AND regexp_replace(COALESCE(cnt.phone, ''), '\\D', '', 'g') LIKE '%' || $3 || '%'
+           ORDER BY d.created_at DESC LIMIT 1`,
+          [funnelId, orgId2, phone.replace(/\D/g, '').slice(-11)]
         );
 
-        if (existingCard.rows.length > 0) {
-          // Move existing card to target column
-          const card = existingCard.rows[0];
-          if (card.column_id !== columnId) {
-            const nextPos = await query(
-              `SELECT COALESCE(MAX(position), -1) + 1 as pos FROM task_cards WHERE column_id = $1`,
-              [columnId]
+        if (existingDeal.rows.length > 0) {
+          // Move existing deal to target stage
+          const deal = existingDeal.rows[0];
+          if (deal.stage_id !== stageId) {
+            await query(
+              `UPDATE crm_deals SET stage_id = $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2`,
+              [stageId, deal.id]
             );
             await query(
-              `UPDATE task_cards SET column_id = $1, position = $2, updated_at = NOW() WHERE id = $3`,
-              [columnId, nextPos.rows[0].pos, card.id]
+              `INSERT INTO crm_deal_history (deal_id, action, from_value, to_value, notes)
+               VALUES ($1, 'stage_changed', $2, $3, 'Movido automaticamente via fluxo')`,
+              [deal.id, deal.stage_id, stageId]
             );
-            console.log(`Flow action: Moved card ${card.id} to column ${columnId}`);
+            console.log(`Flow action: Moved CRM deal ${deal.id} to stage ${stageId}`);
           } else {
-            console.log(`Flow action: Card ${card.id} already in target column`);
+            console.log(`Flow action: Deal ${deal.id} already in target stage`);
           }
         } else {
-          // Create new card
-          const nextPos = await query(
-            `SELECT COALESCE(MAX(position), -1) + 1 as pos FROM task_cards WHERE column_id = $1`,
-            [columnId]
+          // Try to find or create a company + contact, then create a deal
+          // Find contact by phone
+          let contactId = null;
+          const contactResult = await query(
+            `SELECT id FROM contacts WHERE organization_id = $1 
+             AND regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') LIKE '%' || $2 || '%'
+             LIMIT 1`,
+            [orgId2, phone.replace(/\D/g, '').slice(-11)]
           );
-          await query(
-            `INSERT INTO task_cards (organization_id, board_id, column_id, title, contact_phone, contact_name, position, source_module)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 'flow')`,
-            [orgId2, boardId, columnId, cardTitle, phone, contactName, nextPos.rows[0].pos]
+          if (contactResult.rows.length > 0) {
+            contactId = contactResult.rows[0].id;
+          }
+
+          // Find default company or create one
+          let companyId = null;
+          const defaultCompany = await query(
+            `SELECT id FROM crm_companies WHERE organization_id = $1 ORDER BY created_at ASC LIMIT 1`,
+            [orgId2]
           );
-          console.log(`Flow action: Created card in board ${boardId}, column ${columnId}`);
+          if (defaultCompany.rows.length > 0) {
+            companyId = defaultCompany.rows[0].id;
+          } else {
+            const newCompany = await query(
+              `INSERT INTO crm_companies (organization_id, name) VALUES ($1, 'Sem empresa') RETURNING id`,
+              [orgId2]
+            );
+            companyId = newCompany.rows[0].id;
+          }
+
+          // Create the deal
+          const newDeal = await query(
+            `INSERT INTO crm_deals (organization_id, funnel_id, stage_id, company_id, title, source)
+             VALUES ($1, $2, $3, $4, $5, 'Fluxo automático') RETURNING id`,
+            [orgId2, funnelId, stageId, companyId, dealTitle]
+          );
+
+          // Link contact to deal if found
+          if (contactId && newDeal.rows.length > 0) {
+            await query(
+              `INSERT INTO crm_deal_contacts (deal_id, contact_id, is_primary) VALUES ($1, $2, true)
+               ON CONFLICT (deal_id, contact_id) DO NOTHING`,
+              [newDeal.rows[0].id, contactId]
+            );
+          }
+
+          console.log(`Flow action: Created CRM deal in funnel ${funnelId}, stage ${stageId}`);
         }
         break;
       }
