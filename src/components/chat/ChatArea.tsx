@@ -103,6 +103,8 @@ import {
 } from "./ChatDialogs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { exportConversationAsTxt, exportConversationAsPdf } from "@/lib/chat-export";
+import { Download } from "lucide-react";
 
 interface ChatAreaProps {
   conversation: Conversation | null;
