@@ -852,7 +852,9 @@ router.post('/ai-config/test', async (req, res) => {
         }),
       });
     } else if (ai_provider === 'gemini') {
-      const geminiModel = ai_model || 'gemini-2.0-flash';
+      const geminiModel = ['gemini-1.0-pro', 'gemini-pro', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'].includes(ai_model)
+        ? 'gemini-2.5-flash'
+        : (ai_model || 'gemini-2.5-flash');
       testResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${actualApiKey}`,
         {
