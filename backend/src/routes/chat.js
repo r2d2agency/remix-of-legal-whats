@@ -543,7 +543,7 @@ router.get('/conversations', authenticate, async (req, res) => {
 
       // Filter by search
       if (search) {
-        sql += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex} OR conv.group_name ILIKE $${paramIndex})`;
+        sql += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex} OR conv.group_name ILIKE $${paramIndex} OR conv.last_message ILIKE $${paramIndex})`;
         params.push(`%${search}%`);
         paramIndex++;
       }
