@@ -25,6 +25,7 @@ interface SearchResult {
   content: string;
   timestamp: string;
   is_from_me: boolean;
+  attendance_status: 'waiting' | 'attending' | 'finished';
 }
 
 interface GlobalSearchDialogProps {
@@ -116,6 +117,12 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
     return snippet;
   };
 
+  const getStatusLabel = (status: SearchResult['attendance_status']) => {
+    if (status === 'waiting') return 'Aguardando';
+    if (status === 'finished') return 'Finalizada';
+    return 'Atendendo';
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[550px] max-h-[80vh] flex flex-col p-0">
@@ -194,7 +201,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-1 mt-0.5">
+                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                         {result.is_from_me && (
                           <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">
                             Você
@@ -205,6 +212,9 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
                             Grupo
                           </Badge>
                         )}
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
+                          {getStatusLabel(result.attendance_status)}
+                        </Badge>
                       </div>
                       
                       <p className="text-sm text-muted-foreground mt-1 line-clamp-2">

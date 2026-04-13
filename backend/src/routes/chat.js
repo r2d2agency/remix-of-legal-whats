@@ -370,17 +370,19 @@ router.get('/messages/search', authenticate, async (req, res) => {
         m.conversation_id,
         m.content,
         m.timestamp,
-        m.is_from_me,
+        COALESCE(m.from_me, false) as is_from_me,
         conv.contact_name,
         conv.contact_phone,
         conv.group_name,
-        conv.is_group
+        conv.is_group,
+        conv.attendance_status
       FROM chat_messages m
       JOIN conversations conv ON conv.id = m.conversation_id
       WHERE conv.connection_id = ANY($1)
         AND m.content ILIKE $2
         AND m.content IS NOT NULL
         AND m.content != ''
+        AND COALESCE(conv.is_archived, false) = false
       ORDER BY m.timestamp DESC
       LIMIT $3
     `, [connectionIds, searchQuery, maxResults]);
@@ -396,6 +398,7 @@ router.get('/messages/search', authenticate, async (req, res) => {
         content: row.content,
         timestamp: row.timestamp,
         is_from_me: row.is_from_me || false,
+        attendance_status: row.attendance_status || 'attending',
       }))
     });
   } catch (error) {
@@ -572,7 +575,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       }
 
       // Filter by attendance status
-      if (supportsAttendance) {
+      if (supportsAttendance && attendance_status && !search) {
         if (attendance_status === 'waiting') {
           sql += ` AND conv.attendance_status = 'waiting'`;
         } else if (attendance_status === 'attending') {
