@@ -322,10 +322,18 @@ async function processSession(sessionId, userId, orgId, userName) {
       transcript = await transcribeAudio(audioPath, aiConfig);
     }
 
-    // Complete after transcription - no auto-organize
+    // Step 2: Speaker diarization via AI post-processing
+    let diarizedTranscript = transcript;
+    try {
+      diarizedTranscript = await identifySpeakers(transcript, aiConfig, session);
+    } catch (diarErr) {
+      logError('Speaker diarization failed, using raw transcript', diarErr);
+    }
+
+    // Complete after transcription
     await query(
       `UPDATE telehealth_sessions SET transcript = $1, status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $2`,
-      [transcript, sessionId]
+      [diarizedTranscript, sessionId]
     );
     await auditLog(sessionId, orgId, userId, userName, 'transcription_completed');
 
