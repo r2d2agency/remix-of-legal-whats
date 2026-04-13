@@ -782,7 +782,9 @@ export default function SecretariaGrupos() {
                         )}
                         {(config.ai_provider === 'gemini' || (!config.ai_provider || config.ai_provider === 'default')) && (
                           <>
-                            <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado)</SelectItem>
+                            <SelectItem value="gemini-3.1-flash">Gemini 3.1 Flash (Recomendado)</SelectItem>
+                            <SelectItem value="gemini-3.1-pro">Gemini 3.1 Pro</SelectItem>
+                            <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
                             <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
                           </>
                         )}

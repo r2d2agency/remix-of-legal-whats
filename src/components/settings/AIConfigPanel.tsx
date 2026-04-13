@@ -22,8 +22,10 @@ const AI_MODELS = {
     { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Alta capacidade' },
   ],
   gemini: [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Recomendado)', description: 'Modelo atual, rápido e equilibrado' },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Máxima capacidade' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Rápido e equilibrado' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Alta capacidade' },
+    { id: 'gemini-3.1-flash', name: 'Gemini 3.1 Flash (Recomendado)', description: 'Última geração, rápido e eficiente' },
+    { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', description: 'Última geração, máxima capacidade' },
   ],
   openrouter: [
     { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', description: 'Via OpenRouter - Multimodal poderoso' },

@@ -33,7 +33,7 @@ async function getAIConfig(userId) {
 
   return {
     provider: org.ai_provider,
-    model: org.ai_model || (org.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.0-flash'),
+    model: org.ai_model || (org.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash'),
     apiKey: org.ai_api_key,
   };
 }
