@@ -384,7 +384,9 @@ async function getAIConfig(organizationId, config) {
   if (config.ai_api_key && config.ai_provider) {
     return {
       provider: config.ai_provider,
-      model: config.ai_model || (config.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.0-flash'),
+      model: ['gemini-1.0-pro', 'gemini-pro', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'].includes(config.ai_model)
+        ? 'gemini-2.5-flash'
+        : (config.ai_model || (config.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash')),
       apiKey: config.ai_api_key,
     };
   }
@@ -400,7 +402,9 @@ async function getAIConfig(organizationId, config) {
 
   return {
     provider: org.ai_provider,
-    model: org.ai_model || (org.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.0-flash'),
+    model: ['gemini-1.0-pro', 'gemini-pro', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'].includes(org.ai_model)
+      ? 'gemini-2.5-flash'
+      : (org.ai_model || (org.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash')),
     apiKey: org.ai_api_key,
   };
 }
