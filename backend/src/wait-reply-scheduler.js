@@ -12,9 +12,9 @@ async function resumeFlowTimeout(session) {
       ? JSON.parse(session.variables || '{}')
       : (session.variables || {});
 
-    console.log(`[WaitReply] Timeout for conversation ${conversationId}, node ${currentNodeId}`);
+    console.log(`[WaitReply] Timeout triggered for conversation ${conversationId}, current node ${currentNodeId}, flow ${flowId}`);
 
-    // Clear wait_reply metadata
+    // Clear wait_reply metadata first
     await query(
       `UPDATE flow_sessions SET wait_reply_expires_at = NULL, wait_reply_variable = NULL, updated_at = NOW()
        WHERE conversation_id = $1 AND is_active = true`,
@@ -27,20 +27,24 @@ async function resumeFlowTimeout(session) {
       [flowId, currentNodeId]
     );
 
+    console.log(`[WaitReply] Found ${edgesResult.rows.length} edges from node ${currentNodeId}:`, 
+      edgesResult.rows.map(e => `${e.source_handle || 'default'} -> ${e.target_node_id}`).join(', '));
+
     const timeoutEdge = edgesResult.rows.find(e => e.source_handle === 'timeout') || null;
 
     if (!timeoutEdge) {
       console.log(`[WaitReply] No timeout edge found for node ${currentNodeId}, completing flow`);
       await query(
-        `UPDATE flow_sessions SET is_active = false, completed_at = NOW() WHERE conversation_id = $1 AND is_active = true`,
+        `UPDATE flow_sessions SET is_active = false, ended_at = NOW() WHERE conversation_id = $1 AND is_active = true`,
         [conversationId]
       );
       return;
     }
 
     const nextNodeId = timeoutEdge.target_node_id;
+    console.log(`[WaitReply] Following timeout edge to node ${nextNodeId}`);
 
-    // Update session to next node
+    // Update session to next node BEFORE calling continueFlowAfterTimeout
     await query(
       `UPDATE flow_sessions 
        SET variables = $1, current_node_id = $2, updated_at = NOW()
@@ -48,44 +52,31 @@ async function resumeFlowTimeout(session) {
       [JSON.stringify(variables), nextNodeId, conversationId]
     );
 
-    // Dynamically import to avoid circular deps
-    const { default: flowExecutorModule } = await import('./flow-executor.js');
-    // Use the resumeFlowFromNode approach - we call executeFlow from the timeout node
-    // Since resumeFlowFromNode is not exported, we re-implement a lightweight version
-
-    // Get conversation + connection info
-    const convResult = await query(
-      `SELECT c.*, conn.api_url, conn.api_key, conn.instance_name, conn.instance_id, conn.wapi_token, conn.provider
-       FROM conversations c
-       JOIN connections conn ON conn.id = c.connection_id
-       WHERE c.id = $1`,
-      [conversationId]
-    );
-
-    if (convResult.rows.length === 0) {
-      console.error(`[WaitReply] Conversation ${conversationId} not found`);
-      return;
-    }
-
-    // We need to continue the flow - use continueFlowWithInput trick:
-    // Set session to nextNodeId and call the flow executor's resume logic
-    // Since we can't call internal functions, we'll use a direct approach
-    
-    const { continueFlowAfterTimeout } = await import('./flow-executor.js');
-    if (typeof continueFlowAfterTimeout === 'function') {
-      await continueFlowAfterTimeout(conversationId, flowId, nextNodeId, variables);
-    } else {
-      // Fallback: mark as complete if function not available
-      console.log(`[WaitReply] continueFlowAfterTimeout not available, completing session`);
+    // Continue the flow from the timeout target node
+    try {
+      const { continueFlowAfterTimeout } = await import('./lib/flow-executor.js');
+      if (typeof continueFlowAfterTimeout === 'function') {
+        const result = await continueFlowAfterTimeout(conversationId, flowId, nextNodeId, variables);
+        console.log(`[WaitReply] Flow continued after timeout:`, result?.success ? 'success' : result?.error || 'unknown error');
+      } else {
+        console.error(`[WaitReply] continueFlowAfterTimeout not available as function, completing session`);
+        await query(
+          `UPDATE flow_sessions SET is_active = false, ended_at = NOW() WHERE conversation_id = $1 AND is_active = true`,
+          [conversationId]
+        );
+      }
+    } catch (flowError) {
+      console.error(`[WaitReply] Error continuing flow after timeout:`, flowError);
+      // Don't leave session hanging - mark as complete on error
       await query(
-        `UPDATE flow_sessions SET is_active = false, completed_at = NOW() WHERE conversation_id = $1 AND is_active = true`,
+        `UPDATE flow_sessions SET is_active = false, ended_at = NOW() WHERE conversation_id = $1 AND is_active = true`,
         [conversationId]
       );
     }
 
     console.log(`[WaitReply] Timeout handled for conversation ${conversationId}, moved to node ${nextNodeId}`);
   } catch (error) {
-    console.error(`[WaitReply] Error handling timeout:`, error);
+    console.error(`[WaitReply] Error handling timeout for session:`, error);
   }
 }
 
@@ -96,9 +87,8 @@ export async function executeWaitReplyTimeouts() {
   try {
     // Find active sessions where wait_reply has expired
     const result = await query(
-      `SELECT fs.*, f.id as flow_id_check
+      `SELECT fs.*
        FROM flow_sessions fs
-       JOIN flows f ON f.id = fs.flow_id
        WHERE fs.is_active = true 
          AND fs.wait_reply_expires_at IS NOT NULL 
          AND fs.wait_reply_expires_at <= NOW()
@@ -110,6 +100,7 @@ export async function executeWaitReplyTimeouts() {
     console.log(`[WaitReply] Found ${result.rows.length} expired wait_reply sessions`);
 
     for (const session of result.rows) {
+      console.log(`[WaitReply] Processing session: conv=${session.conversation_id}, flow=${session.flow_id}, node=${session.current_node_id}, expires=${session.wait_reply_expires_at}`);
       await resumeFlowTimeout(session);
       // Small delay between processing
       await new Promise(r => setTimeout(r, 500));
