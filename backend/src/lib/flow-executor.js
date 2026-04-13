@@ -431,6 +431,27 @@ async function processNode(node, connection, phone, variables, conversationId) {
         return { success: true };
       }
 
+    case 'wait_reply':
+      // Wait for reply node - pause and wait for user response with timeout
+      {
+        const timeoutValue = Number(content.timeout_value) || 24;
+        const timeoutUnit = content.timeout_unit || 'hours';
+        const factor = timeoutUnit === 'days' ? 86400 : timeoutUnit === 'hours' ? 3600 : 60;
+        const timeoutSeconds = timeoutValue * factor;
+        const expiresAt = new Date(Date.now() + timeoutSeconds * 1000).toISOString();
+
+        // Store timeout metadata in session for the scheduler to check
+        await query(
+          `UPDATE flow_sessions 
+           SET wait_reply_expires_at = $1, wait_reply_variable = $2, updated_at = NOW()
+           WHERE conversation_id = $3 AND is_active = true`,
+          [expiresAt, content.response_variable || null, conversationId]
+        );
+
+        console.log(`Flow executor: Wait reply node - waiting until ${expiresAt}`);
+        return { success: true, waitForInput: true };
+      }
+
     case 'condition':
       return processConditionNode(content, variables);
 
