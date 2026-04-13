@@ -144,7 +144,12 @@ app.get('/uploads/public/:stored/:downloadName', (req, res) => {
     return res.status(400).json({ error: 'Nome de arquivo inválido' });
   }
 
-  const filePath = path.join(uploadsDir, stored);
+  let filePath = path.join(uploadsDir, stored);
+  // If stored name not found, try downloadName (records that duplicate the name)
+  if (!fs.existsSync(filePath) && downloadName !== stored) {
+    filePath = path.join(uploadsDir, downloadName);
+  }
+
   const ext = path.extname(downloadName) || path.extname(stored);
   if (ext) {
     res.type(ext);
@@ -644,8 +649,8 @@ app.post('/api/meta/webhook', async (req, res) => {
                       const buffer = Buffer.from(await mediaDownload.arrayBuffer());
                       fs.default.writeFileSync(filePath, buffer);
 
-                      // Store using uploads API public route so frontend resolves correctly
-                      finalMediaUrl = `/api/uploads/public/${filename}/${filename}`;
+                      // Store using simple static path — served by express.static('/uploads')
+                      finalMediaUrl = `/uploads/${filename}`;
                       console.log(`[Meta Webhook] Media saved locally: ${filename} (${mediaMimetype}, ${buffer.length} bytes)`);
                     } else {
                       console.error(`[Meta Webhook] Media download failed: ${mediaDownload.status}`);

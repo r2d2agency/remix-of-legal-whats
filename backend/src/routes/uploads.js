@@ -207,6 +207,14 @@ router.get('/public/:stored/:downloadName', (req, res) => {
 
     const filePath = path.join(uploadsDir, stored);
     if (!fs.existsSync(filePath)) {
+      // Fallback: try downloadName as filename (some records duplicate the name)
+      const fallbackPath = path.join(uploadsDir, downloadName);
+      if (downloadName !== stored && fs.existsSync(fallbackPath)) {
+        const ext = path.extname(downloadName) || path.extname(stored);
+        if (ext) res.type(ext);
+        res.setHeader('Content-Disposition', `inline; filename="${downloadName}"`);
+        return res.sendFile(fallbackPath);
+      }
       return res.status(404).json({ error: 'Arquivo não encontrado' });
     }
 
@@ -216,10 +224,7 @@ router.get('/public/:stored/:downloadName', (req, res) => {
       res.type(ext);
     }
 
-    // Inline is usually fine; providers just need to fetch the bytes.
-    // Keep a friendly filename for any human downloads.
     res.setHeader('Content-Disposition', `inline; filename="${downloadName}"`);
-
     return res.sendFile(filePath);
   } catch (error) {
     console.error('Public download error:', error);
