@@ -431,6 +431,27 @@ async function processNode(node, connection, phone, variables, conversationId) {
         return { success: true };
       }
 
+    case 'wait_reply':
+      // Wait for reply node - pause and wait for user response with timeout
+      {
+        const timeoutValue = Number(content.timeout_value) || 24;
+        const timeoutUnit = content.timeout_unit || 'hours';
+        const factor = timeoutUnit === 'days' ? 86400 : timeoutUnit === 'hours' ? 3600 : 60;
+        const timeoutSeconds = timeoutValue * factor;
+        const expiresAt = new Date(Date.now() + timeoutSeconds * 1000).toISOString();
+
+        // Store timeout metadata in session for the scheduler to check
+        await query(
+          `UPDATE flow_sessions 
+           SET wait_reply_expires_at = $1, wait_reply_variable = $2, updated_at = NOW()
+           WHERE conversation_id = $3 AND is_active = true`,
+          [expiresAt, content.response_variable || null, conversationId]
+        );
+
+        console.log(`Flow executor: Wait reply node - waiting until ${expiresAt}`);
+        return { success: true, waitForInput: true };
+      }
+
     case 'condition':
       return processConditionNode(content, variables);
 
@@ -905,6 +926,22 @@ export async function continueFlowWithInput(conversationId, userInput) {
       const varName = content.variable || content.variable_name || 'resposta';
       variables[varName] = userInput;
       console.log(`Flow executor: Stored input in variable '${varName}':`, userInput?.substring(0, 50));
+    } else if (currentNode.node_type === 'wait_reply') {
+      // Wait reply node - user responded, follow "replied" handle
+      const responseVar = session.wait_reply_variable || content.response_variable;
+      if (responseVar) {
+        variables[responseVar] = userInput;
+        console.log(`Flow executor: Stored reply in variable '${responseVar}':`, userInput?.substring(0, 50));
+      }
+      nextHandle = 'replied';
+      
+      // Clear wait_reply metadata
+      await query(
+        `UPDATE flow_sessions SET wait_reply_expires_at = NULL, wait_reply_variable = NULL, updated_at = NOW()
+         WHERE conversation_id = $1 AND is_active = true`,
+        [conversationId]
+      );
+      console.log('Flow executor: Wait reply - user responded, following "replied" handle');
     } else if (currentNode.node_type === 'menu') {
       // Match user input to menu options
       const options = content.options || [];
@@ -1219,4 +1256,11 @@ async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables
     console.error('Flow executor: Resume flow error:', error);
     return { success: false, error: error.message };
   }
+}
+
+/**
+ * Continue flow after wait_reply timeout (called by scheduler)
+ */
+export async function continueFlowAfterTimeout(conversationId, flowId, startNodeId, variables) {
+  return await resumeFlowFromNode(flowId, conversationId, startNodeId, variables);
 }

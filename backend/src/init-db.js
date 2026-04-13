@@ -3582,6 +3582,11 @@ const migrationSteps = [
   { name: 'Global AI Agents', sql: step39GlobalAgents, critical: false },
   { name: 'Lead Webhooks', sql: step40LeadWebhooks, critical: false },
   { name: 'Meta Message Templates', sql: step41MetaTemplates, critical: false },
+  { name: 'Wait Reply Flow Sessions', sql: `
+    ALTER TABLE flow_sessions ADD COLUMN IF NOT EXISTS wait_reply_expires_at TIMESTAMPTZ DEFAULT NULL;
+    ALTER TABLE flow_sessions ADD COLUMN IF NOT EXISTS wait_reply_variable TEXT DEFAULT NULL;
+    CREATE INDEX IF NOT EXISTS idx_flow_sessions_wait_reply ON flow_sessions (wait_reply_expires_at) WHERE is_active = true AND wait_reply_expires_at IS NOT NULL;
+  `, critical: false },
 ];
 
 export async function initDatabase() {

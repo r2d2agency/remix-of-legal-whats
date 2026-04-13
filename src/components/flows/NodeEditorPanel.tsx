@@ -20,7 +20,7 @@ import { Slider } from '@/components/ui/slider';
 import { 
   X, Plus, Trash2, GripVertical, MessageSquare, List, 
   FormInput, GitBranch, Zap, ArrowRightLeft, Sparkles, 
-  Clock, Webhook, Image, Images, FileText, Video, Mic, Upload, Loader2, Bot
+  Clock, Webhook, Image, Images, FileText, Video, Mic, Upload, Loader2, Bot, MessageCircleReply
 } from 'lucide-react';
 import { FlowNodeData } from '@/components/chatbots/FlowNodes';
 import { useUpload } from '@/hooks/use-upload';
@@ -163,6 +163,7 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
       transfer: <ArrowRightLeft className="h-5 w-5" />,
       ai_response: <Sparkles className="h-5 w-5" />,
       ai_agent: <Bot className="h-5 w-5" />,
+      wait_reply: <MessageCircleReply className="h-5 w-5" />,
       delay: <Clock className="h-5 w-5" />,
       webhook: <Webhook className="h-5 w-5" />,
     };
@@ -179,6 +180,7 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
       transfer: 'Transferência',
       ai_response: 'Resposta IA',
       ai_agent: 'Agente IA',
+      wait_reply: 'Aguardar Resposta',
       delay: 'Delay',
       webhook: 'Webhook',
     };
@@ -244,6 +246,9 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
           )}
           {node.type === 'ai_agent' && (
             <AIAgentNodeEditor content={content} onChange={setContent} />
+          )}
+          {node.type === 'wait_reply' && (
+            <WaitReplyNodeEditor content={content} onChange={setContent} />
           )}
         </div>
       </ScrollArea>
@@ -1855,6 +1860,73 @@ function AIAgentNodeEditor({ content, onChange }: { content: Record<string, any>
           checked={content.continue_after_handoff || false}
           onCheckedChange={(v) => onChange({ ...content, continue_after_handoff: v })}
         />
+      </div>
+    </div>
+  );
+}
+
+// ============ Wait Reply Node Editor ============
+function WaitReplyNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-teal-500/10 border border-teal-500/30 rounded-lg">
+        <p className="text-sm font-medium text-teal-700 dark:text-teal-300 mb-1">⏳ Aguardar Resposta</p>
+        <p className="text-xs text-muted-foreground">
+          O fluxo pausará aqui e aguardará o contato responder. Se responder, segue pelo caminho "Respondeu". 
+          Se o tempo limite expirar sem resposta, segue pelo caminho "Timeout".
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Tempo limite de espera</Label>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            min={1}
+            value={content.timeout_value || 24}
+            onChange={(e) => onChange({ ...content, timeout_value: parseInt(e.target.value) || 1 })}
+            className="w-24"
+          />
+          <Select
+            value={content.timeout_unit || 'hours'}
+            onValueChange={(v) => onChange({ ...content, timeout_unit: v })}
+          >
+            <SelectTrigger className="flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="minutes">Minutos</SelectItem>
+              <SelectItem value="hours">Horas</SelectItem>
+              <SelectItem value="days">Dias</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Variável para armazenar resposta (opcional)</Label>
+        <Input
+          value={content.response_variable || ''}
+          onChange={(e) => onChange({ ...content, response_variable: e.target.value })}
+          placeholder="Ex: resposta_cliente"
+        />
+        <p className="text-xs text-muted-foreground">
+          Se preenchido, a mensagem de resposta do contato será salva nesta variável para uso em nós seguintes.
+        </p>
+      </div>
+
+      <div className="p-3 bg-muted rounded-lg space-y-2">
+        <p className="text-xs font-medium">📌 Saídas do nó:</p>
+        <div className="flex gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+            <span className="text-xs">Respondeu</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+            <span className="text-xs">Timeout (sem resposta)</span>
+          </div>
+        </div>
       </div>
     </div>
   );

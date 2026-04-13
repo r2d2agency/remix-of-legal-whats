@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Save, Plus, MessageSquare, List, FormInput, GitBranch, 
   Zap, ArrowRightLeft, Sparkles, Square, Loader2, X,
-  Clock, Webhook, Undo2, Play, Bot
+  Clock, Webhook, Undo2, Play, Bot, MessageCircleReply
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { nodeTypes, FlowNodeData } from '@/components/chatbots/FlowNodes';
@@ -47,6 +47,7 @@ const nodeTypeOptions = [
   { type: 'transfer', label: 'Transferir', icon: ArrowRightLeft, description: 'Transfere para atendente', color: 'bg-pink-500' },
   { type: 'ai_response', label: 'IA', icon: Sparkles, description: 'Resposta com IA', color: 'bg-violet-500' },
   { type: 'ai_agent', label: 'Agente IA', icon: Bot, description: 'Usa um agente configurado', color: 'bg-emerald-500' },
+  { type: 'wait_reply', label: 'Aguardar Resposta', icon: MessageCircleReply, description: 'Aguarda resposta do contato', color: 'bg-teal-500' },
   { type: 'delay', label: 'Delay', icon: Clock, description: 'Aguarda X segundos', color: 'bg-cyan-500' },
   { type: 'webhook', label: 'Webhook', icon: Webhook, description: 'Chama API externa', color: 'bg-rose-500' },
   { type: 'end', label: 'Fim', icon: Square, description: 'Encerra o fluxo', color: 'bg-slate-500' },

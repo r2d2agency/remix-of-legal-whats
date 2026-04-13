@@ -58,6 +58,7 @@ import { executeNurturing } from './nurturing-scheduler.js';
 import { executeTaskReminders } from './task-reminder-scheduler.js';
 import { executeSecretaryFollowups } from './secretary-followup-scheduler.js';
 import { executeSecretaryDigest } from './secretary-digest-scheduler.js';
+import { executeWaitReplyTimeouts } from './wait-reply-scheduler.js';
 import { checkInactivityTimeouts } from './lib/ai-agent-processor.js';
 import { requestContext } from './request-context.js';
 import { log, logError } from './logger.js';
@@ -1021,5 +1022,15 @@ initDatabase().then((ok) => {
       }
     });
     console.log('🤖 AI agent inactivity checker started - checks every minute');
+
+    // Wait reply timeout checker - checks every minute
+    cron.schedule('* * * * *', async () => {
+      try {
+        await executeWaitReplyTimeouts();
+      } catch (error) {
+        console.error('⏳ [CRON] Error checking wait_reply timeouts:', error);
+      }
+    });
+    console.log('⏳ Wait reply timeout checker started - checks every minute');
   });
 });
