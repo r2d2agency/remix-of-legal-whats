@@ -144,7 +144,12 @@ app.get('/uploads/public/:stored/:downloadName', (req, res) => {
     return res.status(400).json({ error: 'Nome de arquivo inválido' });
   }
 
-  const filePath = path.join(uploadsDir, stored);
+  let filePath = path.join(uploadsDir, stored);
+  // If stored name not found, try downloadName (records that duplicate the name)
+  if (!fs.existsSync(filePath) && downloadName !== stored) {
+    filePath = path.join(uploadsDir, downloadName);
+  }
+
   const ext = path.extname(downloadName) || path.extname(stored);
   if (ext) {
     res.type(ext);
