@@ -926,6 +926,22 @@ export async function continueFlowWithInput(conversationId, userInput) {
       const varName = content.variable || content.variable_name || 'resposta';
       variables[varName] = userInput;
       console.log(`Flow executor: Stored input in variable '${varName}':`, userInput?.substring(0, 50));
+    } else if (currentNode.node_type === 'wait_reply') {
+      // Wait reply node - user responded, follow "replied" handle
+      const responseVar = session.wait_reply_variable || content.response_variable;
+      if (responseVar) {
+        variables[responseVar] = userInput;
+        console.log(`Flow executor: Stored reply in variable '${responseVar}':`, userInput?.substring(0, 50));
+      }
+      nextHandle = 'replied';
+      
+      // Clear wait_reply metadata
+      await query(
+        `UPDATE flow_sessions SET wait_reply_expires_at = NULL, wait_reply_variable = NULL, updated_at = NOW()
+         WHERE conversation_id = $1 AND is_active = true`,
+        [conversationId]
+      );
+      console.log('Flow executor: Wait reply - user responded, following "replied" handle');
     } else if (currentNode.node_type === 'menu') {
       // Match user input to menu options
       const options = content.options || [];
