@@ -2063,8 +2063,7 @@ router.get('/config/models', authenticate, async (req, res) => {
       { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Econômico' }
     ],
     gemini: [
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recomendado)', description: 'Estável, rápido e poderoso' },
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Mais recente e equilibrado' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Recomendado)', description: 'Modelo atual, rápido e equilibrado' },
       { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Máxima capacidade' },
     ],
     openrouter: [

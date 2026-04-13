@@ -420,7 +420,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                       <Select
                         value={formData.ai_provider}
                         onValueChange={(value: 'openai' | 'gemini' | 'openrouter') => {
-                          const defaultModel = value === 'openai' ? 'gpt-4o-mini' : value === 'gemini' ? 'gemini-2.0-flash' : 'openai/gpt-4o-mini';
+                          const defaultModel = value === 'openai' ? 'gpt-4o-mini' : value === 'gemini' ? 'gemini-2.5-flash' : 'openai/gpt-4o-mini';
                           setFormData(prev => ({
                             ...prev,
                             ai_provider: value,
