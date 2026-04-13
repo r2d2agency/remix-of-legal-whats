@@ -133,6 +133,30 @@ app.use((req, res, next) => {
 
 // Serve uploaded files statically with CORS headers
 const uploadsDir = path.join(process.cwd(), 'uploads');
+
+// Legacy compatibility: some records still point to /uploads/public/... instead of /api/uploads/public/...
+app.get('/uploads/public/:stored/:downloadName', (req, res) => {
+  const stored = String(req.params.stored || '');
+  const downloadName = String(req.params.downloadName || '');
+  const safe = /^[a-zA-Z0-9._-]+$/;
+
+  if (!safe.test(stored) || !safe.test(downloadName)) {
+    return res.status(400).json({ error: 'Nome de arquivo inválido' });
+  }
+
+  const filePath = path.join(uploadsDir, stored);
+  const ext = path.extname(downloadName) || path.extname(stored);
+  if (ext) {
+    res.type(ext);
+  }
+  res.setHeader('Content-Disposition', `inline; filename="${downloadName}"`);
+  return res.sendFile(filePath, (error) => {
+    if (error && !res.headersSent) {
+      return res.status(error.statusCode || 404).json({ error: 'Arquivo não encontrado' });
+    }
+  });
+});
+
 app.use('/uploads', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
@@ -620,8 +644,8 @@ app.post('/api/meta/webhook', async (req, res) => {
                       const buffer = Buffer.from(await mediaDownload.arrayBuffer());
                       fs.default.writeFileSync(filePath, buffer);
 
-                      // Store as local relative path (resolved by frontend via API_URL)
-                      finalMediaUrl = `/uploads/public/${filename}/${filename}`;
+                      // Store using uploads API public route so frontend resolves correctly
+                      finalMediaUrl = `/api/uploads/public/${filename}/${filename}`;
                       console.log(`[Meta Webhook] Media saved locally: ${filename} (${mediaMimetype}, ${buffer.length} bytes)`);
                     } else {
                       console.error(`[Meta Webhook] Media download failed: ${mediaDownload.status}`);

@@ -254,58 +254,72 @@ router.get('/proxy', async (req, res) => {
 
     // Build upstream headers
     const upstreamHeaders = { Accept: '*/*' };
+    let upstream = null;
 
-    // For Meta media hosts, look up meta_token to authenticate the download
+    // For Meta media hosts, try all available Meta tokens until one works.
+    // This keeps old lookaside URLs working even when the request has no auth header.
     if (META_MEDIA_HOSTS.has(targetUrl.hostname.toLowerCase())) {
       try {
-        // Try to get meta_token from any active meta connection
-        // First try from auth header if present
-        let metaToken = null;
+        const candidateTokens = [];
+        const seenTokens = new Set();
+        const addToken = (token) => {
+          if (!token || seenTokens.has(token)) return;
+          seenTokens.add(token);
+          candidateTokens.push(token);
+        };
+
         const authHeader = req.headers.authorization;
-        if (authHeader) {
+        if (authHeader?.startsWith('Bearer ')) {
           try {
             const jwt = await import('jsonwebtoken');
             const jwtLib = jwt.default || jwt;
             const decoded = jwtLib.verify(authHeader.replace('Bearer ', ''), process.env.JWT_SECRET);
-            if (decoded && decoded.userId) {
+            if (decoded?.userId) {
               const result = await query(
-                `SELECT c.meta_token FROM connections c
+                `SELECT DISTINCT c.meta_token FROM connections c
                  JOIN organization_members om ON om.organization_id = c.organization_id
-                 WHERE om.user_id = $1 AND c.provider = 'meta' AND c.meta_token IS NOT NULL
-                 LIMIT 1`,
+                 WHERE om.user_id = $1 AND c.provider = 'meta' AND c.meta_token IS NOT NULL`,
                 [decoded.userId]
               );
-              if (result.rows.length > 0) {
-                metaToken = result.rows[0].meta_token;
-              }
+              result.rows.forEach((row) => addToken(row.meta_token));
             }
-          } catch (e) {
-            // JWT decode failed, continue without token
+          } catch {
+            // ignore invalid JWT and continue with global fallback tokens
           }
         }
 
-        // Fallback: try to find any meta connection with a token
-        if (!metaToken) {
-          const result = await query(
-            `SELECT meta_token FROM connections WHERE provider = 'meta' AND meta_token IS NOT NULL LIMIT 1`
-          );
-          if (result.rows.length > 0) {
-            metaToken = result.rows[0].meta_token;
-          }
-        }
+        const fallbackTokens = await query(
+          `SELECT DISTINCT meta_token FROM connections WHERE provider = 'meta' AND meta_token IS NOT NULL`
+        );
+        fallbackTokens.rows.forEach((row) => addToken(row.meta_token));
 
-        if (metaToken) {
-          upstreamHeaders['Authorization'] = `Bearer ${metaToken}`;
+        for (const metaToken of candidateTokens) {
+          const response = await fetch(targetUrl.toString(), {
+            redirect: 'follow',
+            headers: { ...upstreamHeaders, Authorization: `Bearer ${metaToken}` },
+          });
+
+          if (response.ok) {
+            upstream = response;
+            break;
+          }
+
+          if (response.status !== 401 && response.status !== 403) {
+            upstream = response;
+            break;
+          }
         }
       } catch (e) {
         console.error('Meta token lookup error:', e.message);
       }
     }
 
-    const upstream = await fetch(targetUrl.toString(), {
-      redirect: 'follow',
-      headers: upstreamHeaders,
-    });
+    if (!upstream) {
+      upstream = await fetch(targetUrl.toString(), {
+        redirect: 'follow',
+        headers: upstreamHeaders,
+      });
+    }
 
     if (!upstream.ok) {
       return res.status(upstream.status).json({ error: 'Falha ao carregar mídia' });
