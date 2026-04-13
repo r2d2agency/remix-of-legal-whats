@@ -398,6 +398,7 @@ router.get('/messages/search', authenticate, async (req, res) => {
         content: row.content,
         timestamp: row.timestamp,
         is_from_me: row.is_from_me || false,
+        attendance_status: row.attendance_status || 'attending',
       }))
     });
   } catch (error) {
