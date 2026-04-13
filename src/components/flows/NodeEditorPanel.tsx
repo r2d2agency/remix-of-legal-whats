@@ -1864,3 +1864,70 @@ function AIAgentNodeEditor({ content, onChange }: { content: Record<string, any>
     </div>
   );
 }
+
+// ============ Wait Reply Node Editor ============
+function WaitReplyNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-teal-500/10 border border-teal-500/30 rounded-lg">
+        <p className="text-sm font-medium text-teal-700 dark:text-teal-300 mb-1">⏳ Aguardar Resposta</p>
+        <p className="text-xs text-muted-foreground">
+          O fluxo pausará aqui e aguardará o contato responder. Se responder, segue pelo caminho "Respondeu". 
+          Se o tempo limite expirar sem resposta, segue pelo caminho "Timeout".
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Tempo limite de espera</Label>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            min={1}
+            value={content.timeout_value || 24}
+            onChange={(e) => onChange({ ...content, timeout_value: parseInt(e.target.value) || 1 })}
+            className="w-24"
+          />
+          <Select
+            value={content.timeout_unit || 'hours'}
+            onValueChange={(v) => onChange({ ...content, timeout_unit: v })}
+          >
+            <SelectTrigger className="flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="minutes">Minutos</SelectItem>
+              <SelectItem value="hours">Horas</SelectItem>
+              <SelectItem value="days">Dias</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Variável para armazenar resposta (opcional)</Label>
+        <Input
+          value={content.response_variable || ''}
+          onChange={(e) => onChange({ ...content, response_variable: e.target.value })}
+          placeholder="Ex: resposta_cliente"
+        />
+        <p className="text-xs text-muted-foreground">
+          Se preenchido, a mensagem de resposta do contato será salva nesta variável para uso em nós seguintes.
+        </p>
+      </div>
+
+      <div className="p-3 bg-muted rounded-lg space-y-2">
+        <p className="text-xs font-medium">📌 Saídas do nó:</p>
+        <div className="flex gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+            <span className="text-xs">Respondeu</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+            <span className="text-xs">Timeout (sem resposta)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
