@@ -2,6 +2,7 @@ import 'dotenv/config'; // Preload — side-effect import, loads .env BEFORE oth
 
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
 import path from 'path';
 import cron from 'node-cron';
 import crypto from 'crypto';
@@ -607,56 +608,21 @@ app.post('/api/meta/webhook', async (req, res) => {
                 content = `[${msgType}]`;
             }
 
-            // Download media and store locally (Meta URLs expire quickly)
-            let finalMediaUrl = null;
+            // Persist a stable internal URL by Meta media id.
+            // This avoids 404s when temporary lookaside URLs expire or local files are missing.
+            let finalMediaUrl = mediaUrl ? `/api/uploads/meta/${mediaUrl}` : null;
             let mediaMimetype = null;
             if (mediaUrl && connection.meta_token) {
               try {
-                // Step 1: Get temporary download URL from Meta Graph API
                 const mediaInfoRes = await fetch(`https://graph.facebook.com/v21.0/${mediaUrl}`, {
                   headers: { Authorization: `Bearer ${connection.meta_token}` }
                 });
                 if (mediaInfoRes.ok) {
                   const mediaInfo = await mediaInfoRes.json();
                   mediaMimetype = mediaInfo.mime_type || null;
-
-                  // Step 2: Download the actual file from the temporary URL
-                  if (mediaInfo.url) {
-                    const mediaDownload = await fetch(mediaInfo.url, {
-                      headers: { Authorization: `Bearer ${connection.meta_token}` }
-                    });
-                    if (mediaDownload.ok) {
-                      const fs = await import('fs');
-                      const pathMod = await import('path');
-                      const uploadsDir = pathMod.default.join(process.cwd(), 'uploads');
-                      if (!fs.default.existsSync(uploadsDir)) {
-                        fs.default.mkdirSync(uploadsDir, { recursive: true });
-                      }
-
-                      // Determine file extension from mime type
-                      const mimeToExt = {
-                        'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'mp4', 'audio/amr': 'amr',
-                        'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
-                        'video/mp4': 'mp4', 'video/3gpp': '3gp',
-                        'application/pdf': 'pdf',
-                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-                      };
-                      const ext = mimeToExt[mediaMimetype] || 'bin';
-                      const filename = `meta_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`;
-                      const filePath = pathMod.default.join(uploadsDir, filename);
-
-                      const buffer = Buffer.from(await mediaDownload.arrayBuffer());
-                      fs.default.writeFileSync(filePath, buffer);
-
-                      // Store using simple static path — served by express.static('/uploads')
-                      finalMediaUrl = `/uploads/${filename}`;
-                      console.log(`[Meta Webhook] Media saved locally: ${filename} (${mediaMimetype}, ${buffer.length} bytes)`);
-                    } else {
-                      console.error(`[Meta Webhook] Media download failed: ${mediaDownload.status}`);
-                      finalMediaUrl = mediaInfo.url; // Fallback to temp URL
-                    }
-                  }
+                  console.log(`[Meta Webhook] Media linked by id: ${mediaUrl} (${mediaMimetype || 'mime desconhecido'})`);
+                } else {
+                  console.error(`[Meta Webhook] Media info lookup failed: ${mediaInfoRes.status}`);
                 }
               } catch (mediaErr) {
                 console.error('[Meta Webhook] Media download error:', mediaErr.message);
