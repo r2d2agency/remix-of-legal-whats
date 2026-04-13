@@ -1257,3 +1257,10 @@ async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Continue flow after wait_reply timeout (called by scheduler)
+ */
+export async function continueFlowAfterTimeout(conversationId, flowId, startNodeId, variables) {
+  return await resumeFlowFromNode(flowId, conversationId, startNodeId, variables);
+}
