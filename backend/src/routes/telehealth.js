@@ -359,7 +359,9 @@ async function transcribeAudio(audioPath, aiConfig) {
     form.append('file', audioFile);
     form.append('model', 'whisper-1');
     form.append('language', 'pt');
-    form.append('prompt', 'Identifique e diferencie os participantes da reunião quando possível, usando formatos como "Participante 1:", "João:", etc.');
+    form.append('response_format', 'verbose_json');
+    form.append('timestamp_granularities[]', 'segment');
+    form.append('prompt', 'Transcrição de reunião com múltiplos participantes. Identifique mudanças de falante.');
 
     const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
@@ -368,6 +370,15 @@ async function transcribeAudio(audioPath, aiConfig) {
     });
     if (!resp.ok) throw new Error(`Whisper error: ${resp.status} ${await resp.text()}`);
     const data = await resp.json();
+    
+    // If verbose_json, format segments with timestamps for better diarization
+    if (data.segments && data.segments.length > 0) {
+      return data.segments.map(s => {
+        const min = Math.floor(s.start / 60);
+        const sec = Math.floor(s.start % 60).toString().padStart(2, '0');
+        return `[${min}:${sec}] ${s.text.trim()}`;
+      }).join('\n');
+    }
     return data.text || '';
   }
 
@@ -375,12 +386,51 @@ async function transcribeAudio(audioPath, aiConfig) {
   const audioData = fs.readFileSync(audioPath).toString('base64');
   const messages = [
     { role: 'user', content: [
-      { type: 'text', text: 'Transcreva o áudio a seguir em português. Identifique e diferencie os participantes quando possível (ex: "Participante 1:", "João:"). Retorne apenas a transcrição.' },
+      { type: 'text', text: `Transcreva o áudio a seguir em português. Esta é uma reunião com múltiplos participantes.
+REGRAS IMPORTANTES:
+1. Identifique cada falante diferente e atribua um rótulo (ex: "Participante 1:", "Participante 2:" ou o nome se mencionado)
+2. Adicione timestamps aproximados no formato [MM:SS] a cada mudança de falante
+3. Mantenha a transcrição fiel ao que foi dito
+4. Quando detectar mudança de voz/tom, inicie um novo parágrafo com o rótulo do falante
+
+Formato esperado:
+[0:00] Participante 1: Texto falado...
+[0:15] Participante 2: Resposta...
+
+Retorne apenas a transcrição formatada.` },
       { type: 'input_audio', input_audio: { data: audioData, format: 'webm' } }
     ]}
   ];
   const result = await callAI(aiConfig, messages, { temperature: 0.1, maxTokens: 8000 });
   return result || '';
+}
+
+// Post-process transcript to identify speakers using AI
+async function identifySpeakers(rawTranscript, aiConfig, session) {
+  if (!rawTranscript || rawTranscript.length < 50) return rawTranscript;
+  
+  const participantInfo = [];
+  if (session.contact_name) participantInfo.push(`Contato/Convidado: ${session.contact_name}`);
+  if (session.title) participantInfo.push(`Título da reunião: ${session.title}`);
+  if (session.reason) participantInfo.push(`Motivo: ${session.reason}`);
+
+  const messages = [
+    { role: 'system', content: `Você é um especialista em identificação de falantes em transcrições de reuniões.
+Sua tarefa é analisar a transcrição e identificar quem está falando em cada trecho.
+
+REGRAS:
+1. Identifique mudanças de falante baseado em: contexto, turnos de fala, mudanças de assunto, respostas diretas
+2. Use nomes quando mencionados na conversa, caso contrário use "Participante 1", "Participante 2", etc.
+3. Mantenha os timestamps originais se existirem
+4. Formato de saída: "[timestamp] Nome/Participante: texto"
+5. Se a transcrição já tiver identificação de falantes boa, retorne como está
+6. NÃO altere o conteúdo das falas, apenas adicione/corrija os rótulos de falante
+7. Retorne APENAS a transcrição formatada, sem explicações adicionais` },
+    { role: 'user', content: `${participantInfo.length > 0 ? 'Contexto da reunião:\n' + participantInfo.join('\n') + '\n\n' : ''}Transcrição para processar:\n\n${rawTranscript}` }
+  ];
+
+  const result = await callAI(aiConfig, messages, { temperature: 0.1, maxTokens: 8000 });
+  return result || rawTranscript;
 }
 
 // On-demand AI analysis of transcript
