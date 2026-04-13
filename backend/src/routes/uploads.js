@@ -10,6 +10,45 @@ import { query } from '../db.js';
 const router = express.Router();
 const PROXIED_MEDIA_HOSTS = new Set(['lookaside.fbsbx.com']);
 const META_MEDIA_HOSTS = new Set(['lookaside.fbsbx.com']);
+const META_GRAPH_API_VERSION = 'v21.0';
+
+async function getMetaCandidateTokens(req) {
+  const candidateTokens = [];
+  const seenTokens = new Set();
+
+  const addToken = (token) => {
+    if (!token || seenTokens.has(token)) return;
+    seenTokens.add(token);
+    candidateTokens.push(token);
+  };
+
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const jwt = await import('jsonwebtoken');
+      const jwtLib = jwt.default || jwt;
+      const decoded = jwtLib.verify(authHeader.replace('Bearer ', ''), process.env.JWT_SECRET);
+      if (decoded?.userId) {
+        const result = await query(
+          `SELECT DISTINCT c.meta_token FROM connections c
+           JOIN organization_members om ON om.organization_id = c.organization_id
+           WHERE om.user_id = $1 AND c.provider = 'meta' AND c.meta_token IS NOT NULL`,
+          [decoded.userId]
+        );
+        result.rows.forEach((row) => addToken(row.meta_token));
+      }
+    } catch {
+      // ignore invalid JWT and continue with global fallback tokens
+    }
+  }
+
+  const fallbackTokens = await query(
+    `SELECT DISTINCT meta_token FROM connections WHERE provider = 'meta' AND meta_token IS NOT NULL`
+  );
+  fallbackTokens.rows.forEach((row) => addToken(row.meta_token));
+
+  return candidateTokens;
+}
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -232,6 +271,94 @@ router.get('/public/:stored/:downloadName', (req, res) => {
   }
 });
 
+router.get('/meta/:mediaId', async (req, res) => {
+  try {
+    const mediaId = String(req.params.mediaId || '').trim();
+    if (!/^[a-zA-Z0-9._-]+$/.test(mediaId)) {
+      return res.status(400).json({ error: 'Media ID inválido' });
+    }
+
+    const candidateTokens = await getMetaCandidateTokens(req);
+    if (candidateTokens.length === 0) {
+      return res.status(404).json({ error: 'Nenhum token Meta disponível' });
+    }
+
+    let upstream = null;
+    let resolvedMimeType = null;
+    let resolvedFilename = null;
+
+    for (const metaToken of candidateTokens) {
+      const mediaInfoResponse = await fetch(`https://graph.facebook.com/${META_GRAPH_API_VERSION}/${mediaId}`, {
+        headers: { Accept: '*/*', Authorization: `Bearer ${metaToken}` },
+      });
+
+      if (!mediaInfoResponse.ok) {
+        if (![401, 403, 404].includes(mediaInfoResponse.status)) {
+          return res.status(mediaInfoResponse.status).json({ error: 'Falha ao consultar mídia' });
+        }
+        continue;
+      }
+
+      const mediaInfo = await mediaInfoResponse.json();
+      resolvedMimeType = mediaInfo?.mime_type || null;
+      resolvedFilename = mediaInfo?.id ? `meta_${mediaInfo.id}` : `meta_${mediaId}`;
+
+      if (!mediaInfo?.url) continue;
+
+      const downloadResponse = await fetch(mediaInfo.url, {
+        redirect: 'follow',
+        headers: { Accept: '*/*', Authorization: `Bearer ${metaToken}` },
+      });
+
+      if (downloadResponse.ok) {
+        upstream = downloadResponse;
+        break;
+      }
+
+      if (![401, 403, 404].includes(downloadResponse.status)) {
+        upstream = downloadResponse;
+        break;
+      }
+    }
+
+    if (!upstream?.ok) {
+      return res.status(upstream?.status || 404).json({ error: 'Mídia não encontrada' });
+    }
+
+    const contentType = upstream.headers.get('content-type') || resolvedMimeType;
+    const contentLength = upstream.headers.get('content-length');
+    const contentDisposition = upstream.headers.get('content-disposition');
+    const cacheControl = upstream.headers.get('cache-control');
+
+    if (contentType) res.setHeader('Content-Type', contentType);
+    if (contentLength) res.setHeader('Content-Length', contentLength);
+    if (contentDisposition) {
+      res.setHeader('Content-Disposition', contentDisposition);
+    } else if (resolvedFilename) {
+      res.setHeader('Content-Disposition', `inline; filename="${resolvedFilename}"`);
+    }
+    res.setHeader('Cache-Control', cacheControl || 'public, max-age=300');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    if (!upstream.body) {
+      return res.status(204).end();
+    }
+
+    Readable.fromWeb(upstream.body).on('error', (streamError) => {
+      console.error('Meta media stream error:', streamError);
+      if (!res.headersSent) {
+        res.status(500).end();
+      } else {
+        res.end();
+      }
+    }).pipe(res);
+  } catch (error) {
+    console.error('Meta media route error:', error);
+    return res.status(500).json({ error: 'Erro ao carregar mídia Meta' });
+  }
+});
+
 // Public proxy for temporary external media URLs that don't expose CORS headers.
 // Scoped to trusted WhatsApp media hosts to avoid turning this into a generic open proxy.
 // For Meta media (lookaside.fbsbx.com), tries to authenticate with meta_token from connection.
@@ -265,38 +392,7 @@ router.get('/proxy', async (req, res) => {
     // This keeps old lookaside URLs working even when the request has no auth header.
     if (META_MEDIA_HOSTS.has(targetUrl.hostname.toLowerCase())) {
       try {
-        const candidateTokens = [];
-        const seenTokens = new Set();
-        const addToken = (token) => {
-          if (!token || seenTokens.has(token)) return;
-          seenTokens.add(token);
-          candidateTokens.push(token);
-        };
-
-        const authHeader = req.headers.authorization;
-        if (authHeader?.startsWith('Bearer ')) {
-          try {
-            const jwt = await import('jsonwebtoken');
-            const jwtLib = jwt.default || jwt;
-            const decoded = jwtLib.verify(authHeader.replace('Bearer ', ''), process.env.JWT_SECRET);
-            if (decoded?.userId) {
-              const result = await query(
-                `SELECT DISTINCT c.meta_token FROM connections c
-                 JOIN organization_members om ON om.organization_id = c.organization_id
-                 WHERE om.user_id = $1 AND c.provider = 'meta' AND c.meta_token IS NOT NULL`,
-                [decoded.userId]
-              );
-              result.rows.forEach((row) => addToken(row.meta_token));
-            }
-          } catch {
-            // ignore invalid JWT and continue with global fallback tokens
-          }
-        }
-
-        const fallbackTokens = await query(
-          `SELECT DISTINCT meta_token FROM connections WHERE provider = 'meta' AND meta_token IS NOT NULL`
-        );
-        fallbackTokens.rows.forEach((row) => addToken(row.meta_token));
+        const candidateTokens = await getMetaCandidateTokens(req);
 
         for (const metaToken of candidateTokens) {
           const response = await fetch(targetUrl.toString(), {
