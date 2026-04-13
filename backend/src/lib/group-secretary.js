@@ -384,7 +384,7 @@ async function getAIConfig(organizationId, config) {
   if (config.ai_api_key && config.ai_provider) {
     return {
       provider: config.ai_provider,
-      model: config.ai_model || (config.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash'),
+      model: config.ai_model || (config.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.0-flash'),
       apiKey: config.ai_api_key,
     };
   }
@@ -400,7 +400,7 @@ async function getAIConfig(organizationId, config) {
 
   return {
     provider: org.ai_provider,
-    model: org.ai_model || (org.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash'),
+    model: org.ai_model || (org.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.0-flash'),
     apiKey: org.ai_api_key,
   };
 }
@@ -432,7 +432,7 @@ async function callAI(config, systemPrompt, userPrompt) {
       });
     } else if (config.provider === 'gemini') {
       response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${config.model || 'gemini-1.5-flash'}:generateContent?key=${config.apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${config.model || 'gemini-2.0-flash'}:generateContent?key=${config.apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
