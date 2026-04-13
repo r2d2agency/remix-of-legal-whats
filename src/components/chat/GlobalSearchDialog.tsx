@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, MessageSquare, Clock } from 'lucide-react';
+import { Search, Loader2, MessageSquare, Clock, CheckCheck, MessageCircle, Archive } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -25,6 +25,7 @@ interface SearchResult {
   content: string;
   timestamp: string;
   is_from_me: boolean;
+  attendance_status: 'waiting' | 'attending' | 'finished';
 }
 
 interface GlobalSearchDialogProps {

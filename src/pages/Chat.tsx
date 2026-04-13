@@ -837,7 +837,17 @@ const Chat = () => {
                     try { await favoriteConversation(id, favorite); loadConversations(); toast.success(favorite ? 'Conversa favoritada' : 'Favorito removido'); } catch (error: any) { toast.error(error.message || 'Erro ao favoritar conversa'); }
                   }}
                   onGlobalSearchSelect={async (conversationId, messageId) => {
-                    try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
+                    try {
+                      const conv = await getConversation(conversationId);
+                      if (conv) {
+                        const convStatus = conv.attendance_status === 'waiting' ? 'waiting' : conv.attendance_status === 'finished' ? 'finished' : 'attending';
+                        setFilters((prev) => ({ ...prev, attendance_status: convStatus }));
+                        selectedIdRef.current = conv.id;
+                        setSelectedConversation(conv);
+                        const msgs = await getMessages(conversationId);
+                        setMessages(msgs);
+                      }
+                    } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                   }}
                 />
               </div>
@@ -901,7 +911,17 @@ const Chat = () => {
                   try { await favoriteConversation(id, favorite); loadConversations(); toast.success(favorite ? 'Conversa favoritada' : 'Favorito removido'); } catch (error: any) { toast.error(error.message || 'Erro ao favoritar conversa'); }
                 }}
                 onGlobalSearchSelect={async (conversationId, messageId) => {
-                  try { const conv = await getConversation(conversationId); if (conv) { selectedIdRef.current = conv.id; setSelectedConversation(conv); const msgs = await getMessages(conversationId); setMessages(msgs); } } catch (error: any) { toast.error('Erro ao abrir conversa'); }
+                  try {
+                    const conv = await getConversation(conversationId);
+                    if (conv) {
+                      const convStatus = conv.attendance_status === 'waiting' ? 'waiting' : conv.attendance_status === 'finished' ? 'finished' : 'attending';
+                      setFilters((prev) => ({ ...prev, attendance_status: convStatus }));
+                      selectedIdRef.current = conv.id;
+                      setSelectedConversation(conv);
+                      const msgs = await getMessages(conversationId);
+                      setMessages(msgs);
+                    }
+                  } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                 }}
               />
             </ResizablePanel>
