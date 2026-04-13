@@ -1022,5 +1022,15 @@ initDatabase().then((ok) => {
       }
     });
     console.log('🤖 AI agent inactivity checker started - checks every minute');
+
+    // Wait reply timeout checker - checks every minute
+    cron.schedule('* * * * *', async () => {
+      try {
+        await executeWaitReplyTimeouts();
+      } catch (error) {
+        console.error('⏳ [CRON] Error checking wait_reply timeouts:', error);
+      }
+    });
+    console.log('⏳ Wait reply timeout checker started - checks every minute');
   });
 });
