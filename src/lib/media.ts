@@ -36,8 +36,11 @@ export function resolveMediaUrl(url?: string | null): string | null {
     return absoluteUrl;
   }
 
+  // /api/uploads/public/xxx/yyy → backend route directly
+  if (u.startsWith("/api/uploads/")) return `${API_URL}${u}`;
   if (u.startsWith("/uploads/public/")) return `${API_URL}/api${u}`;
   if (u.startsWith("uploads/public/")) return `${API_URL}/api/${u}`;
+  if (u.startsWith("/uploads/")) return `${API_URL}${u}`;
   if (u.startsWith("/")) return `${API_URL}${u}`;
   return `${API_URL}/${u}`;
 }
