@@ -24,7 +24,7 @@ const AI_MODELS = {
   gemini: [
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recomendado)', description: 'Modelo estável, rápido e poderoso' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Mais recente e equilibrado' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Alta capacidade e contexto longo' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Máxima capacidade' },
   ],
   openrouter: [
     { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', description: 'Via OpenRouter - Multimodal poderoso' },
