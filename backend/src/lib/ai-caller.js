@@ -188,7 +188,9 @@ async function callOpenAI(config, messages, options) {
 // ==================== Gemini ====================
 
 async function callGemini(config, messages, options) {
-  const model = config.model || 'gemini-2.0-flash';
+  const model = ['gemini-1.0-pro', 'gemini-pro', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'].includes(config.model)
+    ? 'gemini-2.5-flash'
+    : (config.model || 'gemini-2.5-flash');
   
   // Convert messages to Gemini format
   const contents = [];

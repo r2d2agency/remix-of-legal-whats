@@ -604,8 +604,7 @@ router.get('/stats/overview', async (req, res) => {
 router.get('/ai/models', async (req, res) => {
   const models = {
     gemini: [
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recomendado)', description: 'Estável, rápido e poderoso' },
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Mais recente e equilibrado' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Recomendado)', description: 'Modelo atual, rápido e equilibrado' },
       { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Máxima capacidade' },
     ],
     openai: [
