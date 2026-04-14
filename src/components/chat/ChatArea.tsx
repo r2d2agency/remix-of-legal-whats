@@ -598,7 +598,10 @@ export function ChatArea({
     const filesToSend = [...pendingFiles];
     setPendingFiles([]);
     let successCount = 0;
-    for (const { file, preview } of filesToSend) {
+    setUploadStatus({ active: true, current: 0, total: filesToSend.length, fileName: filesToSend[0].file.name });
+    for (let i = 0; i < filesToSend.length; i++) {
+      const { file, preview } = filesToSend[i];
+      setUploadStatus({ active: true, current: i + 1, total: filesToSend.length, fileName: file.name });
       try {
         const url = await uploadFile(file);
         if (url) {
@@ -617,6 +620,7 @@ export function ChatArea({
     if (successCount > 0) {
       toast.success(successCount === 1 ? "Arquivo enviado!" : `${successCount} arquivos enviados!`);
     }
+    setUploadStatus(null);
     resetProgress();
   };
 
