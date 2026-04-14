@@ -231,6 +231,7 @@ export function ChatArea({
   const { uploadFile, isUploading, progress: uploadProgress, resetProgress } = useUpload();
   const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; preview?: string }>>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{ active: boolean; current: number; total: number; fileName: string } | null>(null);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
   const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, editMessage, deleteMessage: deleteMessageFn, pinMessage } = useChat();
@@ -597,7 +598,10 @@ export function ChatArea({
     const filesToSend = [...pendingFiles];
     setPendingFiles([]);
     let successCount = 0;
-    for (const { file, preview } of filesToSend) {
+    setUploadStatus({ active: true, current: 0, total: filesToSend.length, fileName: filesToSend[0].file.name });
+    for (let i = 0; i < filesToSend.length; i++) {
+      const { file, preview } = filesToSend[i];
+      setUploadStatus({ active: true, current: i + 1, total: filesToSend.length, fileName: file.name });
       try {
         const url = await uploadFile(file);
         if (url) {
@@ -616,6 +620,7 @@ export function ChatArea({
     if (successCount > 0) {
       toast.success(successCount === 1 ? "Arquivo enviado!" : `${successCount} arquivos enviados!`);
     }
+    setUploadStatus(null);
     resetProgress();
   };
 
@@ -652,12 +657,13 @@ export function ChatArea({
   const handleSendAudio = async () => {
     if (!audioBlob) return;
     try {
-      // Use .ogg extension for WhatsApp compatibility (W-API expects ogg/opus for voice messages)
       const file = new File([audioBlob], `audio.ogg`, { type: 'audio/ogg; codecs=opus' });
+      setUploadStatus({ active: true, current: 1, total: 1, fileName: 'Áudio' });
       const url = await uploadFile(file);
       if (url) { await onSendMessage('', 'audio', url, undefined, file.type); toast.success("Áudio enviado!"); }
       clearAudio();
     } catch { toast.error("Erro ao enviar áudio"); }
+    finally { setUploadStatus(null); resetProgress(); }
   };
 
   const handleStartRecording = async () => {
@@ -1237,6 +1243,23 @@ export function ChatArea({
               ))}
             </div>
             {isUploading && <div className="space-y-1"><Progress value={uploadProgress} className="h-2" /><p className="text-xs text-muted-foreground text-right">{uploadProgress}%</p></div>}
+          </div>
+        )}
+
+        {/* Floating upload progress bar (visible when pendingFiles already cleared) */}
+        {uploadStatus?.active && pendingFiles.length === 0 && (
+          <div className="mb-3 p-3 rounded-lg border bg-muted/50 animate-in fade-in slide-in-from-bottom-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <p className="text-xs font-medium">
+                  Enviando {uploadStatus.fileName}
+                  {uploadStatus.total > 1 && ` (${uploadStatus.current}/${uploadStatus.total})`}
+                </p>
+              </div>
+              <span className="text-xs font-mono text-muted-foreground">{uploadProgress}%</span>
+            </div>
+            <Progress value={uploadProgress} className="h-2" />
           </div>
         )}
 
