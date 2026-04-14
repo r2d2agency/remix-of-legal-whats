@@ -657,12 +657,13 @@ export function ChatArea({
   const handleSendAudio = async () => {
     if (!audioBlob) return;
     try {
-      // Use .ogg extension for WhatsApp compatibility (W-API expects ogg/opus for voice messages)
       const file = new File([audioBlob], `audio.ogg`, { type: 'audio/ogg; codecs=opus' });
+      setUploadStatus({ active: true, current: 1, total: 1, fileName: 'Áudio' });
       const url = await uploadFile(file);
       if (url) { await onSendMessage('', 'audio', url, undefined, file.type); toast.success("Áudio enviado!"); }
       clearAudio();
     } catch { toast.error("Erro ao enviar áudio"); }
+    finally { setUploadStatus(null); resetProgress(); }
   };
 
   const handleStartRecording = async () => {
