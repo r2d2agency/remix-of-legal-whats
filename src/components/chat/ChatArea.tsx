@@ -231,6 +231,7 @@ export function ChatArea({
   const { uploadFile, isUploading, progress: uploadProgress, resetProgress } = useUpload();
   const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; preview?: string }>>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{ active: boolean; current: number; total: number; fileName: string } | null>(null);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
   const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, editMessage, deleteMessage: deleteMessageFn, pinMessage } = useChat();
