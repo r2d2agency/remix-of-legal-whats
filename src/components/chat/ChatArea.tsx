@@ -1246,6 +1246,23 @@ export function ChatArea({
           </div>
         )}
 
+        {/* Floating upload progress bar (visible when pendingFiles already cleared) */}
+        {uploadStatus?.active && pendingFiles.length === 0 && (
+          <div className="mb-3 p-3 rounded-lg border bg-muted/50 animate-in fade-in slide-in-from-bottom-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <p className="text-xs font-medium">
+                  Enviando {uploadStatus.fileName}
+                  {uploadStatus.total > 1 && ` (${uploadStatus.current}/${uploadStatus.total})`}
+                </p>
+              </div>
+              <span className="text-xs font-mono text-muted-foreground">{uploadProgress}%</span>
+            </div>
+            <Progress value={uploadProgress} className="h-2" />
+          </div>
+        )}
+
         {isListening ? (
           <div className="flex items-end gap-2">
             <Button variant="ghost" size="icon" className="h-10 w-10 flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={cancelListening}><Trash2 className="h-5 w-5" /></Button>
