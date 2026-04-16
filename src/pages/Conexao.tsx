@@ -1943,6 +1943,16 @@ const handleGetQRCode = async (connection: Connection) => {
           connection={leadDistributionConnection}
         />
 
+        {/* AI Agent Always-On Dialog */}
+        {agentDialogConnection && (
+          <ConnectionAIAgentDialog
+            open={agentDialogOpen}
+            onClose={() => { setAgentDialogOpen(false); setAgentDialogConnection(null); }}
+            connectionId={agentDialogConnection.id}
+            connectionName={agentDialogConnection.name}
+          />
+        )}
+
         {/* Migrate Conversations Dialog */}
         <Dialog open={migrateDialogOpen} onOpenChange={setMigrateDialogOpen}>
           <DialogContent>
