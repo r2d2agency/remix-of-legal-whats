@@ -154,6 +154,10 @@ async function writeDataUrlToUploads(dataUrl, messageType, hintedMime) {
   return { publicUrl: buildUploadsPublicUrl(filename), mime };
 }
 
+// Timeouts for media download (large WhatsApp files like PPTX/videos can take >30s)
+const MEDIA_DOWNLOAD_TIMEOUT_MS = 180000; // 3 minutes per request
+const MEDIA_MAX_BYTES = 250 * 1024 * 1024; // 250 MB hard cap
+
 function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https://') ? https : http;
@@ -314,7 +318,7 @@ function downloadToUploads(url, messageType, hintedMime, redirectCount = 0) {
       console.error('[W-API Media] Download error:', err.message);
       reject(err);
     });
-    req.setTimeout(15000, () => {
+    req.setTimeout(MEDIA_DOWNLOAD_TIMEOUT_MS, () => {
       req.destroy(new Error('Timeout downloading media'));
     });
   });
@@ -411,16 +415,36 @@ function downloadToBuffer(url, redirectCount = 0) {
         }
 
         const contentType = String(res.headers['content-type'] || '').split(';')[0].trim() || null;
+        const contentLength = parseInt(res.headers['content-length'] || '0', 10);
+        if (contentLength && contentLength > MEDIA_MAX_BYTES) {
+          res.resume();
+          return reject(new Error(`Media too large: ${contentLength} bytes (max ${MEDIA_MAX_BYTES})`));
+        }
         const chunks = [];
+        let total = 0;
+        let lastLogged = 0;
 
-        res.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+        res.on('data', (c) => {
+          const buf = Buffer.isBuffer(c) ? c : Buffer.from(c);
+          total += buf.length;
+          if (total > MEDIA_MAX_BYTES) {
+            res.destroy(new Error(`Media exceeded max size ${MEDIA_MAX_BYTES}`));
+            return;
+          }
+          chunks.push(buf);
+          // Log progress every 5MB for large downloads
+          if (total - lastLogged > 5 * 1024 * 1024) {
+            lastLogged = total;
+            console.log(`[W-API Media] Downloading... ${(total / 1024 / 1024).toFixed(1)} MB`);
+          }
+        });
         res.on('end', () => resolve({ buffer: Buffer.concat(chunks), contentType }));
         res.on('error', (err) => reject(err));
       }
     );
 
     req.on('error', (err) => reject(err));
-    req.setTimeout(15000, () => req.destroy(new Error('Timeout downloading media')));
+    req.setTimeout(MEDIA_DOWNLOAD_TIMEOUT_MS, () => req.destroy(new Error('Timeout downloading media')));
   });
 }
 
