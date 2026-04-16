@@ -1063,11 +1063,11 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
                 </div>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {metaEvents.map((evt, i) => (
-                    <div key={i} className="text-xs border rounded-lg p-2 space-y-1">
+                    <div key={i} className={`text-xs border rounded-lg p-2 space-y-1 ${evt.type === 'unsupported_message_type' ? 'border-destructive bg-destructive/5' : ''}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Badge variant={getMetaEventBadgeVariant(evt.type, evt.level)} className="text-[10px]">
-                            {evt.type}
+                            {evt.type === 'unsupported_message_type' ? `⚠️ UNSUPPORTED: ${evt.data?.type || '?'}` : evt.type}
                           </Badge>
                           {evt.requestId ? (
                             <Badge variant="secondary" className="text-[10px] font-mono">
@@ -1079,21 +1079,39 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
                           {new Date(evt.timestamp).toLocaleString('pt-BR')}
                         </span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-                        {evt.connectionId ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono">
-                            conexão {evt.connectionId.slice(0, 8)}
-                          </span>
-                        ) : null}
-                        {evt.level === "error" ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
-                            <Bug className="h-3 w-3" /> erro
-                          </span>
-                        ) : null}
-                      </div>
-                      <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap break-all bg-muted/50 rounded p-2">
-                        {JSON.stringify(evt.data, null, 2)}
-                      </pre>
+                      {evt.type === 'unsupported_message_type' && evt.data?.raw_message ? (
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                            <span className="font-semibold text-destructive">Tipo: {evt.data.type}</span>
+                            {evt.data.from && <span className="text-muted-foreground">De: {evt.data.from}</span>}
+                            {evt.data.message_id && <span className="font-mono text-muted-foreground">ID: {evt.data.message_id}</span>}
+                          </div>
+                          <details className="text-[10px]">
+                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Ver payload original completo</summary>
+                            <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap break-all bg-muted/50 rounded p-2 mt-1">
+                              {JSON.stringify(evt.data.raw_message, null, 2)}
+                            </pre>
+                          </details>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                            {evt.connectionId ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono">
+                                conexão {evt.connectionId.slice(0, 8)}
+                              </span>
+                            ) : null}
+                            {evt.level === "error" ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+                                <Bug className="h-3 w-3" /> erro
+                              </span>
+                            ) : null}
+                          </div>
+                          <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap break-all bg-muted/50 rounded p-2">
+                            {JSON.stringify(evt.data, null, 2)}
+                          </pre>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
