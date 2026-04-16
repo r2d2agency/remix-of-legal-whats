@@ -159,6 +159,27 @@ async function processMessageInternal({
         isGlobal: !!agent._isGlobalAgent,
       });
 
+      // Seed session with the last 30 WhatsApp messages so the AI has full context
+      // and doesn't need to ask the contact for info already shared in the chat history.
+      try {
+        const seedResult = await query(`
+          SELECT content, from_me FROM chat_messages
+          WHERE conversation_id = $1 
+            AND content IS NOT NULL AND content != ''
+            AND COALESCE(is_deleted, false) = false
+          ORDER BY created_at DESC LIMIT 30
+        `, [conversationId]);
+        const seeds = seedResult.rows.reverse();
+        for (const m of seeds) {
+          await saveAgentMessage(session.id, m.from_me ? 'assistant' : 'user', m.content, 0);
+        }
+        if (seeds.length > 0) {
+          logInfo('ai_agent_processor.session_auto_seeded', { sessionId: session.id, count: seeds.length });
+        }
+      } catch (seedErr) {
+        logError('ai_agent_processor.auto_seed_error', seedErr);
+      }
+
       // Send greeting message if configured and it's a brand new session
       if (agent.greeting_message) {
         await sendAgentMessage(connection, contactPhone, agent.greeting_message, session.id);
