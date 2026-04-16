@@ -16,16 +16,36 @@ import {
   Upload,
   Loader2,
   File,
+  MousePointerClick,
+  List,
+  BarChart3,
+  Plus,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUpload } from "@/hooks/use-upload";
 import { toast } from "sonner";
 
-export type MessageItemType = "text" | "image" | "video" | "audio" | "document" | "gallery";
+export type MessageItemType =
+  | "text"
+  | "image"
+  | "video"
+  | "audio"
+  | "document"
+  | "gallery"
+  | "buttons"
+  | "list"
+  | "poll";
 
 export interface GalleryImage {
   url: string;
   fileName?: string;
+}
+
+export interface InteractiveOption {
+  id?: string;
+  label: string;
+  description?: string;
 }
 
 export interface MessageItem {
@@ -34,9 +54,14 @@ export interface MessageItem {
   content: string;
   mediaUrl?: string;
   caption?: string;
-  ptt?: boolean; // Push-to-talk for audio (send as voice message)
-  fileName?: string; // Original file name for documents
-  galleryImages?: GalleryImage[]; // For gallery type - up to 10 images
+  ptt?: boolean;
+  fileName?: string;
+  galleryImages?: GalleryImage[];
+  // Interactive (UAZAPI only)
+  options?: InteractiveOption[];
+  buttonText?: string;
+  footer?: string;
+  multiSelect?: boolean;
 }
 
 interface MessageItemEditorProps {
