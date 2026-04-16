@@ -698,7 +698,7 @@ router.post('/:connectionId/logout', authenticate, async (req, res) => {
   }
 });
 
-// Restart instance (reconnect) - supports both Evolution API and W-API
+// Restart instance (reconnect) - supports Evolution API, W-API and UAZAPI
 router.post('/:connectionId/restart', authenticate, async (req, res) => {
   try {
     const { connectionId } = req.params;
@@ -716,15 +716,14 @@ router.post('/:connectionId/restart', authenticate, async (req, res) => {
       ['disconnected', connectionId]
     );
 
-    if (provider === 'wapi') {
-      // W-API: disconnect first, then get new QR code
+    if (provider === 'wapi' || provider === 'uazapi') {
+      // Non-Evolution providers: disconnect first, then fetch a fresh QR code via unified provider
       try {
         await whatsappProvider.disconnect(connection);
       } catch (e) {
         // Ignore disconnect errors - instance may already be disconnected
       }
 
-      // Get new QR code via unified provider
       const qrCode = await whatsappProvider.getQRCode(connection);
 
       return res.json({
