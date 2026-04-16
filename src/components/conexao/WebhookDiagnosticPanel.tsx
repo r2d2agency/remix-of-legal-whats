@@ -29,7 +29,7 @@ import {
 interface Connection {
   id: string;
   name: string;
-  provider?: 'evolution' | 'wapi' | 'meta';
+  provider?: 'evolution' | 'wapi' | 'meta' | 'uazapi';
   instance_name: string;
   instance_id?: string;
   status: string;
