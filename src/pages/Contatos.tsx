@@ -94,6 +94,11 @@ const Contatos = () => {
   const [selectedSyncConnectionId, setSelectedSyncConnectionId] = useState("");
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
   const [allConnections, setAllConnections] = useState<SyncConnection[]>([]);
+  // UAZAPI native phone-contacts sync
+  const [uazapiConnections, setUazapiConnections] = useState<SyncConnection[]>([]);
+  const [selectedUazapiConnId, setSelectedUazapiConnId] = useState<string>("");
+  const [uazapiSyncing, setUazapiSyncing] = useState(false);
+  const [uazapiTargetListId, setUazapiTargetListId] = useState<string>("");
 
   // Load connected W-API connections
   useEffect(() => {
@@ -108,14 +113,55 @@ const Contatos = () => {
         setSyncConnections(connectedWapi);
         setWapiConnectionId(connectedWapi[0]?.id || null);
         setSelectedSyncConnectionId((prev) => prev || connectedWapi[0]?.id || "");
+
+        const uaz = connections.filter(
+          (c) => String(c.provider || '').toLowerCase() === 'uazapi' && c.status === 'connected'
+        );
+        setUazapiConnections(uaz);
+        setSelectedUazapiConnId((prev) => prev || uaz[0]?.id || "");
       } catch {
         setSyncConnections([]);
         setAllConnections([]);
+        setUazapiConnections([]);
       }
     };
 
     loadConnections();
   }, []);
+
+  const handleSyncUazapiContacts = async () => {
+    if (!selectedUazapiConnId) {
+      toast.error("Selecione uma conexão UAZAPI");
+      return;
+    }
+    if (!uazapiTargetListId) {
+      toast.error("Selecione a lista de destino");
+      return;
+    }
+    setUazapiSyncing(true);
+    try {
+      const res = await api<{ success: boolean; total?: number; imported?: number; duplicates?: number; error?: string }>(
+        `/api/uazapi/${selectedUazapiConnId}/sync-contacts-to-list`,
+        {
+          method: 'POST',
+          body: { listId: uazapiTargetListId, onlyMyContacts: true },
+        }
+      );
+      if (!res.success) {
+        toast.error(res.error || "Falha ao sincronizar");
+      } else {
+        toast.success(
+          `Sincronização concluída: ${res.imported} novos, ${res.duplicates} já existentes (de ${res.total} contatos da agenda)`
+        );
+        if (selectedList === uazapiTargetListId) loadContacts(uazapiTargetListId);
+        loadLists();
+      }
+    } catch (err) {
+      toast.error("Erro ao sincronizar contatos UAZAPI");
+    } finally {
+      setUazapiSyncing(false);
+    }
+  };
 
   // Load lists on mount and when connection filter changes
   useEffect(() => {
@@ -536,6 +582,75 @@ const Contatos = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* UAZAPI: sincronizar contatos da AGENDA do celular */}
+        {uazapiConnections.length > 0 && (
+          <Card className="animate-fade-in border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-primary" />
+                Sincronizar agenda do celular (UAZAPI)
+              </CardTitle>
+              <CardDescription>
+                Importa diretamente os contatos salvos no celular vinculado ao WhatsApp via UAZAPI.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Select value={selectedUazapiConnId} onValueChange={setSelectedUazapiConnId}>
+                  <SelectTrigger className="sm:w-[260px]">
+                    <SelectValue placeholder="Conexão UAZAPI" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uazapiConnections.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                        {c.phone_number ? ` (${c.phone_number})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={uazapiTargetListId} onValueChange={setUazapiTargetListId}>
+                  <SelectTrigger className="sm:w-[260px]">
+                    <SelectValue placeholder="Lista de destino" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lists.length === 0 ? (
+                      <SelectItem value="none" disabled>
+                        Crie uma lista primeiro
+                      </SelectItem>
+                    ) : (
+                      lists.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.name} ({l.contact_count})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  variant="default"
+                  onClick={handleSyncUazapiContacts}
+                  disabled={!selectedUazapiConnId || !uazapiTargetListId || uazapiSyncing}
+                >
+                  {uazapiSyncing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Sincronizando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Importar da agenda
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Lists Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

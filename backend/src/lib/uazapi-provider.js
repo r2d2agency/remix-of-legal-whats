@@ -446,6 +446,117 @@ export async function syncMessages(baseUrl, token, chatId, { limit = 100, fromMe
 }
 
 /**
+ * Lista CONTATOS sincronizados pelo WhatsApp do celular
+ * UAZAPI: POST /contacts/list
+ *
+ * Retorna contatos da agenda do celular vinculado ao WhatsApp
+ */
+export async function listContacts(baseUrl, token, { limit, search } = {}) {
+  const body = {};
+  if (limit) body.limit = limit;
+  if (search) body.search = search;
+
+  const r = await uazapiFetch(baseUrl, '/contacts/list', { method: 'POST', token, body, timeout: 30000 });
+  if (!r.ok) return { success: false, error: r.data?.error || `HTTP ${r.status}`, contacts: [] };
+  const raw = Array.isArray(r.data) ? r.data : (r.data?.contacts || r.data?.data || []);
+
+  // Normaliza: { name, phone, isWhatsapp, isBusiness, ... }
+  const contacts = raw.map((c) => {
+    const jid = c.id || c.jid || c.wid || c.remoteJid || '';
+    const phone = String(jid).replace(/@.*/, '').replace(/\D/g, '');
+    return {
+      name: c.name || c.pushname || c.notify || c.verifiedName || phone,
+      phone,
+      jid,
+      isBusiness: !!c.isBusiness,
+      isMyContact: c.isMyContact !== false, // contatos da agenda
+      raw: c,
+    };
+  }).filter((c) => c.phone && c.phone.length >= 10 && !c.jid.includes('@g.us'));
+
+  return { success: true, contacts };
+}
+
+/**
+ * SENDER - Cria campanha de disparo em massa nativa
+ * UAZAPI: POST /sender/simple
+ *
+ * @param {object} params - { numbers[], type, text?, file?, delayMin, delayMax, scheduled_for?, info? }
+ *   - type: 'text' | 'image' | 'video' | 'audio' | 'document'
+ *   - delayMin/delayMax em SEGUNDOS (ex: 3, 8 = entre 3-8s entre mensagens)
+ *   - scheduled_for: timestamp ms (opcional, agendamento)
+ *   - info: nome/identificação da campanha (vira "folder")
+ */
+export async function senderCreate(baseUrl, token, params) {
+  const body = {
+    numbers: (params.numbers || []).map((n) => normalizePhone(n)).filter(Boolean),
+    type: params.type || 'text',
+    delayMin: params.delayMin ?? 3,
+    delayMax: params.delayMax ?? 8,
+  };
+  if (params.text) body.text = params.text;
+  if (params.file) body.file = params.file;
+  if (params.docName) body.docName = params.docName;
+  if (params.scheduled_for) body.scheduled_for = params.scheduled_for;
+  if (params.info) body.info = params.info;
+  if (params.type === 'audio') body.ptt = true;
+
+  if (!body.numbers.length) {
+    return { success: false, error: 'Lista de números vazia' };
+  }
+
+  const r = await uazapiFetch(baseUrl, '/sender/simple', { method: 'POST', token, body, timeout: 60000 });
+  if (!r.ok) return { success: false, error: r.data?.error || r.data?.message || `HTTP ${r.status}` };
+  return {
+    success: true,
+    folder_id: r.data?.folder_id || r.data?.folderId || r.data?.id || null,
+    queued: r.data?.count || body.numbers.length,
+    raw: r.data,
+  };
+}
+
+/**
+ * SENDER - Edita status de uma campanha (pause/resume/stop/delete)
+ * UAZAPI: POST /sender/edit
+ *
+ * @param {string} folderId - ID da pasta/campanha
+ * @param {'play'|'pause'|'stop'|'delete'} action
+ */
+export async function senderEdit(baseUrl, token, folderId, action) {
+  const r = await uazapiFetch(baseUrl, '/sender/edit', {
+    method: 'POST',
+    token,
+    body: { folder_id: folderId, action },
+  });
+  if (!r.ok) return { success: false, error: r.data?.error || `HTTP ${r.status}` };
+  return { success: true, data: r.data };
+}
+
+/**
+ * SENDER - Lista pastas/campanhas existentes
+ * UAZAPI: POST /sender/listfolders
+ */
+export async function senderListFolders(baseUrl, token) {
+  const r = await uazapiFetch(baseUrl, '/sender/listfolders', { method: 'POST', token, body: {} });
+  if (!r.ok) return { success: false, error: r.data?.error || `HTTP ${r.status}`, folders: [] };
+  const folders = Array.isArray(r.data) ? r.data : (r.data?.folders || r.data?.data || []);
+  return { success: true, folders };
+}
+
+/**
+ * SENDER - Lista mensagens de uma pasta (status individual de cada envio)
+ * UAZAPI: POST /sender/listmessages
+ */
+export async function senderListMessages(baseUrl, token, folderId, { status, limit = 500 } = {}) {
+  const body = { folder_id: folderId, limit };
+  if (status) body.status = status; // 'pending' | 'sent' | 'failed'
+  const r = await uazapiFetch(baseUrl, '/sender/listmessages', { method: 'POST', token, body, timeout: 30000 });
+  if (!r.ok) return { success: false, error: r.data?.error || `HTTP ${r.status}`, messages: [] };
+  const messages = Array.isArray(r.data) ? r.data : (r.data?.messages || r.data?.data || []);
+  return { success: true, messages };
+}
+
+/**
  * Sender unificado (compatível com whatsapp-provider.js)
  */
 export async function sendMessage(baseUrl, token, phone, content, messageType, mediaUrl) {
