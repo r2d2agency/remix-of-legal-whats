@@ -137,6 +137,7 @@ async function processMessageInternal({
     }
 
     // 2. If no active session, check if an agent is linked to this connection
+    let preloadedAgent = null; // keep reference for global agents (they don't live in ai_agents)
     if (!session) {
       let agent = await findAgentForConnection(connection.id, messageContent);
       let agentSource = 'regular';
@@ -167,6 +168,7 @@ async function processMessageInternal({
         contactPhone,
       });
 
+      preloadedAgent = agent;
       // Create a new session
       session = await createSession(agent.id, conversationId, contactPhone, contactName);
       session._isNewSession = true;
