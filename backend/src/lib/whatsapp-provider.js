@@ -240,6 +240,10 @@ export async function getQRCode(connection) {
     return null;
   }
 
+  if (provider === 'uazapi') {
+    return uazapiProvider.getQRCode(connection.uazapi_url, connection.uazapi_token);
+  }
+
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
     return wapiProvider.getQRCode(connection.instance_id, resolvedToken);
@@ -276,6 +280,10 @@ export async function disconnect(connection) {
     // Meta Cloud API: just mark as disconnected in DB
     await query('UPDATE connections SET status = $1, updated_at = NOW() WHERE id = $2', ['disconnected', connection.id]);
     return true;
+  }
+
+  if (provider === 'uazapi') {
+    return uazapiProvider.disconnect(connection.uazapi_url, connection.uazapi_token);
   }
 
   if (provider === 'wapi') {
@@ -318,6 +326,32 @@ export async function sendMessage(connection, phone, content, messageType, media
 
   if (provider === 'meta') {
     return sendMetaMessage(connection, phone, content, messageType, mediaUrl);
+  }
+
+  if (provider === 'uazapi') {
+    try {
+      const result = await uazapiProvider.sendMessage(
+        connection.uazapi_url,
+        connection.uazapi_token,
+        phone,
+        content,
+        messageType,
+        mediaUrl
+      );
+      logInfo('whatsapp.send_message_uazapi_result', {
+        connection_id: connection.id,
+        success: result.success,
+        error: result.error || null,
+        duration_ms: Date.now() - startedAt,
+      });
+      return result;
+    } catch (error) {
+      logError('whatsapp.send_message_uazapi_exception', error, {
+        connection_id: connection.id,
+        duration_ms: Date.now() - startedAt,
+      });
+      return { success: false, error: error.message };
+    }
   }
 
   if (provider === 'wapi') {
