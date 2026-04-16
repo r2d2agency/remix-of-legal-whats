@@ -413,3 +413,130 @@ export function MessageItemEditor({
     </div>
   );
 }
+
+/**
+ * Editor para tipos interativos UAZAPI (botões / lista / enquete)
+ */
+function InteractiveEditor({
+  item,
+  onUpdate,
+}: {
+  item: MessageItem;
+  onUpdate: (id: string, updates: Partial<MessageItem>) => void;
+}) {
+  const options = item.options || [];
+  const maxOptions = item.type === "buttons" ? 3 : item.type === "list" ? 10 : 12;
+  const placeholderText =
+    item.type === "buttons"
+      ? "Texto da mensagem que será exibida acima dos botões"
+      : item.type === "list"
+        ? "Texto da mensagem que aparecerá antes do botão da lista"
+        : "Pergunta da enquete";
+
+  const updateOption = (idx: number, value: string) => {
+    const next = [...options];
+    next[idx] = { ...next[idx], label: value };
+    onUpdate(item.id, { options: next });
+  };
+  const addOption = () => {
+    if (options.length >= maxOptions) {
+      toast.error(`Máximo de ${maxOptions} opções para este tipo`);
+      return;
+    }
+    onUpdate(item.id, { options: [...options, { label: "" }] });
+  };
+  const removeOption = (idx: number) => {
+    const next = options.filter((_, i) => i !== idx);
+    onUpdate(item.id, { options: next });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border border-dashed border-primary/40 bg-primary/5 p-2 text-xs text-muted-foreground">
+        ⚡ Recurso exclusivo UAZAPI — só funcionará em conexões UAZAPI.
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">
+          {item.type === "poll" ? "Pergunta" : "Mensagem"}
+        </Label>
+        <Textarea
+          placeholder={placeholderText}
+          value={item.content}
+          onChange={(e) => onUpdate(item.id, { content: e.target.value })}
+          className="min-h-[80px] resize-none"
+        />
+      </div>
+
+      {item.type === "list" && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Texto do botão da lista</Label>
+          <Input
+            placeholder="Ver opções"
+            value={item.buttonText || ""}
+            onChange={(e) => onUpdate(item.id, { buttonText: e.target.value })}
+          />
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs text-muted-foreground">
+            Opções ({options.length}/{maxOptions})
+          </Label>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={addOption}>
+            <Plus className="h-3 w-3 mr-1" />
+            Adicionar
+          </Button>
+        </div>
+        {options.length === 0 && (
+          <p className="text-xs text-muted-foreground italic">Nenhuma opção adicionada ainda.</p>
+        )}
+        {options.map((opt, idx) => (
+          <div key={idx} className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground w-5">{idx + 1}.</span>
+            <Input
+              placeholder={`Opção ${idx + 1}`}
+              value={opt.label}
+              onChange={(e) => updateOption(idx, e.target.value)}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => removeOption(idx)}
+            >
+              <X className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      {item.type !== "poll" && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Rodapé (opcional)</Label>
+          <Input
+            placeholder="Texto pequeno exibido no rodapé"
+            value={item.footer || ""}
+            onChange={(e) => onUpdate(item.id, { footer: e.target.value })}
+          />
+        </div>
+      )}
+
+      {item.type === "poll" && (
+        <div className="flex items-center justify-between rounded-lg bg-accent/50 p-3">
+          <div className="space-y-0.5">
+            <Label className="text-sm font-medium">Permitir múltiplas respostas</Label>
+            <p className="text-xs text-muted-foreground">
+              Participantes poderão escolher mais de uma opção
+            </p>
+          </div>
+          <Switch
+            checked={!!item.multiSelect}
+            onCheckedChange={(checked) => onUpdate(item.id, { multiSelect: checked })}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
