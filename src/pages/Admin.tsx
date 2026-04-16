@@ -22,6 +22,7 @@ import { BrandingTab } from '@/components/admin/BrandingTab';
 import { toast } from 'sonner';
 import { Shield, Building2, Users, Plus, Trash2, Loader2, Pencil, Crown, Image, Package, CalendarIcon, UserPlus, Eye, MessageSquare, Receipt, Wifi, Upload, Palette, Bot, Clock, Briefcase, Search, AlertTriangle, Mail, Sparkles, Key, Server, Lock } from 'lucide-react';
 import { WapiInstancesTab } from '@/components/admin/WapiInstancesTab';
+import { UazapiInstancesTab } from '@/components/admin/UazapiInstancesTab';
 import { GlobalAgentsTab } from '@/components/admin/GlobalAgentsTab';
 import { api } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
@@ -809,6 +810,10 @@ export default function Admin() {
             <TabsTrigger value="wapi-instances" className="flex items-center gap-2">
               <Server className="h-4 w-4" />
               Instâncias
+            </TabsTrigger>
+            <TabsTrigger value="uazapi-instances" className="flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              UAZAPI
             </TabsTrigger>
             <TabsTrigger value="integrations" className="flex items-center gap-2">
               <Key className="h-4 w-4" />
@@ -1881,6 +1886,11 @@ export default function Admin() {
           {/* W-API Instances Tab */}
           <TabsContent value="wapi-instances" className="space-y-4">
             <WapiInstancesTab />
+          </TabsContent>
+
+          {/* UAZAPI Instances Tab */}
+          <TabsContent value="uazapi-instances" className="space-y-4">
+            <UazapiInstancesTab />
           </TabsContent>
 
           {/* Integrations Tab */}
