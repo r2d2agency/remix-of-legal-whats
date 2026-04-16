@@ -451,6 +451,10 @@ export async function checkNumber(connection, phone) {
     return true;
   }
 
+  if (provider === 'uazapi') {
+    return uazapiProvider.checkNumber(connection.uazapi_url, connection.uazapi_token, phone);
+  }
+
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
     return wapiProvider.checkNumber(connection.instance_id, resolvedToken, phone);
@@ -489,6 +493,10 @@ export async function checkNumber(connection, phone) {
  */
 export async function sendPresenceComposing(connection, contactPhone) {
   const provider = detectProvider(connection);
+
+  if (provider === 'uazapi') {
+    return uazapiProvider.sendPresenceComposing(connection.uazapi_url, connection.uazapi_token, contactPhone);
+  }
 
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
