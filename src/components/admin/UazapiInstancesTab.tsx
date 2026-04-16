@@ -235,7 +235,7 @@ export function UazapiInstancesTab() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{inst.name || 'sem nome'}</span>
-                        {st?.status === 'connected' && <Badge className="bg-green-500/20 text-green-700">Conectado</Badge>}
+                        {st?.status === 'connected' && <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">Conectado</Badge>}
                         {st?.status === 'disconnected' && <Badge variant="outline">Desconectado</Badge>}
                         {st?.status === 'checking' && <Loader2 className="h-3 w-3 animate-spin" />}
                         {inst.local?.orgName && (
