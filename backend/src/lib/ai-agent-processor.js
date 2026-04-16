@@ -139,13 +139,33 @@ async function processMessageInternal({
     // 2. If no active session, check if an agent is linked to this connection
     if (!session) {
       let agent = await findAgentForConnection(connection.id, messageContent);
+      let agentSource = 'regular';
       
       // 2.1 If no regular agent, check for global agent activations
       if (!agent) {
         agent = await findGlobalAgentForConnection(connection.id);
+        agentSource = agent ? 'global' : 'none';
       }
       
-      if (!agent) return { handled: false };
+      if (!agent) {
+        logInfo('ai_agent_processor.no_agent_for_connection', {
+          connectionId: connection.id,
+          connectionName: connection.name,
+          conversationId,
+          contactPhone,
+          messageType,
+        });
+        return { handled: false };
+      }
+
+      logInfo('ai_agent_processor.agent_resolved_for_connection', {
+        connectionId: connection.id,
+        agentId: agent.id,
+        agentName: agent.name,
+        agentSource,
+        conversationId,
+        contactPhone,
+      });
 
       // Create a new session
       session = await createSession(agent.id, conversationId, contactPhone, contactName);
@@ -350,12 +370,25 @@ async function processMessageInternal({
 
     if (tools.length > 0) {
       const toolExecutor = createToolExecutor(organizationId, userId, agent);
+      logInfo('ai_agent_processor.tools_registered', {
+        sessionId: session.id,
+        agentId: agent.id,
+        agentName: agent.name,
+        toolNames: tools.map(t => t.function?.name || 'unknown'),
+        capabilities,
+      });
       result = await callAIWithTools(aiConfig, messages, {
         temperature: parseFloat(agent.temperature) || 0.7,
         maxTokens: parseInt(agent.max_tokens, 10) || 1000,
         tools,
-      }, toolExecutor);
+      }, toolExecutor, 8);
       toolCallsExecuted = result.toolCallsExecuted || [];
+      logInfo('ai_agent_processor.tools_finished', {
+        sessionId: session.id,
+        agentId: agent.id,
+        toolCallsCount: toolCallsExecuted.length,
+        toolsUsed: toolCallsExecuted.map(t => t.name),
+      });
     } else {
       result = await callAI(aiConfig, messages, {
         temperature: parseFloat(agent.temperature) || 0.7,
@@ -896,6 +929,18 @@ async function buildSystemPrompt(agent, organizationId, contactName, userMessage
     prompt += `\n\nVocê está conversando com: ${contactName}`;
   }
 
+  // Inject current date/time context (Brasília timezone) — critical for scheduling-aware agents
+  try {
+    const now = new Date();
+    const daysOfWeek = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+    const tz = 'America/Sao_Paulo';
+    const currentDay = daysOfWeek[Number(now.toLocaleString('en-US', { timeZone: tz, weekday: 'long' }) ? new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay() : now.getDay())];
+    const currentDate = now.toLocaleDateString('pt-BR', { timeZone: tz });
+    const currentTime = now.toLocaleTimeString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+    const isoDate = new Date(now.toLocaleString('en-US', { timeZone: tz })).toISOString().slice(0, 10);
+    prompt += `\n\n=== CONTEXTO TEMPORAL ATUAL ===\n- Data de hoje: ${currentDate} (${currentDay})\n- Data ISO (use em ferramentas): ${isoDate}\n- Hora atual: ${currentTime} (horário de Brasília GMT-3)\n- Quando o cliente disser "hoje", "amanhã", "essa semana", calcule a partir desta data.`;
+  } catch { /* ignore */ }
+
   // Add language instruction
   prompt += `\n\nResponda sempre em ${agent.language || 'pt-BR'}.`;
 
@@ -1289,17 +1334,31 @@ function buildAppBarberHistoryTool() {
 }
 
 async function executeAppBarberToolDirect(toolName, args, agent) {
+  const t0 = Date.now();
+  logInfo('ai_agent_processor.appbarber_call_start', {
+    agentId: agent.id,
+    agentName: agent.name,
+    toolName,
+    args,
+  });
   try {
     const appbarber_api_key = agent.appbarber_api_key;
     const appbarber_establishment_code = agent.appbarber_establishment_code;
 
     if (!appbarber_api_key || !appbarber_establishment_code) {
+      logError('ai_agent_processor.appbarber_missing_credentials', new Error('Credenciais ausentes'), {
+        agentId: agent.id,
+        toolName,
+        hasKey: !!appbarber_api_key,
+        hasCode: !!appbarber_establishment_code,
+      });
       return 'Erro: Credenciais do AppBarber não configuradas no agente.';
     }
 
     const baseUrl = 'https://api.appbarber.com';
     const headers = { 'X-API-Key': appbarber_api_key, 'Content-Type': 'application/json' };
 
+    let resultText;
     switch (toolName) {
       case 'appbarber_services': {
         // Query from local cached services table (no API cost)
@@ -1311,12 +1370,13 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
           [agent.id]
         );
         if (result.rows.length === 0) {
-          return 'Nenhum serviço cadastrado. Peça ao administrador para sincronizar os serviços do AppBarber.';
+          resultText = 'Nenhum serviço cadastrado. Peça ao administrador para sincronizar os serviços do AppBarber.';
+        } else {
+          resultText = result.rows.map(s => 
+            `• ${s.service_description} (código: ${s.service_code}) - R$ ${parseFloat(s.service_value).toFixed(2)} - ${s.service_interval} min`
+          ).join('\n');
         }
-        const services = result.rows.map(s => 
-          `• ${s.service_description} (código: ${s.service_code}) - R$ ${parseFloat(s.service_value).toFixed(2)} - ${s.service_interval} min`
-        ).join('\n');
-        return services;
+        break;
       }
 
       case 'appbarber_availability': {
@@ -1327,15 +1387,26 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
         if (args.service_code) params.set('service_code', String(args.service_code));
         if (args.combo_code) params.set('combo_code', String(args.combo_code));
 
-        const resp = await fetch(`${baseUrl}/v1/availability?${params}`, { headers });
+        const url = `${baseUrl}/v1/availability?${params}`;
+        logInfo('ai_agent_processor.appbarber_http_request', { toolName, url });
+        const resp = await fetch(url, { headers });
         const data = await resp.json();
-        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
-
-        const availability = (data.data || []).map(p => {
-          const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).join(', ');
-          return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}):\n   Horários: ${slots || 'Sem horários disponíveis'}`;
-        }).join('\n\n');
-        return availability || 'Nenhum horário disponível para esta data.';
+        logInfo('ai_agent_processor.appbarber_http_response', {
+          toolName,
+          status: resp.status,
+          ok: resp.ok,
+          professionalsCount: Array.isArray(data?.data) ? data.data.length : 0,
+        });
+        if (!resp.ok) {
+          resultText = `Erro AppBarber: ${data.error || resp.status}`;
+        } else {
+          const availability = (data.data || []).map(p => {
+            const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).join(', ');
+            return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}):\n   Horários: ${slots || 'Sem horários disponíveis'}`;
+          }).join('\n\n');
+          resultText = availability || 'Nenhum horário disponível para esta data.';
+        }
+        break;
       }
 
       case 'appbarber_appointment': {
@@ -1349,18 +1420,27 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
           services: [{ service_code: args.service_code, duration: args.duration }],
         };
 
+        logInfo('ai_agent_processor.appbarber_http_request', { toolName, body });
         const resp = await fetch(`${baseUrl}/v1/appointments`, {
           method: 'POST',
           headers,
           body: JSON.stringify(body),
         });
         const data = await resp.json();
+        logInfo('ai_agent_processor.appbarber_http_response', {
+          toolName,
+          status: resp.status,
+          ok: resp.ok,
+          appointmentCode: data?.data?.appointment_code,
+          errorCode: data?.data?.error,
+        });
         if (!resp.ok || (data.data && data.data.error !== 0)) {
-          return `Erro ao agendar: ${data.data?.result || data.error || 'Erro desconhecido'}`;
+          resultText = `Erro ao agendar: ${data.data?.result || data.error || 'Erro desconhecido'}`;
+        } else {
+          const code = data.data?.appointment_code;
+          resultText = `✅ Agendamento criado com sucesso! Código: ${code || 'N/A'}. Cliente: ${args.customer_name}, Data: ${args.start_date}.`;
         }
-
-        const code = data.data?.appointment_code;
-        return `✅ Agendamento criado com sucesso! Código: ${code || 'N/A'}. Cliente: ${args.customer_name}, Data: ${args.start_date}.`;
+        break;
       }
 
       case 'appbarber_history': {
@@ -1374,19 +1454,35 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
 
         const resp = await fetch(`${baseUrl}/v1/appointments/history?${params}`, { headers });
         const data = await resp.json();
-        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
-
-        const history = (data.data || []).map(a => 
-          `• ${a.client_name} - ${a.service_description} com ${a.employee_name} - ${a.scheduling_start} - Status: ${a.scheduling_status}`
-        ).join('\n');
-        return history || 'Nenhum agendamento encontrado no período.';
+        if (!resp.ok) {
+          resultText = `Erro AppBarber: ${data.error || resp.status}`;
+        } else {
+          const history = (data.data || []).map(a => 
+            `• ${a.client_name} - ${a.service_description} com ${a.employee_name} - ${a.scheduling_start} - Status: ${a.scheduling_status}`
+          ).join('\n');
+          resultText = history || 'Nenhum agendamento encontrado no período.';
+        }
+        break;
       }
 
       default:
-        return 'Ferramenta AppBarber desconhecida';
+        resultText = 'Ferramenta AppBarber desconhecida';
     }
+
+    logInfo('ai_agent_processor.appbarber_call_done', {
+      agentId: agent.id,
+      toolName,
+      durationMs: Date.now() - t0,
+      resultPreview: String(resultText).substring(0, 200),
+    });
+    return resultText;
   } catch (error) {
-    logError('ai_agent_processor.appbarber_tool_error', error);
+    logError('ai_agent_processor.appbarber_tool_error', error, {
+      agentId: agent.id,
+      toolName,
+      args,
+      durationMs: Date.now() - t0,
+    });
     return `Erro na integração AppBarber: ${error.message}`;
   }
 }

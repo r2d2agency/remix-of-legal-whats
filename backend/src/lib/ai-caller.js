@@ -40,7 +40,7 @@ export async function callAI(config, messages, options = {}) {
  * @param {number} maxIterations - prevent infinite loops
  * @returns {Object} - { content, tokensUsed, model, toolCallsExecuted }
  */
-export async function callAIWithTools(config, messages, options, toolExecutor, maxIterations = 3) {
+export async function callAIWithTools(config, messages, options, toolExecutor, maxIterations = 8) {
   let totalTokens = 0;
   let toolCallsExecuted = [];
   let currentMessages = [...messages];
