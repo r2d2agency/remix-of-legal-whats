@@ -1832,7 +1832,7 @@ export async function startAgentSession(agentId, conversationId, contactPhone, c
       for (const msg of msgs) {
         const role = msg.from_me ? 'assistant' : 'user';
         await query(
-          `INSERT INTO ai_agent_messages (session_id, role, content, tokens_used)
+          `INSERT INTO ai_agent_messages (session_id, role, content, total_tokens)
            VALUES ($1, $2, $3, 0)`,
           [session.id, role, msg.content]
         );

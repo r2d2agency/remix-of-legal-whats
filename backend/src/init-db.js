@@ -2220,14 +2220,13 @@ DO $$ BEGIN
   );
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- Add new enum values if they don't exist
-DO $$ BEGIN
-  ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'manage_tasks';
-EXCEPTION WHEN duplicate_object THEN null; END $$;
-
-DO $$ BEGIN
-  ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'google_calendar';
-EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- Add new enum values if they don't exist (self-healing for older DBs)
+DO $$ BEGIN ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'manage_tasks'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'google_calendar'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'call_agent'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'transcribe_audio'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'analyze_images'; EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'appbarber'; EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- AI Agents main table
 CREATE TABLE IF NOT EXISTS ai_agents (
