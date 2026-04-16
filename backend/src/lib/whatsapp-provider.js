@@ -3,6 +3,7 @@
 
 import { query } from '../db.js';
 import * as wapiProvider from './wapi-provider.js';
+import * as uazapiProvider from './uazapi-provider.js';
 import { logError, logInfo, logWarn } from '../logger.js';
 
 const globalWapiTokenCache = {
@@ -122,6 +123,11 @@ export function detectProvider(connection) {
     return 'meta';
   }
 
+  // UAZAPI
+  if (provider === 'uazapi' || (connection?.uazapi_url && connection?.uazapi_token)) {
+    return 'uazapi';
+  }
+
   // Direct Instance ID é sempre W-API no sistema atual
   if (connection?.instance_id) {
     return 'wapi';
@@ -143,6 +149,10 @@ export async function checkStatus(connection) {
 
   if (provider === 'meta') {
     return checkMetaStatus(connection);
+  }
+
+  if (provider === 'uazapi') {
+    return uazapiProvider.checkStatus(connection.uazapi_url, connection.uazapi_token);
   }
 
   if (provider === 'wapi') {
