@@ -104,18 +104,32 @@ async function processMessageInternal({
   messageContent, messageType, mediaUrl, mediaMimetype, mediaFilename,
 }) {
   try {
+    logInfo('ai_agent_processor.message_received', {
+      connectionId: connection?.id,
+      connectionName: connection?.name,
+      conversationId,
+      contactPhone,
+      messageType,
+      hasMedia: !!mediaUrl,
+      contentPreview: typeof messageContent === 'string' ? messageContent.substring(0, 80) : null,
+    });
     // Supported message types
     const supportedTypes = ['text', 'image', 'audio', 'video', 'document', 'sticker'];
     if (!supportedTypes.includes(messageType)) {
+      logInfo('ai_agent_processor.unsupported_message_type', { conversationId, messageType });
       return { handled: false };
     }
     // Need at least content or media
     if (!messageContent && !mediaUrl && messageType === 'text') {
+      logInfo('ai_agent_processor.empty_message_skipped', { conversationId });
       return { handled: false };
     }
 
     const organizationId = connection.organization_id;
-    if (!organizationId) return { handled: false };
+    if (!organizationId) {
+      logInfo('ai_agent_processor.no_organization_on_connection', { connectionId: connection?.id });
+      return { handled: false };
+    }
 
     // 1. Check for active session first
     let session = await getActiveSession(conversationId);
