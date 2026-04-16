@@ -446,6 +446,10 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
       return "destructive" as const;
     }
 
+    if (eventType.includes("unsupported")) {
+      return "destructive" as const;
+    }
+
     if (eventType.includes("success") || eventType.includes("saved") || eventType.includes("matched") || eventType.includes("acknowledged")) {
       return "default" as const;
     }
