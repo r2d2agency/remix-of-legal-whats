@@ -583,6 +583,75 @@ const Contatos = () => {
           </CardContent>
         </Card>
 
+        {/* UAZAPI: sincronizar contatos da AGENDA do celular */}
+        {uazapiConnections.length > 0 && (
+          <Card className="animate-fade-in border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-primary" />
+                Sincronizar agenda do celular (UAZAPI)
+              </CardTitle>
+              <CardDescription>
+                Importa diretamente os contatos salvos no celular vinculado ao WhatsApp via UAZAPI.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Select value={selectedUazapiConnId} onValueChange={setSelectedUazapiConnId}>
+                  <SelectTrigger className="sm:w-[260px]">
+                    <SelectValue placeholder="Conexão UAZAPI" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uazapiConnections.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                        {c.phone_number ? ` (${c.phone_number})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={uazapiTargetListId} onValueChange={setUazapiTargetListId}>
+                  <SelectTrigger className="sm:w-[260px]">
+                    <SelectValue placeholder="Lista de destino" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lists.length === 0 ? (
+                      <SelectItem value="none" disabled>
+                        Crie uma lista primeiro
+                      </SelectItem>
+                    ) : (
+                      lists.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.name} ({l.contact_count})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  variant="default"
+                  onClick={handleSyncUazapiContacts}
+                  disabled={!selectedUazapiConnId || !uazapiTargetListId || uazapiSyncing}
+                >
+                  {uazapiSyncing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Sincronizando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Importar da agenda
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Lists Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card
