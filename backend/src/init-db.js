@@ -235,6 +235,9 @@ DO $$ BEGIN
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS meta_phone_number_id VARCHAR(255);
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS meta_waba_id VARCHAR(255);
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS meta_webhook_verify_token VARCHAR(255);
+    -- UAZAPI columns
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_url TEXT;
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_token TEXT;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
@@ -269,9 +272,9 @@ BEGIN
     -- Provider value constraint (now includes meta)
     ALTER TABLE connections
     ADD CONSTRAINT connections_provider_chk
-    CHECK (provider IN ('evolution', 'wapi', 'meta'));
+    CHECK (provider IN ('evolution', 'wapi', 'meta', 'uazapi'));
 
-    -- Required fields per provider constraint (now includes meta)
+    -- Required fields per provider constraint (now includes meta + uazapi)
     ALTER TABLE connections
     ADD CONSTRAINT connections_provider_required_fields_chk
     CHECK (
@@ -280,6 +283,8 @@ BEGIN
         (provider = 'evolution' AND api_url IS NOT NULL AND api_key IS NOT NULL AND instance_name IS NOT NULL)
         OR
         (provider = 'meta' AND meta_token IS NOT NULL AND meta_phone_number_id IS NOT NULL AND meta_waba_id IS NOT NULL)
+        OR
+        (provider = 'uazapi' AND uazapi_url IS NOT NULL AND uazapi_token IS NOT NULL)
     );
 END $$;
 
