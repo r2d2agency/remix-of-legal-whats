@@ -40,6 +40,7 @@ import { SortableMessageItem } from "@/components/mensagens/SortableMessageItem"
 import { AddMessageButton } from "@/components/mensagens/AddMessageButton";
 import { MessagePreview } from "@/components/mensagens/MessagePreview";
 import { useMessages, MessageTemplate } from "@/hooks/use-messages";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -55,9 +56,19 @@ const Mensagens = () => {
     { id: crypto.randomUUID(), type: "text", content: "" },
   ]);
   const [previewName, setPreviewName] = useState("João");
+  const [hasUazapi, setHasUazapi] = useState(false);
 
   useEffect(() => {
     loadMessages();
+    // Detecta se a organização tem alguma conexão UAZAPI para liberar recursos interativos
+    (async () => {
+      try {
+        const conns = await api<any[]>("/api/connections");
+        setHasUazapi(Array.isArray(conns) && conns.some((c) => String(c?.provider || "").toLowerCase() === "uazapi"));
+      } catch {
+        setHasUazapi(false);
+      }
+    })();
   }, []);
 
   const loadMessages = async () => {
@@ -359,7 +370,7 @@ const Mensagens = () => {
                       </SortableContext>
                     </DndContext>
 
-                    <AddMessageButton onAdd={addMessageItem} />
+                    <AddMessageButton onAdd={addMessageItem} isUazapi={hasUazapi} />
                   </div>
 
                   <Button 
