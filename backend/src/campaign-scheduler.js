@@ -1,5 +1,6 @@
 import { query } from './db.js';
 import * as whatsappProvider from './lib/whatsapp-provider.js';
+import * as uazapiProvider from './lib/uazapi-provider.js';
 import { executeFlow } from './lib/flow-executor.js';
 // Translation map for common Evolution API errors
 const errorTranslations = {
@@ -79,16 +80,53 @@ async function sendWhatsAppMessage(connection, phone, messageItems, contact) {
       // Replace variables in content
       const processedContent = replaceVariables(item.content || item.caption, contact);
 
-      const result = await whatsappProvider.sendMessage(
-        connection,
-        remoteJid,
-        processedContent,
-        item.type,
-        mediaUrl
-      );
+      let result;
+
+      // UAZAPI exclusive interactive types
+      if (item.type === 'buttons' || item.type === 'list' || item.type === 'poll') {
+        const provider = whatsappProvider.detectProvider(connection);
+        if (provider !== 'uazapi') {
+          result = { success: false, error: `Tipo "${item.type}" requer conexão UAZAPI` };
+        } else if (item.type === 'buttons') {
+          result = await uazapiProvider.sendButtons(
+            connection.uazapi_url,
+            connection.uazapi_token,
+            phone,
+            processedContent || '',
+            (item.options || []).map((o) => o.label),
+            { footer: item.footer }
+          );
+        } else if (item.type === 'list') {
+          result = await uazapiProvider.sendList(
+            connection.uazapi_url,
+            connection.uazapi_token,
+            phone,
+            processedContent || '',
+            (item.options || []).map((o) => o.label),
+            { buttonText: item.buttonText || 'Ver opções', footer: item.footer }
+          );
+        } else {
+          result = await uazapiProvider.sendPoll(
+            connection.uazapi_url,
+            connection.uazapi_token,
+            phone,
+            processedContent || '',
+            (item.options || []).map((o) => o.label),
+            { multiSelect: !!item.multiSelect }
+          );
+        }
+      } else {
+        result = await whatsappProvider.sendMessage(
+          connection,
+          remoteJid,
+          processedContent,
+          item.type,
+          mediaUrl
+        );
+      }
 
       results.push({ success: result.success, item, error: result.error, messageId: result.messageId });
-      
+
       // Small delay between items of same message
       if (expandedItems.length > 1) {
         await new Promise(resolve => setTimeout(resolve, 1500));
