@@ -607,6 +607,16 @@ app.post('/api/meta/webhook', async (req, res) => {
                 break;
               default:
                 content = `[${msgType}]`;
+                // Log full payload for unsupported types so we can diagnose what Meta sent
+                logMetaEvent('unsupported_message_type', {
+                  request_id: req.requestId || null,
+                  connection_id: connection.id,
+                  from: message.from,
+                  message_id: message.id,
+                  type: msgType,
+                  raw_message: JSON.parse(JSON.stringify(message)),
+                });
+                console.warn(`[Meta Webhook] UNSUPPORTED message type "${msgType}" from ${message.from}. Full payload:`, JSON.stringify(message));
             }
 
             // Persist a stable internal URL by Meta media id.
