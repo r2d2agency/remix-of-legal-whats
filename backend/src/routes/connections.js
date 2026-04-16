@@ -679,5 +679,147 @@ router.get('/:id/webhook-config', async (req, res) => {
   }
 });
 
+// ============================================================
+// AI AGENTS ASSIGNED TO A CONNECTION (always-on selector)
+// Returns regular agents (ai_agent_connections) + global agent activations
+// ============================================================
+router.get('/:id/ai-agents', async (req, res) => {
+  try {
+    const userOrg = await getUserOrganization(req.userId);
+    if (!userOrg) return res.status(403).json({ error: 'Sem organização' });
+
+    const connCheck = await query(
+      `SELECT id FROM connections WHERE id = $1 AND organization_id = $2`,
+      [req.params.id, userOrg.organization_id]
+    );
+    if (connCheck.rows.length === 0) return res.status(404).json({ error: 'Conexão não encontrada' });
+
+    let regular = [];
+    try {
+      const r = await query(`
+        SELECT ac.id as link_id, ac.mode, ac.is_active, a.id as agent_id, a.name, a.is_active as agent_active,
+               'regular' as kind
+        FROM ai_agent_connections ac
+        JOIN ai_agents a ON a.id = ac.agent_id
+        WHERE ac.connection_id = $1 AND a.organization_id = $2
+        ORDER BY ac.priority DESC
+      `, [req.params.id, userOrg.organization_id]);
+      regular = r.rows;
+    } catch { /* table may not exist */ }
+
+    let globals = [];
+    try {
+      const g = await query(`
+        SELECT act.id as link_id, act.schedule_mode as mode, act.is_active,
+               ga.id as agent_id, ga.name, ga.is_active as agent_active,
+               'global' as kind
+        FROM global_agent_activations act
+        JOIN global_ai_agents ga ON ga.id = act.global_agent_id
+        WHERE act.connection_id = $1 AND act.organization_id = $2
+        ORDER BY act.created_at ASC
+      `, [req.params.id, userOrg.organization_id]);
+      globals = g.rows;
+    } catch { /* table may not exist */ }
+
+    res.json([...regular, ...globals]);
+  } catch (err) {
+    console.error('connection ai-agents list error:', err);
+    res.status(500).json({ error: 'Erro ao listar agentes da conexão' });
+  }
+});
+
+router.get('/:id/ai-agents/available', async (req, res) => {
+  try {
+    const userOrg = await getUserOrganization(req.userId);
+    if (!userOrg) return res.status(403).json({ error: 'Sem organização' });
+
+    let regular = [];
+    try {
+      const r = await query(
+        `SELECT id, name, 'regular' as kind FROM ai_agents 
+         WHERE organization_id = $1 AND is_active = true ORDER BY name`,
+        [userOrg.organization_id]
+      );
+      regular = r.rows;
+    } catch { /* ignore */ }
+
+    let globals = [];
+    try {
+      const g = await query(`
+        SELECT ga.id, ga.name, 'global' as kind 
+        FROM global_ai_agents ga
+        JOIN global_agent_org_assignments gaa ON gaa.global_agent_id = ga.id
+        WHERE gaa.organization_id = $1 AND ga.is_active = true
+        ORDER BY ga.name
+      `, [userOrg.organization_id]);
+      globals = g.rows;
+    } catch { /* ignore */ }
+
+    res.json([...regular, ...globals]);
+  } catch (err) {
+    console.error('available ai-agents error:', err);
+    res.status(500).json({ error: 'Erro ao listar agentes disponíveis' });
+  }
+});
+
+router.post('/:id/ai-agents', async (req, res) => {
+  try {
+    const userOrg = await getUserOrganization(req.userId);
+    if (!userOrg) return res.status(403).json({ error: 'Sem organização' });
+
+    const { agent_id, kind } = req.body || {};
+    if (!agent_id || !['regular', 'global'].includes(kind)) {
+      return res.status(400).json({ error: 'agent_id e kind (regular|global) são obrigatórios' });
+    }
+
+    const connCheck = await query(
+      `SELECT id FROM connections WHERE id = $1 AND organization_id = $2`,
+      [req.params.id, userOrg.organization_id]
+    );
+    if (connCheck.rows.length === 0) return res.status(404).json({ error: 'Conexão não encontrada' });
+
+    if (kind === 'regular') {
+      const result = await query(`
+        INSERT INTO ai_agent_connections (agent_id, connection_id, mode, priority, is_active)
+        VALUES ($1, $2, 'always', 10, true)
+        ON CONFLICT (agent_id, connection_id) DO UPDATE SET 
+          mode = 'always', is_active = true, priority = 10
+        RETURNING id
+      `, [agent_id, req.params.id]);
+      return res.status(201).json({ link_id: result.rows[0].id, kind: 'regular' });
+    } else {
+      const result = await query(`
+        INSERT INTO global_agent_activations (
+          global_agent_id, organization_id, connection_id, is_active, schedule_mode, activated_by
+        ) VALUES ($1, $2, $3, true, 'always', $4)
+        ON CONFLICT (global_agent_id, connection_id) DO UPDATE SET 
+          is_active = true, schedule_mode = 'always'
+        RETURNING id
+      `, [agent_id, userOrg.organization_id, req.params.id, req.userId]);
+      return res.status(201).json({ link_id: result.rows[0].id, kind: 'global' });
+    }
+  } catch (err) {
+    console.error('assign agent to connection error:', err);
+    res.status(500).json({ error: 'Erro ao atribuir agente', details: err.message });
+  }
+});
+
+router.delete('/:id/ai-agents/:linkId', async (req, res) => {
+  try {
+    const { kind } = req.query;
+    if (kind === 'regular') {
+      await query(`DELETE FROM ai_agent_connections WHERE id = $1 AND connection_id = $2`,
+        [req.params.linkId, req.params.id]);
+    } else {
+      await query(`DELETE FROM global_agent_activations WHERE id = $1 AND connection_id = $2`,
+        [req.params.linkId, req.params.id]);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('remove agent from connection error:', err);
+    res.status(500).json({ error: 'Erro ao remover agente' });
+  }
+});
+
 export default router;
 
