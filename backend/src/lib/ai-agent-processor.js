@@ -104,18 +104,32 @@ async function processMessageInternal({
   messageContent, messageType, mediaUrl, mediaMimetype, mediaFilename,
 }) {
   try {
+    logInfo('ai_agent_processor.message_received', {
+      connectionId: connection?.id,
+      connectionName: connection?.name,
+      conversationId,
+      contactPhone,
+      messageType,
+      hasMedia: !!mediaUrl,
+      contentPreview: typeof messageContent === 'string' ? messageContent.substring(0, 80) : null,
+    });
     // Supported message types
     const supportedTypes = ['text', 'image', 'audio', 'video', 'document', 'sticker'];
     if (!supportedTypes.includes(messageType)) {
+      logInfo('ai_agent_processor.unsupported_message_type', { conversationId, messageType });
       return { handled: false };
     }
     // Need at least content or media
     if (!messageContent && !mediaUrl && messageType === 'text') {
+      logInfo('ai_agent_processor.empty_message_skipped', { conversationId });
       return { handled: false };
     }
 
     const organizationId = connection.organization_id;
-    if (!organizationId) return { handled: false };
+    if (!organizationId) {
+      logInfo('ai_agent_processor.no_organization_on_connection', { connectionId: connection?.id });
+      return { handled: false };
+    }
 
     // 1. Check for active session first
     let session = await getActiveSession(conversationId);
@@ -137,6 +151,7 @@ async function processMessageInternal({
     }
 
     // 2. If no active session, check if an agent is linked to this connection
+    let preloadedAgent = null; // keep reference for global agents (they don't live in ai_agents)
     if (!session) {
       let agent = await findAgentForConnection(connection.id, messageContent);
       let agentSource = 'regular';
@@ -167,6 +182,7 @@ async function processMessageInternal({
         contactPhone,
       });
 
+      preloadedAgent = agent;
       // Create a new session
       session = await createSession(agent.id, conversationId, contactPhone, contactName);
       session._isNewSession = true;
@@ -208,19 +224,35 @@ async function processMessageInternal({
       }
     }
 
-    // 3. Load the agent
-    const agentResult = await query(
-      `SELECT * FROM ai_agents WHERE id = $1 AND is_active = true`,
-      [session.agent_id]
-    );
-
-    if (agentResult.rows.length === 0) {
-      // Agent was deactivated, end session
-      await endSession(session.id, 'agent_deactivated');
-      return { handled: false };
+    // 3. Load the agent (regular first, fall back to global agent if not found)
+    let agent;
+    if (preloadedAgent) {
+      // Use the agent we already resolved (preserves _isGlobalAgent + injected system_prompt)
+      agent = preloadedAgent;
+    } else {
+      const agentResult = await query(
+        `SELECT * FROM ai_agents WHERE id = $1 AND is_active = true`,
+        [session.agent_id]
+      );
+      if (agentResult.rows.length > 0) {
+        agent = agentResult.rows[0];
+      } else {
+        // Session may belong to a global agent — re-resolve from the connection
+        const globalAgent = await findGlobalAgentForConnection(connection.id);
+        if (globalAgent && globalAgent.id === session.agent_id) {
+          agent = globalAgent;
+          logInfo('ai_agent_processor.global_agent_reloaded', {
+            sessionId: session.id, agentId: globalAgent.id, agentName: globalAgent.name,
+          });
+        } else {
+          logInfo('ai_agent_processor.agent_not_found_ending_session', {
+            sessionId: session.id, agentId: session.agent_id,
+          });
+          await endSession(session.id, 'agent_deactivated');
+          return { handled: false };
+        }
+      }
     }
-
-    const agent = agentResult.rows[0];
 
     // 4. Check handoff keywords (only for text messages)
     const handoffKeywords = parseArray(agent.handoff_keywords, ['humano', 'atendente', 'pessoa']);
