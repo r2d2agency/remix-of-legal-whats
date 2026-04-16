@@ -103,4 +103,103 @@ router.delete('/events', (req, res) => {
   res.json({ cleared: true });
 });
 
+/**
+ * Helper: carrega conexão UAZAPI por id
+ */
+async function loadUazapiConnection(connectionId) {
+  const r = await query(
+    `SELECT * FROM connections WHERE id = $1 AND provider = 'uazapi' LIMIT 1`,
+    [connectionId]
+  );
+  return r.rows[0] || null;
+}
+
+/**
+ * Lista chats sincronizados pela instância UAZAPI
+ * GET /api/uazapi/:connectionId/chats?limit=200
+ */
+router.get('/:connectionId/chats', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const out = await uazapiProvider.syncChats(conn.uazapi_url, conn.uazapi_token, {
+      limit: Number(req.query.limit) || 200,
+    });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * Sincroniza mensagens de um chat (UAZAPI)
+ * POST /api/uazapi/:connectionId/sync-messages  body: { chatId, limit? }
+ */
+router.post('/:connectionId/sync-messages', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const { chatId, limit } = req.body || {};
+    if (!chatId) return res.status(400).json({ error: 'chatId obrigatório' });
+    const out = await uazapiProvider.syncMessages(conn.uazapi_url, conn.uazapi_token, chatId, {
+      limit: Number(limit) || 100,
+    });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * Envia BOTÕES interativos (UAZAPI exclusivo)
+ */
+router.post('/:connectionId/send-buttons', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const { phone, text, buttons, footer, header } = req.body || {};
+    if (!phone || !text || !Array.isArray(buttons)) {
+      return res.status(400).json({ error: 'phone, text e buttons[] são obrigatórios' });
+    }
+    const out = await uazapiProvider.sendButtons(conn.uazapi_url, conn.uazapi_token, phone, text, buttons, { footer, header });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * Envia LISTA interativa (UAZAPI exclusivo)
+ */
+router.post('/:connectionId/send-list', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const { phone, text, options, buttonText, footer, sections } = req.body || {};
+    if (!phone || !text) return res.status(400).json({ error: 'phone e text são obrigatórios' });
+    const out = await uazapiProvider.sendList(conn.uazapi_url, conn.uazapi_token, phone, text, options || [], { buttonText, footer, sections });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * Envia ENQUETE (poll) (UAZAPI exclusivo)
+ */
+router.post('/:connectionId/send-poll', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const { phone, question, options, multiSelect } = req.body || {};
+    if (!phone || !question || !Array.isArray(options) || options.length < 2) {
+      return res.status(400).json({ error: 'phone, question e ao menos 2 options são obrigatórios' });
+    }
+    const out = await uazapiProvider.sendPoll(conn.uazapi_url, conn.uazapi_token, phone, question, options, { multiSelect: !!multiSelect });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;

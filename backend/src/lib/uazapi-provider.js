@@ -324,6 +324,128 @@ export async function sendPresenceComposing(baseUrl, token, phone) {
 }
 
 /**
+ * Envia menu interativo de BOTÕES (até 3)
+ * UAZAPI: POST /send/menu  { type: 'button', text, choices: ['Sim','Não'], footerText? }
+ */
+export async function sendButtons(baseUrl, token, phone, text, buttons, { footer, header } = {}) {
+  // buttons: array de strings OU objetos { id, label }
+  const choices = (buttons || []).map((b) => (typeof b === 'string' ? b : (b.label || b.text || b.id))).filter(Boolean).slice(0, 3);
+  if (!choices.length) {
+    return { success: false, error: 'Nenhum botão informado' };
+  }
+  const body = {
+    number: normalizePhone(phone),
+    type: 'button',
+    text,
+    choices,
+  };
+  if (footer) body.footerText = footer;
+  if (header) body.headerText = header;
+
+  const r = await uazapiFetch(baseUrl, '/send/menu', { method: 'POST', token, body });
+  if (!r.ok) return { success: false, error: r.data?.error || r.data?.message || `HTTP ${r.status}` };
+  return { success: true, messageId: r.data?.id || r.data?.messageId || r.data?.key?.id || null };
+}
+
+/**
+ * Envia LISTA interativa
+ * UAZAPI: POST /send/menu  { type: 'list', text, choices: ['Op1','Op2'], buttonText, footerText? }
+ *
+ * Aceita também formato seccionado:
+ *   sections: [{ title, rows: [{ id, title, description }] }]
+ */
+export async function sendList(baseUrl, token, phone, text, options, { buttonText = 'Ver opções', footer, sections } = {}) {
+  const body = {
+    number: normalizePhone(phone),
+    type: 'list',
+    text,
+    buttonText,
+  };
+  if (footer) body.footerText = footer;
+
+  if (Array.isArray(sections) && sections.length) {
+    // Concatena todas as rows como choices em formato "title|description"
+    const choices = [];
+    sections.forEach((sec) => {
+      (sec.rows || []).forEach((row) => {
+        const label = row.title || row.label;
+        const desc = row.description ? ` - ${row.description}` : '';
+        if (label) choices.push(`${label}${desc}`);
+      });
+    });
+    body.choices = choices;
+    body.sections = sections;
+  } else {
+    body.choices = (options || []).map((o) => (typeof o === 'string' ? o : (o.label || o.title))).filter(Boolean);
+  }
+
+  if (!body.choices?.length) {
+    return { success: false, error: 'Nenhuma opção informada para a lista' };
+  }
+
+  const r = await uazapiFetch(baseUrl, '/send/menu', { method: 'POST', token, body });
+  if (!r.ok) return { success: false, error: r.data?.error || r.data?.message || `HTTP ${r.status}` };
+  return { success: true, messageId: r.data?.id || r.data?.messageId || r.data?.key?.id || null };
+}
+
+/**
+ * Envia ENQUETE (poll)
+ * UAZAPI: POST /send/menu  { type: 'poll', text, choices: [...], selectableCount? }
+ */
+export async function sendPoll(baseUrl, token, phone, question, options, { multiSelect = false } = {}) {
+  const choices = (options || []).map((o) => (typeof o === 'string' ? o : (o.label || o.text))).filter(Boolean);
+  if (choices.length < 2) {
+    return { success: false, error: 'Enquete requer ao menos 2 opções' };
+  }
+
+  const body = {
+    number: normalizePhone(phone),
+    type: 'poll',
+    text: question,
+    choices,
+    selectableCount: multiSelect ? choices.length : 1,
+  };
+
+  const r = await uazapiFetch(baseUrl, '/send/menu', { method: 'POST', token, body });
+  if (!r.ok) return { success: false, error: r.data?.error || r.data?.message || `HTTP ${r.status}` };
+  return { success: true, messageId: r.data?.id || r.data?.messageId || r.data?.key?.id || null };
+}
+
+/**
+ * Sincroniza CHATS da instância (lista de conversas existentes)
+ * UAZAPI: POST /chat/find
+ */
+export async function syncChats(baseUrl, token, { limit = 200, onlyGroups, onlyContacts } = {}) {
+  const body = { limit };
+  if (onlyGroups) body.onlyGroups = true;
+  if (onlyContacts) body.onlyContacts = true;
+
+  const r = await uazapiFetch(baseUrl, '/chat/find', { method: 'POST', token, body, timeout: 30000 });
+  if (!r.ok) return { success: false, error: r.data?.error || `HTTP ${r.status}`, chats: [] };
+  const chats = Array.isArray(r.data) ? r.data : (r.data?.chats || r.data?.data || []);
+  return { success: true, chats };
+}
+
+/**
+ * Sincroniza MENSAGENS de um chat específico (histórico)
+ * UAZAPI: POST /message/find
+ *
+ * @param {string} chatId - JID do chat (ex: 5511999999999@s.whatsapp.net)
+ */
+export async function syncMessages(baseUrl, token, chatId, { limit = 100, fromMe } = {}) {
+  const body = {
+    chatid: chatId,
+    limit,
+  };
+  if (typeof fromMe === 'boolean') body.fromMe = fromMe;
+
+  const r = await uazapiFetch(baseUrl, '/message/find', { method: 'POST', token, body, timeout: 30000 });
+  if (!r.ok) return { success: false, error: r.data?.error || `HTTP ${r.status}`, messages: [] };
+  const messages = Array.isArray(r.data) ? r.data : (r.data?.messages || r.data?.data || []);
+  return { success: true, messages };
+}
+
+/**
  * Sender unificado (compatível com whatsapp-provider.js)
  */
 export async function sendMessage(baseUrl, token, phone, content, messageType, mediaUrl) {

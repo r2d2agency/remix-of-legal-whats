@@ -1,5 +1,6 @@
 import { query } from './db.js';
 import * as whatsappProvider from './lib/whatsapp-provider.js';
+import * as uazapiProvider from './lib/uazapi-provider.js';
 import { executeFlow } from './lib/flow-executor.js';
 // Translation map for common Evolution API errors
 const errorTranslations = {
@@ -79,16 +80,53 @@ async function sendWhatsAppMessage(connection, phone, messageItems, contact) {
       // Replace variables in content
       const processedContent = replaceVariables(item.content || item.caption, contact);
 
-      const result = await whatsappProvider.sendMessage(
-        connection,
-        remoteJid,
-        processedContent,
-        item.type,
-        mediaUrl
-      );
+      let result;
+
+      // UAZAPI exclusive interactive types
+      if (item.type === 'buttons' || item.type === 'list' || item.type === 'poll') {
+        const provider = whatsappProvider.detectProvider(connection);
+        if (provider !== 'uazapi') {
+          result = { success: false, error: `Tipo "${item.type}" requer conexão UAZAPI` };
+        } else if (item.type === 'buttons') {
+          result = await uazapiProvider.sendButtons(
+            connection.uazapi_url,
+            connection.uazapi_token,
+            phone,
+            processedContent || '',
+            (item.options || []).map((o) => o.label),
+            { footer: item.footer }
+          );
+        } else if (item.type === 'list') {
+          result = await uazapiProvider.sendList(
+            connection.uazapi_url,
+            connection.uazapi_token,
+            phone,
+            processedContent || '',
+            (item.options || []).map((o) => o.label),
+            { buttonText: item.buttonText || 'Ver opções', footer: item.footer }
+          );
+        } else {
+          result = await uazapiProvider.sendPoll(
+            connection.uazapi_url,
+            connection.uazapi_token,
+            phone,
+            processedContent || '',
+            (item.options || []).map((o) => o.label),
+            { multiSelect: !!item.multiSelect }
+          );
+        }
+      } else {
+        result = await whatsappProvider.sendMessage(
+          connection,
+          remoteJid,
+          processedContent,
+          item.type,
+          mediaUrl
+        );
+      }
 
       results.push({ success: result.success, item, error: result.error, messageId: result.messageId });
-      
+
       // Small delay between items of same message
       if (expandedItems.length > 1) {
         await new Promise(resolve => setTimeout(resolve, 1500));
@@ -123,6 +161,7 @@ export async function executeCampaignMessages() {
     const runningCampaigns = await query(`
       SELECT DISTINCT c.id, c.name, c.connection_id, 
              conn.status as connection_status, conn.instance_id, conn.wapi_token, conn.provider,
+             conn.uazapi_url, conn.uazapi_token,
              conn.name as connection_name
       FROM campaigns c
       JOIN connections conn ON conn.id = c.connection_id
@@ -205,6 +244,8 @@ export async function executeCampaignMessages() {
         conn.instance_name,
         conn.instance_id,
         conn.wapi_token,
+        conn.uazapi_url,
+        conn.uazapi_token,
         conn.status as connection_status,
         mt.items as message_items,
         co.name as contact_name,
@@ -217,7 +258,7 @@ export async function executeCampaignMessages() {
       LEFT JOIN contacts co ON co.id = cm.contact_id
       WHERE cm.status = 'pending'
         AND c.status = 'running'
-        AND (conn.status = 'connected' OR (conn.instance_id IS NOT NULL AND conn.wapi_token IS NOT NULL))
+        AND (conn.status = 'connected' OR (conn.instance_id IS NOT NULL AND conn.wapi_token IS NOT NULL) OR (conn.uazapi_url IS NOT NULL AND conn.uazapi_token IS NOT NULL))
         AND cm.scheduled_at <= NOW()
       ORDER BY cm.scheduled_at ASC
       LIMIT 50
