@@ -161,6 +161,7 @@ export async function executeCampaignMessages() {
     const runningCampaigns = await query(`
       SELECT DISTINCT c.id, c.name, c.connection_id, 
              conn.status as connection_status, conn.instance_id, conn.wapi_token, conn.provider,
+             conn.uazapi_url, conn.uazapi_token,
              conn.name as connection_name
       FROM campaigns c
       JOIN connections conn ON conn.id = c.connection_id
@@ -243,6 +244,8 @@ export async function executeCampaignMessages() {
         conn.instance_name,
         conn.instance_id,
         conn.wapi_token,
+        conn.uazapi_url,
+        conn.uazapi_token,
         conn.status as connection_status,
         mt.items as message_items,
         co.name as contact_name,
@@ -255,7 +258,7 @@ export async function executeCampaignMessages() {
       LEFT JOIN contacts co ON co.id = cm.contact_id
       WHERE cm.status = 'pending'
         AND c.status = 'running'
-        AND (conn.status = 'connected' OR (conn.instance_id IS NOT NULL AND conn.wapi_token IS NOT NULL))
+        AND (conn.status = 'connected' OR (conn.instance_id IS NOT NULL AND conn.wapi_token IS NOT NULL) OR (conn.uazapi_url IS NOT NULL AND conn.uazapi_token IS NOT NULL))
         AND cm.scheduled_at <= NOW()
       ORDER BY cm.scheduled_at ASC
       LIMIT 50
