@@ -202,4 +202,136 @@ router.post('/:connectionId/send-poll', async (req, res) => {
   }
 });
 
+/**
+ * Lista contatos do celular sincronizados pelo WhatsApp (UAZAPI)
+ * GET /api/uazapi/:connectionId/contacts?search=&limit=
+ */
+router.get('/:connectionId/contacts', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const out = await uazapiProvider.listContacts(conn.uazapi_url, conn.uazapi_token, {
+      limit: Number(req.query.limit) || undefined,
+      search: req.query.search || undefined,
+    });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * Importa contatos do celular UAZAPI para uma lista do sistema
+ * POST /api/uazapi/:connectionId/sync-contacts-to-list
+ * body: { listId, onlyMyContacts?, search? }
+ */
+router.post('/:connectionId/sync-contacts-to-list', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const { listId, onlyMyContacts = true, search } = req.body || {};
+    if (!listId) return res.status(400).json({ error: 'listId obrigatório' });
+
+    // Verifica se a lista pertence ao usuário/org
+    const listCheck = await query(`SELECT id, user_id FROM contact_lists WHERE id = $1 LIMIT 1`, [listId]);
+    if (!listCheck.rows.length) return res.status(404).json({ error: 'Lista não encontrada' });
+
+    const out = await uazapiProvider.listContacts(conn.uazapi_url, conn.uazapi_token, { search });
+    if (!out.success) return res.status(502).json(out);
+
+    const filtered = onlyMyContacts ? out.contacts.filter((c) => c.isMyContact) : out.contacts;
+
+    let imported = 0;
+    let duplicates = 0;
+    for (const c of filtered) {
+      try {
+        const exists = await query(
+          `SELECT id FROM contacts WHERE list_id = $1 AND phone = $2 LIMIT 1`,
+          [listId, c.phone]
+        );
+        if (exists.rows.length) {
+          duplicates++;
+          continue;
+        }
+        await query(
+          `INSERT INTO contacts (list_id, name, phone, is_whatsapp) VALUES ($1, $2, $3, true)`,
+          [listId, c.name || c.phone, c.phone]
+        );
+        imported++;
+      } catch {
+        // ignora erros individuais
+      }
+    }
+    res.json({ success: true, total: filtered.length, imported, duplicates });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * SENDER - Cria campanha de disparo em massa nativa UAZAPI
+ * POST /api/uazapi/:connectionId/sender
+ * body: { numbers[], type, text?, file?, delayMin?, delayMax?, scheduled_for?, info?, docName? }
+ */
+router.post('/:connectionId/sender', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const out = await uazapiProvider.senderCreate(conn.uazapi_url, conn.uazapi_token, req.body || {});
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * SENDER - Lista pastas/campanhas
+ */
+router.get('/:connectionId/sender/folders', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const out = await uazapiProvider.senderListFolders(conn.uazapi_url, conn.uazapi_token);
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * SENDER - Lista mensagens de uma pasta
+ */
+router.get('/:connectionId/sender/folders/:folderId/messages', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const out = await uazapiProvider.senderListMessages(conn.uazapi_url, conn.uazapi_token, req.params.folderId, {
+      status: req.query.status || undefined,
+      limit: Number(req.query.limit) || 500,
+    });
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * SENDER - Pause/Resume/Stop/Delete uma pasta
+ * POST /api/uazapi/:connectionId/sender/folders/:folderId/action  body: { action }
+ */
+router.post('/:connectionId/sender/folders/:folderId/action', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const { action } = req.body || {};
+    if (!['play', 'pause', 'stop', 'delete'].includes(action)) {
+      return res.status(400).json({ error: 'action deve ser play|pause|stop|delete' });
+    }
+    const out = await uazapiProvider.senderEdit(conn.uazapi_url, conn.uazapi_token, req.params.folderId, action);
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
