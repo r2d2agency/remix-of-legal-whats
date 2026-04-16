@@ -202,7 +202,9 @@ export function MessageItemEditor({
       </div>
 
       {/* Content based on type */}
-      {item.type === "text" ? (
+      {isInteractive(item.type) ? (
+        <InteractiveEditor item={item} onUpdate={onUpdate} />
+      ) : item.type === "text" ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label className="text-xs text-muted-foreground">Mensagem de texto</Label>
