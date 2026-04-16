@@ -94,6 +94,11 @@ const Contatos = () => {
   const [selectedSyncConnectionId, setSelectedSyncConnectionId] = useState("");
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
   const [allConnections, setAllConnections] = useState<SyncConnection[]>([]);
+  // UAZAPI native phone-contacts sync
+  const [uazapiConnections, setUazapiConnections] = useState<SyncConnection[]>([]);
+  const [selectedUazapiConnId, setSelectedUazapiConnId] = useState<string>("");
+  const [uazapiSyncing, setUazapiSyncing] = useState(false);
+  const [uazapiTargetListId, setUazapiTargetListId] = useState<string>("");
 
   // Load connected W-API connections
   useEffect(() => {
@@ -108,14 +113,55 @@ const Contatos = () => {
         setSyncConnections(connectedWapi);
         setWapiConnectionId(connectedWapi[0]?.id || null);
         setSelectedSyncConnectionId((prev) => prev || connectedWapi[0]?.id || "");
+
+        const uaz = connections.filter(
+          (c) => String(c.provider || '').toLowerCase() === 'uazapi' && c.status === 'connected'
+        );
+        setUazapiConnections(uaz);
+        setSelectedUazapiConnId((prev) => prev || uaz[0]?.id || "");
       } catch {
         setSyncConnections([]);
         setAllConnections([]);
+        setUazapiConnections([]);
       }
     };
 
     loadConnections();
   }, []);
+
+  const handleSyncUazapiContacts = async () => {
+    if (!selectedUazapiConnId) {
+      toast.error("Selecione uma conexão UAZAPI");
+      return;
+    }
+    if (!uazapiTargetListId) {
+      toast.error("Selecione a lista de destino");
+      return;
+    }
+    setUazapiSyncing(true);
+    try {
+      const res = await api<{ success: boolean; total?: number; imported?: number; duplicates?: number; error?: string }>(
+        `/api/uazapi/${selectedUazapiConnId}/sync-contacts-to-list`,
+        {
+          method: 'POST',
+          body: { listId: uazapiTargetListId, onlyMyContacts: true },
+        }
+      );
+      if (!res.success) {
+        toast.error(res.error || "Falha ao sincronizar");
+      } else {
+        toast.success(
+          `Sincronização concluída: ${res.imported} novos, ${res.duplicates} já existentes (de ${res.total} contatos da agenda)`
+        );
+        if (selectedList === uazapiTargetListId) loadContacts(uazapiTargetListId);
+        loadLists();
+      }
+    } catch (err) {
+      toast.error("Erro ao sincronizar contatos UAZAPI");
+    } finally {
+      setUazapiSyncing(false);
+    }
+  };
 
   // Load lists on mount and when connection filter changes
   useEffect(() => {
