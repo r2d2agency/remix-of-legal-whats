@@ -24,7 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 interface Connection {
   id: string;
   name: string;
-  provider?: 'evolution' | 'wapi' | 'meta';
+  provider?: 'evolution' | 'wapi' | 'meta' | 'uazapi';
   instance_name: string;
   instance_id?: string;
   status: string;
@@ -50,7 +50,7 @@ const Conexao = () => {
   const [creating, setCreating] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newConnectionName, setNewConnectionName] = useState("");
-  const [newConnectionProvider, setNewConnectionProvider] = useState<'wapi' | 'meta'>('wapi');
+  const [newConnectionProvider, setNewConnectionProvider] = useState<'wapi' | 'meta' | 'uazapi'>('wapi');
   const [newConnectionInstanceId, setNewConnectionInstanceId] = useState("");
   const [newConnectionWapiToken, setNewConnectionWapiToken] = useState("");
   const [newMetaToken, setNewMetaToken] = useState("");
@@ -209,6 +209,17 @@ const Conexao = () => {
           },
         });
         toast.success('Conexão Meta API criada com sucesso!');
+      } else if (newConnectionProvider === 'uazapi') {
+        result = await api<Connection>('/api/connections', {
+          method: 'POST',
+          body: {
+            provider: 'uazapi',
+            name: newConnectionName,
+          },
+        });
+        toast.success('Conexão UAZAPI criada! Instância gerada automaticamente.');
+        setSelectedConnection(result);
+        handleGetQRCode(result);
       } else {
         result = await api<Connection>('/api/connections', {
           method: 'POST',
@@ -873,12 +884,13 @@ const handleGetQRCode = async (connection: Connection) => {
                 {/* Provider Selection */}
                 <div className="space-y-2">
                   <Label>Tipo de Conexão</Label>
-                  <Select value={newConnectionProvider} onValueChange={(v: 'wapi' | 'meta') => setNewConnectionProvider(v)}>
+                  <Select value={newConnectionProvider} onValueChange={(v: 'wapi' | 'meta' | 'uazapi') => setNewConnectionProvider(v)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="wapi">W-API (WhatsApp não-oficial)</SelectItem>
+                      <SelectItem value="uazapi">UAZAPI (WhatsApp não-oficial)</SelectItem>
                       <SelectItem value="meta">Meta Cloud API (Oficial)</SelectItem>
                     </SelectContent>
                   </Select>
@@ -898,6 +910,12 @@ const handleGetQRCode = async (connection: Connection) => {
                   <div className="rounded-lg border border-dashed p-3 bg-muted/30">
                     <p className="text-xs text-muted-foreground">
                       💡 A instância será criada automaticamente usando o token W-API configurado nas <strong>Configurações da Organização</strong>.
+                    </p>
+                  </div>
+                ) : newConnectionProvider === 'uazapi' ? (
+                  <div className="rounded-lg border border-dashed p-3 bg-muted/30">
+                    <p className="text-xs text-muted-foreground">
+                      💡 A instância UAZAPI será criada automaticamente usando a URL e admintoken configurados no <strong>painel Superadmin</strong>. Após criar, escaneie o QR Code para conectar.
                     </p>
                   </div>
                 ) : (
