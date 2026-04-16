@@ -368,6 +368,25 @@ app.delete('/api/meta/webhook-log', async (req, res) => {
   res.json({ success: true, removed: previousLength - metaWebhookLog.length });
 });
 
+// GET: Meta unsupported message types log (filtered view)
+app.get('/api/meta/unsupported-log', async (req, res) => {
+  const rawLimit = parseInt(req.query.limit, 10);
+  const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 100, 1), MAX_META_LOG);
+  const connectionId = typeof req.query.connectionId === 'string' && req.query.connectionId.trim()
+    ? req.query.connectionId.trim()
+    : null;
+
+  const events = metaWebhookLog
+    .filter((entry) => {
+      if (entry.event !== 'unsupported_message_type') return false;
+      if (connectionId && entry.connectionId !== connectionId) return false;
+      return true;
+    })
+    .slice(0, limit);
+
+  res.json({ events, total: events.length });
+});
+
 // POST: Meta webhook incoming messages
 app.post('/api/meta/webhook', async (req, res) => {
   const body = req.body;
@@ -607,6 +626,16 @@ app.post('/api/meta/webhook', async (req, res) => {
                 break;
               default:
                 content = `[${msgType}]`;
+                // Log full payload for unsupported types so we can diagnose what Meta sent
+                logMetaEvent('unsupported_message_type', {
+                  request_id: req.requestId || null,
+                  connection_id: connection.id,
+                  from: message.from,
+                  message_id: message.id,
+                  type: msgType,
+                  raw_message: JSON.parse(JSON.stringify(message)),
+                });
+                console.warn(`[Meta Webhook] UNSUPPORTED message type "${msgType}" from ${message.from}. Full payload:`, JSON.stringify(message));
             }
 
             // Persist a stable internal URL by Meta media id.
