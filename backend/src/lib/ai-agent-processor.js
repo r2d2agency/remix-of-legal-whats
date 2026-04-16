@@ -350,12 +350,25 @@ async function processMessageInternal({
 
     if (tools.length > 0) {
       const toolExecutor = createToolExecutor(organizationId, userId, agent);
+      logInfo('ai_agent_processor.tools_registered', {
+        sessionId: session.id,
+        agentId: agent.id,
+        agentName: agent.name,
+        toolNames: tools.map(t => t.function?.name || 'unknown'),
+        capabilities,
+      });
       result = await callAIWithTools(aiConfig, messages, {
         temperature: parseFloat(agent.temperature) || 0.7,
         maxTokens: parseInt(agent.max_tokens, 10) || 1000,
         tools,
-      }, toolExecutor);
+      }, toolExecutor, 8);
       toolCallsExecuted = result.toolCallsExecuted || [];
+      logInfo('ai_agent_processor.tools_finished', {
+        sessionId: session.id,
+        agentId: agent.id,
+        toolCallsCount: toolCallsExecuted.length,
+        toolsUsed: toolCallsExecuted.map(t => t.name),
+      });
     } else {
       result = await callAI(aiConfig, messages, {
         temperature: parseFloat(agent.temperature) || 0.7,
