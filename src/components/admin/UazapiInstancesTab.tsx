@@ -11,7 +11,7 @@ import { Loader2, Plus, RefreshCw, Trash2, CheckCircle, XCircle, Save, Zap } fro
 const API_URL = import.meta.env.VITE_API_URL || '';
 const getHeaders = () => ({
   'Content-Type': 'application/json',
-  Authorization: `Bearer ${localStorage.getItem('token')}`,
+  Authorization: `Bearer ${localStorage.getItem('auth_token') || ''}`,
 });
 
 interface UazapiInstance {
