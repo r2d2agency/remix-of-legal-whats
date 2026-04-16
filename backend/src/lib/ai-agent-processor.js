@@ -139,13 +139,33 @@ async function processMessageInternal({
     // 2. If no active session, check if an agent is linked to this connection
     if (!session) {
       let agent = await findAgentForConnection(connection.id, messageContent);
+      let agentSource = 'regular';
       
       // 2.1 If no regular agent, check for global agent activations
       if (!agent) {
         agent = await findGlobalAgentForConnection(connection.id);
+        agentSource = agent ? 'global' : 'none';
       }
       
-      if (!agent) return { handled: false };
+      if (!agent) {
+        logInfo('ai_agent_processor.no_agent_for_connection', {
+          connectionId: connection.id,
+          connectionName: connection.name,
+          conversationId,
+          contactPhone,
+          messageType,
+        });
+        return { handled: false };
+      }
+
+      logInfo('ai_agent_processor.agent_resolved_for_connection', {
+        connectionId: connection.id,
+        agentId: agent.id,
+        agentName: agent.name,
+        agentSource,
+        conversationId,
+        contactPhone,
+      });
 
       // Create a new session
       session = await createSession(agent.id, conversationId, contactPhone, contactName);
