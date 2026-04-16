@@ -896,6 +896,18 @@ async function buildSystemPrompt(agent, organizationId, contactName, userMessage
     prompt += `\n\nVocê está conversando com: ${contactName}`;
   }
 
+  // Inject current date/time context (Brasília timezone) — critical for scheduling-aware agents
+  try {
+    const now = new Date();
+    const daysOfWeek = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+    const tz = 'America/Sao_Paulo';
+    const currentDay = daysOfWeek[Number(now.toLocaleString('en-US', { timeZone: tz, weekday: 'long' }) ? new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay() : now.getDay())];
+    const currentDate = now.toLocaleDateString('pt-BR', { timeZone: tz });
+    const currentTime = now.toLocaleTimeString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+    const isoDate = new Date(now.toLocaleString('en-US', { timeZone: tz })).toISOString().slice(0, 10);
+    prompt += `\n\n=== CONTEXTO TEMPORAL ATUAL ===\n- Data de hoje: ${currentDate} (${currentDay})\n- Data ISO (use em ferramentas): ${isoDate}\n- Hora atual: ${currentTime} (horário de Brasília GMT-3)\n- Quando o cliente disser "hoje", "amanhã", "essa semana", calcule a partir desta data.`;
+  } catch { /* ignore */ }
+
   // Add language instruction
   prompt += `\n\nResponda sempre em ${agent.language || 'pt-BR'}.`;
 
