@@ -1819,4 +1819,214 @@ router.post('/wapi/instances', requireSuperadmin, async (req, res) => {
   }
 });
 
+// ============================================
+// UAZAPI INSTANCES MANAGEMENT (Superadmin)
+// https://docs.uazapi.com/
+// ============================================
+
+async function getUazapiConfig() {
+  const r = await query(
+    `SELECT key, value FROM system_settings WHERE key IN ('uazapi_url', 'uazapi_admintoken')`
+  );
+  const cfg = { url: '', admintoken: '' };
+  for (const row of r.rows) {
+    if (row.key === 'uazapi_url') cfg.url = row.value || '';
+    if (row.key === 'uazapi_admintoken') cfg.admintoken = row.value || '';
+  }
+  return cfg;
+}
+
+// Pega config global
+router.get('/uazapi/config', requireSuperadmin, async (req, res) => {
+  try {
+    const cfg = await getUazapiConfig();
+    res.json({
+      url: cfg.url || '',
+      admintoken: cfg.admintoken ? '••••••••' + cfg.admintoken.slice(-4) : '',
+      hasToken: Boolean(cfg.admintoken),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Salva config global
+router.put('/uazapi/config', requireSuperadmin, async (req, res) => {
+  try {
+    const { url, admintoken } = req.body || {};
+    if (url !== undefined) {
+      const clean = String(url || '').trim().replace(/\/+$/, '');
+      await query(
+        `INSERT INTO system_settings (key, value) VALUES ('uazapi_url', $1)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+        [clean]
+      );
+    }
+    if (admintoken !== undefined && admintoken && !String(admintoken).startsWith('••')) {
+      await query(
+        `INSERT INTO system_settings (key, value) VALUES ('uazapi_admintoken', $1)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+        [String(admintoken).trim()]
+      );
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save UAZAPI config error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Valida config (faz uma chamada de teste)
+router.post('/uazapi/validate', requireSuperadmin, async (req, res) => {
+  try {
+    const cfg = await getUazapiConfig();
+    if (!cfg.url || !cfg.admintoken) {
+      return res.json({ valid: false, error: 'URL e admintoken obrigatórios' });
+    }
+
+    const uazapiProvider = await import('../lib/uazapi-provider.js');
+    const result = await uazapiProvider.listInstances(cfg.url, cfg.admintoken);
+    if (result.success) {
+      return res.json({ valid: true, message: `Conexão OK. ${result.instances.length} instância(s) encontrada(s).` });
+    }
+    res.json({ valid: false, error: result.error });
+  } catch (error) {
+    res.status(500).json({ valid: false, error: error.message });
+  }
+});
+
+// Lista instâncias UAZAPI
+router.get('/uazapi/instances', requireSuperadmin, async (req, res) => {
+  try {
+    const cfg = await getUazapiConfig();
+    if (!cfg.url || !cfg.admintoken) {
+      return res.status(400).json({ error: 'UAZAPI não configurado' });
+    }
+    const uazapiProvider = await import('../lib/uazapi-provider.js');
+    const result = await uazapiProvider.listInstances(cfg.url, cfg.admintoken);
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    // Cross reference com connections locais
+    const connResult = await query(`
+      SELECT c.uazapi_token, c.instance_id, c.name as connection_name, c.phone_number,
+             o.id as org_id, o.name as org_name
+      FROM connections c
+      LEFT JOIN organizations o ON o.id = c.organization_id
+      WHERE c.provider = 'uazapi'
+    `);
+    const localMap = {};
+    for (const row of connResult.rows) {
+      const k = row.uazapi_token || row.instance_id;
+      if (k) localMap[k] = row;
+    }
+
+    const enriched = result.instances.map(inst => {
+      const id = inst.id || inst.instanceId || inst.token;
+      const local = localMap[id] || localMap[inst.token];
+      return {
+        ...inst,
+        local: local ? {
+          connectionName: local.connection_name,
+          phoneNumber: local.phone_number,
+          orgId: local.org_id,
+          orgName: local.org_name,
+        } : null,
+      };
+    });
+
+    res.json({ instances: enriched, total: enriched.length });
+  } catch (error) {
+    console.error('List UAZAPI instances error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Cria instância UAZAPI
+router.post('/uazapi/instances', requireSuperadmin, async (req, res) => {
+  try {
+    const { instanceName, webhookUrl } = req.body || {};
+    if (!instanceName) return res.status(400).json({ error: 'instanceName é obrigatório' });
+
+    const cfg = await getUazapiConfig();
+    if (!cfg.url || !cfg.admintoken) {
+      return res.status(400).json({ error: 'UAZAPI não configurado. Configure URL e admintoken primeiro.' });
+    }
+
+    const uazapiProvider = await import('../lib/uazapi-provider.js');
+    const created = await uazapiProvider.createInstance(cfg.url, cfg.admintoken, instanceName);
+
+    // Auto-configura webhook se URL informada
+    let webhooksResult = null;
+    if (webhookUrl && created.token) {
+      try {
+        const wh = await uazapiProvider.configureWebhook(cfg.url, created.token, webhookUrl);
+        webhooksResult = wh;
+      } catch (e) {
+        console.error('UAZAPI auto webhook error:', e);
+      }
+    }
+
+    res.json({ ...created, webhooksResult });
+  } catch (error) {
+    console.error('Create UAZAPI instance error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Status de instância UAZAPI
+router.get('/uazapi/instances/:instanceToken/status', requireSuperadmin, async (req, res) => {
+  try {
+    const { instanceToken } = req.params;
+    const cfg = await getUazapiConfig();
+    if (!cfg.url) return res.status(400).json({ error: 'UAZAPI não configurado' });
+
+    const uazapiProvider = await import('../lib/uazapi-provider.js');
+    const result = await uazapiProvider.checkStatus(cfg.url, instanceToken);
+    res.json({
+      ok: true,
+      connected: result.status === 'connected',
+      status: result.status,
+      phoneNumber: result.phoneNumber,
+      error: result.error || null,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Deleta instância UAZAPI
+router.delete('/uazapi/instances/:instanceToken', requireSuperadmin, async (req, res) => {
+  try {
+    const { instanceToken } = req.params;
+    const cfg = await getUazapiConfig();
+    if (!cfg.url || !cfg.admintoken) return res.status(400).json({ error: 'UAZAPI não configurado' });
+
+    const uazapiProvider = await import('../lib/uazapi-provider.js');
+    const result = await uazapiProvider.deleteInstance(cfg.url, cfg.admintoken, instanceToken, instanceToken);
+    res.json({ success: result.success, data: result.data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Configura webhook de uma instância
+router.put('/uazapi/instances/:instanceToken/webhook', requireSuperadmin, async (req, res) => {
+  try {
+    const { instanceToken } = req.params;
+    const { webhookUrl } = req.body || {};
+    if (!webhookUrl) return res.status(400).json({ error: 'webhookUrl obrigatório' });
+
+    const cfg = await getUazapiConfig();
+    if (!cfg.url) return res.status(400).json({ error: 'UAZAPI não configurado' });
+
+    const uazapiProvider = await import('../lib/uazapi-provider.js');
+    const result = await uazapiProvider.configureWebhook(cfg.url, instanceToken, webhookUrl);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

@@ -166,6 +166,8 @@ router.post('/', async (req, res) => {
       meta_token,
       meta_phone_number_id,
       meta_waba_id,
+      uazapi_url,
+      uazapi_token,
     } = req.body;
 
     const org = await getUserOrganization(req.userId);
@@ -183,6 +185,16 @@ router.post('/', async (req, res) => {
       resolvedToken = settingResult.rows[0]?.value || null;
     }
 
+    // For UAZAPI: resolve config global se não passado
+    let resolvedUazapiUrl = uazapi_url || null;
+    let resolvedUazapiToken = uazapi_token || null;
+    if (provider === 'uazapi') {
+      if (!resolvedUazapiUrl) {
+        const r = await query(`SELECT value FROM system_settings WHERE key = 'uazapi_url'`);
+        resolvedUazapiUrl = r.rows[0]?.value || null;
+      }
+    }
+
     // Validate based on provider
     if (provider === 'meta') {
       if (!meta_token || !meta_phone_number_id || !meta_waba_id) {
@@ -192,6 +204,11 @@ router.post('/', async (req, res) => {
       if (!resolvedToken) {
         return res.status(400).json({ error: 'Token W-API não configurado. Peça ao administrador para configurar o token no painel Superadmin.' });
       }
+    } else if (provider === 'uazapi') {
+      if (!resolvedUazapiUrl) {
+        return res.status(400).json({ error: 'URL UAZAPI não configurada. Configure no painel Superadmin.' });
+      }
+      // Token da instância pode ser criado automaticamente abaixo
     } else {
       if (!api_url || !api_key || !instance_name) {
         return res.status(400).json({ error: 'URL, API Key e nome da instância são obrigatórios' });
@@ -231,7 +248,6 @@ router.post('/', async (req, res) => {
 
         const created = await wapiProvider.createInstance(resolvedToken, instanceName);
         finalInstanceId = created.instanceId;
-        // Usa token retornado pela própria instância quando disponível; fallback para o token global.
         finalToken = created.token || resolvedToken;
         console.log('[W-API] Auto-created instance:', finalInstanceId, 'name:', instanceName);
       } catch (createError) {
@@ -240,12 +256,39 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Auto-create UAZAPI instance se token não foi fornecido
+    if (provider === 'uazapi' && !resolvedUazapiToken) {
+      try {
+        const adminTokenRes = await query(`SELECT value FROM system_settings WHERE key = 'uazapi_admintoken'`);
+        const adminToken = adminTokenRes.rows[0]?.value;
+        if (!adminToken) {
+          return res.status(400).json({ error: 'Admintoken UAZAPI não configurado no painel Superadmin' });
+        }
+        let orgSlug = 'inst';
+        if (org) {
+          const orgData = await query(`SELECT slug FROM organizations WHERE id = $1`, [org.organization_id]);
+          orgSlug = orgData.rows[0]?.slug || 'inst';
+        }
+        const shortId = Date.now().toString(36);
+        const instanceName = `${orgSlug}-${shortId}`;
+
+        const uazapiProvider = await import('../lib/uazapi-provider.js');
+        const created = await uazapiProvider.createInstance(resolvedUazapiUrl, adminToken, instanceName);
+        resolvedUazapiToken = created.token;
+        finalInstanceId = created.instanceId || created.token; // usa id ou token como instance_id
+        console.log('[UAZAPI] Auto-created instance:', finalInstanceId);
+      } catch (createError) {
+        console.error('[UAZAPI] Failed to create instance:', createError);
+        return res.status(400).json({ error: `Erro ao criar instância UAZAPI: ${createError.message}` });
+      }
+    }
+
     // Generate webhook verify token for Meta connections
     const metaWebhookVerifyToken = provider === 'meta' ? crypto.randomBytes(16).toString('hex') : null;
 
     const result = await query(
-      `INSERT INTO connections (user_id, organization_id, provider, api_url, api_key, instance_name, instance_id, wapi_token, name, meta_token, meta_phone_number_id, meta_waba_id, meta_webhook_verify_token)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      `INSERT INTO connections (user_id, organization_id, provider, api_url, api_key, instance_name, instance_id, wapi_token, name, meta_token, meta_phone_number_id, meta_waba_id, meta_webhook_verify_token, uazapi_url, uazapi_token)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
       [
         req.userId, 
         org?.organization_id || null, 
@@ -260,6 +303,8 @@ router.post('/', async (req, res) => {
         meta_phone_number_id || null,
         meta_waba_id || null,
         metaWebhookVerifyToken,
+        provider === 'uazapi' ? resolvedUazapiUrl : null,
+        provider === 'uazapi' ? resolvedUazapiToken : null,
       ]
     );
 

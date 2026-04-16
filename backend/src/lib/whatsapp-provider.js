@@ -3,6 +3,7 @@
 
 import { query } from '../db.js';
 import * as wapiProvider from './wapi-provider.js';
+import * as uazapiProvider from './uazapi-provider.js';
 import { logError, logInfo, logWarn } from '../logger.js';
 
 const globalWapiTokenCache = {
@@ -122,6 +123,11 @@ export function detectProvider(connection) {
     return 'meta';
   }
 
+  // UAZAPI
+  if (provider === 'uazapi' || (connection?.uazapi_url && connection?.uazapi_token)) {
+    return 'uazapi';
+  }
+
   // Direct Instance ID é sempre W-API no sistema atual
   if (connection?.instance_id) {
     return 'wapi';
@@ -143,6 +149,10 @@ export async function checkStatus(connection) {
 
   if (provider === 'meta') {
     return checkMetaStatus(connection);
+  }
+
+  if (provider === 'uazapi') {
+    return uazapiProvider.checkStatus(connection.uazapi_url, connection.uazapi_token);
   }
 
   if (provider === 'wapi') {
@@ -230,6 +240,10 @@ export async function getQRCode(connection) {
     return null;
   }
 
+  if (provider === 'uazapi') {
+    return uazapiProvider.getQRCode(connection.uazapi_url, connection.uazapi_token);
+  }
+
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
     return wapiProvider.getQRCode(connection.instance_id, resolvedToken);
@@ -266,6 +280,10 @@ export async function disconnect(connection) {
     // Meta Cloud API: just mark as disconnected in DB
     await query('UPDATE connections SET status = $1, updated_at = NOW() WHERE id = $2', ['disconnected', connection.id]);
     return true;
+  }
+
+  if (provider === 'uazapi') {
+    return uazapiProvider.disconnect(connection.uazapi_url, connection.uazapi_token);
   }
 
   if (provider === 'wapi') {
@@ -308,6 +326,32 @@ export async function sendMessage(connection, phone, content, messageType, media
 
   if (provider === 'meta') {
     return sendMetaMessage(connection, phone, content, messageType, mediaUrl);
+  }
+
+  if (provider === 'uazapi') {
+    try {
+      const result = await uazapiProvider.sendMessage(
+        connection.uazapi_url,
+        connection.uazapi_token,
+        phone,
+        content,
+        messageType,
+        mediaUrl
+      );
+      logInfo('whatsapp.send_message_uazapi_result', {
+        connection_id: connection.id,
+        success: result.success,
+        error: result.error || null,
+        duration_ms: Date.now() - startedAt,
+      });
+      return result;
+    } catch (error) {
+      logError('whatsapp.send_message_uazapi_exception', error, {
+        connection_id: connection.id,
+        duration_ms: Date.now() - startedAt,
+      });
+      return { success: false, error: error.message };
+    }
   }
 
   if (provider === 'wapi') {
@@ -407,6 +451,10 @@ export async function checkNumber(connection, phone) {
     return true;
   }
 
+  if (provider === 'uazapi') {
+    return uazapiProvider.checkNumber(connection.uazapi_url, connection.uazapi_token, phone);
+  }
+
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
     return wapiProvider.checkNumber(connection.instance_id, resolvedToken, phone);
@@ -445,6 +493,10 @@ export async function checkNumber(connection, phone) {
  */
 export async function sendPresenceComposing(connection, contactPhone) {
   const provider = detectProvider(connection);
+
+  if (provider === 'uazapi') {
+    return uazapiProvider.sendPresenceComposing(connection.uazapi_url, connection.uazapi_token, contactPhone);
+  }
 
   if (provider === 'wapi') {
     const resolvedToken = await resolveWapiToken(connection);
