@@ -1864,7 +1864,10 @@ async function handleIncomingMessage(connection, payload) {
 
     if (messageType !== 'text') {
       // 1) If we have an external/encrypted URL, cache eagerly
+      // For documents/videos, give more time (large files like PPTX can take 30-60s)
       if (effectiveMediaUrl && shouldCacheExternally(effectiveMediaUrl)) {
+        const isLargeKind = messageType === 'document' || messageType === 'video';
+        const eagerTimeout = isLargeKind ? 60000 : 12000;
         const eager = await withTimeout(
           cacheMedia({
             messageId,
@@ -1874,7 +1877,7 @@ async function handleIncomingMessage(connection, payload) {
             connection,
             waMediaKey,
           }),
-          8000,
+          eagerTimeout,
           'eager_incoming_media_cache_timeout'
         ).catch((err) => {
           console.error('[W-API] Eager media cache failed:', err?.message || err);
