@@ -116,7 +116,30 @@ const typeConfig = {
     bgColor: "bg-teal-500/10",
     accept: "image/*",
   },
+  buttons: {
+    icon: MousePointerClick,
+    label: "Botões",
+    color: "text-pink-500",
+    bgColor: "bg-pink-500/10",
+    accept: "",
+  },
+  list: {
+    icon: List,
+    label: "Lista",
+    color: "text-indigo-500",
+    bgColor: "bg-indigo-500/10",
+    accept: "",
+  },
+  poll: {
+    icon: BarChart3,
+    label: "Enquete",
+    color: "text-yellow-500",
+    bgColor: "bg-yellow-500/10",
+    accept: "",
+  },
 };
+
+const isInteractive = (t: MessageItemType) => t === "buttons" || t === "list" || t === "poll";
 
 export function MessageItemEditor({
   item,
