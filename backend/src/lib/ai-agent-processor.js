@@ -1334,17 +1334,31 @@ function buildAppBarberHistoryTool() {
 }
 
 async function executeAppBarberToolDirect(toolName, args, agent) {
+  const t0 = Date.now();
+  logInfo('ai_agent_processor.appbarber_call_start', {
+    agentId: agent.id,
+    agentName: agent.name,
+    toolName,
+    args,
+  });
   try {
     const appbarber_api_key = agent.appbarber_api_key;
     const appbarber_establishment_code = agent.appbarber_establishment_code;
 
     if (!appbarber_api_key || !appbarber_establishment_code) {
+      logError('ai_agent_processor.appbarber_missing_credentials', new Error('Credenciais ausentes'), {
+        agentId: agent.id,
+        toolName,
+        hasKey: !!appbarber_api_key,
+        hasCode: !!appbarber_establishment_code,
+      });
       return 'Erro: Credenciais do AppBarber não configuradas no agente.';
     }
 
     const baseUrl = 'https://api.appbarber.com';
     const headers = { 'X-API-Key': appbarber_api_key, 'Content-Type': 'application/json' };
 
+    let resultText;
     switch (toolName) {
       case 'appbarber_services': {
         // Query from local cached services table (no API cost)
@@ -1356,12 +1370,13 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
           [agent.id]
         );
         if (result.rows.length === 0) {
-          return 'Nenhum serviço cadastrado. Peça ao administrador para sincronizar os serviços do AppBarber.';
+          resultText = 'Nenhum serviço cadastrado. Peça ao administrador para sincronizar os serviços do AppBarber.';
+        } else {
+          resultText = result.rows.map(s => 
+            `• ${s.service_description} (código: ${s.service_code}) - R$ ${parseFloat(s.service_value).toFixed(2)} - ${s.service_interval} min`
+          ).join('\n');
         }
-        const services = result.rows.map(s => 
-          `• ${s.service_description} (código: ${s.service_code}) - R$ ${parseFloat(s.service_value).toFixed(2)} - ${s.service_interval} min`
-        ).join('\n');
-        return services;
+        break;
       }
 
       case 'appbarber_availability': {
@@ -1372,15 +1387,26 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
         if (args.service_code) params.set('service_code', String(args.service_code));
         if (args.combo_code) params.set('combo_code', String(args.combo_code));
 
-        const resp = await fetch(`${baseUrl}/v1/availability?${params}`, { headers });
+        const url = `${baseUrl}/v1/availability?${params}`;
+        logInfo('ai_agent_processor.appbarber_http_request', { toolName, url });
+        const resp = await fetch(url, { headers });
         const data = await resp.json();
-        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
-
-        const availability = (data.data || []).map(p => {
-          const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).join(', ');
-          return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}):\n   Horários: ${slots || 'Sem horários disponíveis'}`;
-        }).join('\n\n');
-        return availability || 'Nenhum horário disponível para esta data.';
+        logInfo('ai_agent_processor.appbarber_http_response', {
+          toolName,
+          status: resp.status,
+          ok: resp.ok,
+          professionalsCount: Array.isArray(data?.data) ? data.data.length : 0,
+        });
+        if (!resp.ok) {
+          resultText = `Erro AppBarber: ${data.error || resp.status}`;
+        } else {
+          const availability = (data.data || []).map(p => {
+            const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).join(', ');
+            return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}):\n   Horários: ${slots || 'Sem horários disponíveis'}`;
+          }).join('\n\n');
+          resultText = availability || 'Nenhum horário disponível para esta data.';
+        }
+        break;
       }
 
       case 'appbarber_appointment': {
@@ -1394,18 +1420,27 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
           services: [{ service_code: args.service_code, duration: args.duration }],
         };
 
+        logInfo('ai_agent_processor.appbarber_http_request', { toolName, body });
         const resp = await fetch(`${baseUrl}/v1/appointments`, {
           method: 'POST',
           headers,
           body: JSON.stringify(body),
         });
         const data = await resp.json();
+        logInfo('ai_agent_processor.appbarber_http_response', {
+          toolName,
+          status: resp.status,
+          ok: resp.ok,
+          appointmentCode: data?.data?.appointment_code,
+          errorCode: data?.data?.error,
+        });
         if (!resp.ok || (data.data && data.data.error !== 0)) {
-          return `Erro ao agendar: ${data.data?.result || data.error || 'Erro desconhecido'}`;
+          resultText = `Erro ao agendar: ${data.data?.result || data.error || 'Erro desconhecido'}`;
+        } else {
+          const code = data.data?.appointment_code;
+          resultText = `✅ Agendamento criado com sucesso! Código: ${code || 'N/A'}. Cliente: ${args.customer_name}, Data: ${args.start_date}.`;
         }
-
-        const code = data.data?.appointment_code;
-        return `✅ Agendamento criado com sucesso! Código: ${code || 'N/A'}. Cliente: ${args.customer_name}, Data: ${args.start_date}.`;
+        break;
       }
 
       case 'appbarber_history': {
@@ -1419,19 +1454,35 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
 
         const resp = await fetch(`${baseUrl}/v1/appointments/history?${params}`, { headers });
         const data = await resp.json();
-        if (!resp.ok) return `Erro AppBarber: ${data.error || resp.status}`;
-
-        const history = (data.data || []).map(a => 
-          `• ${a.client_name} - ${a.service_description} com ${a.employee_name} - ${a.scheduling_start} - Status: ${a.scheduling_status}`
-        ).join('\n');
-        return history || 'Nenhum agendamento encontrado no período.';
+        if (!resp.ok) {
+          resultText = `Erro AppBarber: ${data.error || resp.status}`;
+        } else {
+          const history = (data.data || []).map(a => 
+            `• ${a.client_name} - ${a.service_description} com ${a.employee_name} - ${a.scheduling_start} - Status: ${a.scheduling_status}`
+          ).join('\n');
+          resultText = history || 'Nenhum agendamento encontrado no período.';
+        }
+        break;
       }
 
       default:
-        return 'Ferramenta AppBarber desconhecida';
+        resultText = 'Ferramenta AppBarber desconhecida';
     }
+
+    logInfo('ai_agent_processor.appbarber_call_done', {
+      agentId: agent.id,
+      toolName,
+      durationMs: Date.now() - t0,
+      resultPreview: String(resultText).substring(0, 200),
+    });
+    return resultText;
   } catch (error) {
-    logError('ai_agent_processor.appbarber_tool_error', error);
+    logError('ai_agent_processor.appbarber_tool_error', error, {
+      agentId: agent.id,
+      toolName,
+      args,
+      durationMs: Date.now() - t0,
+    });
     return `Erro na integração AppBarber: ${error.message}`;
   }
 }
