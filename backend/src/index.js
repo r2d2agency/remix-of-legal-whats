@@ -194,24 +194,6 @@ app.use('/uploads', (req, res, next) => {
     }
   }
 }));
-// GET: Meta unsupported message types log (filtered view)
-app.get('/api/meta/unsupported-log', async (req, res) => {
-  const rawLimit = parseInt(req.query.limit, 10);
-  const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 100, 1), MAX_META_LOG);
-  const connectionId = typeof req.query.connectionId === 'string' && req.query.connectionId.trim()
-    ? req.query.connectionId.trim()
-    : null;
-
-  const events = metaWebhookLog
-    .filter((entry) => {
-      if (entry.event !== 'unsupported_message_type') return false;
-      if (connectionId && entry.connectionId !== connectionId) return false;
-      return true;
-    })
-    .slice(0, limit);
-
-  res.json({ events, total: events.length });
-});
 
 
 // ===========================
