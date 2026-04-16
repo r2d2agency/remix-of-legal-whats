@@ -17,10 +17,10 @@ export function useUpload() {
   const [progress, setProgress] = useState(0);
 
   const uploadFile = useCallback(async (file: File): Promise<string | null> => {
-    const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+    const MAX_SIZE = 200 * 1024 * 1024; // 200MB
     if (file.size > MAX_SIZE) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      throw new Error(`Arquivo muito grande (${sizeMB}MB). Máximo permitido: 100MB.`);
+      throw new Error(`Arquivo muito grande (${sizeMB}MB). Máximo permitido: 200MB.`);
     }
 
     setIsUploading(true);
