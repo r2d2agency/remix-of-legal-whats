@@ -195,7 +195,7 @@ const Conexao = () => {
       setConnections(nextConnections);
 
       const uazapiConnections = nextConnections.filter(
-        (connection) => connection.provider === 'uazapi' && connection.status !== 'connected'
+        (connection) => isUazapiConnection(connection) && connection.status !== 'connected'
       );
 
       if (uazapiConnections.length > 0) {
@@ -425,7 +425,7 @@ const handleGetQRCode = async (connection: Connection) => {
 
   const handleDelete = async (connection: Connection) => {
     try {
-      const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+      const isWapi = isWapiConnection(connection);
       const deleteUrl = isWapi 
         ? `/api/connections/${connection.id}` 
         : `/api/evolution/${connection.id}`;
@@ -494,7 +494,7 @@ const handleGetQRCode = async (connection: Connection) => {
   };
 
   const handleConfigureWapiWebhooks = async (connection: Connection) => {
-    const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+    const isWapi = isWapiConnection(connection);
 
     if (!isWapi) {
       toast.info('Esta ação é apenas para conexões W-API');
@@ -573,7 +573,7 @@ const handleGetQRCode = async (connection: Connection) => {
   );
 
   const handleSyncWapiContacts = async (connection: Connection) => {
-    const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+    const isWapi = isWapiConnection(connection);
 
     if (!isWapi) {
       toast.info('Esta ação é apenas para conexões W-API');
@@ -609,7 +609,7 @@ const handleGetQRCode = async (connection: Connection) => {
   };
 
   const handleSyncWapiConversations = async (connection: Connection) => {
-    const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+    const isWapi = isWapiConnection(connection);
 
     if (!isWapi) {
       toast.info('Esta ação é apenas para conexões W-API');
