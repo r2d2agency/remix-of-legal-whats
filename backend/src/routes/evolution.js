@@ -825,7 +825,8 @@ router.post('/:connectionId/test', authenticate, async (req, res) => {
     // Check if connection is active (prefer live status over stale DB value)
     const provider = whatsappProvider.detectProvider(connection);
     let isConnected = connection.status === 'connected' ||
-      (provider === 'wapi' && connection.instance_id);
+      (provider === 'wapi' && connection.instance_id) ||
+      (provider === 'uazapi' && connection.instance_id);
 
     if (!isConnected) {
       try {
@@ -845,7 +846,8 @@ router.post('/:connectionId/test', authenticate, async (req, res) => {
         }
 
         isConnected = resolvedStatus === 'connected' ||
-          (provider === 'wapi' && connection.instance_id);
+          (provider === 'wapi' && connection.instance_id) ||
+          (provider === 'uazapi' && connection.instance_id);
       } catch (statusError) {
         console.warn('[Test Message] Live status check failed:', statusError?.message || statusError);
       }

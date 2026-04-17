@@ -3651,7 +3651,8 @@ router.post('/conversations', authenticate, async (req, res) => {
     const connection = connResult.rows[0];
     const provider = whatsappProvider.detectProvider(connection);
     let isConnected = connection.status === 'connected' ||
-      (provider === 'wapi' && connection.instance_id);
+      (provider === 'wapi' && connection.instance_id) ||
+      (provider === 'uazapi' && connection.instance_id);
 
     if (!isConnected) {
       try {
@@ -3671,7 +3672,8 @@ router.post('/conversations', authenticate, async (req, res) => {
         }
 
         isConnected = resolvedStatus === 'connected' ||
-          (provider === 'wapi' && connection.instance_id);
+          (provider === 'wapi' && connection.instance_id) ||
+          (provider === 'uazapi' && connection.instance_id);
       } catch (statusError) {
         console.warn('[Chat] Live status check failed:', statusError?.message || statusError);
       }
