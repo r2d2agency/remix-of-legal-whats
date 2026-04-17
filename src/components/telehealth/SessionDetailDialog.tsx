@@ -65,8 +65,14 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
     const data = structuredContent[type];
     if (!data) return null;
 
-    if (data.raw) {
-      return <p className="text-sm whitespace-pre-wrap">{data.raw || data.resumo}</p>;
+    // Defensive: data may be a string or contain raw object from older buggy backend
+    if (typeof data === 'string') {
+      return <p className="text-sm whitespace-pre-wrap">{data}</p>;
+    }
+
+    if (data.raw !== undefined) {
+      const rawText = typeof data.raw === 'string' ? data.raw : JSON.stringify(data.raw, null, 2);
+      return <pre className="text-sm whitespace-pre-wrap font-sans">{rawText}</pre>;
     }
 
     switch (type) {
