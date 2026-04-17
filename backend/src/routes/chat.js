@@ -23,9 +23,20 @@ function isViewOnlyRole(role) {
   return role === 'manager';
 }
 
-// Get user's connections based on their access rights:
-// ALL users (including owner) only see connections assigned via connection_members
+// Get user's connections based on their access rights.
+// Admin/owner/manager can access all org connections; others only assigned ones.
 async function getUserConnections(userId) {
+  const userOrg = await getUserOrganization(userId);
+
+  if (userOrg && ['owner', 'admin', 'manager'].includes(userOrg.role)) {
+    const orgResult = await query(
+      `SELECT id FROM connections WHERE organization_id = $1`,
+      [userOrg.organization_id]
+    );
+
+    return orgResult.rows.map(r => r.id);
+  }
+
   const specificResult = await query(
     `SELECT DISTINCT cm.connection_id as id
      FROM connection_members cm
@@ -3640,7 +3651,8 @@ router.post('/conversations', authenticate, async (req, res) => {
     const connection = connResult.rows[0];
     const provider = whatsappProvider.detectProvider(connection);
     let isConnected = connection.status === 'connected' ||
-      (provider === 'wapi' && connection.instance_id);
+      (provider === 'wapi' && connection.instance_id) ||
+      (provider === 'uazapi' && connection.instance_id);
 
     if (!isConnected) {
       try {
@@ -3660,7 +3672,8 @@ router.post('/conversations', authenticate, async (req, res) => {
         }
 
         isConnected = resolvedStatus === 'connected' ||
-          (provider === 'wapi' && connection.instance_id);
+          (provider === 'wapi' && connection.instance_id) ||
+          (provider === 'uazapi' && connection.instance_id);
       } catch (statusError) {
         console.warn('[Chat] Live status check failed:', statusError?.message || statusError);
       }

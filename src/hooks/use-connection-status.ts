@@ -36,7 +36,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
         status: string;
         phone_number?: string | null;
         provider?: 'evolution' | 'wapi' | 'uazapi' | 'meta';
-      }>>('/api/connections');
+      }>>('/api/connections?scope=organization');
       
       if (!isMounted.current) return;
       
