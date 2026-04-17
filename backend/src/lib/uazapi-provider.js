@@ -126,13 +126,28 @@ export async function checkStatus(baseUrl, token) {
     return { status: 'disconnected', error: r.data?.error || `HTTP ${r.status}` };
   }
   const d = r.data || {};
-  // Estados: disconnected | connecting | connected
-  const stateRaw = d.status || d.state || d.instance?.status || d.connectionStatus || 'disconnected';
-  const state = String(stateRaw).toLowerCase();
-  const isConnected = state === 'connected' || state === 'open';
+  const stateCandidates = [
+    d.status,
+    d.state,
+    d.connectionStatus,
+    d.instance?.status,
+    d.instance?.state,
+    d.data?.status,
+    d.data?.state,
+    d.session?.status,
+    d.session?.state,
+    d.connected === true ? 'connected' : null,
+    d.instance?.connected === true ? 'connected' : null,
+    d.session === true ? 'connected' : null,
+  ].filter(Boolean);
+
+  const state = String(stateCandidates[0] || 'disconnected').toLowerCase();
+  const isConnected = ['connected', 'open', 'online', 'authenticated', 'ready'].includes(state);
+  const isConnecting = ['connecting', 'qr', 'qrcode', 'pairing', 'pending'].includes(state);
+
   return {
-    status: isConnected ? 'connected' : (state === 'connecting' ? 'connecting' : 'disconnected'),
-    phoneNumber: d.phone || d.wid || d.instance?.phone || d.profileNumber || null,
+    status: isConnected ? 'connected' : (isConnecting ? 'connecting' : 'disconnected'),
+    phoneNumber: d.phone || d.wid || d.instance?.phone || d.instance?.wid || d.profileNumber || d.number || null,
     raw: d,
   };
 }

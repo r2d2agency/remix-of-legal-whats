@@ -6,7 +6,7 @@ export interface ConnectionStatus {
   name: string;
   status: 'connected' | 'disconnected' | 'connecting';
   phoneNumber?: string | null;
-  provider?: 'evolution' | 'wapi';
+  provider?: 'evolution' | 'wapi' | 'uazapi' | 'meta';
   error?: string | null;
 }
 
@@ -35,7 +35,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
         name: string;
         status: string;
         phone_number?: string | null;
-        provider?: 'evolution' | 'wapi';
+        provider?: 'evolution' | 'wapi' | 'uazapi' | 'meta';
       }>>('/api/connections');
       
       if (!isMounted.current) return;
@@ -70,7 +70,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
         name: '',
         status: result.status as 'connected' | 'disconnected' | 'connecting',
         phoneNumber: result.phoneNumber,
-        provider: result.provider as 'evolution' | 'wapi',
+        provider: result.provider as 'evolution' | 'wapi' | 'uazapi' | 'meta',
         error: result.error,
       };
     } catch (error) {
@@ -101,7 +101,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
             ...conn,
             status: status?.status || conn.status,
             phoneNumber: status?.phoneNumber ?? conn.phone_number,
-            provider: status?.provider || conn.provider,
+            provider: (status?.provider as 'evolution' | 'wapi' | 'uazapi' | 'meta' | undefined) || conn.provider,
             error: status?.error,
           };
         })
@@ -115,7 +115,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}) {
           name: c.name,
           status: c.status as 'connected' | 'disconnected' | 'connecting',
           phoneNumber: c.phoneNumber,
-          provider: c.provider as 'evolution' | 'wapi',
+            provider: c.provider as 'evolution' | 'wapi' | 'uazapi' | 'meta',
           error: c.error,
         }))
       );

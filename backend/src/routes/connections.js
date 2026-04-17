@@ -48,6 +48,7 @@ router.get('/', async (req, res) => {
     const connQuery = `SELECT c.*, u.name as created_by_name,
        CASE 
           WHEN c.provider = 'meta' THEN 'meta'
+          WHEN c.provider = 'uazapi' THEN 'uazapi'
           WHEN c.instance_id IS NOT NULL THEN 'wapi'
           WHEN c.provider IS NOT NULL THEN c.provider 
           ELSE 'evolution'

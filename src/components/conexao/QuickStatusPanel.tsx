@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 interface Connection {
   id: string;
   name: string;
-  provider?: 'evolution' | 'wapi' | 'meta';
+  provider?: 'evolution' | 'wapi' | 'meta' | 'uazapi';
   instance_name?: string | null;
   instance_id?: string | null;
   status: string;
@@ -50,8 +50,9 @@ export function QuickStatusPanel({ connection, onConfigureWebhooks, onOpenFullDi
 
   // Detect provider
   const isMeta = connection.provider === 'meta';
+  const isUazapi = connection.provider === 'uazapi';
   const isWapi = connection.provider === 'wapi' || 
-    (!isMeta && !!connection.instance_id && !connection.instance_name);
+    (!isMeta && !isUazapi && !!connection.instance_id && !connection.instance_name);
 
   const checkStatus = useCallback(async () => {
     setLoading(true);
@@ -91,8 +92,8 @@ export function QuickStatusPanel({ connection, onConfigureWebhooks, onOpenFullDi
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Badge variant={isMeta ? "default" : isWapi ? "secondary" : "outline"} className="text-xs">
-            {isMeta ? "Meta API" : isWapi ? "W-API" : "Evolution"}
+          <Badge variant={isMeta ? "default" : isWapi ? "secondary" : isUazapi ? "secondary" : "outline"} className="text-xs">
+            {isMeta ? "Meta API" : isUazapi ? "UAZAPI" : isWapi ? "W-API" : "Evolution"}
           </Badge>
           <span className="font-medium">{connection.name}</span>
         </div>

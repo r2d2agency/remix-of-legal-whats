@@ -138,7 +138,13 @@ export function ConnectionStatusIndicator() {
                   <div className="flex items-center gap-2">
                     {conn.provider && (
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                        {conn.provider === 'wapi' ? 'W-API' : 'Evolution'}
+                         {conn.provider === 'wapi'
+                           ? 'W-API'
+                           : conn.provider === 'uazapi'
+                             ? 'UAZAPI'
+                             : conn.provider === 'meta'
+                               ? 'Meta API'
+                               : 'Evolution'}
                       </Badge>
                     )}
                     <Badge
