@@ -485,13 +485,17 @@ router.post('/:id/analyze', authenticate, async (req, res) => {
       { role: 'user', content: `Motivo da reunião: ${session.reason || 'Não informado'}\nAnotações: ${session.notes || 'Nenhuma'}\n\nTranscrição:\n${session.transcript}` }
     ];
 
-    const result = await callAI(aiConfig, messages, { temperature: 0.2, maxTokens: 4000 });
+    const aiResult = await callAI(aiConfig, messages, { temperature: 0.2, maxTokens: 4000 });
+    // callAI returns { model, content, toolCalls, tokensUsed } — extract string content
+    const rawText = typeof aiResult === 'string'
+      ? aiResult
+      : (aiResult?.content ?? aiResult?.text ?? '');
     let parsed;
     try {
-      const cleaned = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const cleaned = String(rawText).replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       parsed = JSON.parse(cleaned);
     } catch {
-      parsed = { raw: result };
+      parsed = { raw: String(rawText || '') };
     }
 
     // Save to structured_content (merge with existing)
