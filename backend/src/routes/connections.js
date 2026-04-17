@@ -48,7 +48,8 @@ router.get('/', async (req, res) => {
     const connQuery = `SELECT c.*, u.name as created_by_name,
        CASE 
           WHEN c.provider = 'meta' THEN 'meta'
-          WHEN c.provider = 'uazapi' THEN 'uazapi'
+          WHEN c.provider = 'uazapi' OR c.uazapi_url IS NOT NULL OR c.uazapi_token IS NOT NULL THEN 'uazapi'
+          WHEN c.provider = 'wapi' THEN 'wapi'
           WHEN c.instance_id IS NOT NULL THEN 'wapi'
           WHEN c.provider IS NOT NULL THEN c.provider 
           ELSE 'evolution'
@@ -60,6 +61,11 @@ router.get('/', async (req, res) => {
 
     if (scope === 'organization' && org) {
       // Return all connections in the organization (for transfer dialogs)
+      result = await query(
+        `${connQuery} WHERE c.organization_id = $1 ORDER BY c.created_at DESC`,
+        [org.organization_id]
+      );
+    } else if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
       result = await query(
         `${connQuery} WHERE c.organization_id = $1 ORDER BY c.created_at DESC`,
         [org.organization_id]

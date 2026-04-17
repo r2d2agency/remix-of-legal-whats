@@ -136,7 +136,15 @@ router.get('/:id([0-9a-fA-F-]{36})/connections', async (req, res) => {
     }
     
     const result = await query(
-      `SELECT id, name, phone_number, status, provider, instance_id,
+      `SELECT id, name, phone_number, status, instance_id, instance_name, show_groups,
+              CASE
+                WHEN provider = 'meta' THEN 'meta'
+                WHEN provider = 'uazapi' OR uazapi_url IS NOT NULL OR uazapi_token IS NOT NULL THEN 'uazapi'
+                WHEN provider = 'wapi' THEN 'wapi'
+                WHEN instance_id IS NOT NULL THEN 'wapi'
+                WHEN provider IS NOT NULL THEN provider
+                ELSE 'evolution'
+              END as provider,
               meta_phone_number_id, meta_waba_id, meta_token, meta_webhook_verify_token
        FROM connections 
        WHERE organization_id = $1 
