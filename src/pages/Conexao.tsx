@@ -43,6 +43,11 @@ interface PlanLimits {
   plan_name: string;
 }
 
+interface LiveConnectionStatus {
+  status: string;
+  phoneNumber?: string;
+}
+
 const Conexao = () => {
   const { user, isLoading: authLoading } = useAuth();
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -123,6 +128,33 @@ const Conexao = () => {
   const [migrateSourceId, setMigrateSourceId] = useState<string>("");
   const [migrating, setMigrating] = useState(false);
 
+  const refreshConnectionStatus = useCallback(
+    async (
+      connection: Pick<Connection, 'id'>,
+      options?: { silent?: boolean }
+    ): Promise<LiveConnectionStatus | null> => {
+      try {
+        const result = await api<LiveConnectionStatus>(`/api/evolution/${connection.id}/status`);
+
+        setConnections((prev) =>
+          prev.map((current) =>
+            current.id === connection.id
+              ? { ...current, status: result.status, phone_number: result.phoneNumber }
+              : current
+          )
+        );
+
+        return result;
+      } catch (error: any) {
+        if (!options?.silent) {
+          toast.error(error?.message || 'Erro ao verificar status');
+        }
+        return null;
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     if (authLoading) return;
 
@@ -152,7 +184,18 @@ const Conexao = () => {
         mergedConnections.set(conn.id, conn);
       });
 
-      setConnections(Array.from(mergedConnections.values()));
+      const nextConnections = Array.from(mergedConnections.values());
+      setConnections(nextConnections);
+
+      const uazapiConnections = nextConnections.filter(
+        (connection) => connection.provider === 'uazapi' && connection.status !== 'connected'
+      );
+
+      if (uazapiConnections.length > 0) {
+        void Promise.allSettled(
+          uazapiConnections.map((connection) => refreshConnectionStatus(connection, { silent: true }))
+        );
+      }
     } catch (error) {
       console.error('Error loading connections:', error);
       toast.error('Erro ao carregar conexões');
@@ -339,13 +382,9 @@ const handleGetQRCode = async (connection: Connection) => {
   const handleCheckStatus = async (connection: Connection) => {
     setCheckingStatus(connection.id);
     try {
-      const result = await api<{ status: string; phoneNumber?: string }>(`/api/evolution/${connection.id}/status`);
-      
-      setConnections(prev => prev.map(c => 
-        c.id === connection.id 
-          ? { ...c, status: result.status, phone_number: result.phoneNumber } 
-          : c
-      ));
+      const result = await refreshConnectionStatus(connection);
+
+      if (!result) return;
 
       if (result.status === 'connected') {
         toast.success(`Conectado: ${result.phoneNumber || 'WhatsApp'}`);
