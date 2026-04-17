@@ -250,7 +250,7 @@ export const useChat = () => {
   // Get connections for filter
   const getConnections = useCallback(async (): Promise<Connection[]> => {
     try {
-      const data = await api<Connection[]>('/api/connections');
+      const data = await api<Connection[]>('/api/connections?scope=organization');
       return data;
     } catch (err) {
       console.error('Error fetching connections:', err);
