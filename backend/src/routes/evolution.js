@@ -816,17 +816,11 @@ router.post('/:connectionId/test', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Número de telefone é obrigatório' });
     }
 
-    // Get connection
-    const connResult = await query(
-      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
-      [connectionId, req.userId]
-    );
+    const connection = await getAccessibleConnection(connectionId, req.userId);
 
-    if (connResult.rows.length === 0) {
+    if (!connection) {
       return res.status(404).json({ error: 'Conexão não encontrada' });
     }
-
-    const connection = connResult.rows[0];
 
     // Check if connection is active (prefer live status over stale DB value)
     const provider = whatsappProvider.detectProvider(connection);
