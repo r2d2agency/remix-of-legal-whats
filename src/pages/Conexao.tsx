@@ -1073,9 +1073,11 @@ const handleGetQRCode = async (connection: Connection) => {
                   <CardDescription className="text-xs truncate">
                     {connection.provider === 'meta'
                       ? `WABA: ${connection.meta_waba_id || ''}`
-                      : (connection.provider === 'wapi' || !!connection.instance_id)
-                        ? (connection.instance_id || 'W-API')
-                        : (connection.instance_name || '')}
+                      : isUazapiConnection(connection)
+                        ? (connection.instance_id || 'UAZAPI')
+                        : isWapiConnection(connection)
+                          ? (connection.instance_id || 'W-API')
+                          : (connection.instance_name || '')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1091,13 +1093,15 @@ const handleGetQRCode = async (connection: Connection) => {
                       <Badge variant="outline" className="text-[10px] px-1.5">
                         {connection.provider === 'meta' 
                           ? 'Meta API'
-                          : (connection.provider === 'wapi' || !!connection.instance_id) ? 'W-API' : 'Evolution'}
+                          : isUazapiConnection(connection)
+                            ? 'UAZAPI'
+                            : isWapiConnection(connection) ? 'W-API' : 'Evolution'}
                       </Badge>
                       <code className="text-[10px] truncate flex-1">
                         {connection.provider === 'meta'
                           ? connection.meta_phone_number_id
-                          : (connection.provider === 'wapi' || !!connection.instance_id) 
-                            ? connection.instance_id 
+                          : (isWapiConnection(connection) || isUazapiConnection(connection))
+                            ? connection.instance_id
                             : connection.instance_name}
                       </code>
                     </div>
@@ -1341,7 +1345,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     </Button>
 
                     {/* W-API: Configure webhooks */}
-                    {(connection.provider === 'wapi' || !!connection.instance_id) && (
+                    {isWapiConnection(connection) && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1358,7 +1362,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     )}
                     
                     {/* W-API: Sync contacts */}
-                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                    {isWapiConnection(connection) && connection.status === 'connected' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1375,7 +1379,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     )}
 
                     {/* W-API: Sync conversations */}
-                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                    {isWapiConnection(connection) && connection.status === 'connected' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1412,7 +1416,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     )}
 
                     {/* W-API: Sync profile pictures */}
-                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                    {isWapiConnection(connection) && connection.status === 'connected' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1429,7 +1433,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     )}
 
                     {/* W-API: Validate all contacts */}
-                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                    {isWapiConnection(connection) && connection.status === 'connected' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1445,7 +1449,7 @@ const handleGetQRCode = async (connection: Connection) => {
                       </Button>
                     )}
 
-                    {!(connection.provider === 'wapi' || !!connection.instance_id) && (
+                    {!isWapiConnection(connection) && !isUazapiConnection(connection) && connection.provider !== 'meta' && (
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button 
