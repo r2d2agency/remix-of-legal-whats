@@ -48,6 +48,13 @@ interface LiveConnectionStatus {
   phoneNumber?: string;
 }
 
+const isUazapiConnection = (connection: Pick<Connection, 'provider'>) =>
+  connection.provider === 'uazapi';
+
+const isWapiConnection = (connection: Pick<Connection, 'provider' | 'instance_id'>) =>
+  connection.provider === 'wapi' ||
+  (!!connection.instance_id && connection.provider !== 'uazapi' && connection.provider !== 'meta');
+
 const Conexao = () => {
   const { user, isLoading: authLoading } = useAuth();
   const [connections, setConnections] = useState<Connection[]>([]);
