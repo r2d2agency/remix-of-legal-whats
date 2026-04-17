@@ -48,6 +48,13 @@ interface LiveConnectionStatus {
   phoneNumber?: string;
 }
 
+const isUazapiConnection = (connection: Pick<Connection, 'provider'>) =>
+  connection.provider === 'uazapi';
+
+const isWapiConnection = (connection: Pick<Connection, 'provider' | 'instance_id'>) =>
+  connection.provider === 'wapi' ||
+  (!!connection.instance_id && connection.provider !== 'uazapi' && connection.provider !== 'meta');
+
 const Conexao = () => {
   const { user, isLoading: authLoading } = useAuth();
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -188,7 +195,7 @@ const Conexao = () => {
       setConnections(nextConnections);
 
       const uazapiConnections = nextConnections.filter(
-        (connection) => connection.provider === 'uazapi' && connection.status !== 'connected'
+        (connection) => isUazapiConnection(connection) && connection.status !== 'connected'
       );
 
       if (uazapiConnections.length > 0) {
@@ -418,7 +425,7 @@ const handleGetQRCode = async (connection: Connection) => {
 
   const handleDelete = async (connection: Connection) => {
     try {
-      const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+      const isWapi = isWapiConnection(connection);
       const deleteUrl = isWapi 
         ? `/api/connections/${connection.id}` 
         : `/api/evolution/${connection.id}`;
@@ -487,7 +494,7 @@ const handleGetQRCode = async (connection: Connection) => {
   };
 
   const handleConfigureWapiWebhooks = async (connection: Connection) => {
-    const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+    const isWapi = isWapiConnection(connection);
 
     if (!isWapi) {
       toast.info('Esta ação é apenas para conexões W-API');
@@ -566,7 +573,7 @@ const handleGetQRCode = async (connection: Connection) => {
   );
 
   const handleSyncWapiContacts = async (connection: Connection) => {
-    const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+    const isWapi = isWapiConnection(connection);
 
     if (!isWapi) {
       toast.info('Esta ação é apenas para conexões W-API');
@@ -602,7 +609,7 @@ const handleGetQRCode = async (connection: Connection) => {
   };
 
   const handleSyncWapiConversations = async (connection: Connection) => {
-    const isWapi = connection.provider === 'wapi' || !!connection.instance_id;
+    const isWapi = isWapiConnection(connection);
 
     if (!isWapi) {
       toast.info('Esta ação é apenas para conexões W-API');
@@ -1066,9 +1073,11 @@ const handleGetQRCode = async (connection: Connection) => {
                   <CardDescription className="text-xs truncate">
                     {connection.provider === 'meta'
                       ? `WABA: ${connection.meta_waba_id || ''}`
-                      : (connection.provider === 'wapi' || !!connection.instance_id)
-                        ? (connection.instance_id || 'W-API')
-                        : (connection.instance_name || '')}
+                      : isUazapiConnection(connection)
+                        ? (connection.instance_id || 'UAZAPI')
+                        : isWapiConnection(connection)
+                          ? (connection.instance_id || 'W-API')
+                          : (connection.instance_name || '')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1084,13 +1093,15 @@ const handleGetQRCode = async (connection: Connection) => {
                       <Badge variant="outline" className="text-[10px] px-1.5">
                         {connection.provider === 'meta' 
                           ? 'Meta API'
-                          : (connection.provider === 'wapi' || !!connection.instance_id) ? 'W-API' : 'Evolution'}
+                          : isUazapiConnection(connection)
+                            ? 'UAZAPI'
+                            : isWapiConnection(connection) ? 'W-API' : 'Evolution'}
                       </Badge>
                       <code className="text-[10px] truncate flex-1">
                         {connection.provider === 'meta'
                           ? connection.meta_phone_number_id
-                          : (connection.provider === 'wapi' || !!connection.instance_id) 
-                            ? connection.instance_id 
+                          : (isWapiConnection(connection) || isUazapiConnection(connection))
+                            ? connection.instance_id
                             : connection.instance_name}
                       </code>
                     </div>
@@ -1334,7 +1345,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     </Button>
 
                     {/* W-API: Configure webhooks */}
-                    {(connection.provider === 'wapi' || !!connection.instance_id) && (
+                    {isWapiConnection(connection) && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1351,7 +1362,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     )}
                     
                     {/* W-API: Sync contacts */}
-                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                    {isWapiConnection(connection) && connection.status === 'connected' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1368,7 +1379,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     )}
 
                     {/* W-API: Sync conversations */}
-                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                    {isWapiConnection(connection) && connection.status === 'connected' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1405,7 +1416,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     )}
 
                     {/* W-API: Sync profile pictures */}
-                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                    {isWapiConnection(connection) && connection.status === 'connected' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1422,7 +1433,7 @@ const handleGetQRCode = async (connection: Connection) => {
                     )}
 
                     {/* W-API: Validate all contacts */}
-                    {(connection.provider === 'wapi' || !!connection.instance_id) && connection.status === 'connected' && (
+                    {isWapiConnection(connection) && connection.status === 'connected' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1438,7 +1449,7 @@ const handleGetQRCode = async (connection: Connection) => {
                       </Button>
                     )}
 
-                    {!(connection.provider === 'wapi' || !!connection.instance_id) && (
+                    {!isWapiConnection(connection) && !isUazapiConnection(connection) && connection.provider !== 'meta' && (
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button 
