@@ -132,22 +132,70 @@ export async function checkStatus(baseUrl, token) {
     d.connectionStatus,
     d.instance?.status,
     d.instance?.state,
+    d.instance?.connectionStatus,
     d.data?.status,
     d.data?.state,
+    d.data?.connectionStatus,
+    d.data?.instance?.status,
+    d.data?.instance?.state,
     d.session?.status,
     d.session?.state,
-    d.connected === true ? 'connected' : null,
-    d.instance?.connected === true ? 'connected' : null,
-    d.session === true ? 'connected' : null,
-  ].filter(Boolean);
+    d.session?.connectionStatus,
+  ]
+    .filter((value) => value !== undefined && value !== null && value !== '')
+    .map((value) => String(value).trim().toLowerCase());
 
-  const state = String(stateCandidates[0] || 'disconnected').toLowerCase();
-  const isConnected = ['connected', 'open', 'online', 'authenticated', 'ready'].includes(state);
-  const isConnecting = ['connecting', 'qr', 'qrcode', 'pairing', 'pending'].includes(state);
+  const connectedFlags = [
+    d.connected,
+    d.isConnected,
+    d.online,
+    d.authenticated,
+    d.instance?.connected,
+    d.instance?.isConnected,
+    d.instance?.online,
+    d.instance?.authenticated,
+    d.data?.connected,
+    d.data?.isConnected,
+    d.data?.online,
+    d.data?.authenticated,
+    d.data?.instance?.connected,
+    d.data?.instance?.isConnected,
+    d.session?.connected,
+    d.session?.isConnected,
+    d.session === true,
+  ].some((value) => value === true);
+
+  const disconnectedStates = ['disconnected', 'close', 'closed', 'offline', 'logout'];
+  const connectingStates = ['connecting', 'qr', 'qrcode', 'pairing', 'pending', 'awaiting_qr', 'scan_qr'];
+  const connectedStates = ['connected', 'open', 'online', 'authenticated', 'ready'];
+
+  const hasConnectedState = stateCandidates.some((state) => connectedStates.includes(state));
+  const hasConnectingState = stateCandidates.some((state) => connectingStates.includes(state));
+  const hasDisconnectedState = stateCandidates.some((state) => disconnectedStates.includes(state));
+
+  const isConnected = connectedFlags || hasConnectedState;
+  const isConnecting = !isConnected && hasConnectingState;
 
   return {
-    status: isConnected ? 'connected' : (isConnecting ? 'connecting' : 'disconnected'),
-    phoneNumber: d.phone || d.wid || d.instance?.phone || d.instance?.wid || d.profileNumber || d.number || null,
+    status: isConnected ? 'connected' : (isConnecting ? 'connecting' : (hasDisconnectedState ? 'disconnected' : 'disconnected')),
+    phoneNumber:
+      d.phone ||
+      d.phoneNumber ||
+      d.wid ||
+      d.number ||
+      d.profileNumber ||
+      d.instance?.phone ||
+      d.instance?.phoneNumber ||
+      d.instance?.wid ||
+      d.data?.phone ||
+      d.data?.phoneNumber ||
+      d.data?.wid ||
+      d.data?.number ||
+      d.data?.instance?.phone ||
+      d.data?.instance?.phoneNumber ||
+      d.session?.phone ||
+      d.session?.phoneNumber ||
+      null,
     raw: d,
   };
 }
