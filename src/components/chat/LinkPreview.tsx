@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { ExternalLink } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 interface LinkPreviewData {
   url?: string;
@@ -7,6 +8,7 @@ interface LinkPreviewData {
   title?: string;
   description?: string;
   thumbnail?: string;
+  siteName?: string;
 }
 
 interface LinkPreviewProps {
@@ -29,7 +31,27 @@ function getDomain(url: string): string {
   }
 }
 
-async function fetchOgData(url: string): Promise<OgData | null> {
+async function fetchFromBackend(url: string): Promise<OgData | null> {
+  try {
+    const base = API_URL || '';
+    const endpoint = `${base}/api/link-preview?url=${encodeURIComponent(url)}`;
+    const res = await fetch(endpoint, { signal: AbortSignal.timeout(9000) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const d = json?.data;
+    if (!d) return null;
+    return {
+      title: d.title || undefined,
+      description: d.description || undefined,
+      image: d.thumbnail || undefined,
+      siteName: d.siteName || undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchFromMicrolink(url: string): Promise<OgData | null> {
   try {
     const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`, {
       signal: AbortSignal.timeout(5000),
@@ -47,6 +69,16 @@ async function fetchOgData(url: string): Promise<OgData | null> {
   } catch {
     return null;
   }
+}
+
+async function fetchOgData(url: string): Promise<OgData | null> {
+  // Prefer our backend (no CORS, no rate limits, cached)
+  const backend = await fetchFromBackend(url);
+  if (backend && (backend.title || backend.description || backend.image)) {
+    return backend;
+  }
+  // Fallback to microlink free tier
+  return fetchFromMicrolink(url);
 }
 
 const cache = new Map<string, OgData | null>();
