@@ -8,6 +8,7 @@ import * as whatsappProvider from '../lib/whatsapp-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { logError, logInfo } from '../logger.js';
 import { pauseNurturingOnReply } from './nurturing.js';
+import { emitLeadEvent } from '../lib/event-bus.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 
