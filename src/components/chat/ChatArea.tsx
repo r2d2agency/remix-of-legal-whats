@@ -56,6 +56,7 @@ import {
   BellOff,
   Bell,
   Pin,
+  Contact as ContactIcon,
   X as XIcon,
 } from "lucide-react";
 import { FileSignature } from "lucide-react";
@@ -93,6 +94,7 @@ import { ChatMessageBubble } from "./ChatMessageBubble";
 import { ForwardMessageDialog } from "./ForwardMessageDialog";
 import { RequestSignatureDialog } from "./RequestSignatureDialog";
 import { SendTemplateDialog } from "./SendTemplateDialog";
+import { SendContactDialog } from "./SendContactDialog";
 import {
   TransferDialog,
   DepartmentDialog,
@@ -207,6 +209,7 @@ export function ChatArea({
   const [showEditContactDialog, setShowEditContactDialog] = useState(false);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [showStartFlowDialog, setShowStartFlowDialog] = useState(false);
+  const [showSendContactDialog, setShowSendContactDialog] = useState(false);
   const [showDealDialog, setShowDealDialog] = useState(false);
   const [showDealDetailDialog, setShowDealDetailDialog] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<CRMDeal | null>(null);
