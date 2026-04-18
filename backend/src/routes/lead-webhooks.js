@@ -470,10 +470,22 @@ router.post('/receive/:token', async (req, res) => {
         }
       }
 
+      // Emit lead_created — entry_rules may reroute the deal to a different
+      // stage, then stage_changed fires the configured automation.
       try {
+        await emitLeadEvent({
+          organizationId: webhook.organization_id,
+          dealId,
+          contactPhone: cleanPhone || null,
+          eventType: 'lead_created',
+          payload: { source: 'lead_webhook', webhook_id: webhook.id, webhook_name: webhook.name },
+          source: 'webhook',
+        });
+        // Also fire stage_changed for the initial stage so existing
+        // automations continue to trigger as before.
         await onDealStageChanged(dealId, webhook.stage_id, webhook.organization_id);
       } catch (automationError) {
-        logError('[Lead Webhook] Error triggering stage automation', automationError);
+        logError('[Lead Webhook] Error triggering events', automationError);
       }
 
       responseMessage = `Lead criado como negociação: ${dealId}`;
