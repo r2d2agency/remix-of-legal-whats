@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { query } from '../db.js';
 import { onDealStageChanged } from '../crm-automation-scheduler.js';
+import { emitLeadEvent } from '../lib/event-bus.js';
 import { authenticate } from '../middleware/auth.js';
 import { logInfo, logError } from '../logger.js';
 
