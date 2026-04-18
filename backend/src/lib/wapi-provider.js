@@ -1863,20 +1863,62 @@ export async function sendLocation(instanceId, token, phone, latitude, longitude
 
 /**
  * Send contact card (vCard)
+ * W-API: tenta múltiplos formatos de payload conhecidos
  */
 export async function sendContact(instanceId, token, phone, contactName, contactPhone) {
   const cleanPhone = phone.includes('@g.us') ? phone : phone.replace(/\D/g, '');
-  try {
-    const response = await fetch(
-      `${W_API_BASE_URL}/message/send-contact?instanceId=${instanceId}`,
-      { method: 'POST', headers: getHeaders(token), body: JSON.stringify({ phone: cleanPhone, contactName, contactPhone: contactPhone.replace(/\D/g, '') }) }
-    );
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) return { success: false, error: data?.message || data?.error || 'Failed to send contact' };
-    return { success: true, messageId: data.messageId || data.id || data.key?.id };
-  } catch (error) {
-    return { success: false, error: error.message };
+  const cleanContact = String(contactPhone).replace(/\D/g, '');
+  const encodedInstanceId = encodeURIComponent(instanceId);
+
+  const candidates = [
+    // Formato 1: contact aninhado (mais comum no W-API novo)
+    {
+      url: `${W_API_BASE_URL}/message/send-contact?instanceId=${encodedInstanceId}`,
+      body: { phone: cleanPhone, contact: { fullName: contactName, phoneNumber: cleanContact } },
+    },
+    // Formato 2: contacts array com displayName/vcard
+    {
+      url: `${W_API_BASE_URL}/message/send-contact?instanceId=${encodedInstanceId}`,
+      body: {
+        phone: cleanPhone,
+        contacts: [{
+          displayName: contactName,
+          vcard: `BEGIN:VCARD\nVERSION:3.0\nN:;${contactName};;;\nFN:${contactName}\nTEL;type=CELL;type=VOICE;waid=${cleanContact}:+${cleanContact}\nEND:VCARD`,
+        }],
+      },
+    },
+    // Formato 3: campos planos
+    {
+      url: `${W_API_BASE_URL}/message/send-contact?instanceId=${encodedInstanceId}`,
+      body: { phone: cleanPhone, contactName, contactPhone: cleanContact },
+    },
+    // Formato 4: fullName/phoneNumber planos
+    {
+      url: `${W_API_BASE_URL}/message/send-contact?instanceId=${encodedInstanceId}`,
+      body: { phone: cleanPhone, fullName: contactName, phoneNumber: cleanContact },
+    },
+  ];
+
+  let lastError = null;
+  for (const cand of candidates) {
+    try {
+      const response = await fetch(cand.url, {
+        method: 'POST',
+        headers: getHeaders(token),
+        body: JSON.stringify(cand.body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && !data?.error) {
+        console.log('[W-API sendContact] success with payload keys:', Object.keys(cand.body));
+        return { success: true, messageId: data.messageId || data.id || data.key?.id };
+      }
+      lastError = data?.message || data?.error || `HTTP ${response.status}`;
+      console.warn('[W-API sendContact] format failed:', Object.keys(cand.body), lastError);
+    } catch (error) {
+      lastError = error.message;
+    }
   }
+  return { success: false, error: lastError || 'Failed to send contact (all formats)' };
 }
 
 /**
