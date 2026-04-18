@@ -1025,6 +1025,16 @@ router.post('/deals', async (req, res) => {
     );
     const deal = result.rows[0];
 
+    // Emit lead_created so the event bus can route the deal via funnel entry_rules
+    emitLeadEvent({
+      organizationId: org.organization_id,
+      dealId: deal.id,
+      contactPhone: contact_phone ? String(contact_phone).replace(/\D/g, '') : null,
+      eventType: 'lead_created',
+      payload: { source: 'crm_ui', funnel_id, stage_id },
+      source: 'crm',
+    }).catch((err) => logError('emit lead_created failed', err));
+
     // Add contacts by ID
     if (contact_ids && contact_ids.length > 0) {
       for (let i = 0; i < contact_ids.length; i++) {
@@ -1314,14 +1324,21 @@ router.post('/deals/:id/move', async (req, res) => {
         [req.params.id, req.userId, oldStage.rows[0]?.name, newStage.rows[0]?.name]
       );
 
-      // Trigger automation for new stage (if configured)
+      // Trigger automation for new stage (if configured) + emit stage_changed
       if (oldStageId !== stage_id) {
         try {
           await onDealStageChanged(req.params.id, stage_id, org.organization_id);
         } catch (automationError) {
-          // Don't fail the move if automation fails
           logError('Failed to trigger automation on stage change:', automationError);
         }
+        emitLeadEvent({
+          organizationId: org.organization_id,
+          dealId: req.params.id,
+          eventType: 'stage_changed',
+          payload: { from_stage_id: oldStageId, to_stage_id: stage_id, reason: 'manual_move' },
+          source: 'crm',
+          dispatch: false, // onDealStageChanged already handled the reaction
+        }).catch((err) => logError('emit stage_changed failed', err));
       }
     }
 
