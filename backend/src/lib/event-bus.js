@@ -15,6 +15,45 @@
 import { query } from '../db.js';
 import { logInfo, logError } from '../logger.js';
 
+// ── Self-healing schema (runtime) ───────────────────────────
+// The project pattern is to ALTER/CREATE IF NOT EXISTS at boot so that
+// existing deployments pick up new tables/columns without a manual migration.
+(async () => {
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS lead_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL,
+        deal_id UUID,
+        contact_phone VARCHAR(50),
+        event_type VARCHAR(50) NOT NULL,
+        payload JSONB DEFAULT '{}'::jsonb,
+        source VARCHAR(50),
+        processed BOOLEAN DEFAULT false,
+        processed_at TIMESTAMP WITH TIME ZONE,
+        error TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_lead_events_org ON lead_events(organization_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_lead_events_deal ON lead_events(deal_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_lead_events_phone ON lead_events(contact_phone)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_lead_events_type ON lead_events(event_type)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_lead_events_pending ON lead_events(processed, created_at) WHERE processed = false`);
+
+    await query(`ALTER TABLE crm_funnels ADD COLUMN IF NOT EXISTS entry_rules JSONB DEFAULT '[]'::jsonb`);
+    await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS follow_up_minutes INTEGER`);
+    await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS follow_up_flow_id UUID`);
+    await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS timeout_hours INTEGER`);
+    await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS next_stage_on_timeout UUID`);
+    await query(`ALTER TABLE crm_deal_automations ADD COLUMN IF NOT EXISTS follow_up_sent_at TIMESTAMP WITH TIME ZONE`);
+    await query(`ALTER TABLE crm_deal_automations ADD COLUMN IF NOT EXISTS follow_up_due_at TIMESTAMP WITH TIME ZONE`);
+    logInfo('[event-bus] schema ready');
+  } catch (err) {
+    logError('[event-bus] self-heal failed', err);
+  }
+})();
+
 const VALID_EVENTS = new Set([
   'lead_created',
   'stage_changed',
