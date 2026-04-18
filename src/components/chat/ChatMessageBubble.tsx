@@ -424,7 +424,7 @@ export function ChatMessageBubble({
               </Button>
             </div>
           </div>
-        ) : msg.content && msg.message_type !== 'call_log' && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) ? (
+        ) : msg.content && msg.message_type !== 'call_log' && msg.message_type !== 'contact' && !(msg.message_type === 'document' && looksLikeFilename(msg.content)) ? (
           <>
             <p className="text-sm whitespace-pre-wrap" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
               {renderTextWithLinks(msg.content, searchQuery, highlightText)}
