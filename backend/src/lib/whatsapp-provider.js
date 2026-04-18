@@ -579,6 +579,40 @@ async function sendMetaMessage(connection, phone, content, messageType, mediaUrl
         type: 'document',
         document: { link: mediaUrl, ...(content ? { filename: content } : {}) },
       };
+    } else if (messageType === 'contact') {
+      // Meta Cloud API: type 'contacts' (array)
+      let contactName = '';
+      let contactPhone = '';
+      try {
+        const ct = typeof content === 'string' ? JSON.parse(content) : content;
+        contactName = ct?.contactName || ct?.name || '';
+        contactPhone = String(ct?.contactPhone || ct?.phone || '').replace(/\D/g, '');
+      } catch {
+        return { success: false, error: 'Dados de contato inválidos' };
+      }
+      if (!contactName || !contactPhone) {
+        return { success: false, error: 'Nome e telefone do contato são obrigatórios' };
+      }
+      const parts = contactName.trim().split(/\s+/);
+      const firstName = parts[0] || contactName;
+      const lastName = parts.slice(1).join(' ');
+      body = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'contacts',
+        contacts: [{
+          name: {
+            formatted_name: contactName,
+            first_name: firstName,
+            ...(lastName ? { last_name: lastName } : {}),
+          },
+          phones: [{
+            phone: `+${contactPhone}`,
+            wa_id: contactPhone,
+            type: 'CELL',
+          }],
+        }],
+      };
     } else {
       // Fallback to text
       body = {
