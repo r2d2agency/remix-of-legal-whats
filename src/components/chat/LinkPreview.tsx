@@ -95,11 +95,11 @@ export function LinkPreview({ url, savedPreview }: LinkPreviewProps) {
         onClick={(e) => e.stopPropagation()}
       >
         {savedPreview.thumbnail && (
-          <div className="flex items-start gap-2.5 p-2.5">
+          <div className="flex items-start gap-3 p-3">
             <img
               src={savedPreview.thumbnail}
               alt={savedPreview.title || ''}
-              className="w-16 h-16 rounded object-cover flex-shrink-0"
+              className="w-28 h-28 rounded object-cover flex-shrink-0"
               loading="lazy"
               onError={(e) => { e.currentTarget.parentElement!.style.display = 'none'; }}
             />
