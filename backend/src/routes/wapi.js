@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth.js';
 import { getSendAttempts, clearSendAttempts, getEndpointDiscoveryAttempts, clearEndpointDiscoveryAttempts, downloadMedia as wapiDownloadMedia, getChats as wapiGetChats, getGroupInfo as wapiGetGroupInfo, getGroups as wapiGetGroups, fetchContacts as wapiFetchContacts, getChatMessages as wapiGetChatMessages, getProfilePicture as wapiGetProfilePicture, checkNumbersBulk as wapiCheckNumbersBulk } from '../lib/wapi-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { pauseNurturingOnReply } from './nurturing.js';
+import { emitLeadEvent } from '../lib/event-bus.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import path from 'path';
@@ -1964,6 +1965,31 @@ async function handleIncomingMessage(connection, payload) {
     if (cleanPhone && connection.organization_id) {
       pauseNurturingOnReply(cleanPhone, connection.organization_id, conversationId)
         .catch(err => console.error('[W-API] Error pausing nurturing:', err.message));
+
+      // Emit lead_replied so CRM automations stop / advance via the event bus.
+      // Async fire-and-forget — webhook latency must stay low.
+      (async () => {
+        try {
+          const dealRow = await query(
+            `SELECT cd.deal_id FROM crm_deal_contacts cd
+             JOIN contacts c ON c.id = cd.contact_id
+             WHERE RIGHT(REGEXP_REPLACE(c.phone, '\\D', '', 'g'), 9) = RIGHT($1, 9)
+             ORDER BY cd.is_primary DESC NULLS LAST
+             LIMIT 1`,
+            [cleanPhone]
+          );
+          await emitLeadEvent({
+            organizationId: connection.organization_id,
+            dealId: dealRow.rows[0]?.deal_id || null,
+            contactPhone: cleanPhone,
+            eventType: 'lead_replied',
+            payload: { conversation_id: conversationId, message_id: messageId },
+            source: 'chat',
+          });
+        } catch (e) {
+          console.error('[W-API] emit lead_replied failed:', e.message);
+        }
+      })();
     }
 
     // ======= GROUP SECRETARY: AI analysis for group messages =======

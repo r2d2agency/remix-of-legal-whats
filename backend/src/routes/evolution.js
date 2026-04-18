@@ -8,6 +8,7 @@ import * as whatsappProvider from '../lib/whatsapp-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import { logError, logInfo } from '../logger.js';
 import { pauseNurturingOnReply } from './nurturing.js';
+import { emitLeadEvent } from '../lib/event-bus.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 
@@ -2034,6 +2035,30 @@ async function handleMessageUpsert(connection, data) {
         if (!fromMe && contactPhone && connection.organization_id) {
           pauseNurturingOnReply(contactPhone, connection.organization_id, conversationId)
             .catch(err => console.error('[Evolution] Error pausing nurturing:', err.message));
+
+          // Emit lead_replied for the CRM event bus
+          (async () => {
+            try {
+              const dealRow = await query(
+                `SELECT cd.deal_id FROM crm_deal_contacts cd
+                 JOIN contacts c ON c.id = cd.contact_id
+                 WHERE RIGHT(REGEXP_REPLACE(c.phone, '\\D', '', 'g'), 9) = RIGHT($1, 9)
+                 ORDER BY cd.is_primary DESC NULLS LAST
+                 LIMIT 1`,
+                [contactPhone]
+              );
+              await emitLeadEvent({
+                organizationId: connection.organization_id,
+                dealId: dealRow.rows[0]?.deal_id || null,
+                contactPhone,
+                eventType: 'lead_replied',
+                payload: { conversation_id: conversationId, message_id: messageId },
+                source: 'chat',
+              });
+            } catch (e) {
+              console.error('[Evolution] emit lead_replied failed:', e.message);
+            }
+          })();
         }
 
         // ======= GROUP SECRETARY: AI analysis for group messages =======
