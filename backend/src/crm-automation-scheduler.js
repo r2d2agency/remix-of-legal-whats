@@ -240,10 +240,10 @@ async function executeFlowForDeal(automation, organizationId) {
   }
 }
 
-// Move deal to next stage (timeout)
+// Move deal to next stage (timeout) — now emits no_reply_timeout event
 async function moveDealToNextStage(automation) {
   try {
-    // Get automation config for next stage info
+    // Get automation config for next stage info (incl. new next_stage_on_timeout)
     const configResult = await query(
       `SELECT sa.*, s.funnel_id
        FROM crm_stage_automations sa
@@ -253,10 +253,11 @@ async function moveDealToNextStage(automation) {
     );
 
     const config = configResult.rows[0];
-    let nextStageId = automation.next_stage_id;
+    // Priority: explicit next_stage_on_timeout > automation's next_stage_id > fallback funnel
+    let nextStageId =
+      config?.next_stage_on_timeout || automation.next_stage_id || null;
     let nextFunnelId = null;
 
-    // If no next stage in same funnel, check fallback funnel
     if (!nextStageId && config?.fallback_funnel_id && config?.fallback_stage_id) {
       nextStageId = config.fallback_stage_id;
       nextFunnelId = config.fallback_funnel_id;
@@ -271,80 +272,106 @@ async function moveDealToNextStage(automation) {
       return false;
     }
 
-    // Move the deal
-    const updateFields = nextFunnelId 
-      ? `stage_id = $1, funnel_id = $2, last_activity_at = NOW(), updated_at = NOW()`
-      : `stage_id = $1, last_activity_at = NOW(), updated_at = NOW()`;
-    
-    const updateParams = nextFunnelId 
-      ? [nextStageId, nextFunnelId, automation.deal_id]
-      : [nextStageId, automation.deal_id];
-
-    await query(
-      `UPDATE crm_deals SET ${updateFields} WHERE id = $${updateParams.length}`,
-      updateParams
+    // Look up org for the event bus
+    const dealOrg = await query(
+      `SELECT organization_id FROM crm_deals WHERE id = $1`,
+      [automation.deal_id]
     );
+    const organizationId = dealOrg.rows[0]?.organization_id;
 
-    // Update current automation as moved
+    // Mark current automation as moved BEFORE the event so reactors don't double-fire
     await query(
-      `UPDATE crm_deal_automations 
+      `UPDATE crm_deal_automations
        SET status = 'moved', moved_at = NOW(), updated_at = NOW()
        WHERE id = $1`,
       [automation.id]
     );
 
-    // Log the action
     await query(
       `INSERT INTO crm_automation_logs (deal_automation_id, deal_id, action, details)
        VALUES ($1, $2, 'timeout_move', $3)`,
-      [automation.id, automation.deal_id, JSON.stringify({ 
+      [automation.id, automation.deal_id, JSON.stringify({
         from_stage_id: automation.stage_id,
         to_stage_id: nextStageId,
         to_funnel_id: nextFunnelId
       })]
     );
 
-    // Add to deal history
-    await query(
-      `INSERT INTO crm_deal_history (deal_id, action, from_value, to_value, notes)
-       VALUES ($1, 'stage_changed', $2, $3, 'Movido automaticamente por falta de resposta')`,
-      [automation.deal_id, automation.stage_id, nextStageId]
-    );
-
-    // Check if new stage has automation and start it
-    const newStageAutomation = await query(
-      `SELECT * FROM crm_stage_automations 
-       WHERE stage_id = $1 AND is_active = true AND execute_immediately = true`,
-      [nextStageId]
-    );
-
-    if (newStageAutomation.rows[0]) {
-      const newConfig = newStageAutomation.rows[0];
-      const waitUntil = new Date();
-      waitUntil.setHours(waitUntil.getHours() + (newConfig.wait_hours || 24));
-
+    // Emit no_reply_timeout — the event handler does the actual stage move
+    // and emits stage_changed (which queues the next automation).
+    if (organizationId) {
+      await emitLeadEvent({
+        organizationId,
+        dealId: automation.deal_id,
+        contactPhone: automation.contact_phone,
+        eventType: 'no_reply_timeout',
+        payload: {
+          from_stage_id: automation.stage_id,
+          to_stage_id: nextStageId,
+          to_funnel_id: nextFunnelId,
+        },
+        source: 'scheduler',
+      });
+    } else {
+      // Fallback: legacy direct move when org cannot be resolved
+      const updateFields = nextFunnelId
+        ? `stage_id = $1, funnel_id = $2, last_activity_at = NOW(), updated_at = NOW()`
+        : `stage_id = $1, last_activity_at = NOW(), updated_at = NOW()`;
+      const updateParams = nextFunnelId
+        ? [nextStageId, nextFunnelId, automation.deal_id]
+        : [nextStageId, automation.deal_id];
       await query(
-        `INSERT INTO crm_deal_automations 
-         (deal_id, stage_id, automation_id, status, flow_id, wait_until, contact_phone, next_stage_id)
-         VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7)`,
-        [
-          automation.deal_id, 
-          nextStageId, 
-          newConfig.id, 
-          newConfig.flow_id, 
-          waitUntil, 
-          automation.contact_phone,
-          newConfig.next_stage_id
-        ]
+        `UPDATE crm_deals SET ${updateFields} WHERE id = $${updateParams.length}`,
+        updateParams
       );
-
-      logInfo(`New automation started for deal ${automation.deal_id} in stage ${nextStageId}`);
     }
 
-    logInfo(`Deal ${automation.deal_id} moved from stage ${automation.stage_id} to ${nextStageId}`);
+    logInfo(`Deal ${automation.deal_id} moved from ${automation.stage_id} → ${nextStageId} (timeout)`);
     return true;
   } catch (error) {
     logError('Error moving deal to next stage:', error);
+    return false;
+  }
+}
+
+// Trigger a follow-up flow for a deal automation (without moving stages)
+async function triggerFollowUp(automation, organizationId) {
+  try {
+    const cfg = await query(
+      `SELECT follow_up_flow_id FROM crm_stage_automations WHERE id = $1`,
+      [automation.automation_id]
+    );
+    const followUpFlowId = cfg.rows[0]?.follow_up_flow_id || automation.flow_id;
+    if (!followUpFlowId) return false;
+
+    // Reuse executeFlowForDeal but with the follow-up flow id
+    const success = await executeFlowForDeal(
+      { ...automation, flow_id: followUpFlowId },
+      organizationId
+    );
+    if (!success) return false;
+
+    await query(
+      `UPDATE crm_deal_automations SET follow_up_sent_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [automation.id]
+    );
+    await query(
+      `INSERT INTO crm_automation_logs (deal_automation_id, deal_id, action, details)
+       VALUES ($1, $2, 'follow_up_sent', $3)`,
+      [automation.id, automation.deal_id, JSON.stringify({ flow_id: followUpFlowId })]
+    );
+
+    await emitLeadEvent({
+      organizationId,
+      dealId: automation.deal_id,
+      contactPhone: automation.contact_phone,
+      eventType: 'follow_up_sent',
+      payload: { flow_id: followUpFlowId },
+      source: 'scheduler',
+    });
+    return true;
+  } catch (err) {
+    logError('Error triggering follow-up:', err);
     return false;
   }
 }
