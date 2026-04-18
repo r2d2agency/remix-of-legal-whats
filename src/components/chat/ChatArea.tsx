@@ -56,6 +56,7 @@ import {
   BellOff,
   Bell,
   Pin,
+  Contact as ContactIcon,
   X as XIcon,
 } from "lucide-react";
 import { FileSignature } from "lucide-react";
@@ -93,6 +94,7 @@ import { ChatMessageBubble } from "./ChatMessageBubble";
 import { ForwardMessageDialog } from "./ForwardMessageDialog";
 import { RequestSignatureDialog } from "./RequestSignatureDialog";
 import { SendTemplateDialog } from "./SendTemplateDialog";
+import { SendContactDialog } from "./SendContactDialog";
 import {
   TransferDialog,
   DepartmentDialog,
@@ -207,6 +209,7 @@ export function ChatArea({
   const [showEditContactDialog, setShowEditContactDialog] = useState(false);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [showStartFlowDialog, setShowStartFlowDialog] = useState(false);
+  const [showSendContactDialog, setShowSendContactDialog] = useState(false);
   const [showDealDialog, setShowDealDialog] = useState(false);
   const [showDealDetailDialog, setShowDealDetailDialog] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<CRMDeal | null>(null);
@@ -1306,6 +1309,9 @@ export function ChatArea({
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => fileInputRef.current?.click()} disabled={isUploading || sending}>
                 {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               </Button>
+              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setShowSendContactDialog(true)} title="Enviar contato">
+                <ContactIcon className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="icon" className={cn("h-9 w-9 flex-shrink-0 relative", scheduledMessages.length > 0 && "text-primary")} onClick={() => setShowScheduleDialog(true)} title="Agendar mensagem">
                 <CalendarClock className="h-4 w-4" />
                 {scheduledMessages.length > 0 && <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center">{scheduledMessages.length}</span>}
@@ -1375,6 +1381,19 @@ export function ChatArea({
       />
 
       {conversation && <StartFlowDialog open={showStartFlowDialog} onClose={() => setShowStartFlowDialog(false)} conversationId={conversation.id} connectionId={conversation.connection_id} onFlowStarted={() => {}} />}
+
+      {conversation && (
+        <SendContactDialog
+          open={showSendContactDialog}
+          onOpenChange={setShowSendContactDialog}
+          connectionId={conversation.connection_id}
+          onSend={async (contactName, contactPhone) => {
+            const payload = JSON.stringify({ contactName, contactPhone });
+            await onSendMessage(payload, 'contact');
+            toast.success('Contato enviado!');
+          }}
+        />
+      )}
 
       <TransferDialog open={showTransferDialog} onOpenChange={setShowTransferDialog} conversation={conversation} team={team} availableConnections={connections} onTransfer={onTransfer} />
       <DepartmentDialog open={showDepartmentDialog} onOpenChange={setShowDepartmentDialog} conversation={conversation} departments={departments} onSave={handleSaveDepartment} saving={savingDepartment} />
