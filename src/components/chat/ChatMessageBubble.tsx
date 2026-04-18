@@ -335,6 +335,51 @@ export function ChatMessageBubble({
           </a>
         )}
 
+        {/* Contact card (vCard) */}
+        {msg.message_type === 'contact' && (() => {
+          let contactName = '';
+          let contactPhone = '';
+          try {
+            const parsed = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
+            contactName = parsed?.contactName || parsed?.fullName || parsed?.name || '';
+            contactPhone = parsed?.contactPhone || parsed?.phoneNumber || parsed?.phone || '';
+          } catch {
+            // try to parse vCard
+            const raw = String(msg.content || '');
+            const fnMatch = raw.match(/FN:(.+)/i);
+            const telMatch = raw.match(/TEL[^:]*:([+\d\s-]+)/i);
+            contactName = fnMatch?.[1]?.trim() || '';
+            contactPhone = (telMatch?.[1] || '').replace(/\D/g, '');
+          }
+          const initials = (contactName || contactPhone || '?')
+            .split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('');
+          const vcardData = `BEGIN:VCARD\nVERSION:3.0\nFN:${contactName}\nTEL;type=CELL:+${contactPhone}\nEND:VCARD`;
+          const vcardUrl = `data:text/vcard;charset=utf-8,${encodeURIComponent(vcardData)}`;
+          return (
+            <div className="bg-background/40 rounded-lg p-3 border border-border/50 mb-2 min-w-[220px]">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/15 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{contactName || 'Contato'}</p>
+                  <p className="text-xs opacity-70 truncate">{contactPhone || '—'}</p>
+                </div>
+              </div>
+              {contactPhone && (
+                <a
+                  href={vcardUrl}
+                  download={`${(contactName || 'contato').replace(/\s+/g, '_')}.vcf`}
+                  className="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-primary hover:underline border-t border-border/40 pt-2"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Salvar contato
+                </a>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Call Log */}
         {msg.message_type === 'call_log' && (
           <div className="bg-background/50 rounded-lg p-3 border border-primary/20 mb-2">
