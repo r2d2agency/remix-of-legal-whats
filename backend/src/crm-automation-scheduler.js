@@ -1,5 +1,6 @@
 import { query } from './db.js';
 import { logInfo, logError } from './logger.js';
+import { emitLeadEvent, processPendingLeadEvents } from './lib/event-bus.js';
 
 // Execute flow for a deal automation
 // Helper: Get next business day/time respecting schedule
