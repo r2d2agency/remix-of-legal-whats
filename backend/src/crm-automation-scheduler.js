@@ -387,36 +387,50 @@ async function checkForResponses() {
     );
 
     for (const automation of activeAutomations.rows) {
-      // Check if there's a recent incoming message from this contact
+      // Look up org for the event bus
+      const dealOrg = await query(
+        `SELECT organization_id FROM crm_deals WHERE id = $1`,
+        [automation.deal_id]
+      );
+      const organizationId = dealOrg.rows[0]?.organization_id;
+
+      // Check if there's a recent incoming message from this contact (via conversation)
       const messageResult = await query(
-        `SELECT id FROM chat_messages 
-         WHERE phone = $1 
-           AND direction = 'incoming'
-           AND created_at > $2
+        `SELECT cm.id
+         FROM chat_messages cm
+         JOIN conversations c ON c.id = cm.conversation_id
+         WHERE c.phone = $1
+           AND cm.from_me = false
+           AND cm.timestamp > $2
          LIMIT 1`,
         [automation.contact_phone, automation.flow_sent_at || automation.created_at]
       );
 
       if (messageResult.rows[0]) {
-        // Contact responded! Cancel the automation
-        await query(
-          `UPDATE crm_deal_automations 
-           SET status = 'responded', responded_at = NOW(), updated_at = NOW()
-           WHERE id = $1`,
-          [automation.id]
-        );
+        // Emit lead_replied — the handler will mark automation as responded.
+        if (organizationId) {
+          await emitLeadEvent({
+            organizationId,
+            dealId: automation.deal_id,
+            contactPhone: automation.contact_phone,
+            eventType: 'lead_replied',
+            payload: { source: 'incoming_message', message_id: messageResult.rows[0].id },
+            source: 'scheduler',
+          });
+        } else {
+          // Fallback: legacy direct cancel
+          await query(
+            `UPDATE crm_deal_automations
+             SET status = 'responded', responded_at = NOW(), updated_at = NOW()
+             WHERE id = $1`,
+            [automation.id]
+          );
+        }
 
-        // Log the response
         await query(
           `INSERT INTO crm_automation_logs (deal_automation_id, deal_id, action, details)
            VALUES ($1, $2, 'message_received', '{"source": "incoming_message"}')`,
           [automation.id, automation.deal_id]
-        );
-
-        // Update deal activity
-        await query(
-          `UPDATE crm_deals SET last_activity_at = NOW(), updated_at = NOW() WHERE id = $1`,
-          [automation.deal_id]
         );
 
         logInfo(`Automation stopped for deal ${automation.deal_id} - contact responded`);
@@ -424,6 +438,31 @@ async function checkForResponses() {
     }
   } catch (error) {
     logError('Error checking for responses:', error);
+  }
+}
+
+// Process due follow-ups (intermediate message before timeout)
+async function processFollowUps() {
+  try {
+    const due = await query(
+      `SELECT da.*, d.organization_id
+       FROM crm_deal_automations da
+       JOIN crm_deals d ON d.id = da.deal_id
+       WHERE da.status IN ('flow_sent', 'waiting')
+         AND da.follow_up_sent_at IS NULL
+         AND da.follow_up_due_at IS NOT NULL
+         AND da.follow_up_due_at <= NOW()
+       ORDER BY da.follow_up_due_at ASC
+       LIMIT 50`
+    );
+    for (const automation of due.rows) {
+      await triggerFollowUp(automation, automation.organization_id);
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    return due.rows.length;
+  } catch (err) {
+    logError('Error processing follow-ups:', err);
+    return 0;
   }
 }
 
@@ -461,8 +500,10 @@ export async function executeCRMAutomations() {
   logInfo('🤖 [CRM-AUTOMATION] Starting execution...');
 
   const stats = {
+    events_dispatched: 0,
     pending_processed: 0,
     flows_triggered: 0,
+    follow_ups_sent: 0,
     timeouts_processed: 0,
     deals_moved: 0,
     responses_detected: 0,
@@ -470,15 +511,18 @@ export async function executeCRMAutomations() {
   };
 
   try {
-    // 1. Check for responses first (to stop automations)
+    // 0. Drain any pending lead events (safety net for failed inline dispatches)
+    stats.events_dispatched = await processPendingLeadEvents(100);
+
+    // 1. Check for responses first (to stop automations) — emits lead_replied
     await checkForResponses();
 
-    // 2. Process pending automations (trigger flows)
+    // 2. Process pending automations (trigger flows + queue follow-up timer)
     const pendingAutomations = await query(
       `SELECT da.*, d.organization_id
        FROM crm_deal_automations da
        JOIN crm_deals d ON d.id = da.deal_id
-       WHERE da.status = 'pending' 
+       WHERE da.status = 'pending'
          AND da.flow_id IS NOT NULL
        ORDER BY da.created_at ASC
        LIMIT 50`
@@ -486,38 +530,57 @@ export async function executeCRMAutomations() {
 
     for (const automation of pendingAutomations.rows) {
       stats.pending_processed++;
-      
+
       const success = await executeFlowForDeal(automation, automation.organization_id);
       if (success) {
         stats.flows_triggered++;
+        // Schedule follow-up if configured on the stage automation
+        const cfg = await query(
+          `SELECT follow_up_minutes FROM crm_stage_automations WHERE id = $1`,
+          [automation.automation_id]
+        );
+        const fum = cfg.rows[0]?.follow_up_minutes;
+        if (fum && fum > 0) {
+          await query(
+            `UPDATE crm_deal_automations
+             SET follow_up_due_at = NOW() + ($1 || ' minutes')::interval,
+                 updated_at = NOW()
+             WHERE id = $2`,
+            [String(fum), automation.id]
+          );
+        }
       } else {
         stats.errors++;
       }
 
-      // Small delay between executions
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    // 3. Process timeouts (move deals to next stage)
+    // 3. Process due follow-ups
+    stats.follow_ups_sent = await processFollowUps();
+
+    // 4. Process timeouts (move deals to next stage via no_reply_timeout event)
     const timedOutAutomations = await query(
-      `SELECT da.*, d.organization_id
+      `SELECT da.*, d.organization_id,
+              COALESCE(sa.timeout_hours * 3600, EXTRACT(EPOCH FROM (NOW() - da.flow_sent_at))) as elapsed
        FROM crm_deal_automations da
        JOIN crm_deals d ON d.id = da.deal_id
+       LEFT JOIN crm_stage_automations sa ON sa.id = da.automation_id
        WHERE da.status IN ('flow_sent', 'waiting')
-         AND da.wait_until < NOW()
-       ORDER BY da.wait_until ASC
+         AND (
+           da.wait_until < NOW()
+           OR (sa.timeout_hours IS NOT NULL
+               AND da.flow_sent_at IS NOT NULL
+               AND da.flow_sent_at + (sa.timeout_hours || ' hours')::interval < NOW())
+         )
+       ORDER BY da.wait_until ASC NULLS LAST
        LIMIT 50`
     );
 
     for (const automation of timedOutAutomations.rows) {
       stats.timeouts_processed++;
-      
       const moved = await moveDealToNextStage(automation);
-      if (moved) {
-        stats.deals_moved++;
-      }
-
-      // Small delay between moves
+      if (moved) stats.deals_moved++;
       await new Promise(resolve => setTimeout(resolve, 300));
     }
 
