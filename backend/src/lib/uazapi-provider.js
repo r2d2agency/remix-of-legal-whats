@@ -620,11 +620,57 @@ export async function senderListMessages(baseUrl, token, folderId, { status, lim
 }
 
 /**
+ * Envia cartão de contato (vCard)
+ * UAZAPI: POST /send/contact  { number, fullName, phoneNumber, organization?, email? }
+ */
+export async function sendContact(baseUrl, token, phone, contactName, contactPhone, extra = {}) {
+  const cleanContactPhone = String(contactPhone).replace(/\D/g, '');
+  const body = {
+    number: normalizePhone(phone),
+    fullName: contactName,
+    phoneNumber: cleanContactPhone,
+  };
+  if (extra.organization) body.organization = extra.organization;
+  if (extra.email) body.email = extra.email;
+
+  // Tenta /send/contact primeiro; fallback para vcard via /send/text se não suportado
+  let r = await uazapiFetch(baseUrl, '/send/contact', { method: 'POST', token, body });
+  if (!r.ok) {
+    // Fallback: monta vCard e envia como texto
+    const vcard = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      `FN:${contactName}`,
+      `TEL;type=CELL;waid=${cleanContactPhone}:+${cleanContactPhone}`,
+      'END:VCARD',
+    ].join('\n');
+    r = await uazapiFetch(baseUrl, '/send/text', {
+      method: 'POST',
+      token,
+      body: { number: normalizePhone(phone), text: vcard },
+    });
+    if (!r.ok) return { success: false, error: r.data?.error || r.data?.message || `HTTP ${r.status}` };
+  }
+  return { success: true, messageId: r.data?.id || r.data?.messageId || r.data?.key?.id || null };
+}
+
+/**
  * Sender unificado (compatível com whatsapp-provider.js)
  */
 export async function sendMessage(baseUrl, token, phone, content, messageType, mediaUrl) {
   if (messageType === 'text' || !messageType) {
     return sendText(baseUrl, token, phone, content);
+  }
+  if (messageType === 'contact') {
+    try {
+      const ct = typeof content === 'string' ? JSON.parse(content) : content;
+      return sendContact(baseUrl, token, phone, ct.contactName, ct.contactPhone, {
+        organization: ct.organization,
+        email: ct.email,
+      });
+    } catch {
+      return { success: false, error: 'Invalid contact data' };
+    }
   }
   return sendMedia(baseUrl, token, phone, mediaUrl, messageType, content);
 }
