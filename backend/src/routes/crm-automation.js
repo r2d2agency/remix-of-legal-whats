@@ -78,14 +78,19 @@ router.put('/stages/:stageId/automation', async (req, res) => {
       condition_true_flow_id,
       condition_true_stage_id,
       condition_false_flow_id,
-      condition_false_stage_id
+      condition_false_stage_id,
+      // NEW: follow-up + timeout (event-driven)
+      follow_up_minutes,
+      follow_up_flow_id,
+      timeout_hours,
+      next_stage_on_timeout
     } = req.body;
 
     // Upsert automation
     const result = await query(
       `INSERT INTO crm_stage_automations 
-       (stage_id, flow_id, wait_hours, next_stage_id, fallback_funnel_id, fallback_stage_id, is_active, execute_immediately, schedule_days, schedule_start_time, schedule_end_time, conditions, condition_logic, condition_true_flow_id, condition_true_stage_id, condition_false_flow_id, condition_false_stage_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+       (stage_id, flow_id, wait_hours, next_stage_id, fallback_funnel_id, fallback_stage_id, is_active, execute_immediately, schedule_days, schedule_start_time, schedule_end_time, conditions, condition_logic, condition_true_flow_id, condition_true_stage_id, condition_false_flow_id, condition_false_stage_id, follow_up_minutes, follow_up_flow_id, timeout_hours, next_stage_on_timeout)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
        ON CONFLICT (stage_id) 
        DO UPDATE SET
          flow_id = EXCLUDED.flow_id,
@@ -104,6 +109,10 @@ router.put('/stages/:stageId/automation', async (req, res) => {
          condition_true_stage_id = EXCLUDED.condition_true_stage_id,
          condition_false_flow_id = EXCLUDED.condition_false_flow_id,
          condition_false_stage_id = EXCLUDED.condition_false_stage_id,
+         follow_up_minutes = EXCLUDED.follow_up_minutes,
+         follow_up_flow_id = EXCLUDED.follow_up_flow_id,
+         timeout_hours = EXCLUDED.timeout_hours,
+         next_stage_on_timeout = EXCLUDED.next_stage_on_timeout,
          updated_at = NOW()
        RETURNING *`,
       [
@@ -123,7 +132,11 @@ router.put('/stages/:stageId/automation', async (req, res) => {
         condition_true_flow_id || null,
         condition_true_stage_id || null,
         condition_false_flow_id || null,
-        condition_false_stage_id || null
+        condition_false_stage_id || null,
+        follow_up_minutes ?? null,
+        follow_up_flow_id || null,
+        timeout_hours ?? null,
+        next_stage_on_timeout || null
       ]
     );
 
@@ -409,6 +422,53 @@ router.post('/deals/bulk-start-automation', async (req, res) => {
     logError('Error in bulk start automation:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// ============================================
+// FUNNEL ENTRY RULES (event-driven routing on lead_created)
+// ============================================
+router.get('/funnels/:funnelId/entry-rules', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    const r = await query(
+      `SELECT entry_rules FROM crm_funnels WHERE id = $1 AND organization_id = $2`,
+      [req.params.funnelId, org.organization_id]
+    );
+    const raw = r.rows[0]?.entry_rules || [];
+    res.json(typeof raw === 'string' ? JSON.parse(raw) : raw);
+  } catch (e) { logError('entry-rules get', e); res.status(500).json({ error: e.message }); }
+});
+
+router.put('/funnels/:funnelId/entry-rules', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org || !canManage(org.role)) return res.status(403).json({ error: 'Permission denied' });
+    const rules = Array.isArray(req.body?.rules) ? req.body.rules : [];
+    await query(
+      `UPDATE crm_funnels SET entry_rules = $1::jsonb, updated_at = NOW()
+       WHERE id = $2 AND organization_id = $3`,
+      [JSON.stringify(rules), req.params.funnelId, org.organization_id]
+    );
+    res.json({ success: true, rules });
+  } catch (e) { logError('entry-rules put', e); res.status(500).json({ error: e.message }); }
+});
+
+// Recent lead events for diagnostics
+router.get('/lead-events', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    const dealId = req.query.deal_id || null;
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const r = await query(
+      `SELECT * FROM lead_events
+       WHERE organization_id = $1 ${dealId ? 'AND deal_id = $2' : ''}
+       ORDER BY created_at DESC LIMIT ${dealId ? '$3' : '$2'}`,
+      dealId ? [org.organization_id, dealId, limit] : [org.organization_id, limit]
+    );
+    res.json(r.rows);
+  } catch (e) { logError('lead-events list', e); res.status(500).json({ error: e.message }); }
 });
 
 export default router;
