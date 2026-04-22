@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Search, Loader2, MessageSquare, Clock, Calendar, X } from 'lucide-react';
 import { api } from '@/lib/api';
-import { formatDistanceToNow } from 'date-fns';
+ import { formatDistanceToNow, subDays, startOfDay, endOfDay, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -164,42 +164,92 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
             )}
           </div>
 
-          {/* Date Filters */}
-          <div className="flex flex-col space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Filtrar por data</span>
-              {(startDate || endDate) && (
-                <button 
-                  onClick={() => { setStartDate(''); setEndDate(''); }}
-                  className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
-                >
-                  <X className="h-2.5 w-2.5" /> Limpar
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="relative">
-                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="pl-8 h-8 text-xs"
-                  title="Data inicial"
-                />
-              </div>
-              <div className="relative">
-                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="pl-8 h-8 text-xs"
-                  title="Data final"
-                />
-              </div>
-            </div>
-          </div>
+           {/* Date Filters */}
+           <div className="flex flex-col space-y-2">
+             <div className="flex items-center justify-between">
+               <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Filtrar por data</span>
+               {(startDate || endDate) && (
+                 <button 
+                   onClick={() => { setStartDate(''); setEndDate(''); }}
+                   className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                 >
+                   <X className="h-2.5 w-2.5" /> Limpar
+                 </button>
+               )}
+             </div>
+             
+             <div className="flex flex-wrap gap-1.5 mb-1">
+               <button
+                 onClick={() => {
+                   const today = format(new Date(), 'yyyy-MM-dd');
+                   setStartDate(today);
+                   setEndDate(today);
+                 }}
+                 className={cn(
+                   "text-[10px] px-2 py-1 rounded-full border transition-colors",
+                   startDate === format(new Date(), 'yyyy-MM-dd') && endDate === format(new Date(), 'yyyy-MM-dd')
+                     ? "bg-primary text-primary-foreground border-primary"
+                     : "bg-background hover:bg-accent text-muted-foreground"
+                 )}
+               >
+                 Hoje
+               </button>
+               <button
+                 onClick={() => {
+                   const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+                   setStartDate(yesterday);
+                   setEndDate(yesterday);
+                 }}
+                 className={cn(
+                   "text-[10px] px-2 py-1 rounded-full border transition-colors",
+                   startDate === format(subDays(new Date(), 1), 'yyyy-MM-dd') && endDate === format(subDays(new Date(), 1), 'yyyy-MM-dd')
+                     ? "bg-primary text-primary-foreground border-primary"
+                     : "bg-background hover:bg-accent text-muted-foreground"
+                 )}
+               >
+                 Ontem
+               </button>
+               <button
+                 onClick={() => {
+                   const sevenDaysAgo = format(subDays(new Date(), 7), 'yyyy-MM-dd');
+                   const today = format(new Date(), 'yyyy-MM-dd');
+                   setStartDate(sevenDaysAgo);
+                   setEndDate(today);
+                 }}
+                 className={cn(
+                   "text-[10px] px-2 py-1 rounded-full border transition-colors",
+                   startDate === format(subDays(new Date(), 7), 'yyyy-MM-dd') && endDate === format(new Date(), 'yyyy-MM-dd')
+                     ? "bg-primary text-primary-foreground border-primary"
+                     : "bg-background hover:bg-accent text-muted-foreground"
+                 )}
+               >
+                 Últimos 7 dias
+               </button>
+             </div>
+
+             <div className="grid grid-cols-2 gap-2">
+               <div className="relative">
+                 <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                 <Input
+                   type="date"
+                   value={startDate}
+                   onChange={(e) => setStartDate(e.target.value)}
+                   className="pl-8 h-8 text-xs"
+                   title="Data inicial"
+                 />
+               </div>
+               <div className="relative">
+                 <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                 <Input
+                   type="date"
+                   value={endDate}
+                   onChange={(e) => setEndDate(e.target.value)}
+                   className="pl-8 h-8 text-xs"
+                   title="Data final"
+                 />
+               </div>
+             </div>
+           </div>
         </div>
 
         {/* Results */}
