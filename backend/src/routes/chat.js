@@ -366,16 +366,16 @@ router.get('/messages/search', authenticate, async (req, res) => {
       return res.json({ results: [] });
     }
 
-    const { q, limit = 50 } = req.query;
+    const { q, limit = 50, from_date, to_date } = req.query;
     
     if (!q || q.length < 2) {
       return res.json({ results: [] });
     }
 
     const searchQuery = `%${q}%`;
-    const maxResults = Math.min(parseInt(limit) || 50, 100);
+    const maxResults = Math.min(parseInt(limit) || 50, 500); // Increased to 500
 
-    const result = await query(`
+    let queryText = `
       SELECT 
         m.id as message_id,
         m.conversation_id,
@@ -394,9 +394,28 @@ router.get('/messages/search', authenticate, async (req, res) => {
         AND m.content IS NOT NULL
         AND m.content != ''
         AND COALESCE(conv.is_archived, false) = false
-      ORDER BY m.timestamp DESC
-      LIMIT $3
-    `, [connectionIds, searchQuery, maxResults]);
+    `;
+
+    const queryParams = [connectionIds, searchQuery];
+    let paramCount = 2;
+
+    if (from_date) {
+      paramCount++;
+      queryText += ` AND m.timestamp >= $${paramCount}`;
+      queryParams.push(from_date + ' 00:00:00');
+    }
+
+    if (to_date) {
+      paramCount++;
+      queryText += ` AND m.timestamp <= $${paramCount}`;
+      queryParams.push(to_date + ' 23:59:59');
+    }
+
+    paramCount++;
+    queryText += ` ORDER BY m.timestamp DESC LIMIT $${paramCount}`;
+    queryParams.push(maxResults);
+
+    const result = await query(queryText, queryParams);
 
     res.json({
       results: result.rows.map(row => ({
