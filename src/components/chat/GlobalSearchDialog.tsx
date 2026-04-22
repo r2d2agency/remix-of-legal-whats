@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, MessageSquare, Clock, Calendar, X } from 'lucide-react';
+ import { Search, Loader2, MessageSquare, Clock, Calendar, X, Filter } from 'lucide-react';
+ import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
  import { formatDistanceToNow, subDays, startOfDay, endOfDay, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -178,53 +179,53 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
                )}
              </div>
              
-             <div className="flex flex-wrap gap-1.5 mb-1">
-               <button
+             <div className="flex flex-wrap gap-1.5 mt-1">
+               <Button
+                 variant={startDate === format(new Date(), 'yyyy-MM-dd') && endDate === format(new Date(), 'yyyy-MM-dd') ? "default" : "outline"}
+                 size="sm"
+                 className="h-7 text-[10px] px-2.5 rounded-full"
                  onClick={() => {
-                   const today = format(new Date(), 'yyyy-MM-dd');
-                   setStartDate(today);
-                   setEndDate(today);
+                   const d = format(new Date(), 'yyyy-MM-dd');
+                   setStartDate(d);
+                   setEndDate(d);
                  }}
-                 className={cn(
-                   "text-[10px] px-2 py-1 rounded-full border transition-colors",
-                   startDate === format(new Date(), 'yyyy-MM-dd') && endDate === format(new Date(), 'yyyy-MM-dd')
-                     ? "bg-primary text-primary-foreground border-primary"
-                     : "bg-background hover:bg-accent text-muted-foreground"
-                 )}
                >
                  Hoje
-               </button>
-               <button
+               </Button>
+               <Button
+                 variant={startDate === format(subDays(new Date(), 1), 'yyyy-MM-dd') && endDate === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? "default" : "outline"}
+                 size="sm"
+                 className="h-7 text-[10px] px-2.5 rounded-full"
                  onClick={() => {
-                   const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-                   setStartDate(yesterday);
-                   setEndDate(yesterday);
+                   const d = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+                   setStartDate(d);
+                   setEndDate(d);
                  }}
-                 className={cn(
-                   "text-[10px] px-2 py-1 rounded-full border transition-colors",
-                   startDate === format(subDays(new Date(), 1), 'yyyy-MM-dd') && endDate === format(subDays(new Date(), 1), 'yyyy-MM-dd')
-                     ? "bg-primary text-primary-foreground border-primary"
-                     : "bg-background hover:bg-accent text-muted-foreground"
-                 )}
                >
                  Ontem
-               </button>
-               <button
+               </Button>
+               <Button
+                 variant={startDate === format(subDays(new Date(), 7), 'yyyy-MM-dd') && endDate === format(new Date(), 'yyyy-MM-dd') ? "default" : "outline"}
+                 size="sm"
+                 className="h-7 text-[10px] px-2.5 rounded-full"
                  onClick={() => {
-                   const sevenDaysAgo = format(subDays(new Date(), 7), 'yyyy-MM-dd');
-                   const today = format(new Date(), 'yyyy-MM-dd');
-                   setStartDate(sevenDaysAgo);
-                   setEndDate(today);
+                   setStartDate(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
+                   setEndDate(format(new Date(), 'yyyy-MM-dd'));
                  }}
-                 className={cn(
-                   "text-[10px] px-2 py-1 rounded-full border transition-colors",
-                   startDate === format(subDays(new Date(), 7), 'yyyy-MM-dd') && endDate === format(new Date(), 'yyyy-MM-dd')
-                     ? "bg-primary text-primary-foreground border-primary"
-                     : "bg-background hover:bg-accent text-muted-foreground"
-                 )}
                >
                  Últimos 7 dias
-               </button>
+               </Button>
+               <Button
+                 variant={startDate === format(subDays(new Date(), 30), 'yyyy-MM-dd') && endDate === format(new Date(), 'yyyy-MM-dd') ? "default" : "outline"}
+                 size="sm"
+                 className="h-7 text-[10px] px-2.5 rounded-full"
+                 onClick={() => {
+                   setStartDate(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+                   setEndDate(format(new Date(), 'yyyy-MM-dd'));
+                 }}
+               >
+                 Últimos 30 dias
+               </Button>
              </div>
 
              <div className="grid grid-cols-2 gap-2">
@@ -252,8 +253,8 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
            </div>
         </div>
 
-        {/* Results */}
-        <ScrollArea className="flex-1 min-h-[300px]">
+         {/* Results */}
+         <ScrollArea className="flex-1 overflow-y-auto min-h-[400px]">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
