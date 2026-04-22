@@ -1,3 +1,18 @@
+
+// Log history manually (for frontend actions like WhatsApp)
+router.post('/deals/:id/history', async (req, res) => {
+  try {
+    const { action, from_value, to_value, notes } = req.body;
+    await query(
+      `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value, notes)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [req.params.id, req.userId, action, from_value, to_value, notes]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 import express from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
