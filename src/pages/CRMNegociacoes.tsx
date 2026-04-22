@@ -56,7 +56,7 @@ export default function CRMNegociacoes() {
   
   // Loss reason dialog state
   const [lossDialogOpen, setLossDialogOpen] = useState(false);
-  const [pendingLossDeal, setPendingLossDeal] = useState<{ id: string; title: string } | null>(null);
+   const [pendingLossDeal, setPendingLossDeal] = useState<{ id: string; title: string; stageId?: string } | null>(null);
   
   // Filters
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
@@ -105,14 +105,14 @@ export default function CRMNegociacoes() {
   const canManage = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
   
   // Handle status change with celebration
-  const handleStatusChange = useCallback((dealId: string, status: 'won' | 'lost' | 'paused' | 'open', dealTitle?: string) => {
-    // If marking as lost, open the loss reason dialog
-    if (status === 'lost') {
-      const deal = Object.values(dealsByStage || {}).flat().find(d => d.id === dealId);
-      setPendingLossDeal({ id: dealId, title: dealTitle || deal?.title || 'Negociação' });
-      setLossDialogOpen(true);
-      return;
-    }
+   const handleStatusChange = useCallback((dealId: string, status: 'won' | 'lost' | 'paused' | 'open', dealTitle?: string, stageId?: string) => {
+     // If marking as lost, open the loss reason dialog
+     if (status === 'lost') {
+       const deal = Object.values(dealsByStage || {}).flat().find(d => d.id === dealId);
+       setPendingLossDeal({ id: dealId, title: dealTitle || deal?.title || 'Negociação', stageId });
+       setLossDialogOpen(true);
+       return;
+     }
 
     updateDeal.mutate({ id: dealId, status } as any, {
       onSuccess: () => {
@@ -129,16 +129,17 @@ export default function CRMNegociacoes() {
     });
   }, [updateDeal, dealsByStage]);
 
-  // Handle confirmed loss with reason
-  const handleConfirmLoss = useCallback((reasonId: string, description: string) => {
-    if (!pendingLossDeal) return;
-    
-    updateDeal.mutate({ 
-      id: pendingLossDeal.id, 
-      status: 'lost',
-      loss_reason_id: reasonId,
-      lost_reason: description 
-    } as any, {
+   // Handle confirmed loss with reason
+   const handleConfirmLoss = useCallback((reasonId: string, description: string) => {
+     if (!pendingLossDeal) return;
+     
+     updateDeal.mutate({ 
+       id: pendingLossDeal.id, 
+       status: 'lost',
+       loss_reason_id: reasonId,
+       lost_reason: description,
+       stage_id: pendingLossDeal.stageId
+     } as any, {
       onSuccess: () => {
         toast.error("Negociação marcada como perdida");
         setPendingLossDeal(null);
