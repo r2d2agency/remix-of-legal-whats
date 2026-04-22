@@ -99,9 +99,13 @@ const Chat = () => {
       attendance_status: 'attending' as 'waiting' | 'attending' | 'finished',
       department: 'all',
       favorite: false,
+      startDate: undefined as string | undefined,
+      endDate: undefined as string | undefined,
     };
   });
   const [activeTab, setActiveTab] = useState<'chats' | 'groups'>('chats');
+  const [hasMoreConversations, setHasMoreConversations] = useState(true);
+  const [loadingMoreConversations, setLoadingMoreConversations] = useState(false);
 
   // Keep latest loader for intervals / effects without stale closures
   const loadConversationsRef = useRef<() => void>(() => {});
@@ -231,12 +235,21 @@ const Chat = () => {
     }
   };
 
-  const loadConversations = useCallback(async () => {
-    // Prevent overlapping loads
-    if (isLoadingConversationsRef.current) return;
-    isLoadingConversationsRef.current = true;
-    
+  const loadConversations = useCallback(async (isLoadMore = false) => {
+    // Prevent overlapping loads unless it's a load more
+    if (!isLoadMore && isLoadingConversationsRef.current) return;
+    if (isLoadMore && loadingMoreConversations) return;
+
+    if (isLoadMore) {
+      setLoadingMoreConversations(true);
+    } else {
+      isLoadingConversationsRef.current = true;
+    }
+
     try {
+      const limit = 50;
+      const offset = isLoadMore ? conversations.length : 0;
+
       const filterParams: any = {};
       if (filters.search) filterParams.search = filters.search;
       if (filters.tag !== 'all') filterParams.tag = filters.tag;
@@ -247,13 +260,19 @@ const Chat = () => {
       filterParams.is_group = activeTab === 'groups' ? 'true' : 'false';
       filterParams.attendance_status = filters.attendance_status;
       if (filters.favorite) filterParams.favorite = 'true';
+      if (filters.startDate) filterParams.startDate = filters.startDate;
+      if (filters.endDate) filterParams.endDate = filters.endDate;
+      
+      filterParams.limit = limit;
+      filterParams.offset = offset;
 
       const data = await getConversations(filterParams);
+      setHasMoreConversations(data.length === limit);
 
       const sticky = stickyConversationRef.current;
 
       // Merge in "empty" conversations we want to keep visible
-      let merged = data;
+      let merged = isLoadMore ? [...conversations, ...data] : data;
       
       // Keep sticky conversation visible if it has no messages yet
       if (sticky && !sticky.last_message_at && !merged.some(c => c.id === sticky.id)) {
@@ -287,10 +306,13 @@ const Chat = () => {
     } catch (error) {
       console.error('Error loading conversations:', error);
     } finally {
-      isLoadingConversationsRef.current = false;
+      if (isLoadMore) {
+        setLoadingMoreConversations(false);
+      } else {
+        isLoadingConversationsRef.current = false;
+      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getConversations, filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, filters.favorite, activeTab, loadAttendanceCounts]);
+  }, [getConversations, filters, activeTab, loadAttendanceCounts, conversations.length, loadingMoreConversations]);
 
   // Keep ref pointing to the latest loadConversations (used by intervals above)
   useEffect(() => {
