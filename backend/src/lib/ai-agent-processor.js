@@ -1311,6 +1311,21 @@ function buildAppBarberServicesTool() {
   };
 }
 
+function buildAppBarberProfessionalsTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_professionals',
+      description: 'Lista os profissionais do estabelecimento. Use SEMPRE esta ferramenta antes de citar nomes de barbeiros ou atendentes. NUNCA invente nomes.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  };
+}
+
 function buildAppBarberAvailabilityTool() {
   return {
     type: 'function',
