@@ -1,3 +1,18 @@
+
+// Log history manually (for frontend actions like WhatsApp)
+router.post('/deals/:id/history', async (req, res) => {
+  try {
+    const { action, from_value, to_value, notes } = req.body;
+    await query(
+      `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value, notes)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [req.params.id, req.userId, action, from_value, to_value, notes]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 import express from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
@@ -164,6 +179,21 @@ router.post('/groups', async (req, res) => {
        VALUES ($1, $2, $3) RETURNING *`,
       [org.organization_id, name, description]
     );
+    // Log history for contact added
+    const contactData = await query(`SELECT name FROM contacts WHERE id = $1`, [finalContactId]);
+    await query(
+      `INSERT INTO crm_deal_history (deal_id, user_id, action, to_value) VALUES ($1, $2, 'contact_added', $3)`,
+      [req.params.id, req.userId, contactData.rows[0]?.name || 'Contato']
+    );
+
+    // Log history if linked to a deal
+    if (result.rows[0].deal_id) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, to_value) VALUES ($1, $2, 'task_completed', $3)`,
+        [result.rows[0].deal_id, req.userId, result.rows[0].title]
+      );
+    }
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error creating group:', error);
@@ -1161,6 +1191,66 @@ router.put('/deals/:id', async (req, res) => {
       values
     );
 
+    // Log history for title change
+    if (title && title !== current.rows[0].title) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'title_changed', $3, $4)`,
+        [req.params.id, req.userId, current.rows[0].title, title]
+      );
+    }
+
+    // Log history for value change
+    if (value !== undefined && Number(value) !== Number(current.rows[0].value)) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'value_changed', $3, $4)`,
+        [req.params.id, req.userId, current.rows[0].value, value]
+      );
+    }
+
+    // Log history for owner change
+    if (owner_id && owner_id !== current.rows[0].owner_id) {
+      const oldOwner = await query(`SELECT name FROM users WHERE id = $1`, [current.rows[0].owner_id]);
+      const newOwner = await query(`SELECT name FROM users WHERE id = $1`, [owner_id]);
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'owner_changed', $3, $4)`,
+        [req.params.id, req.userId, oldOwner.rows[0]?.name || 'Nenhum', newOwner.rows[0]?.name || 'Nenhum']
+      );
+    }
+
+    // Log history for probability change
+    if (probability !== undefined && probability !== current.rows[0].probability) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'probability_changed', $3, $4)`,
+        [req.params.id, req.userId, current.rows[0].probability + '%', probability + '%']
+      );
+    }
+
+    // Log history for expected close date change
+    if (expected_close_date !== undefined && expected_close_date !== current.rows[0].expected_close_date) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'expected_close_date_changed', $3, $4)`,
+        [req.params.id, req.userId, current.rows[0].expected_close_date || 'Nenhuma', expected_close_date || 'Nenhuma']
+      );
+    }
+
+    // Log history for description change
+    if (description !== undefined && description !== current.rows[0].description) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action) VALUES ($1, $2, 'description_changed')`,
+        [req.params.id, req.userId]
+      );
+    }
+
+    // Log history for company change
+    if (company_id && company_id !== current.rows[0].company_id) {
+      const oldCompany = await query(`SELECT name FROM crm_companies WHERE id = $1`, [current.rows[0].company_id]);
+      const newCompany = await query(`SELECT name FROM crm_companies WHERE id = $1`, [company_id]);
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'company_changed', $3, $4)`,
+        [req.params.id, req.userId, oldCompany.rows[0]?.name || 'Nenhuma', newCompany.rows[0]?.name || 'Nenhuma']
+      );
+    }
+
     // Log history for stage change
     if (stage_id && stage_id !== current.rows[0].stage_id) {
       const oldStage = await query(`SELECT name FROM crm_stages WHERE id = $1`, [current.rows[0].stage_id]);
@@ -1503,10 +1593,18 @@ router.post('/deals/:id/contacts', async (req, res) => {
 // Remove contact from deal
 router.delete('/deals/:dealId/contacts/:contactId', async (req, res) => {
   try {
+    const contactData = await query(`SELECT name FROM contacts WHERE id = $1`, [req.params.contactId]);
     await query(
       `DELETE FROM crm_deal_contacts WHERE deal_id = $1 AND contact_id = $2`,
       [req.params.dealId, req.params.contactId]
     );
+
+    // Log history for contact removed
+    await query(
+      `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value) VALUES ($1, $2, 'contact_removed', $3)`,
+      [req.params.dealId, req.userId, contactData.rows[0]?.name || 'Contato']
+    );
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error removing contact from deal:', error);
@@ -1762,9 +1860,14 @@ router.post('/tasks', async (req, res) => {
       console.error('Error creating kanban card from CRM:', kanbanErr);
     }
 
-    // If linked to deal, update last_activity
+    // If linked to deal, update last_activity and log history
     if (deal_id) {
       await query(`UPDATE crm_deals SET last_activity_at = NOW() WHERE id = $1`, [deal_id]);
+      
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, to_value) VALUES ($1, $2, 'task_created', $3)`,
+        [deal_id, req.userId, title]
+      );
     }
 
     res.json(result.rows[0]);
@@ -1848,10 +1951,20 @@ router.delete('/tasks/:id', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
+    const taskData = await query(`SELECT title, deal_id FROM crm_tasks WHERE id = $1`, [req.params.id]);
+    
     await query(
       `DELETE FROM crm_tasks WHERE id = $1 AND organization_id = $2`,
       [req.params.id, org.organization_id]
     );
+
+    // Log history if linked to a deal
+    if (taskData.rows[0]?.deal_id) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value) VALUES ($1, $2, 'task_deleted', $3)`,
+        [taskData.rows[0].deal_id, req.userId, taskData.rows[0].title]
+      );
+    }
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting task:', error);

@@ -319,6 +319,14 @@ router.post('/events', async (req, res) => {
       [req.userId]
     );
 
+    // Log history for deal
+    if (dealId) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, to_value) VALUES ($1, $2, 'appointment_scheduled', $3)`,
+        [dealId, req.userId, title]
+      );
+    }
+
     res.json({ success: true, eventId: eventData.id, htmlLink: eventData.htmlLink });
   } catch (error) {
     logError('Error creating Google Calendar event:', error);
@@ -685,6 +693,14 @@ router.post('/events-with-meet', async (req, res) => {
     );
 
     logInfo(`Meeting created with Meet=${!!meetLink} for user ${req.userId}${dealId ? ` linked to deal ${dealId}` : ''}`);
+
+    // Log history for deal
+    if (dealId) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, to_value) VALUES ($1, $2, 'appointment_scheduled', $3)`,
+        [dealId, req.userId, title]
+      );
+    }
 
     res.json({ 
       success: true, 

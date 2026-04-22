@@ -1296,6 +1296,15 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                                 },
                               });
                               
+                              // Log history
+                              await api(`/api/crm/deals/${deal.id}/history`, {
+                                method: "POST",
+                                body: {
+                                  action: 'whatsapp_scheduled',
+                                  to_value: whatsAppContent.length > 30 ? whatsAppContent.substring(0, 30) + "..." : whatsAppContent
+                                }
+                              }).catch(console.error);
+                              
                               toast.success("Mensagem agendada!");
                               setWhatsAppContent("");
                               setWhatsAppDate(undefined);
@@ -1838,7 +1847,25 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                         {item.action === 'created' && "criou a negociação"}
                         {item.action === 'stage_changed' && `moveu de "${item.from_value}" para "${item.to_value}"`}
                         {item.action === 'value_changed' && `alterou o valor de ${item.from_value} para ${item.to_value}`}
+                        {item.action === 'status_changed' && `alterou o status de "${item.from_value}" para "${item.to_value}"`}
+                        {item.action === 'owner_changed' && `alterou o responsável de "${item.from_value}" para "${item.to_value}"`}
+                        {item.action === 'description_changed' && "atualizou a descrição"}
+                        {item.action === 'title_changed' && `alterou o título para "${item.to_value}"`}
+                        {item.action === 'company_changed' && `alterou a empresa para "${item.to_value}"`}
+                        {item.action === 'task_created' && `agendou a tarefa: "${item.to_value}"`}
+                        {item.action === 'task_completed' && `concluiu a tarefa: "${item.to_value}"`}
+                        {item.action === 'task_deleted' && `removeu a tarefa: "${item.from_value}"`}
+                        {item.action === 'contact_added' && `vinculou o contato: "${item.to_value}"`}
+                        {item.action === 'contact_removed' && `desvinculou o contato: "${item.from_value}"`}
+                        {item.action === 'appointment_scheduled' && `agendou compromisso: "${item.to_value}"`}
+                        {item.action === 'whatsapp_scheduled' && `agendou WhatsApp: "${item.to_value}"`}
+                        {!['created', 'stage_changed', 'value_changed', 'status_changed', 'owner_changed', 'description_changed', 'title_changed', 'company_changed', 'task_created', 'task_completed', 'task_deleted', 'contact_added', 'contact_removed'].includes(item.action) && item.action}
                       </p>
+                      {item.notes && (
+                        <p className="text-xs italic text-muted-foreground mt-0.5">
+                          {item.notes}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         {format(parseISO(item.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                       </p>
