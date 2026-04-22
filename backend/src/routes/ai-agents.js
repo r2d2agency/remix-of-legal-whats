@@ -1921,26 +1921,49 @@ async function executeAppBarberTool(toolName, args, agent) {
           return resultText;
        }
       case 'appbarber_availability': {
-        const params = new URLSearchParams({ establishment_code: estCode, start_date: args.start_date });
-        if (args.service_code) params.set('service_code', String(args.service_code));
-        if (args.combo_code) params.set('combo_code', String(args.combo_code));
-        const url = `${baseUrl}/v1/availability?${params}`;
-        logInfo('ai_agents.appbarber_test_availability_request', { url });
-        const resp = await fetch(url, { headers });
-        const { rawText, payload } = await readAppBarberResponse(resp);
+        const buildAvailabilityParams = (includeServiceCode = true) => {
+          const params = new URLSearchParams({ establishment_code: estCode, start_date: args.start_date });
+          if (includeServiceCode && args.service_code) params.set('service_code', String(args.service_code));
+          if (args.combo_code) params.set('combo_code', String(args.combo_code));
+          return params;
+        };
+        const fetchAvailability = async (params) => {
+          const url = `${baseUrl}/v1/availability?${params}`;
+          logInfo('ai_agents.appbarber_test_availability_request', { url });
+          const resp = await fetch(url, { headers });
+          const { rawText, payload } = await readAppBarberResponse(resp);
+          return { resp, rawText, payload };
+        };
+        const hasSlots = (list) => list.some(p => Array.isArray(p?.available) && p.available.some(s => Boolean(s?.scheduling_time)));
+        const isInvalidServiceFilter = (rawText, payload) => {
+          const text = `${rawText || ''} ${payload?.error || ''} ${payload?.message || ''}`.toLowerCase();
+          return text.includes('invalid_query') || text.includes('service_code') || text.includes('parâmetro') || text.includes('parametro');
+        };
+
+        let availabilityResult = await fetchAvailability(buildAvailabilityParams(true));
+        let list = Array.isArray(availabilityResult.payload?.data) ? availabilityResult.payload.data : [];
+        let fallbackUsed = false;
+
+        if (args.service_code && ((!availabilityResult.resp.ok && isInvalidServiceFilter(availabilityResult.rawText, availabilityResult.payload)) || (availabilityResult.resp.ok && !hasSlots(list)))) {
+          fallbackUsed = true;
+          availabilityResult = await fetchAvailability(buildAvailabilityParams(false));
+          list = Array.isArray(availabilityResult.payload?.data) ? availabilityResult.payload.data : [];
+        }
+
         logInfo('ai_agents.appbarber_test_availability_response', {
-          status: resp.status,
-          ok: resp.ok,
-          professionalsCount: Array.isArray(payload?.data) ? payload.data.length : 0,
-          rawPreview: (rawText || '').slice(0, 500),
+          status: availabilityResult.resp.status,
+          ok: availabilityResult.resp.ok,
+          professionalsCount: list.length,
+          rawPreview: (availabilityResult.rawText || '').slice(0, 500),
+          fallbackUsed,
         });
-        if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
-        const list = Array.isArray(payload?.data) ? payload.data : [];
+        if (!availabilityResult.resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(availabilityResult.resp, availabilityResult.payload, availabilityResult.rawText)}`;
+        if (!hasSlots(list)) return `Nenhum horário disponível para ${args.start_date}.`;
         const formatted = list.map(p => {
           const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).filter(Boolean).join(', ');
           return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}): ${slots || 'Sem horários'}`;
         }).join('\n');
-        return formatted || `Nenhum horário disponível para ${args.start_date}. Resposta bruta: ${(rawText || '').slice(0, 300)}`;
+        return fallbackUsed ? `ℹ️ Disponibilidade geral do dia (sem filtro de serviço):\n${formatted}` : formatted;
       }
       case 'appbarber_appointment': {
         const body = {
