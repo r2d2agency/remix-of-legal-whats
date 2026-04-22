@@ -1530,21 +1530,34 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
         const url = `${baseUrl}/v1/availability?${params}`;
         logInfo('ai_agent_processor.appbarber_http_request', { toolName, url });
         const resp = await fetch(url, { headers });
-        const data = await resp.json();
+        const rawText = await resp.text();
+        let data;
+        try { data = JSON.parse(rawText); } catch { data = null; }
         logInfo('ai_agent_processor.appbarber_http_response', {
           toolName,
           status: resp.status,
           ok: resp.ok,
           professionalsCount: Array.isArray(data?.data) ? data.data.length : 0,
+          rawPreview: rawText.slice(0, 500),
+          requestedDate: args.start_date,
+          requestedServiceCode: args.service_code,
         });
         if (!resp.ok) {
-          resultText = `Erro AppBarber: ${data.error || resp.status}`;
+          resultText = `Erro AppBarber (${resp.status}): ${data?.error || data?.message || rawText.slice(0, 200)}`;
         } else {
-          const availability = (data.data || []).map(p => {
-            const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).join(', ');
+          const list = Array.isArray(data?.data) ? data.data : [];
+          const lines = list.map(p => {
+            const slots = (p.available || [])
+              .map(s => (s.scheduling_time || '').substring(0, 5))
+              .filter(Boolean)
+              .join(', ');
             return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}):\n   Horários: ${slots || 'Sem horários disponíveis'}`;
-          }).join('\n\n');
-          resultText = availability || 'Nenhum horário disponível para esta data.';
+          });
+          if (lines.length === 0) {
+            resultText = `Nenhum profissional retornado pela API para ${args.start_date}. Resposta bruta: ${rawText.slice(0, 300)}`;
+          } else {
+            resultText = lines.join('\n\n');
+          }
         }
         break;
       }
