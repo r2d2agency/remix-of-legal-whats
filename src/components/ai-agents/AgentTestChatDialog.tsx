@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { 
   Bot, Send, Loader2, User, AlertCircle, Trash2, 
   RefreshCw, Brain, Clock
@@ -26,8 +27,29 @@ interface AgentTestChatDialogProps {
 
 interface ToolCallInfo {
   tool: string;
+  source?: string;
+  status?: string;
   arguments: Record<string, unknown>;
   response_preview: string;
+  response_full?: string;
+  reasoning?: string | null;
+}
+
+interface DebugGuardrailInfo {
+  applied: boolean;
+  required_tool: string;
+  required_source: string;
+  matched_calls: number;
+  latest_result_preview?: string | null;
+}
+
+interface DebugTraceInfo {
+  user_message: string;
+  system_prompt: string;
+  registered_tools: string[];
+  required_tool?: string | null;
+  required_source?: string | null;
+  message_history?: Array<{ role: string; content: string }>;
 }
 
 interface TestMessage {
@@ -40,6 +62,9 @@ interface TestMessage {
   processing_time_ms?: number;
    tool_calls?: ToolCallInfo[];
    reasoning?: string;
+   model_output?: string | null;
+   guardrail?: DebugGuardrailInfo | null;
+   trace?: DebugTraceInfo | null;
    error?: boolean;
  }
 
@@ -97,6 +122,10 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
         sources_used?: string[];
         model_used?: string;
         tool_calls?: ToolCallInfo[];
+        reasoning?: string | null;
+        model_output?: string | null;
+        guardrail?: DebugGuardrailInfo | null;
+        trace?: DebugTraceInfo | null;
       }>(`/api/ai-agents/${agent.id}/test`, {
         method: 'POST',
         body: {
@@ -154,7 +183,10 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
          sources_used: response.sources_used,
          processing_time_ms: processingTime,
          tool_calls: response.tool_calls,
-         reasoning: (response as any).reasoning,
+          reasoning: response.reasoning || undefined,
+          model_output: response.model_output,
+          guardrail: response.guardrail,
+          trace: response.trace,
        };
 
       setMessages(prev => [...prev, assistantMessage]);
