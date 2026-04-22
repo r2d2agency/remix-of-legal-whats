@@ -2502,6 +2502,39 @@ CREATE TABLE IF NOT EXISTS appbarber_services (
 CREATE INDEX IF NOT EXISTS idx_appbarber_services_agent ON appbarber_services(agent_id);
 CREATE INDEX IF NOT EXISTS idx_appbarber_services_org ON appbarber_services(organization_id);
 
+-- AppBarber cached professionals table
+CREATE TABLE IF NOT EXISTS appbarber_professionals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agent_id UUID REFERENCES ai_agents(id) ON DELETE CASCADE NOT NULL,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    employee_code INTEGER NOT NULL,
+    employee_name VARCHAR(255) NOT NULL,
+    employee_nickname VARCHAR(255),
+    is_active BOOLEAN DEFAULT true,
+    synced_from_api BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(agent_id, employee_code)
+);
+CREATE INDEX IF NOT EXISTS idx_appbarber_professionals_agent ON appbarber_professionals(agent_id);
+CREATE INDEX IF NOT EXISTS idx_appbarber_professionals_org ON appbarber_professionals(organization_id);
+
+-- AppBarber cached payment types table
+CREATE TABLE IF NOT EXISTS appbarber_payment_types (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agent_id UUID REFERENCES ai_agents(id) ON DELETE CASCADE NOT NULL,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    payment_code INTEGER NOT NULL,
+    payment_description VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    synced_from_api BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(agent_id, payment_code)
+);
+CREATE INDEX IF NOT EXISTS idx_appbarber_payment_types_agent ON appbarber_payment_types(agent_id);
+CREATE INDEX IF NOT EXISTS idx_appbarber_payment_types_org ON appbarber_payment_types(organization_id);
+
 ALTER TABLE ai_knowledge_chunks ADD COLUMN IF NOT EXISTS embedding JSONB;
 ALTER TABLE ai_knowledge_chunks ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);
 

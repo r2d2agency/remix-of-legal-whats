@@ -152,6 +152,31 @@ export interface AppBarberService {
   updated_at: string;
 }
 
+export interface AppBarberProfessional {
+  id: string;
+  agent_id: string;
+  organization_id: string;
+  employee_code: number;
+  employee_name: string;
+  employee_nickname: string | null;
+  is_active: boolean;
+  synced_from_api: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppBarberPaymentType {
+  id: string;
+  agent_id: string;
+  organization_id: string;
+  payment_code: number;
+  payment_description: string;
+  is_active: boolean;
+  synced_from_api: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface KnowledgeSource {
   id: string;
   agent_id: string;
@@ -623,6 +648,94 @@ export const useAIAgents = () => {
     }
   }, []);
 
+  // ==================== APPBARBER PROFESSIONALS ====================
+
+  const getAppBarberProfessionals = useCallback(async (agentId: string): Promise<AppBarberProfessional[]> => {
+    try {
+      return await api<AppBarberProfessional[]>(`/api/ai-agents/${agentId}/appbarber-professionals`, { auth: true });
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const saveAppBarberProfessional = useCallback(async (agentId: string, data: Partial<AppBarberProfessional>): Promise<AppBarberProfessional | null> => {
+    try {
+      return await api<AppBarberProfessional>(`/api/ai-agents/${agentId}/appbarber-professionals`, {
+        method: 'POST',
+        body: data,
+        auth: true,
+      });
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const deleteAppBarberProfessional = useCallback(async (agentId: string, id: string): Promise<boolean> => {
+    try {
+      await api(`/api/ai-agents/${agentId}/appbarber-professionals/${id}`, { method: 'DELETE', auth: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const syncAppBarberProfessionals = useCallback(async (agentId: string, credentials?: { appbarber_api_key?: string; appbarber_establishment_code?: string }): Promise<{ imported: number; total?: number; source?: string } | null> => {
+    try {
+      return await api<{ imported: number; total?: number; source?: string }>(`/api/ai-agents/${agentId}/appbarber-professionals/sync`, {
+        method: 'POST',
+        body: credentials || {},
+        auth: true,
+      });
+    } catch (err) {
+      if (err instanceof Error) throw err;
+      throw new Error('Erro ao sincronizar profissionais');
+    }
+  }, []);
+
+  // ==================== APPBARBER PAYMENT TYPES ====================
+
+  const getAppBarberPaymentTypes = useCallback(async (agentId: string): Promise<AppBarberPaymentType[]> => {
+    try {
+      return await api<AppBarberPaymentType[]>(`/api/ai-agents/${agentId}/appbarber-payment-types`, { auth: true });
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const saveAppBarberPaymentType = useCallback(async (agentId: string, data: Partial<AppBarberPaymentType>): Promise<AppBarberPaymentType | null> => {
+    try {
+      return await api<AppBarberPaymentType>(`/api/ai-agents/${agentId}/appbarber-payment-types`, {
+        method: 'POST',
+        body: data,
+        auth: true,
+      });
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const deleteAppBarberPaymentType = useCallback(async (agentId: string, id: string): Promise<boolean> => {
+    try {
+      await api(`/api/ai-agents/${agentId}/appbarber-payment-types/${id}`, { method: 'DELETE', auth: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const syncAppBarberPaymentTypes = useCallback(async (agentId: string, credentials?: { appbarber_api_key?: string; appbarber_establishment_code?: string }): Promise<{ imported: number; total?: number; source?: string } | null> => {
+    try {
+      return await api<{ imported: number; total?: number; source?: string }>(`/api/ai-agents/${agentId}/appbarber-payment-types/sync`, {
+        method: 'POST',
+        body: credentials || {},
+        auth: true,
+      });
+    } catch (err) {
+      if (err instanceof Error) throw err;
+      throw new Error('Erro ao sincronizar tipos de pagamento');
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -656,5 +769,15 @@ export const useAIAgents = () => {
     saveAppBarberService,
     deleteAppBarberService,
     syncAppBarberServices,
+    // AppBarber Professionals
+    getAppBarberProfessionals,
+    saveAppBarberProfessional,
+    deleteAppBarberProfessional,
+    syncAppBarberProfessionals,
+    // AppBarber Payment Types
+    getAppBarberPaymentTypes,
+    saveAppBarberPaymentType,
+    deleteAppBarberPaymentType,
+    syncAppBarberPaymentTypes,
   };
 };

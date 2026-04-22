@@ -1598,6 +1598,21 @@ function buildAppBarberHistoryTool() {
   };
 }
 
+function buildAppBarberPaymentTypesTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_payment_types',
+      description: 'Lista os tipos de pagamento aceitos pelo estabelecimento (cache local, sem custo de API). Use SEMPRE esta ferramenta antes de informar formas de pagamento. NUNCA invente.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  };
+}
+
 function normalizeAppBarberMoney(value) {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -1721,6 +1736,84 @@ async function importAppBarberServices(agentId, organizationId, services) {
   return imported;
 }
 
+function extractAppBarberArray(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
+async function fetchAppBarberFromApi({ apiKey, estCode, endpoint, extraParams = {} }) {
+  const params = new URLSearchParams({ establishment_code: String(estCode), type: '1', ...extraParams });
+  const url = `https://api.appbarber.com${endpoint}?${params.toString()}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'X-API-Key': apiKey,
+      'User-Agent': 'curl/8.7.1',
+    },
+  });
+
+  const { rawText, payload } = await readAppBarberResponse(response);
+
+  if (!response.ok) {
+    const error = new Error(getAppBarberErrorMessage(response, payload, rawText));
+    error.status = response.status;
+    error.code = isAppBarberCloudflareBlock(response, rawText)
+      ? 'APPBARBER_CLOUDFLARE_BLOCK'
+      : 'APPBARBER_API_ERROR';
+    error.rawPreview = (rawText || '').slice(0, 300);
+    throw error;
+  }
+
+  return extractAppBarberArray(payload);
+}
+
+async function importAppBarberProfessionals(agentId, organizationId, professionals) {
+  let imported = 0;
+  for (const p of professionals) {
+    if (!p?.employee_code || !(p?.employee_name || p?.employee_nickname)) continue;
+    await query(
+      `INSERT INTO appbarber_professionals (agent_id, organization_id, employee_code, employee_name, employee_nickname, synced_from_api)
+       VALUES ($1, $2, $3, $4, $5, true)
+       ON CONFLICT (agent_id, employee_code)
+       DO UPDATE SET employee_name = $4, employee_nickname = $5, synced_from_api = true, updated_at = NOW()`,
+      [
+        agentId,
+        organizationId,
+        parseInt(String(p.employee_code), 10),
+        String(p.employee_name || p.employee_nickname || '').slice(0, 255),
+        p.employee_nickname ? String(p.employee_nickname).slice(0, 255) : null,
+      ]
+    );
+    imported++;
+  }
+  return imported;
+}
+
+async function importAppBarberPaymentTypes(agentId, organizationId, paymentTypes) {
+  let imported = 0;
+  for (const pt of paymentTypes) {
+    const code = pt?.payment_code ?? pt?.payment_type_code ?? pt?.code ?? pt?.id;
+    const desc = pt?.payment_description ?? pt?.payment_type_description ?? pt?.description ?? pt?.name;
+    if (!code || !desc) continue;
+    await query(
+      `INSERT INTO appbarber_payment_types (agent_id, organization_id, payment_code, payment_description, synced_from_api)
+       VALUES ($1, $2, $3, $4, true)
+       ON CONFLICT (agent_id, payment_code)
+       DO UPDATE SET payment_description = $4, synced_from_api = true, updated_at = NOW()`,
+      [
+        agentId,
+        organizationId,
+        parseInt(String(code), 10),
+        String(desc).slice(0, 255),
+      ]
+    );
+    imported++;
+  }
+  return imported;
+}
+
 async function executeAppBarberTool(toolName, args, agent) {
   try {
     const startedAt = Date.now();
@@ -1774,26 +1867,47 @@ async function executeAppBarberTool(toolName, args, agent) {
           return resultText;
        }
        case 'appbarber_professionals': {
-         const params = new URLSearchParams({ establishment_code: String(estCode), type: '1' });
-         const url = `${baseUrl}/v1/professionals?${params}`;
-         logInfo('ai_agents.appbarber_http_request', { agentId: agent.id, toolName, url });
-         const resp = await fetch(url, { headers });
-         const { rawText, payload } = await readAppBarberResponse(resp);
-         logInfo('ai_agents.appbarber_http_response', {
+         // Read from local synced table (same UX as services)
+         const result = await query(
+           `SELECT employee_code, employee_name, employee_nickname
+            FROM appbarber_professionals
+            WHERE agent_id = $1 AND is_active = true
+            ORDER BY employee_name`,
+           [agent.id]
+         );
+         if (result.rows.length === 0) {
+           return 'Nenhum profissional cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os profissionais do AppBarber.';
+         }
+         const resultText = result.rows
+           .map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`)
+           .join('\n');
+         logInfo('ai_agents.appbarber_tool_done', {
            agentId: agent.id,
            toolName,
-           status: resp.status,
-           ok: resp.ok,
-           rawPreview: (rawText || '').slice(0, 300),
+           source: 'tabela_local',
+           durationMs: Date.now() - startedAt,
+           resultPreview: resultText.substring(0, 500),
          });
-         if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
-         const pros = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
-         if (pros.length === 0) return 'Nenhum profissional encontrado no AppBarber para este estabelecimento.';
-          const resultText = pros.map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`).join('\n');
+         return resultText;
+        }
+        case 'appbarber_payment_types': {
+          const result = await query(
+            `SELECT payment_code, payment_description
+             FROM appbarber_payment_types
+             WHERE agent_id = $1 AND is_active = true
+             ORDER BY payment_description`,
+            [agent.id]
+          );
+          if (result.rows.length === 0) {
+            return 'Nenhum tipo de pagamento cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os tipos de pagamento do AppBarber.';
+          }
+          const resultText = result.rows
+            .map(p => `• ${p.payment_description} (código: ${p.payment_code})`)
+            .join('\n');
           logInfo('ai_agents.appbarber_tool_done', {
             agentId: agent.id,
             toolName,
-            source: 'api_appbarber',
+            source: 'tabela_local',
             durationMs: Date.now() - startedAt,
             resultPreview: resultText.substring(0, 500),
           });
@@ -2050,6 +2164,7 @@ router.post('/:id/test', authenticate, async (req, res) => {
      if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
        tools.push(buildAppBarberProfessionalsTool());
        tools.push(buildAppBarberServicesTool());
+       tools.push(buildAppBarberPaymentTypesTool());
        tools.push(buildAppBarberAvailabilityTool());
        tools.push(buildAppBarberAppointmentTool());
        tools.push(buildAppBarberHistoryTool());
@@ -2084,6 +2199,7 @@ router.post('/:id/test', authenticate, async (req, res) => {
             return await executeGenerateContent(args);
            case 'appbarber_professionals':
            case 'appbarber_services':
+           case 'appbarber_payment_types':
            case 'appbarber_availability':
            case 'appbarber_appointment':
            case 'appbarber_history':
@@ -2408,6 +2524,180 @@ router.post('/:agentId/appbarber-services/sync', authenticate, async (req, res) 
   } catch (error) {
     logError('appbarber_services.sync_error', error);
     res.status(500).json({ error: 'Erro ao sincronizar serviços: ' + (error.message || 'erro interno') });
+  }
+});
+
+// ==================== APPBARBER PROFESSIONALS ====================
+
+router.get('/:agentId/appbarber-professionals', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+    const result = await query(
+      `SELECT * FROM appbarber_professionals WHERE agent_id = $1 AND organization_id = $2 ORDER BY employee_name`,
+      [req.params.agentId, userCtx.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    logError('appbarber_professionals.list_error', error);
+    res.status(500).json({ error: 'Erro ao listar profissionais' });
+  }
+});
+
+router.post('/:agentId/appbarber-professionals', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+    const { employee_code, employee_name, employee_nickname, is_active } = req.body;
+    const result = await query(
+      `INSERT INTO appbarber_professionals (agent_id, organization_id, employee_code, employee_name, employee_nickname, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (agent_id, employee_code)
+       DO UPDATE SET employee_name = $4, employee_nickname = $5, is_active = $6, updated_at = NOW()
+       RETURNING *`,
+      [req.params.agentId, userCtx.organization_id, parseInt(String(employee_code), 10), employee_name, employee_nickname || null, is_active !== false]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    logError('appbarber_professionals.create_error', error);
+    res.status(500).json({ error: 'Erro ao salvar profissional' });
+  }
+});
+
+router.delete('/:agentId/appbarber-professionals/:id', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+    await query(
+      `DELETE FROM appbarber_professionals WHERE id = $1 AND agent_id = $2 AND organization_id = $3`,
+      [req.params.id, req.params.agentId, userCtx.organization_id]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    logError('appbarber_professionals.delete_error', error);
+    res.status(500).json({ error: 'Erro ao deletar profissional' });
+  }
+});
+
+router.post('/:agentId/appbarber-professionals/sync', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+
+    const agentResult = await query(
+      `SELECT appbarber_api_key, appbarber_establishment_code FROM ai_agents WHERE id = $1 AND organization_id = $2`,
+      [req.params.agentId, userCtx.organization_id]
+    );
+    const agent = agentResult.rows[0];
+    const apiKey = req.body.appbarber_api_key || agent?.appbarber_api_key;
+    const estCode = req.body.appbarber_establishment_code || agent?.appbarber_establishment_code;
+    if (!apiKey || !estCode) {
+      return res.status(400).json({ error: 'Credenciais AppBarber não configuradas.' });
+    }
+
+    logInfo('appbarber_sync_professionals', { agentId: req.params.agentId, estCode, apiKeyPrefix: apiKey.substring(0, 8) + '...' });
+
+    try {
+      const professionals = await fetchAppBarberFromApi({ apiKey, estCode, endpoint: '/v1/professionals' });
+      const imported = await importAppBarberProfessionals(req.params.agentId, userCtx.organization_id, professionals);
+      return res.json({ ok: true, imported, total: professionals.length, source: 'server' });
+    } catch (error) {
+      logError('appbarber_sync_professionals_error', error, { agentId: req.params.agentId, status: error.status, rawPreview: error.rawPreview });
+      if (error.code === 'APPBARBER_CLOUDFLARE_BLOCK') {
+        return res.status(502).json({ error: 'A AppBarber bloqueou a conexão via Cloudflare.', code: error.code });
+      }
+      return res.status(400).json({ error: `Erro AppBarber: ${error.message || 'falha ao consultar profissionais'}` });
+    }
+  } catch (error) {
+    logError('appbarber_professionals.sync_error', error);
+    res.status(500).json({ error: 'Erro ao sincronizar profissionais: ' + (error.message || 'erro interno') });
+  }
+});
+
+// ==================== APPBARBER PAYMENT TYPES ====================
+
+router.get('/:agentId/appbarber-payment-types', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+    const result = await query(
+      `SELECT * FROM appbarber_payment_types WHERE agent_id = $1 AND organization_id = $2 ORDER BY payment_description`,
+      [req.params.agentId, userCtx.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    logError('appbarber_payment_types.list_error', error);
+    res.status(500).json({ error: 'Erro ao listar tipos de pagamento' });
+  }
+});
+
+router.post('/:agentId/appbarber-payment-types', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+    const { payment_code, payment_description, is_active } = req.body;
+    const result = await query(
+      `INSERT INTO appbarber_payment_types (agent_id, organization_id, payment_code, payment_description, is_active)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (agent_id, payment_code)
+       DO UPDATE SET payment_description = $4, is_active = $5, updated_at = NOW()
+       RETURNING *`,
+      [req.params.agentId, userCtx.organization_id, parseInt(String(payment_code), 10), payment_description, is_active !== false]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    logError('appbarber_payment_types.create_error', error);
+    res.status(500).json({ error: 'Erro ao salvar tipo de pagamento' });
+  }
+});
+
+router.delete('/:agentId/appbarber-payment-types/:id', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+    await query(
+      `DELETE FROM appbarber_payment_types WHERE id = $1 AND agent_id = $2 AND organization_id = $3`,
+      [req.params.id, req.params.agentId, userCtx.organization_id]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    logError('appbarber_payment_types.delete_error', error);
+    res.status(500).json({ error: 'Erro ao deletar tipo de pagamento' });
+  }
+});
+
+router.post('/:agentId/appbarber-payment-types/sync', authenticate, async (req, res) => {
+  try {
+    const userCtx = await getUserContext(req.userId);
+    if (!userCtx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+
+    const agentResult = await query(
+      `SELECT appbarber_api_key, appbarber_establishment_code FROM ai_agents WHERE id = $1 AND organization_id = $2`,
+      [req.params.agentId, userCtx.organization_id]
+    );
+    const agent = agentResult.rows[0];
+    const apiKey = req.body.appbarber_api_key || agent?.appbarber_api_key;
+    const estCode = req.body.appbarber_establishment_code || agent?.appbarber_establishment_code;
+    if (!apiKey || !estCode) {
+      return res.status(400).json({ error: 'Credenciais AppBarber não configuradas.' });
+    }
+
+    logInfo('appbarber_sync_payment_types', { agentId: req.params.agentId, estCode, apiKeyPrefix: apiKey.substring(0, 8) + '...' });
+
+    try {
+      const types = await fetchAppBarberFromApi({ apiKey, estCode, endpoint: '/v1/payment-types' });
+      const imported = await importAppBarberPaymentTypes(req.params.agentId, userCtx.organization_id, types);
+      return res.json({ ok: true, imported, total: types.length, source: 'server' });
+    } catch (error) {
+      logError('appbarber_sync_payment_types_error', error, { agentId: req.params.agentId, status: error.status, rawPreview: error.rawPreview });
+      if (error.code === 'APPBARBER_CLOUDFLARE_BLOCK') {
+        return res.status(502).json({ error: 'A AppBarber bloqueou a conexão via Cloudflare.', code: error.code });
+      }
+      return res.status(400).json({ error: `Erro AppBarber: ${error.message || 'falha ao consultar tipos de pagamento'}` });
+    }
+  } catch (error) {
+    logError('appbarber_payment_types.sync_error', error);
+    res.status(500).json({ error: 'Erro ao sincronizar tipos de pagamento: ' + (error.message || 'erro interno') });
   }
 });
 
