@@ -12,7 +12,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel, useCRMCompanies } from "@/hooks/use-crm";
+ import { CRMDeal, CRMTask, CRMStage, useCRMDeal, useCRMDealMutations, useCRMTaskMutations, useCRMFunnel, useCRMCompanies, useCRMLossReasons } from "@/hooks/use-crm";
+ import { LossReasonDialog } from "./LossReasonDialog";
 import { useCRMCustomFields, CRMCustomField } from "@/hooks/use-crm-config";
 import { api } from "@/lib/api";
 import { Building2, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle, Plus, Trash2, Paperclip, MessageSquare, ChevronRight, Edit2, Save, X, FileText, Image, Loader2, Upload, Search, UserPlus, Building, Mail, Video, Send, ClipboardList, RefreshCw, Flame, FileSignature, ThumbsUp, ThumbsDown, Pause, Play } from "lucide-react";
@@ -118,7 +119,8 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [showNewContactForm, setShowNewContactForm] = useState(false);
   const [newContactName, setNewContactName] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
-  const [creatingContact, setCreatingContact] = useState(false);
+   const [creatingContact, setCreatingContact] = useState(false);
+   const [lossDialogOpen, setLossDialogOpen] = useState(false);
   const [showSequenceDialog, setShowSequenceDialog] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectTitle, setNewProjectTitle] = useState("");
@@ -308,12 +310,27 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
     toast.success("Detalhes atualizados!");
   };
 
-  const handleStatusChange = (status: string) => {
-    updateDeal.mutate({ 
-      id: deal.id, 
-      status: status as 'open' | 'won' | 'lost'
-    });
-  };
+   const handleStatusChange = (status: string) => {
+     if (status === 'lost') {
+       setLossDialogOpen(true);
+       return;
+     }
+     
+     updateDeal.mutate({ 
+       id: deal.id, 
+       status: status as 'open' | 'won' | 'lost'
+     });
+   };
+
+   const handleConfirmLoss = (reasonId: string, description: string) => {
+     updateDeal.mutate({ 
+       id: deal.id, 
+       status: 'lost',
+       loss_reason_id: reasonId,
+       lost_reason: description
+     } as any);
+     setLossDialogOpen(false);
+   };
 
   const handleStageChange = (stageId: string) => {
     if (stageId !== currentDeal?.stage_id) {
@@ -1886,8 +1903,15 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       }}
       contactName={currentDeal?.contacts?.[0]?.name || undefined}
       contactPhone={currentDeal?.contacts?.[0]?.phone || undefined}
-      dealId={deal?.id}
-    />
-    </>
-  );
-}
+       dealId={deal?.id}
+     />
+
+     <LossReasonDialog
+       open={lossDialogOpen}
+       onOpenChange={setLossDialogOpen}
+       onConfirm={handleConfirmLoss}
+       dealTitle={currentDeal?.title || "Negociação"}
+     />
+     </>
+   );
+ }
