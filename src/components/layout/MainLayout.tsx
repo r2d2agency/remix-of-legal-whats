@@ -12,7 +12,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   return (
-    <div className="min-h-screen bg-background overflow-hidden">
+    <div className="h-screen bg-background overflow-hidden flex flex-col xl:flex-row">
       <Sidebar />
       <TopBar />
       
@@ -25,7 +25,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       </div>
       
       {/* Desktop: margin-left for collapsed sidebar + top bar, Mobile/Tablet: no margin */}
-      <main className="xl:ml-16 pt-14 xl:pt-12 overflow-x-hidden w-full xl:w-[calc(100vw-4rem)] box-border">
+      <main className="xl:ml-16 pt-14 xl:pt-12 overflow-x-hidden overflow-y-auto w-full xl:w-[calc(100vw-4rem)] h-full box-border">
         <div className="p-2 xl:p-3 2xl:p-4 w-full min-w-0 overflow-x-hidden">{children}</div>
       </main>
       <GroupSecretaryPopup />
