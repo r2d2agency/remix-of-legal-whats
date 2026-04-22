@@ -144,8 +144,16 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
           {getStatusBadge() || <span />}
           
           {/* Quick status buttons */}
-          {onStatusChange && !isDragging && (
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+          {onStatusChange && (
+            <div 
+              className={cn(
+                "flex items-center gap-1 transition-opacity",
+                isDragging ? "opacity-0" : "opacity-0 group-hover:opacity-100"
+              )}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               {deal.status !== 'won' && (
                 <Tooltip>
                   <TooltipTrigger asChild>

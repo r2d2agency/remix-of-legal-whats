@@ -1131,7 +1131,7 @@ router.put('/deals/:id', async (req, res) => {
     for (const [key, val] of Object.entries(fieldsToUpdate)) {
       if (val !== undefined) {
         updates.push(`${key} = $${paramIndex}`);
-        values.push(key === 'tags' ? val : val);
+        values.push(val);
         paramIndex++;
       }
     }
@@ -1141,14 +1141,6 @@ router.put('/deals/:id', async (req, res) => {
       updates.push(`custom_fields = $${paramIndex}`);
       values.push(JSON.stringify(custom_fields));
       paramIndex++;
-    }
-    
-    for (const [key, val] of Object.entries(fieldsToUpdate)) {
-      if (val !== undefined) {
-        updates.push(`${key} = $${paramIndex}`);
-        values.push(key === 'tags' ? val : val);
-        paramIndex++;
-      }
     }
 
     // Always update activity
