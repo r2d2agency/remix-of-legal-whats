@@ -4,7 +4,7 @@ import { query } from '../db.js';
 import { logInfo, logError, getRecentLogs } from '../logger.js';
 import { callAI, callAIWithTools } from '../lib/ai-caller.js';
 import { processKnowledgeSource, searchKnowledge } from '../lib/knowledge-processor.js';
-import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, inferAppBarberToolSource, isAppBarberToolResultFailure } from '../lib/appbarber-intent.js';
+import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, getAppBarberToolResultStatus, inferAppBarberToolSource, isAppBarberToolResultFailure } from '../lib/appbarber-intent.js';
 
 const router = Router();
 
@@ -2105,7 +2105,8 @@ router.post('/:id/test', authenticate, async (req, res) => {
       ? toolCallsExecuted.filter(tc => tc.name === requiredTool)
       : [];
     const latestToolCall = matchingToolCalls[matchingToolCalls.length - 1] || null;
-    const guardrailApplied = !!requiredTool && (!latestToolCall || isAppBarberToolResultFailure(latestToolCall.result));
+    const latestToolStatus = latestToolCall ? getAppBarberToolResultStatus(latestToolCall.result) : 'not_executed';
+    const guardrailApplied = !!requiredTool && (!latestToolCall || latestToolStatus !== 'ok');
     const finalResponse = guardrailApplied
       ? buildAppBarberGuardrailResponse(requiredTool, latestToolCall?.result)
       : result.content;
@@ -2133,6 +2134,8 @@ router.post('/:id/test', authenticate, async (req, res) => {
           applied: guardrailApplied,
           required_tool: requiredTool,
           required_source: inferAppBarberToolSource(requiredTool),
+          execution_status: latestToolStatus,
+          executed: !!latestToolCall,
           matched_calls: matchingToolCalls.length,
           latest_result_preview: latestToolCall ? String(latestToolCall.result).substring(0, 500) : null,
         } : null,
