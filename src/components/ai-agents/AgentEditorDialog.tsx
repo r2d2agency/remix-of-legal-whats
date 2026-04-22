@@ -1250,6 +1250,288 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
           ⚠️ Salve o agente primeiro para gerenciar os serviços.
         </p>
       )}
+
+      {agentId && (
+        <>
+          <AppBarberProfessionalsSection agentId={agentId} formData={formData} />
+          <AppBarberPaymentTypesSection agentId={agentId} formData={formData} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ==================== APPBARBER PROFESSIONALS SECTION ====================
+
+function AppBarberProfessionalsSection({ agentId, formData }: { agentId: string; formData: any }) {
+  const { getAppBarberProfessionals, saveAppBarberProfessional, deleteAppBarberProfessional, syncAppBarberProfessionals } = useAIAgents();
+  const [items, setItems] = useState<AppBarberProfessional[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newItem, setNewItem] = useState({ employee_code: '', employee_name: '', employee_nickname: '' });
+
+  const load = useCallback(async () => {
+    const data = await getAppBarberProfessionals(agentId);
+    setItems(data);
+  }, [agentId, getAppBarberProfessionals]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await syncAppBarberProfessionals(agentId, {
+        appbarber_api_key: String(formData.appbarber_api_key || '').trim(),
+        appbarber_establishment_code: String(formData.appbarber_establishment_code || '').trim(),
+      });
+      if (!result?.imported) {
+        toast.warning('Nenhum profissional encontrado na API AppBarber.');
+      } else {
+        toast.success(`${result.imported} profissional(is) importado(s)`);
+      }
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao sincronizar profissionais');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!newItem.employee_code || !newItem.employee_name) return;
+    const saved = await saveAppBarberProfessional(agentId, {
+      employee_code: parseInt(newItem.employee_code, 10),
+      employee_name: newItem.employee_name,
+      employee_nickname: newItem.employee_nickname || null,
+    });
+    if (saved) {
+      toast.success('Profissional adicionado');
+      setNewItem({ employee_code: '', employee_name: '', employee_nickname: '' });
+      setShowAdd(false);
+      load();
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteAppBarberProfessional(agentId, id);
+    toast.success('Profissional removido');
+    load();
+  };
+
+  const handleToggle = async (item: AppBarberProfessional) => {
+    await saveAppBarberProfessional(agentId, {
+      employee_code: item.employee_code,
+      employee_name: item.employee_name,
+      employee_nickname: item.employee_nickname,
+      is_active: !item.is_active,
+    });
+    load();
+  };
+
+  return (
+    <div className="space-y-3 border-t pt-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-primary" />
+          <h4 className="font-medium text-sm">Profissionais Cadastrados</h4>
+          <Badge variant="secondary" className="text-xs">{items.length}</Badge>
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="text-xs h-7">
+            <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+            Sincronizar da API
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setShowAdd(!showAdd)} className="text-xs h-7">
+            <Plus className="h-3 w-3 mr-1" />
+            Adicionar
+          </Button>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        💡 Profissionais são consultados localmente (sem custo de API).
+      </p>
+
+      {showAdd && (
+        <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs">Código</Label>
+              <Input type="number" value={newItem.employee_code} onChange={(e) => setNewItem(p => ({ ...p, employee_code: e.target.value }))} className="text-sm h-8" placeholder="42" />
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs">Nome</Label>
+              <Input value={newItem.employee_name} onChange={(e) => setNewItem(p => ({ ...p, employee_name: e.target.value }))} className="text-sm h-8" placeholder="João Silva" />
+            </div>
+            <div className="col-span-3">
+              <Label className="text-xs">Apelido (opcional)</Label>
+              <Input value={newItem.employee_nickname} onChange={(e) => setNewItem(p => ({ ...p, employee_nickname: e.target.value }))} className="text-sm h-8" placeholder="João" />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)} className="text-xs h-7">Cancelar</Button>
+            <Button size="sm" onClick={handleAdd} className="text-xs h-7"><Save className="h-3 w-3 mr-1" />Salvar</Button>
+          </div>
+        </div>
+      )}
+
+      {items.length > 0 ? (
+        <div className="space-y-1 max-h-48 overflow-y-auto">
+          {items.map((p) => (
+            <div key={p.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
+              <div className="flex items-center gap-3 flex-1">
+                <Switch checked={p.is_active} onCheckedChange={() => handleToggle(p)} />
+                <div className="flex-1 min-w-0">
+                  <span className={`font-medium ${!p.is_active ? 'text-muted-foreground line-through' : ''}`}>{p.employee_name}</span>
+                  {p.employee_nickname && <span className="text-xs text-muted-foreground ml-2">({p.employee_nickname})</span>}
+                  <span className="text-xs text-muted-foreground ml-2">cód: {p.employee_code}</span>
+                </div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => handleDelete(p.id)} className="h-7 w-7 p-0 ml-2">
+                <Trash2 className="h-3 w-3 text-destructive" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-4 text-xs text-muted-foreground border rounded-lg">
+          Nenhum profissional cadastrado. Use "Sincronizar da API" para importar.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================== APPBARBER PAYMENT TYPES SECTION ====================
+
+function AppBarberPaymentTypesSection({ agentId, formData }: { agentId: string; formData: any }) {
+  const { getAppBarberPaymentTypes, saveAppBarberPaymentType, deleteAppBarberPaymentType, syncAppBarberPaymentTypes } = useAIAgents();
+  const [items, setItems] = useState<AppBarberPaymentType[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newItem, setNewItem] = useState({ payment_code: '', payment_description: '' });
+
+  const load = useCallback(async () => {
+    const data = await getAppBarberPaymentTypes(agentId);
+    setItems(data);
+  }, [agentId, getAppBarberPaymentTypes]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await syncAppBarberPaymentTypes(agentId, {
+        appbarber_api_key: String(formData.appbarber_api_key || '').trim(),
+        appbarber_establishment_code: String(formData.appbarber_establishment_code || '').trim(),
+      });
+      if (!result?.imported) {
+        toast.warning('Nenhum tipo de pagamento encontrado na API AppBarber.');
+      } else {
+        toast.success(`${result.imported} tipo(s) de pagamento importado(s)`);
+      }
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao sincronizar tipos de pagamento');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!newItem.payment_code || !newItem.payment_description) return;
+    const saved = await saveAppBarberPaymentType(agentId, {
+      payment_code: parseInt(newItem.payment_code, 10),
+      payment_description: newItem.payment_description,
+    });
+    if (saved) {
+      toast.success('Tipo de pagamento adicionado');
+      setNewItem({ payment_code: '', payment_description: '' });
+      setShowAdd(false);
+      load();
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteAppBarberPaymentType(agentId, id);
+    toast.success('Tipo de pagamento removido');
+    load();
+  };
+
+  const handleToggle = async (item: AppBarberPaymentType) => {
+    await saveAppBarberPaymentType(agentId, {
+      payment_code: item.payment_code,
+      payment_description: item.payment_description,
+      is_active: !item.is_active,
+    });
+    load();
+  };
+
+  return (
+    <div className="space-y-3 border-t pt-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CreditCard className="h-4 w-4 text-primary" />
+          <h4 className="font-medium text-sm">Tipos de Pagamento</h4>
+          <Badge variant="secondary" className="text-xs">{items.length}</Badge>
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="text-xs h-7">
+            <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+            Sincronizar da API
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setShowAdd(!showAdd)} className="text-xs h-7">
+            <Plus className="h-3 w-3 mr-1" />
+            Adicionar
+          </Button>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        💡 Formas de pagamento aceitas pela barbearia (consulta local, sem custo de API).
+      </p>
+
+      {showAdd && (
+        <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs">Código</Label>
+              <Input type="number" value={newItem.payment_code} onChange={(e) => setNewItem(p => ({ ...p, payment_code: e.target.value }))} className="text-sm h-8" placeholder="1" />
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs">Descrição</Label>
+              <Input value={newItem.payment_description} onChange={(e) => setNewItem(p => ({ ...p, payment_description: e.target.value }))} className="text-sm h-8" placeholder="PIX" />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)} className="text-xs h-7">Cancelar</Button>
+            <Button size="sm" onClick={handleAdd} className="text-xs h-7"><Save className="h-3 w-3 mr-1" />Salvar</Button>
+          </div>
+        </div>
+      )}
+
+      {items.length > 0 ? (
+        <div className="space-y-1 max-h-48 overflow-y-auto">
+          {items.map((p) => (
+            <div key={p.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
+              <div className="flex items-center gap-3 flex-1">
+                <Switch checked={p.is_active} onCheckedChange={() => handleToggle(p)} />
+                <div className="flex-1 min-w-0">
+                  <span className={`font-medium ${!p.is_active ? 'text-muted-foreground line-through' : ''}`}>{p.payment_description}</span>
+                  <span className="text-xs text-muted-foreground ml-2">cód: {p.payment_code}</span>
+                </div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => handleDelete(p.id)} className="h-7 w-7 p-0 ml-2">
+                <Trash2 className="h-3 w-3 text-destructive" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-4 text-xs text-muted-foreground border rounded-lg">
+          Nenhum tipo de pagamento cadastrado. Use "Sincronizar da API" para importar.
+        </div>
+      )}
     </div>
   );
 }
