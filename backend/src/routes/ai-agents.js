@@ -1923,14 +1923,24 @@ async function executeAppBarberTool(toolName, args, agent) {
       case 'appbarber_availability': {
         const params = new URLSearchParams({ establishment_code: estCode, start_date: args.start_date });
         if (args.service_code) params.set('service_code', String(args.service_code));
-        const resp = await fetch(`${baseUrl}/v1/availability?${params}`, { headers });
+        if (args.combo_code) params.set('combo_code', String(args.combo_code));
+        const url = `${baseUrl}/v1/availability?${params}`;
+        logInfo('ai_agents.appbarber_test_availability_request', { url });
+        const resp = await fetch(url, { headers });
         const { rawText, payload } = await readAppBarberResponse(resp);
+        logInfo('ai_agents.appbarber_test_availability_response', {
+          status: resp.status,
+          ok: resp.ok,
+          professionalsCount: Array.isArray(payload?.data) ? payload.data.length : 0,
+          rawPreview: (rawText || '').slice(0, 500),
+        });
         if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
-        const data = payload || {};
-        return (data.data || []).map(p => {
-          const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).join(', ');
+        const list = Array.isArray(payload?.data) ? payload.data : [];
+        const formatted = list.map(p => {
+          const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).filter(Boolean).join(', ');
           return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}): ${slots || 'Sem horários'}`;
-        }).join('\n') || 'Nenhum horário disponível.';
+        }).join('\n');
+        return formatted || `Nenhum horário disponível para ${args.start_date}. Resposta bruta: ${(rawText || '').slice(0, 300)}`;
       }
       case 'appbarber_appointment': {
         const body = {
