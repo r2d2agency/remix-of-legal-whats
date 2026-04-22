@@ -329,7 +329,7 @@ const Chat = () => {
   useEffect(() => {
     loadConversations();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, filters.favorite, activeTab]);
+  }, [filters.search, filters.tag, filters.assigned, filters.connection, filters.archived, filters.attendance_status, filters.department, filters.favorite, filters.startDate, filters.endDate, activeTab]);
 
   const loadTags = async () => {
     try {
