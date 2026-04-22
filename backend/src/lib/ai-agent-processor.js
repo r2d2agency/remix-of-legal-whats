@@ -1014,19 +1014,45 @@ async function buildSystemPrompt(agent, organizationId, contactName, userMessage
   // AppBarber-specific scheduling playbook
   const agentCapabilitiesList = parseArray(agent.capabilities, []);
   if (agentCapabilitiesList.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
-    prompt += `\n\n=== FLUXO DE AGENDAMENTO APPBARBER ===
-1. SERVIÇO: Use appbarber_services (tabela local) para obter o service_code e o preço quando o cliente citar ou escolher um serviço. Nunca invente.
-2. DATA: Pergunte o dia desejado e converta para o formato YYYY-MM-DD usando o CONTEXTO TEMPORAL acima.
-3. DISPONIBILIDADE GERAL: Se o cliente perguntar apenas se há horário no dia (ex: "tem horário amanhã?"), chame appbarber_availability SOMENTE com start_date.
-4. DISPONIBILIDADE POR SERVIÇO: Só envie service_code em appbarber_availability quando o cliente já tiver definido o serviço.
-5. SEM PREFERÊNCIA DE PROFISSIONAL: Se o cliente disser "tanto faz", "qualquer um", "sem preferência" ou similar:
-   - Liste de forma curta os horários consolidados do dia.
-   - Quando o cliente escolher o horário, atribua automaticamente o PRIMEIRO profissional disponível naquele slot e CONFIRME o nome com o cliente antes de gravar.
-6. COM PREFERÊNCIA: Se o cliente citar um profissional, use a disponibilidade retornada para esse cenário e confirme o profissional antes do agendamento.
-7. CONFIRMAÇÃO OBRIGATÓRIA: Antes de chamar appbarber_appointment, confirme com o cliente: nome, telefone, serviço, profissional, data e hora. Só grave após o "sim".
-8. AGENDAMENTO: Use appbarber_appointment com professional_code, service_code, duration (vem de appbarber_services) e start_date no formato "YYYY-MM-DD HH:mm".
-9. CONSULTA DE AGENDAMENTOS EXISTENTES: Use appbarber_history com start_date e end_date.
-10. PROFISSIONAIS / TIPOS DE PAGAMENTO: Use appbarber_professionals e appbarber_payment_types (ambas tabelas locais sincronizadas).`;
+    prompt += `\n\n=== FLUXO DE AGENDAMENTO APPBARBER (REGRAS RÍGIDAS) ===
+
+ANTES DE CONSULTAR DISPONIBILIDADE você PRECISA ter coletado, NESTA ORDEM:
+  (a) DIA desejado (converta para YYYY-MM-DD usando o CONTEXTO TEMPORAL).
+  (b) SERVIÇO desejado (use appbarber_services para pegar o service_code real — nunca invente).
+  (c) PERÍODO do dia: manhã, tarde ou noite. Se o cliente não disser, PERGUNTE de forma curta:
+      "Prefere de manhã, tarde ou à noite?"
+  (d) PROFISSIONAL (opcional): se o cliente tiver preferência, use o nome dele. Se não tiver, NÃO pergunte — siga sem profissional.
+
+DEFINIÇÃO DE PERÍODO (use para filtrar os horários retornados):
+  - manhã  = horários com hora < 12:00
+  - tarde  = horários com hora >= 12:00 e < 18:00
+  - noite  = horários com hora >= 18:00
+
+COMO CHAMAR appbarber_availability:
+  - Sempre envie start_date (YYYY-MM-DD) e service_code (quando já souber o serviço).
+  - Se o cliente citou profissional, envie professional_code também.
+  - Depois de receber o resultado, FILTRE você mesmo pelo período pedido (manhã/tarde/noite).
+
+COMO RESPONDER AO CLIENTE:
+  - Mostre no MÁXIMO 3 horários, os 3 MAIS PRÓXIMOS dentro do período pedido.
+  - COM profissional preferido: 3 horários desse profissional no período.
+  - SEM profissional: 3 horários mais próximos no período (de qualquer profissional disponível) e diga o nome do profissional ao lado de cada horário.
+  - Formato sugerido: "14h com Victor, 14h30 com João, 15h com Pedro".
+
+SE NÃO HOUVER HORÁRIO NO DIA/PERÍODO PEDIDO:
+  - Avise educadamente: "Para [dia] no período da [manhã/tarde/noite] não tenho mais horário."
+  - IMEDIATAMENTE chame appbarber_availability de novo para o PRÓXIMO dia (start_date + 1) mantendo o mesmo período e serviço.
+  - Se ainda assim vier vazio, avance um dia por vez (até 7 tentativas) até encontrar o primeiro horário disponível.
+  - Quando achar, ofereça: "Mas tenho [dia] às [hora] com [profissional]. Posso reservar?"
+
+CONFIRMAÇÃO OBRIGATÓRIA antes de appbarber_appointment:
+  Confirme nome, telefone, serviço, profissional, data e hora. Só grave após "sim".
+
+AGENDAMENTO: Use appbarber_appointment com professional_code, service_code, duration (vem de appbarber_services) e start_date "YYYY-MM-DD HH:mm".
+CONSULTA DE AGENDAMENTOS EXISTENTES: appbarber_history com start_date e end_date.
+LISTAS AUXILIARES: appbarber_professionals e appbarber_payment_types (tabelas locais sincronizadas).
+
+NUNCA diga "não tem horário" sem ter (1) chamado appbarber_availability para o dia pedido E (2) tentado os próximos dias quando vier vazio.`;
   }
 
   // Add human-like WhatsApp communication style
