@@ -14,7 +14,7 @@ import { callAI, callAIWithTools } from './ai-caller.js';
 import { logInfo, logError } from '../logger.js';
 import { searchKnowledge } from './knowledge-processor.js';
 import * as whatsappProvider from './whatsapp-provider.js';
-import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, inferAppBarberToolSource, isAppBarberToolResultFailure } from './appbarber-intent.js';
+import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, getAppBarberToolResultStatus, inferAppBarberToolSource, isAppBarberToolResultFailure } from './appbarber-intent.js';
 
 // ==================== MESSAGE BATCHING ====================
 // Collects multiple messages from same contact within a window before processing
@@ -437,7 +437,8 @@ async function processMessageInternal({
       if (requiredTool) {
         const matchingToolCalls = toolCallsExecuted.filter(call => call.name === requiredTool);
         const latestToolCall = matchingToolCalls[matchingToolCalls.length - 1] || null;
-        const mustBlockAnswer = !latestToolCall || isAppBarberToolResultFailure(latestToolCall.result);
+        const latestToolStatus = latestToolCall ? getAppBarberToolResultStatus(latestToolCall.result) : 'not_executed';
+        const mustBlockAnswer = !latestToolCall || latestToolStatus !== 'ok';
 
         logInfo('ai_agent_processor.appbarber_grounding_check', {
           sessionId: session.id,
@@ -445,6 +446,8 @@ async function processMessageInternal({
           requiredTool,
           requiredSource: inferAppBarberToolSource(requiredTool),
           executedToolNames: toolCallsExecuted.map(call => call.name),
+          executionStatus: latestToolStatus,
+          executed: !!latestToolCall,
           matchedCalls: matchingToolCalls.length,
           blocked: mustBlockAnswer,
           latestResultPreview: latestToolCall ? String(latestToolCall.result).substring(0, 240) : null,

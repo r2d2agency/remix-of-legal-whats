@@ -39,6 +39,8 @@ interface DebugGuardrailInfo {
   applied: boolean;
   required_tool: string;
   required_source: string;
+  execution_status?: string;
+  executed?: boolean;
   matched_calls: number;
   latest_result_preview?: string | null;
 }
@@ -342,6 +344,8 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
                             <div className="space-y-1 text-xs text-muted-foreground">
                               <div><span className="text-foreground">Obrigatório:</span> {message.guardrail.required_tool}</div>
                               <div><span className="text-foreground">Origem:</span> {message.guardrail.required_source}</div>
+                              <div><span className="text-foreground">Executou:</span> {message.guardrail.executed ? 'sim' : 'não'}</div>
+                              <div><span className="text-foreground">Status:</span> {message.guardrail.execution_status || 'desconhecido'}</div>
                               <div><span className="text-foreground">Chamadas encontradas:</span> {message.guardrail.matched_calls}</div>
                               <div><span className="text-foreground">Bloqueio aplicado:</span> {message.guardrail.applied ? 'sim' : 'não'}</div>
                               {message.guardrail.latest_result_preview && (
