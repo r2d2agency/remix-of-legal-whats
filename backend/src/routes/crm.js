@@ -1187,6 +1187,40 @@ router.put('/deals/:id', async (req, res) => {
       );
     }
 
+    // Log history for probability change
+    if (probability !== undefined && probability !== current.rows[0].probability) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'probability_changed', $3, $4)`,
+        [req.params.id, req.userId, current.rows[0].probability + '%', probability + '%']
+      );
+    }
+
+    // Log history for expected close date change
+    if (expected_close_date !== undefined && expected_close_date !== current.rows[0].expected_close_date) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'expected_close_date_changed', $3, $4)`,
+        [req.params.id, req.userId, current.rows[0].expected_close_date || 'Nenhuma', expected_close_date || 'Nenhuma']
+      );
+    }
+
+    // Log history for description change
+    if (description !== undefined && description !== current.rows[0].description) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action) VALUES ($1, $2, 'description_changed')`,
+        [req.params.id, req.userId]
+      );
+    }
+
+    // Log history for company change
+    if (company_id && company_id !== current.rows[0].company_id) {
+      const oldCompany = await query(`SELECT name FROM crm_companies WHERE id = $1`, [current.rows[0].company_id]);
+      const newCompany = await query(`SELECT name FROM crm_companies WHERE id = $1`, [company_id]);
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'company_changed', $3, $4)`,
+        [req.params.id, req.userId, oldCompany.rows[0]?.name || 'Nenhuma', newCompany.rows[0]?.name || 'Nenhuma']
+      );
+    }
+
     // Log history for stage change
     if (stage_id && stage_id !== current.rows[0].stage_id) {
       const oldStage = await query(`SELECT name FROM crm_stages WHERE id = $1`, [current.rows[0].stage_id]);
