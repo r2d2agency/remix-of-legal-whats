@@ -166,7 +166,7 @@ export function StartFlowDialog({
             <p className="text-sm">Nenhum fluxo encontrado para "{searchQuery}"</p>
           </div>
         ) : (
-          <ScrollArea className="max-h-[400px]">
+          <ScrollArea className="flex-1 min-h-[300px]">
             <div className="space-y-1">
               {categoryKeys.map((catKey) => {
                 const group = groupedFlows[catKey];

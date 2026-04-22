@@ -203,7 +203,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
         </div>
 
         {/* Results */}
-        <ScrollArea className="flex-1 max-h-[400px]">
+        <ScrollArea className="flex-1 min-h-[300px]">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
