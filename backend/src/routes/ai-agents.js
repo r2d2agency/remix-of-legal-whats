@@ -164,7 +164,7 @@ router.post('/', authenticate, async (req, res) => {
     `, [
       userCtx.organization_id, name, description, avatar_url,
       ai_provider, ai_model, ai_api_key,
-      system_prompt || 'Você é um assistente virtual prestativo e profissional.',
+       (system_prompt || 'Você é um assistente virtual prestativo e profissional.') + '\n\nREGRAS CRÍTICAS:\n1. NUNCA invente preços ou nomes de profissionais. Use APENAS as ferramentas appbarber_* para obter dados reais.\n2. Se não encontrar uma informação nas ferramentas, diga educadamente que não tem acesso a esse dado no momento.\n3. Sempre consulte a lista de profissionais com a ferramenta appbarber_professionals antes de sugerir um atendente.',
       JSON.stringify(personality_traits), language,
       temperature, max_tokens, context_window,
       capabilities, greeting_message, fallback_message, handoff_message,
