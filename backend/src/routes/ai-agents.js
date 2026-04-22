@@ -1743,7 +1743,14 @@ function extractAppBarberArray(payload) {
 }
 
 async function fetchAppBarberFromApi({ apiKey, estCode, endpoint, extraParams = {} }) {
-  const params = new URLSearchParams({ establishment_code: String(estCode), type: '1', ...extraParams });
+  // Some endpoints accept `type` (services, payment-types, history, professionals)
+  // but `/v1/professional-list` and `/v1/availability` do NOT accept it.
+  const noTypeEndpoints = ['/v1/professional-list', '/v1/availability'];
+  const baseParams = { establishment_code: String(estCode) };
+  if (!noTypeEndpoints.includes(endpoint)) {
+    baseParams.type = '1';
+  }
+  const params = new URLSearchParams({ ...baseParams, ...extraParams });
   const url = `https://api.appbarber.com${endpoint}?${params.toString()}`;
 
   const response = await fetch(url, {
@@ -2598,7 +2605,9 @@ router.post('/:agentId/appbarber-professionals/sync', authenticate, async (req, 
     logInfo('appbarber_sync_professionals', { agentId: req.params.agentId, estCode, apiKeyPrefix: apiKey.substring(0, 8) + '...' });
 
     try {
-      const professionals = await fetchAppBarberFromApi({ apiKey, estCode, endpoint: '/v1/professionals' });
+      // Use /v1/professional-list (lista geral, NÃO exige service_code).
+      // O endpoint /v1/professionals exige service_code obrigatoriamente.
+      const professionals = await fetchAppBarberFromApi({ apiKey, estCode, endpoint: '/v1/professional-list' });
       const imported = await importAppBarberProfessionals(req.params.agentId, userCtx.organization_id, professionals);
       return res.json({ ok: true, imported, total: professionals.length, source: 'server' });
     } catch (error) {
