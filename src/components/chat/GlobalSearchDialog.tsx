@@ -9,9 +9,10 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, MessageSquare, Clock, Calendar, X } from 'lucide-react';
+ import { Search, Loader2, MessageSquare, Clock, Calendar, X, Filter } from 'lucide-react';
+ import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import { formatDistanceToNow } from 'date-fns';
+ import { formatDistanceToNow, subDays, startOfDay, endOfDay, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -106,7 +107,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
     
     return parts.map((part, i) => 
       part.toLowerCase() === searchQuery.toLowerCase() ? (
-        <mark key={i} className="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded font-medium">
+         <mark key={i} className="bg-primary/20 text-primary px-0.5 rounded font-medium border-b border-primary/30">
           {part}
         </mark>
       ) : part
@@ -164,47 +165,101 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
             )}
           </div>
 
-          {/* Date Filters */}
-          <div className="flex flex-col space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Filtrar por data</span>
-              {(startDate || endDate) && (
-                <button 
-                  onClick={() => { setStartDate(''); setEndDate(''); }}
-                  className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
-                >
-                  <X className="h-2.5 w-2.5" /> Limpar
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="relative">
-                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="pl-8 h-8 text-xs"
-                  title="Data inicial"
-                />
-              </div>
-              <div className="relative">
-                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="pl-8 h-8 text-xs"
-                  title="Data final"
-                />
-              </div>
-            </div>
-          </div>
+           {/* Date Filters */}
+           <div className="flex flex-col space-y-2">
+             <div className="flex items-center justify-between border-b pb-1 mb-1">
+               <div className="flex items-center gap-1.5">
+                 <Filter className="h-3 w-3 text-muted-foreground" />
+                 <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Filtrar por período</span>
+               </div>
+               {(startDate || endDate) && (
+                 <button 
+                   onClick={() => { setStartDate(''); setEndDate(''); }}
+                   className="text-[10px] text-primary hover:underline flex items-center gap-0.5 font-medium"
+                 >
+                   <X className="h-2.5 w-2.5" /> Limpar filtros
+                 </button>
+               )}
+             </div>
+             
+             <div className="flex flex-wrap gap-1.5 mt-1">
+               <Button
+                 variant={startDate === format(new Date(), 'yyyy-MM-dd') && endDate === format(new Date(), 'yyyy-MM-dd') ? "default" : "outline"}
+                 size="sm"
+                 className="h-7 text-[10px] px-2.5 rounded-full"
+                 onClick={() => {
+                   const d = format(new Date(), 'yyyy-MM-dd');
+                   setStartDate(d);
+                   setEndDate(d);
+                 }}
+               >
+                 Hoje
+               </Button>
+               <Button
+                 variant={startDate === format(subDays(new Date(), 1), 'yyyy-MM-dd') && endDate === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? "default" : "outline"}
+                 size="sm"
+                 className="h-7 text-[10px] px-2.5 rounded-full"
+                 onClick={() => {
+                   const d = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+                   setStartDate(d);
+                   setEndDate(d);
+                 }}
+               >
+                 Ontem
+               </Button>
+               <Button
+                 variant={startDate === format(subDays(new Date(), 7), 'yyyy-MM-dd') && endDate === format(new Date(), 'yyyy-MM-dd') ? "default" : "outline"}
+                 size="sm"
+                 className="h-7 text-[10px] px-2.5 rounded-full"
+                 onClick={() => {
+                   setStartDate(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
+                   setEndDate(format(new Date(), 'yyyy-MM-dd'));
+                 }}
+               >
+                 Últimos 7 dias
+               </Button>
+               <Button
+                 variant={startDate === format(subDays(new Date(), 30), 'yyyy-MM-dd') && endDate === format(new Date(), 'yyyy-MM-dd') ? "default" : "outline"}
+                 size="sm"
+                 className="h-7 text-[10px] px-2.5 rounded-full"
+                 onClick={() => {
+                   setStartDate(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+                   setEndDate(format(new Date(), 'yyyy-MM-dd'));
+                 }}
+               >
+                 Últimos 30 dias
+               </Button>
+             </div>
+
+              <p className="text-[10px] text-muted-foreground mt-1">Ou defina um intervalo personalizado:</p>
+              <div className="grid grid-cols-2 gap-2 mt-0.5">
+               <div className="relative">
+                 <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                 <Input
+                   type="date"
+                   value={startDate}
+                   onChange={(e) => setStartDate(e.target.value)}
+                   className="pl-8 h-8 text-xs"
+                   title="Data inicial"
+                 />
+               </div>
+               <div className="relative">
+                 <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                 <Input
+                   type="date"
+                   value={endDate}
+                   onChange={(e) => setEndDate(e.target.value)}
+                   className="pl-8 h-8 text-xs"
+                   title="Data final"
+                 />
+               </div>
+             </div>
+           </div>
         </div>
 
-        {/* Results */}
-        <ScrollArea className="flex-1 min-h-[300px]">
-          {loading ? (
+         {/* Results */}
+         <ScrollArea className="flex-1 border-t min-h-[350px]">
+           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
@@ -223,7 +278,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
               </div>
             )
           ) : (
-            <div className="divide-y">
+             <div className="divide-y pb-4">
               {results.map((result) => (
                 <button
                   key={result.message_id}
@@ -278,7 +333,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
               ))}
             </div>
           )}
-        </ScrollArea>
+         </ScrollArea>
 
         {/* Footer */}
         {results.length > 0 && (
