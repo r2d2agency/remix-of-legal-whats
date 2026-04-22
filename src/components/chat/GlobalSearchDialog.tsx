@@ -74,7 +74,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
         });
       } catch (error) {
         console.error('Global search error:', error);
-        setResults([]);
+        setResults({ results: [], totalCount: 0 });
       } finally {
         setLoading(false);
       }
