@@ -1736,6 +1736,84 @@ async function importAppBarberServices(agentId, organizationId, services) {
   return imported;
 }
 
+function extractAppBarberArray(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
+async function fetchAppBarberFromApi({ apiKey, estCode, endpoint, extraParams = {} }) {
+  const params = new URLSearchParams({ establishment_code: String(estCode), type: '1', ...extraParams });
+  const url = `https://api.appbarber.com${endpoint}?${params.toString()}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'X-API-Key': apiKey,
+      'User-Agent': 'curl/8.7.1',
+    },
+  });
+
+  const { rawText, payload } = await readAppBarberResponse(response);
+
+  if (!response.ok) {
+    const error = new Error(getAppBarberErrorMessage(response, payload, rawText));
+    error.status = response.status;
+    error.code = isAppBarberCloudflareBlock(response, rawText)
+      ? 'APPBARBER_CLOUDFLARE_BLOCK'
+      : 'APPBARBER_API_ERROR';
+    error.rawPreview = (rawText || '').slice(0, 300);
+    throw error;
+  }
+
+  return extractAppBarberArray(payload);
+}
+
+async function importAppBarberProfessionals(agentId, organizationId, professionals) {
+  let imported = 0;
+  for (const p of professionals) {
+    if (!p?.employee_code || !(p?.employee_name || p?.employee_nickname)) continue;
+    await query(
+      `INSERT INTO appbarber_professionals (agent_id, organization_id, employee_code, employee_name, employee_nickname, synced_from_api)
+       VALUES ($1, $2, $3, $4, $5, true)
+       ON CONFLICT (agent_id, employee_code)
+       DO UPDATE SET employee_name = $4, employee_nickname = $5, synced_from_api = true, updated_at = NOW()`,
+      [
+        agentId,
+        organizationId,
+        parseInt(String(p.employee_code), 10),
+        String(p.employee_name || p.employee_nickname || '').slice(0, 255),
+        p.employee_nickname ? String(p.employee_nickname).slice(0, 255) : null,
+      ]
+    );
+    imported++;
+  }
+  return imported;
+}
+
+async function importAppBarberPaymentTypes(agentId, organizationId, paymentTypes) {
+  let imported = 0;
+  for (const pt of paymentTypes) {
+    const code = pt?.payment_code ?? pt?.payment_type_code ?? pt?.code ?? pt?.id;
+    const desc = pt?.payment_description ?? pt?.payment_type_description ?? pt?.description ?? pt?.name;
+    if (!code || !desc) continue;
+    await query(
+      `INSERT INTO appbarber_payment_types (agent_id, organization_id, payment_code, payment_description, synced_from_api)
+       VALUES ($1, $2, $3, $4, true)
+       ON CONFLICT (agent_id, payment_code)
+       DO UPDATE SET payment_description = $4, synced_from_api = true, updated_at = NOW()`,
+      [
+        agentId,
+        organizationId,
+        parseInt(String(code), 10),
+        String(desc).slice(0, 255),
+      ]
+    );
+    imported++;
+  }
+  return imported;
+}
+
 async function executeAppBarberTool(toolName, args, agent) {
   try {
     const startedAt = Date.now();
