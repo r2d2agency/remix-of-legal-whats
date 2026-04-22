@@ -171,6 +171,14 @@ router.post('/groups', async (req, res) => {
       [req.params.id, req.userId, contactData.rows[0]?.name || 'Contato']
     );
 
+    // Log history if linked to a deal
+    if (result.rows[0].deal_id) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, to_value) VALUES ($1, $2, 'task_completed', $3)`,
+        [result.rows[0].deal_id, req.userId, result.rows[0].title]
+      );
+    }
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error creating group:', error);
@@ -1928,10 +1936,20 @@ router.delete('/tasks/:id', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
+    const taskData = await query(`SELECT title, deal_id FROM crm_tasks WHERE id = $1`, [req.params.id]);
+    
     await query(
       `DELETE FROM crm_tasks WHERE id = $1 AND organization_id = $2`,
       [req.params.id, org.organization_id]
     );
+
+    // Log history if linked to a deal
+    if (taskData.rows[0]?.deal_id) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value) VALUES ($1, $2, 'task_deleted', $3)`,
+        [taskData.rows[0].deal_id, req.userId, taskData.rows[0].title]
+      );
+    }
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting task:', error);
