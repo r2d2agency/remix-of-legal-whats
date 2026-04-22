@@ -76,3 +76,30 @@ export function buildAppBarberGuardrailResponse(requiredTool, toolResult) {
 
   return `Não consegui confirmar essa informação porque a consulta obrigatória (${requiredTool}) não foi executada. Verifique no log se a IA chamou ${readableSource} antes de responder.`;
 }
+
+export function getAppBarberToolResultStatus(result) {
+  const text = String(result || '').trim();
+  if (!text) return 'not_executed';
+
+  const normalized = text.toLowerCase();
+
+  if (
+    normalized.includes('erro') ||
+    normalized.includes('credenciais appbarber não configuradas') ||
+    normalized.includes('erro na integração appbarber')
+  ) {
+    return 'error';
+  }
+
+  if (
+    normalized.includes('nenhum profissional encontrado') ||
+    normalized.includes('nenhum serviço cadastrado') ||
+    normalized.includes('nenhum serviço encontrado') ||
+    normalized.includes('nenhum horário disponível') ||
+    normalized.includes('nenhuma informação encontrada')
+  ) {
+    return 'empty';
+  }
+
+  return 'ok';
+}
