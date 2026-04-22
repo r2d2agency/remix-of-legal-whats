@@ -42,12 +42,24 @@ export async function callAI(config, messages, options = {}) {
  */
 export async function callAIWithTools(config, messages, options, toolExecutor, maxIterations = 8) {
   let totalTokens = 0;
-  let toolCallsExecuted = [];
+   let toolCallsExecuted = [];
+   let lastReasoning = null;
   let currentMessages = [...messages];
 
   for (let i = 0; i < maxIterations; i++) {
-    const result = await callAI(config, currentMessages, options);
-    totalTokens += result.tokensUsed || 0;
+      const result = await callAI(config, currentMessages, options);
+      totalTokens += result.tokensUsed || 0;
+
+      // Capture reasoning
+      if (result.content && result.content.toLowerCase().includes('pensamento:')) {
+        const parts = result.content.split(/pensamento:/i);
+        lastReasoning = parts[1].split('\n')[0].trim();
+        logInfo('ai_caller.reasoning', {
+          provider: config.provider,
+          model: config.model,
+          reasoning: lastReasoning
+        });
+      }
 
     // If no tool calls, return the final content
     if (!result.toolCalls || result.toolCalls.length === 0) {
@@ -68,11 +80,13 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
       });
 
       const toolResult = await toolExecutor(toolCall.name, toolCall.arguments);
-      toolCallsExecuted.push({
-        name: toolCall.name,
-        arguments: toolCall.arguments,
-        result: toolResult,
-      });
+       toolCallsExecuted.push({
+         name: toolCall.name,
+         arguments: toolCall.arguments,
+         result: toolResult,
+         reasoning: lastReasoning,
+       });
+       lastReasoning = null; // reset for next iteration
 
       logInfo('ai_caller.tool_call_executed', {
         provider: config.provider,

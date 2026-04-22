@@ -38,9 +38,10 @@ interface TestMessage {
   tokens?: number;
   sources_used?: string[];
   processing_time_ms?: number;
-  tool_calls?: ToolCallInfo[];
-  error?: boolean;
-}
+   tool_calls?: ToolCallInfo[];
+   reasoning?: string;
+   error?: boolean;
+ }
 
 export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChatDialogProps) {
   const [messages, setMessages] = useState<TestMessage[]>([]);
@@ -127,9 +128,13 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
               : tc.arguments?.action === 'find_available_slots'
               ? `📆 Buscou horários disponíveis (${tc.arguments?.preferred_period || 'qualquer período'})`
               : `📆 Listou eventos do Calendar`,
-            suggest_actions: `💡 Sugeriu ações (${tc.arguments?.urgency}): ${tc.arguments?.context_summary}`,
-            generate_content: `✍️ Gerou conteúdo: ${tc.arguments?.content_type} - "${tc.arguments?.title}"`,
-          };
+             suggest_actions: `💡 Sugeriu ações (${tc.arguments?.urgency}): ${tc.arguments?.context_summary}`,
+             generate_content: `✍️ Gerou conteúdo: ${tc.arguments?.content_type} - "${tc.arguments?.title}"`,
+             appbarber_services: `💈 Consultou serviços e preços da barbearia`,
+             appbarber_availability: `📅 Consultou horários disponíveis para ${tc.arguments?.start_date}`,
+             appbarber_appointment: `✅ Criou agendamento para ${tc.arguments?.customer_name}`,
+             appbarber_history: `📜 Consultou histórico de agendamentos`,
+           };
           setMessages(prev => [...prev, {
             id: `tool-${Date.now()}-${tc.tool}`,
             role: 'system',
@@ -144,11 +149,12 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
         role: 'assistant',
         content: response.response,
         timestamp: new Date(),
-        tokens: response.tokens_used,
-        sources_used: response.sources_used,
-        processing_time_ms: processingTime,
-        tool_calls: response.tool_calls,
-      };
+         tokens: response.tokens_used,
+         sources_used: response.sources_used,
+         processing_time_ms: processingTime,
+         tool_calls: response.tool_calls,
+         reasoning: (response as any).reasoning,
+       };
 
       setMessages(prev => [...prev, assistantMessage]);
       setTokenCount(prev => prev + (response.tokens_used || 0));
@@ -265,8 +271,14 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
                         : 'bg-muted'
                     }`}
                   >
-                    <p className="whitespace-pre-wrap text-sm">{message.content}</p>
-                  </div>
+                     {message.reasoning && (
+                       <div className="mb-2 p-2 bg-primary/5 rounded border border-primary/10 text-[11px] italic text-primary/80 flex items-start gap-1.5">
+                         <Brain className="h-3 w-3 mt-0.5 shrink-0" />
+                         <span>{message.reasoning}</span>
+                       </div>
+                     )}
+                     <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+                   </div>
 
                   {/* Message metadata */}
                   {message.role === 'assistant' && !message.error && (

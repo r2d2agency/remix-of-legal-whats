@@ -2037,17 +2037,18 @@ router.post('/:id/test', authenticate, async (req, res) => {
       toolCallsCount: toolCallsExecuted.length,
     });
 
-    res.json({
-      response: result.content,
-      tokens_used: result.tokensUsed || 0,
-      model_used: result.model || aiConfig.model,
-      sources_used: knowledgeResult.rows.length > 0 ? ['knowledge_base'] : [],
-      tool_calls: toolCallsExecuted.map(tc => ({
-        tool: tc.name,
-        arguments: tc.arguments,
-        response_preview: typeof tc.result === 'string' ? tc.result.substring(0, 300) : JSON.stringify(tc.result).substring(0, 300),
-      })),
-    });
+     res.json({
+       response: result.content,
+       tokens_used: result.tokensUsed || 0,
+       model_used: result.model || aiConfig.model,
+       sources_used: knowledgeResult.rows.length > 0 ? ['knowledge_base'] : [],
+       reasoning: result.toolCallsExecuted?.map(tc => tc.reasoning).filter(Boolean).join('\n') || null,
+       tool_calls: toolCallsExecuted.map(tc => ({
+         tool: tc.name,
+         arguments: tc.arguments,
+         response_preview: typeof tc.result === 'string' ? tc.result.substring(0, 300) : JSON.stringify(tc.result).substring(0, 300),
+       })),
+     });
   } catch (error) {
     logError('ai_agents.test_error', error);
     res.status(500).json({ error: error.message || 'Erro ao processar mensagem' });
