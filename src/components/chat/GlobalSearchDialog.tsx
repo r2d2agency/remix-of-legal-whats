@@ -107,7 +107,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
     
     return parts.map((part, i) => 
       part.toLowerCase() === searchQuery.toLowerCase() ? (
-        <mark key={i} className="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded font-medium">
+         <mark key={i} className="bg-primary/20 text-primary px-0.5 rounded font-medium border-b border-primary/30">
           {part}
         </mark>
       ) : part
@@ -167,14 +167,17 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
 
            {/* Date Filters */}
            <div className="flex flex-col space-y-2">
-             <div className="flex items-center justify-between">
-               <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Filtrar por data</span>
+             <div className="flex items-center justify-between border-b pb-1 mb-1">
+               <div className="flex items-center gap-1.5">
+                 <Filter className="h-3 w-3 text-muted-foreground" />
+                 <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Filtrar por período</span>
+               </div>
                {(startDate || endDate) && (
                  <button 
                    onClick={() => { setStartDate(''); setEndDate(''); }}
-                   className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                   className="text-[10px] text-primary hover:underline flex items-center gap-0.5 font-medium"
                  >
-                   <X className="h-2.5 w-2.5" /> Limpar
+                   <X className="h-2.5 w-2.5" /> Limpar filtros
                  </button>
                )}
              </div>
@@ -228,7 +231,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
                </Button>
              </div>
 
-             <div className="grid grid-cols-2 gap-2">
+             <div className="grid grid-cols-2 gap-2 pt-1">
                <div className="relative">
                  <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                  <Input
@@ -254,7 +257,8 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
         </div>
 
          {/* Results */}
-         <ScrollArea className="flex-1 overflow-y-auto min-h-[400px]">
+         <ScrollArea className="flex-1 border-t">
+           <div className="max-h-[50vh] overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -329,7 +333,8 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
               ))}
             </div>
           )}
-        </ScrollArea>
+           </div>
+         </ScrollArea>
 
         {/* Footer */}
         {results.length > 0 && (
