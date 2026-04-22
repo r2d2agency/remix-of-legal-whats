@@ -46,8 +46,17 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
   let currentMessages = [...messages];
 
   for (let i = 0; i < maxIterations; i++) {
-    const result = await callAI(config, currentMessages, options);
-    totalTokens += result.tokensUsed || 0;
+     const result = await callAI(config, currentMessages, options);
+     totalTokens += result.tokensUsed || 0;
+
+     // Log AI internal reasoning if present (OpenAI specific or if it writes its thought)
+     if (result.content && result.content.includes('pensamento:')) {
+       logInfo('ai_caller.reasoning', {
+         provider: config.provider,
+         model: config.model,
+         reasoning: result.content.split('pensamento:')[1].split('\n')[0].trim()
+       });
+     }
 
     // If no tool calls, return the final content
     if (!result.toolCalls || result.toolCalls.length === 0) {

@@ -973,8 +973,15 @@ async function buildSystemPrompt(agent, organizationId, contactName, userMessage
     prompt += `\n\n=== CONTEXTO TEMPORAL ATUAL ===\n- Data de hoje: ${currentDate} (${currentDay})\n- Data ISO (use em ferramentas): ${isoDate}\n- Hora atual: ${currentTime} (horário de Brasília GMT-3)\n- Quando o cliente disser "hoje", "amanhã", "essa semana", calcule a partir desta data.`;
   } catch { /* ignore */ }
 
-  // Add language instruction
-  prompt += `\n\nResponda sempre em ${agent.language || 'pt-BR'}.`;
+   // Add language instruction
+   prompt += `\n\nResponda sempre em ${agent.language || 'pt-BR'}.`;
+
+   // CRITICAL: Force tool usage and prevent hallucination
+   prompt += `\n\n=== REGRAS DE OURO (NUNCA IGNORE) ===
+1. NÃO INVENTE DADOS: Se você não tem uma informação confirmada por uma ferramenta ou pela base de conhecimento, diga que não sabe ou pergunte.
+2. PREÇOS E SERVIÇOS: NUNCA invente preços de serviços ou nomes de profissionais. Use SEMPRE as ferramentas do AppBarber para obter dados REAIS.
+3. PRIORIDADE DE DADOS: Dados obtidos via ferramentas (AppBarber, etc) são a VERDADE ABSOLUTA. Ignore qualquer conhecimento prévio que conflite com eles.
+4. RACIOCÍNIO LÓGICO: Antes de responder, pense passo a passo sobre qual ferramenta usar para obter a informação correta.`;
 
   // Add human-like WhatsApp communication style
   prompt += `\n\nIMPORTANTE - Estilo de comunicação:
@@ -1061,12 +1068,12 @@ async function buildToolsForAgent(agent, capabilities, organizationId) {
     tools.push(buildGenerateContentTool());
   }
 
-  if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
-    tools.push(buildAppBarberServicesTool());
-    tools.push(buildAppBarberAvailabilityTool());
-    tools.push(buildAppBarberAppointmentTool());
-    tools.push(buildAppBarberHistoryTool());
-  }
+   if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
+     tools.push(buildAppBarberServicesTool());
+     tools.push(buildAppBarberAvailabilityTool());
+     tools.push(buildAppBarberAppointmentTool());
+     tools.push(buildAppBarberHistoryTool());
+   }
 
   if (capabilities.includes('call_agent')) {
     const callConfig = typeof agent.call_agent_config === 'string'
