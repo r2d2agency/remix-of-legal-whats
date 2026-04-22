@@ -88,7 +88,7 @@ export function ConnectionAIAgentDialog({ open, onClose, connectionId, connectio
     if (!connectionId) return;
     setLogsLoading(true);
     try {
-      const res = await api<{ logs: LogEntry[] }>(`/api/ai-agents/realtime-logs?limit=200`);
+      const res = await api<{ logs: LogEntry[] }>(`/api/ai-agents/debug/logs?limit=200`, { auth: true });
       const all = res?.logs || [];
       // Filter by connectionId OR by the agents currently assigned to this connection
       const assignedAgentIds = new Set(assigned.map(a => a.agent_id));

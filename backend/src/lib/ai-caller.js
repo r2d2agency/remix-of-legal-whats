@@ -44,11 +44,13 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
   let totalTokens = 0;
    let toolCallsExecuted = [];
    let lastReasoning = null;
+   let lastModelContent = null;
   let currentMessages = [...messages];
 
   for (let i = 0; i < maxIterations; i++) {
       const result = await callAI(config, currentMessages, options);
       totalTokens += result.tokensUsed || 0;
+      lastModelContent = result.content || null;
 
       // Capture reasoning
       if (result.content && result.content.toLowerCase().includes('pensamento:')) {
@@ -68,6 +70,7 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
         tokensUsed: totalTokens,
         model: result.model,
         toolCallsExecuted,
+        lastModelContent,
       };
     }
 
@@ -129,6 +132,7 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
     tokensUsed: totalTokens,
     model: finalResult.model,
     toolCallsExecuted,
+    lastModelContent: finalResult.content || lastModelContent,
   };
 }
 
