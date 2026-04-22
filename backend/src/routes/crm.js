@@ -1,3 +1,12 @@
+import express from 'express';
+import { query } from '../db.js';
+import { authenticate } from '../middleware/auth.js';
+import { onDealStageChanged } from '../crm-automation-scheduler.js';
+import { emitLeadEvent } from '../lib/event-bus.js';
+import { logInfo, logError } from '../logger.js';
+
+const router = express.Router();
+router.use(authenticate);
 
 // Log history manually (for frontend actions like WhatsApp)
 router.post('/deals/:id/history', async (req, res) => {
@@ -13,15 +22,6 @@ router.post('/deals/:id/history', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-import express from 'express';
-import { query } from '../db.js';
-import { authenticate } from '../middleware/auth.js';
-import { onDealStageChanged } from '../crm-automation-scheduler.js';
-import { emitLeadEvent } from '../lib/event-bus.js';
-import { logInfo, logError } from '../logger.js';
-
-const router = express.Router();
-router.use(authenticate);
 
 // ── Self-healing: ensure new company columns exist ──
 (async () => {
