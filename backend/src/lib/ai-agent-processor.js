@@ -1415,6 +1415,29 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
 
     let resultText;
     switch (toolName) {
+      case 'appbarber_professionals': {
+        const params = new URLSearchParams({ establishment_code: appbarber_establishment_code });
+        const url = `${baseUrl}/v1/professionals?${params}`;
+        logInfo('ai_agent_processor.appbarber_http_request', { toolName, url });
+        const resp = await fetch(url, { headers });
+        const data = await resp.json();
+        const professionals = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+        logInfo('ai_agent_processor.appbarber_http_response', {
+          toolName,
+          status: resp.status,
+          ok: resp.ok,
+          professionalsCount: professionals.length,
+        });
+        if (!resp.ok) {
+          resultText = `Erro AppBarber: ${data.error || resp.status}`;
+        } else {
+          resultText = professionals.length > 0
+            ? professionals.map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`).join('\n')
+            : 'Nenhum profissional encontrado no AppBarber para este estabelecimento.';
+        }
+        break;
+      }
+
       case 'appbarber_services': {
         // Query from local cached services table (no API cost)
         const result = await query(
@@ -1565,6 +1588,7 @@ function createToolExecutor(organizationId, userId, agent) {
         return executeGenerateContent(args);
       case 'consult_specialist_agent':
         return executeCallAgent(organizationId, args.agent_name, args.question);
+      case 'appbarber_professionals':
       case 'appbarber_services':
       case 'appbarber_availability':
       case 'appbarber_appointment':
