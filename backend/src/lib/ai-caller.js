@@ -80,6 +80,7 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
         provider: config.provider,
         model: config.model,
         toolName: toolCall.name,
+        args: toolCall.arguments,
       });
 
       const toolResult = await toolExecutor(toolCall.name, toolCall.arguments);
@@ -95,6 +96,8 @@ export async function callAIWithTools(config, messages, options, toolExecutor, m
         provider: config.provider,
         model: config.model,
         toolName: toolCall.name,
+        args: toolCall.arguments,
+        resultPreview: typeof toolResult === 'string' ? toolResult.substring(0, 500) : JSON.stringify(toolResult).substring(0, 500),
       });
 
       // Add tool call and result to messages for next iteration

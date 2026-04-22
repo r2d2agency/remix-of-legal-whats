@@ -1723,8 +1723,15 @@ async function importAppBarberServices(agentId, organizationId, services) {
 
 async function executeAppBarberTool(toolName, args, agent) {
   try {
+    const startedAt = Date.now();
     const apiKey = agent.appbarber_api_key;
     const estCode = agent.appbarber_establishment_code;
+    logInfo('ai_agents.appbarber_tool_start', {
+      agentId: agent.id,
+      agentName: agent.name,
+      toolName,
+      args,
+    });
     if (!apiKey || !estCode) return 'Credenciais AppBarber não configuradas.';
 
     const baseUrl = 'https://api.appbarber.com';
@@ -1753,9 +1760,17 @@ async function executeAppBarberTool(toolName, args, agent) {
            return 'Nenhum serviço cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os serviços do AppBarber.';
          }
 
-         return result.rows
+          const resultText = result.rows
            .map(s => `• ${s.service_description} (código: ${s.service_code}) - R$ ${parseFloat(s.service_value).toFixed(2)} - ${s.service_interval} min`)
            .join('\n');
+          logInfo('ai_agents.appbarber_tool_done', {
+            agentId: agent.id,
+            toolName,
+            source: 'tabela_local',
+            durationMs: Date.now() - startedAt,
+            resultPreview: resultText.substring(0, 500),
+          });
+          return resultText;
        }
        case 'appbarber_professionals': {
          const params = new URLSearchParams({ establishment_code: estCode });
@@ -1764,7 +1779,15 @@ async function executeAppBarberTool(toolName, args, agent) {
          if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
          const pros = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
          if (pros.length === 0) return 'Nenhum profissional encontrado no AppBarber para este estabelecimento.';
-         return pros.map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`).join('\n');
+          const resultText = pros.map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`).join('\n');
+          logInfo('ai_agents.appbarber_tool_done', {
+            agentId: agent.id,
+            toolName,
+            source: 'api_appbarber',
+            durationMs: Date.now() - startedAt,
+            resultPreview: resultText.substring(0, 500),
+          });
+          return resultText;
        }
       case 'appbarber_availability': {
         const params = new URLSearchParams({ establishment_code: estCode, start_date: args.start_date });
