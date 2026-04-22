@@ -1161,6 +1161,32 @@ router.put('/deals/:id', async (req, res) => {
       values
     );
 
+    // Log history for title change
+    if (title && title !== current.rows[0].title) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'title_changed', $3, $4)`,
+        [req.params.id, req.userId, current.rows[0].title, title]
+      );
+    }
+
+    // Log history for value change
+    if (value !== undefined && Number(value) !== Number(current.rows[0].value)) {
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'value_changed', $3, $4)`,
+        [req.params.id, req.userId, current.rows[0].value, value]
+      );
+    }
+
+    // Log history for owner change
+    if (owner_id && owner_id !== current.rows[0].owner_id) {
+      const oldOwner = await query(`SELECT name FROM users WHERE id = $1`, [current.rows[0].owner_id]);
+      const newOwner = await query(`SELECT name FROM users WHERE id = $1`, [owner_id]);
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value, to_value) VALUES ($1, $2, 'owner_changed', $3, $4)`,
+        [req.params.id, req.userId, oldOwner.rows[0]?.name || 'Nenhum', newOwner.rows[0]?.name || 'Nenhum']
+      );
+    }
+
     // Log history for stage change
     if (stage_id && stage_id !== current.rows[0].stage_id) {
       const oldStage = await query(`SELECT name FROM crm_stages WHERE id = $1`, [current.rows[0].stage_id]);
