@@ -1015,17 +1015,18 @@ async function buildSystemPrompt(agent, organizationId, contactName, userMessage
   const agentCapabilitiesList = parseArray(agent.capabilities, []);
   if (agentCapabilitiesList.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
     prompt += `\n\n=== FLUXO DE AGENDAMENTO APPBARBER ===
-1. SERVIÇO: Use appbarber_services (tabela local) para obter o service_code e o preço. Nunca invente.
+1. SERVIÇO: Use appbarber_services (tabela local) para obter o service_code e o preço quando o cliente citar ou escolher um serviço. Nunca invente.
 2. DATA: Pergunte o dia desejado e converta para o formato YYYY-MM-DD usando o CONTEXTO TEMPORAL acima.
-3. DISPONIBILIDADE: Chame appbarber_availability com start_date e service_code. NÃO envie professional_code se o cliente não tiver preferência — a API devolve TODOS os profissionais e horários do dia.
-4. SEM PREFERÊNCIA DE PROFISSIONAL: Se o cliente disser "tanto faz", "qualquer um", "sem preferência" ou similar:
-   - Liste de forma curta os horários consolidados (ex: "Tenho 9h, 10h, 14h e 15h amanhã").
-   - Quando o cliente escolher o horário, atribua automaticamente o PRIMEIRO profissional disponível naquele slot e CONFIRME o nome com o cliente antes de gravar (ex: "Posso marcar com o João às 10h, pode ser?").
-5. COM PREFERÊNCIA: Se o cliente citar um profissional, filtre os horários daquele employee_code antes de oferecer.
-6. CONFIRMAÇÃO OBRIGATÓRIA: Antes de chamar appbarber_appointment, confirme com o cliente: nome, telefone, serviço, profissional, data e hora. Só grave após o "sim".
-7. AGENDAMENTO: Use appbarber_appointment com professional_code, service_code, duration (vem de appbarber_services) e start_date no formato "YYYY-MM-DD HH:mm".
-8. CONSULTA DE AGENDAMENTOS EXISTENTES: Use appbarber_history com start_date e end_date.
-9. PROFISSIONAIS / TIPOS DE PAGAMENTO: Use appbarber_professionals e appbarber_payment_types (ambas tabelas locais sincronizadas).`;
+3. DISPONIBILIDADE GERAL: Se o cliente perguntar apenas se há horário no dia (ex: "tem horário amanhã?"), chame appbarber_availability SOMENTE com start_date.
+4. DISPONIBILIDADE POR SERVIÇO: Só envie service_code em appbarber_availability quando o cliente já tiver definido o serviço.
+5. SEM PREFERÊNCIA DE PROFISSIONAL: Se o cliente disser "tanto faz", "qualquer um", "sem preferência" ou similar:
+   - Liste de forma curta os horários consolidados do dia.
+   - Quando o cliente escolher o horário, atribua automaticamente o PRIMEIRO profissional disponível naquele slot e CONFIRME o nome com o cliente antes de gravar.
+6. COM PREFERÊNCIA: Se o cliente citar um profissional, use a disponibilidade retornada para esse cenário e confirme o profissional antes do agendamento.
+7. CONFIRMAÇÃO OBRIGATÓRIA: Antes de chamar appbarber_appointment, confirme com o cliente: nome, telefone, serviço, profissional, data e hora. Só grave após o "sim".
+8. AGENDAMENTO: Use appbarber_appointment com professional_code, service_code, duration (vem de appbarber_services) e start_date no formato "YYYY-MM-DD HH:mm".
+9. CONSULTA DE AGENDAMENTOS EXISTENTES: Use appbarber_history com start_date e end_date.
+10. PROFISSIONAIS / TIPOS DE PAGAMENTO: Use appbarber_professionals e appbarber_payment_types (ambas tabelas locais sincronizadas).`;
   }
 
   // Add human-like WhatsApp communication style
@@ -1383,10 +1384,10 @@ function buildAppBarberAvailabilityTool() {
         type: 'object',
         properties: {
           start_date: { type: 'string', description: 'Data para consultar disponibilidade no formato YYYY-MM-DD (ex: 2025-01-15)' },
-          service_code: { type: 'integer', description: 'Código do serviço desejado (OBRIGATÓRIO, obtido via appbarber_services)' },
+          service_code: { type: 'integer', description: 'Código do serviço desejado (opcional, obtido via appbarber_services). Use apenas quando o cliente já tiver escolhido o serviço.' },
           combo_code: { type: 'integer', description: 'Código do combo de serviços (opcional)' },
         },
-        required: ['start_date', 'service_code'],
+        required: ['start_date'],
       },
     },
   };
@@ -1537,32 +1538,30 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
       }
 
       case 'appbarber_availability': {
-        const params = new URLSearchParams({
-          establishment_code: appbarber_establishment_code,
-          start_date: args.start_date,
-        });
-        if (args.service_code) params.set('service_code', String(args.service_code));
-        if (args.combo_code) params.set('combo_code', String(args.combo_code));
-
-        const url = `${baseUrl}/v1/availability?${params}`;
-        logInfo('ai_agent_processor.appbarber_http_request', { toolName, url });
-        const resp = await fetch(url, { headers });
-        const rawText = await resp.text();
-        let data;
-        try { data = JSON.parse(rawText); } catch { data = null; }
-        logInfo('ai_agent_processor.appbarber_http_response', {
-          toolName,
-          status: resp.status,
-          ok: resp.ok,
-          professionalsCount: Array.isArray(data?.data) ? data.data.length : 0,
-          rawPreview: rawText.slice(0, 500),
-          requestedDate: args.start_date,
-          requestedServiceCode: args.service_code,
-        });
-        if (!resp.ok) {
-          resultText = `Erro AppBarber (${resp.status}): ${data?.error || data?.message || rawText.slice(0, 200)}`;
-        } else {
-          const list = Array.isArray(data?.data) ? data.data : [];
+        const buildAvailabilityParams = (includeServiceCode = true) => {
+          const params = new URLSearchParams({
+            establishment_code: appbarber_establishment_code,
+            start_date: args.start_date,
+          });
+          if (includeServiceCode && args.service_code) params.set('service_code', String(args.service_code));
+          if (args.combo_code) params.set('combo_code', String(args.combo_code));
+          return params;
+        };
+        const parseAvailabilityResponse = async (params) => {
+          const url = `${baseUrl}/v1/availability?${params}`;
+          logInfo('ai_agent_processor.appbarber_http_request', { toolName, url });
+          const resp = await fetch(url, { headers });
+          const rawText = await resp.text();
+          let data;
+          try { data = JSON.parse(rawText); } catch { data = null; }
+          return { resp, rawText, data, url };
+        };
+        const hasSlots = (list) => list.some(p => Array.isArray(p?.available) && p.available.some(s => Boolean(s?.scheduling_time)));
+        const isInvalidServiceFilter = (rawText, data) => {
+          const text = `${rawText || ''} ${data?.error || ''} ${data?.message || ''}`.toLowerCase();
+          return text.includes('invalid_query') || text.includes('service_code') || text.includes('parâmetro') || text.includes('parametro');
+        };
+        const formatAvailability = (list, fallbackUsed) => {
           const lines = list.map(p => {
             const slots = (p.available || [])
               .map(s => (s.scheduling_time || '').substring(0, 5))
@@ -1570,11 +1569,44 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
               .join(', ');
             return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}):\n   Horários: ${slots || 'Sem horários disponíveis'}`;
           });
+
           if (lines.length === 0) {
-            resultText = `Nenhum profissional retornado pela API para ${args.start_date}. Resposta bruta: ${rawText.slice(0, 300)}`;
-          } else {
-            resultText = lines.join('\n\n');
+            return `Nenhum profissional retornado pela API para ${args.start_date}.`;
           }
+
+          return [
+            fallbackUsed ? 'ℹ️ Disponibilidade geral do dia (sem filtro de serviço):' : null,
+            lines.join('\n\n'),
+          ].filter(Boolean).join('\n\n');
+        };
+
+        let availabilityResult = await parseAvailabilityResponse(buildAvailabilityParams(true));
+        let availabilityList = Array.isArray(availabilityResult.data?.data) ? availabilityResult.data.data : [];
+        let fallbackUsed = false;
+
+        if (args.service_code && ((!availabilityResult.resp.ok && isInvalidServiceFilter(availabilityResult.rawText, availabilityResult.data)) || (availabilityResult.resp.ok && !hasSlots(availabilityList)))) {
+          fallbackUsed = true;
+          availabilityResult = await parseAvailabilityResponse(buildAvailabilityParams(false));
+          availabilityList = Array.isArray(availabilityResult.data?.data) ? availabilityResult.data.data : [];
+        }
+
+        logInfo('ai_agent_processor.appbarber_http_response', {
+          toolName,
+          status: availabilityResult.resp.status,
+          ok: availabilityResult.resp.ok,
+          professionalsCount: availabilityList.length,
+          rawPreview: availabilityResult.rawText.slice(0, 500),
+          requestedDate: args.start_date,
+          requestedServiceCode: args.service_code,
+          fallbackUsed,
+        });
+
+        if (!availabilityResult.resp.ok) {
+          resultText = `Erro AppBarber (${availabilityResult.resp.status}): ${availabilityResult.data?.error || availabilityResult.data?.message || availabilityResult.rawText.slice(0, 200)}`;
+        } else if (!hasSlots(availabilityList)) {
+          resultText = `Nenhum horário disponível para ${args.start_date}.`;
+        } else {
+          resultText = formatAvailability(availabilityList, fallbackUsed);
         }
         break;
       }
