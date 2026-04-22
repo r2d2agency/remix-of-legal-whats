@@ -128,8 +128,8 @@ export function StartFlowDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <GitBranch className="h-5 w-5 text-primary" />
             Iniciar Fluxo
@@ -166,7 +166,7 @@ export function StartFlowDialog({
             <p className="text-sm">Nenhum fluxo encontrado para "{searchQuery}"</p>
           </div>
         ) : (
-          <ScrollArea className="max-h-[400px]">
+          <ScrollArea className="flex-1 min-h-[300px]">
             <div className="space-y-1">
               {categoryKeys.map((catKey) => {
                 const group = groupedFlows[catKey];
