@@ -14,7 +14,7 @@ interface DealCardProps {
   isDragging?: boolean;
   onClick: (e: React.MouseEvent) => void;
   isNewWin?: boolean;
-  onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open') => void;
+   onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open', dealTitle?: string, stageId?: string) => void;
 }
 
 export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(

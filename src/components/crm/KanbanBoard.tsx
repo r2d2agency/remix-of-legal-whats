@@ -21,7 +21,7 @@ interface KanbanBoardProps {
   stages: CRMStage[];
   dealsByStage: Record<string, CRMDeal[]>;
   onDealClick: (deal: CRMDeal) => void;
-  onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open') => void;
+   onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open', dealTitle?: string, stageId?: string) => void;
   newWinDealId?: string | null;
   selectedDeals?: Set<string>;
   onToggleSelect?: (dealId: string) => void;
@@ -97,11 +97,18 @@ export function KanbanBoard({ stages, dealsByStage, onDealClick, onStatusChange,
 
     if (!targetStageId) return;
 
-    if (currentStageId === targetStageId && targetDealId) {
-      moveDeal.mutate({ id: dealId, over_deal_id: targetDealId });
-    } else if (currentStageId !== targetStageId) {
-      moveDeal.mutate({ id: dealId, stage_id: targetStageId });
-    }
+     if (currentStageId === targetStageId && targetDealId) {
+       moveDeal.mutate({ id: dealId, over_deal_id: targetDealId });
+     } else if (currentStageId !== targetStageId) {
+       const targetStage = stages.find(s => s.id === targetStageId);
+       const isLostStage = targetStage?.is_final && targetStage.name.toLowerCase().includes('perdido');
+       
+       if (isLostStage && onStatusChange) {
+         onStatusChange(dealId, 'lost', undefined, targetStageId);
+       } else {
+         moveDeal.mutate({ id: dealId, stage_id: targetStageId });
+       }
+     }
   }
 
   function handleDragCancel() {
