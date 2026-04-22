@@ -490,7 +490,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       return res.json([]);
     }
 
-    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department, favorite } = req.query;
+    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department, favorite, limit, offset } = req.query;
 
     // Get user's role and department membership
     const userOrg = await getUserOrganization(req.userId);
@@ -669,6 +669,19 @@ router.get('/conversations', authenticate, async (req, res) => {
 
       // Order by pinned first, then by last_message_at
       sql += ` ORDER BY COALESCE(conv.is_pinned, false) DESC, conv.last_message_at DESC NULLS LAST, conv.created_at DESC`;
+
+      // Add pagination
+      if (limit) {
+        sql += ` LIMIT $${paramIndex}`;
+        params.push(parseInt(limit));
+        paramIndex++;
+      }
+
+      if (offset) {
+        sql += ` OFFSET $${paramIndex}`;
+        params.push(parseInt(offset));
+        paramIndex++;
+      }
 
       return { sql, params };
     };
