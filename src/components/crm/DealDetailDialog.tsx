@@ -1843,7 +1843,12 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                         {item.action === 'description_changed' && "atualizou a descrição"}
                         {item.action === 'title_changed' && `alterou o título para "${item.to_value}"`}
                         {item.action === 'company_changed' && `alterou a empresa para "${item.to_value}"`}
-                        {!['created', 'stage_changed', 'value_changed', 'status_changed', 'owner_changed', 'description_changed', 'title_changed', 'company_changed'].includes(item.action) && item.action}
+                        {item.action === 'task_created' && `agendou a tarefa: "${item.to_value}"`}
+                        {item.action === 'task_completed' && `concluiu a tarefa: "${item.to_value}"`}
+                        {item.action === 'task_deleted' && `removeu a tarefa: "${item.from_value}"`}
+                        {item.action === 'contact_added' && `vinculou o contato: "${item.to_value}"`}
+                        {item.action === 'contact_removed' && `desvinculou o contato: "${item.from_value}"`}
+                        {!['created', 'stage_changed', 'value_changed', 'status_changed', 'owner_changed', 'description_changed', 'title_changed', 'company_changed', 'task_created', 'task_completed', 'task_deleted', 'contact_added', 'contact_removed'].includes(item.action) && item.action}
                       </p>
                       {item.notes && (
                         <p className="text-xs italic text-muted-foreground mt-0.5">
