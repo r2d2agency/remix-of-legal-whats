@@ -1598,6 +1598,21 @@ function buildAppBarberHistoryTool() {
   };
 }
 
+function buildAppBarberPaymentTypesTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_payment_types',
+      description: 'Lista os tipos de pagamento aceitos pelo estabelecimento (cache local, sem custo de API). Use SEMPRE esta ferramenta antes de informar formas de pagamento. NUNCA invente.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  };
+}
+
 function normalizeAppBarberMoney(value) {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -2071,6 +2086,7 @@ router.post('/:id/test', authenticate, async (req, res) => {
      if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
        tools.push(buildAppBarberProfessionalsTool());
        tools.push(buildAppBarberServicesTool());
+       tools.push(buildAppBarberPaymentTypesTool());
        tools.push(buildAppBarberAvailabilityTool());
        tools.push(buildAppBarberAppointmentTool());
        tools.push(buildAppBarberHistoryTool());
@@ -2105,6 +2121,7 @@ router.post('/:id/test', authenticate, async (req, res) => {
             return await executeGenerateContent(args);
            case 'appbarber_professionals':
            case 'appbarber_services':
+           case 'appbarber_payment_types':
            case 'appbarber_availability':
            case 'appbarber_appointment':
            case 'appbarber_history':
