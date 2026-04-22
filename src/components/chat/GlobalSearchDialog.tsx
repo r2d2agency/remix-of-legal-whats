@@ -231,7 +231,8 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
                </Button>
              </div>
 
-             <div className="grid grid-cols-2 gap-2 pt-1">
+              <p className="text-[10px] text-muted-foreground mt-1">Ou defina um intervalo personalizado:</p>
+              <div className="grid grid-cols-2 gap-2 mt-0.5">
                <div className="relative">
                  <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                  <Input
