@@ -218,9 +218,13 @@ export const useChat = () => {
     archived?: boolean;
     connection?: string;
     is_group?: boolean | string;
-    attendance_status?: 'waiting' | 'attending';
+    attendance_status?: 'waiting' | 'attending' | 'finished';
     department?: string;
     favorite?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
   }): Promise<Conversation[]> => {
     setLoading(true);
     setError(null);
@@ -235,6 +239,10 @@ export const useChat = () => {
       if (filters?.attendance_status) params.append('attendance_status', filters.attendance_status);
       if (filters?.department && filters.department !== 'all') params.append('department', filters.department);
       if (filters?.favorite === 'true') params.append('favorite', 'true');
+      if (filters?.startDate) params.append('startDate', filters.startDate);
+      if (filters?.endDate) params.append('endDate', filters.endDate);
+      if (filters?.limit) params.append('limit', String(filters.limit));
+      if (filters?.offset) params.append('offset', String(filters.offset));
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
       const data = await api<Conversation[]>(url);
       return data;
