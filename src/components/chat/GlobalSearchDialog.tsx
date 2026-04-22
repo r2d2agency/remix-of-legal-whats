@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, MessageSquare, Clock, Calendar } from 'lucide-react';
+import { Search, Loader2, MessageSquare, Clock, Calendar, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -165,28 +165,39 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
           </div>
 
           {/* Date Filters */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="relative">
-              <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="pl-8 h-8 text-xs"
-                placeholder="Data inicial"
-                title="Data inicial"
-              />
+          <div className="flex flex-col space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Filtrar por data</span>
+              {(startDate || endDate) && (
+                <button 
+                  onClick={() => { setStartDate(''); setEndDate(''); }}
+                  className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                >
+                  <X className="h-2.5 w-2.5" /> Limpar
+                </button>
+              )}
             </div>
-            <div className="relative">
-              <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="pl-8 h-8 text-xs"
-                placeholder="Data final"
-                title="Data final"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="pl-8 h-8 text-xs"
+                  title="Data inicial"
+                />
+              </div>
+              <div className="relative">
+                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="pl-8 h-8 text-xs"
+                  title="Data final"
+                />
+              </div>
             </div>
           </div>
         </div>
