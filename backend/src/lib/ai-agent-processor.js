@@ -1069,6 +1069,7 @@ async function buildToolsForAgent(agent, capabilities, organizationId) {
   }
 
    if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
+     tools.push(buildAppBarberProfessionalsTool());
      tools.push(buildAppBarberServicesTool());
      tools.push(buildAppBarberAvailabilityTool());
      tools.push(buildAppBarberAppointmentTool());
