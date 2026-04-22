@@ -164,7 +164,7 @@ router.post('/', authenticate, async (req, res) => {
     `, [
       userCtx.organization_id, name, description, avatar_url,
       ai_provider, ai_model, ai_api_key,
-      system_prompt || 'Você é um assistente virtual prestativo e profissional.',
+       (system_prompt || 'Você é um assistente virtual prestativo e profissional.') + '\n\nREGRAS CRÍTICAS:\n1. NUNCA invente preços ou nomes de profissionais. Use APENAS as ferramentas appbarber_* para obter dados reais.\n2. Se não encontrar uma informação nas ferramentas, diga educadamente que não tem acesso a esse dado no momento.\n3. Sempre consulte a lista de profissionais com a ferramenta appbarber_professionals antes de sugerir um atendente.',
       JSON.stringify(personality_traits), language,
       temperature, max_tokens, context_window,
       capabilities, greeting_message, fallback_message, handoff_message,
@@ -1503,24 +1503,39 @@ async function executeGenerateContent(args) {
 
 // ==================== APPBARBER TOOLS ====================
 
-function buildAppBarberServicesTool() {
-  return {
-    type: 'function',
-    function: {
-      name: 'appbarber_services',
-      description: 'Lista os serviços disponíveis para agendamento na barbearia/salão (ex: corte, barba, etc). Use para informar o cliente sobre opções, preços e durações.',
-      parameters: {
-        type: 'object',
-        properties: {
-          professional_code: { type: 'integer', description: 'Código do profissional para filtrar serviços (opcional)' },
-          service_code: { type: 'integer', description: 'Código de um serviço específico (opcional)' },
-        },
-        required: [],
-      },
-    },
-  };
-}
-
+ function buildAppBarberServicesTool() {
+   return {
+     type: 'function',
+     function: {
+       name: 'appbarber_services',
+       description: 'Lista os serviços disponíveis para agendamento na barbearia/salão (ex: corte, barba, etc). Use para informar o cliente sobre opções, preços e durações.',
+       parameters: {
+         type: 'object',
+         properties: {
+           professional_code: { type: 'integer', description: 'Código do profissional para filtrar serviços (opcional)' },
+           service_code: { type: 'integer', description: 'Código de um serviço específico (opcional)' },
+         },
+         required: [],
+       },
+     },
+   };
+ }
+ 
+ function buildAppBarberProfessionalsTool() {
+   return {
+     type: 'function',
+     function: {
+       name: 'appbarber_professionals',
+       description: 'Lista todos os profissionais (barbeiros/atendentes) disponíveis no estabelecimento. Use para informar quem está disponível para atendimento.',
+       parameters: {
+         type: 'object',
+         properties: {},
+         required: [],
+       },
+     },
+   };
+ }
+ 
 function buildAppBarberAvailabilityTool() {
   return {
     type: 'function',
@@ -1719,15 +1734,26 @@ async function executeAppBarberTool(toolName, args, agent) {
     };
 
     switch (toolName) {
-      case 'appbarber_services': {
-        const params = new URLSearchParams({ establishment_code: estCode, type: '1' });
-        if (args.professional_code) params.set('professional_code', String(args.professional_code));
-        if (args.service_code) params.set('service_code', String(args.service_code));
-        const resp = await fetch(`${baseUrl}/v1/services?${params}`, { headers });
-        const { rawText, payload } = await readAppBarberResponse(resp);
-        if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
-        return extractAppBarberServices(payload).map(s => `• ${s.service_description} (código: ${s.service_code}) - R$ ${s.service_value} - ${s.service_interval} min`).join('\n') || 'Nenhum serviço.';
-      }
+       case 'appbarber_services': {
+         const params = new URLSearchParams({ establishment_code: estCode, type: '1' });
+         if (args.professional_code) params.set('professional_code', String(args.professional_code));
+         if (args.service_code) params.set('service_code', String(args.service_code));
+         const resp = await fetch(`${baseUrl}/v1/services?${params}`, { headers });
+         const { rawText, payload } = await readAppBarberResponse(resp);
+         if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
+         const services = extractAppBarberServices(payload);
+         if (services.length === 0) return 'Nenhum serviço encontrado no AppBarber para este estabelecimento.';
+         return services.map(s => `• ${s.service_description} (código: ${s.service_code}) - R$ ${s.service_value} - ${s.service_interval} min`).join('\n');
+       }
+       case 'appbarber_professionals': {
+         const params = new URLSearchParams({ establishment_code: estCode });
+         const resp = await fetch(`${baseUrl}/v1/professionals?${params}`, { headers });
+         const { rawText, payload } = await readAppBarberResponse(resp);
+         if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
+         const pros = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
+         if (pros.length === 0) return 'Nenhum profissional encontrado no AppBarber para este estabelecimento.';
+         return pros.map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`).join('\n');
+       }
       case 'appbarber_availability': {
         const params = new URLSearchParams({ establishment_code: estCode, start_date: args.start_date });
         if (args.service_code) params.set('service_code', String(args.service_code));
@@ -1858,9 +1884,14 @@ router.post('/:id/test', authenticate, async (req, res) => {
     if (agent.description && agent.description.trim()) {
       systemPrompt += `\n\n${agent.description.trim()}`;
     }
-    if (knowledgeContext) {
-      systemPrompt += `\n\nBase de Conhecimento (use estas informações para responder):\n${knowledgeContext}`;
-    }
+     if (knowledgeContext) {
+       systemPrompt += `\n\nBase de Conhecimento (use estas informações para responder):\n${knowledgeContext}`;
+     }
+ 
+     // Add explicit rules for AppBarber integration to prevent hallucinations
+     if (agent.capabilities.includes('appbarber')) {
+       systemPrompt += `\n\nREGRAS CRÍTICAS DE DADOS (AppBarber):\n1. NUNCA invente nomes de profissionais ou preços.\n2. Para saber quem trabalha no local, use SEMPRE a ferramenta 'appbarber_professionals'.\n3. Para saber preços e serviços, use 'appbarber_services'.\n4. Se o usuário perguntar por alguém ou algo que não retornou nas ferramentas, diga que não encontrou esse registro no sistema.`;
+     }
 
     // Build messages
     const messages = [
@@ -1970,13 +2001,14 @@ router.post('/:id/test', authenticate, async (req, res) => {
       tools.push(buildGenerateContentTool());
     }
 
-    // APPBARBER tool
-    if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
-      tools.push(buildAppBarberServicesTool());
-      tools.push(buildAppBarberAvailabilityTool());
-      tools.push(buildAppBarberAppointmentTool());
-      tools.push(buildAppBarberHistoryTool());
-    }
+     // APPBARBER tool
+     if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
+       tools.push(buildAppBarberProfessionalsTool());
+       tools.push(buildAppBarberServicesTool());
+       tools.push(buildAppBarberAvailabilityTool());
+       tools.push(buildAppBarberAppointmentTool());
+       tools.push(buildAppBarberHistoryTool());
+     }
 
     let result;
     let toolCallsExecuted = [];
@@ -2005,11 +2037,12 @@ router.post('/:id/test', authenticate, async (req, res) => {
             return await executeSuggestActions(args);
           case 'generate_content':
             return await executeGenerateContent(args);
-          case 'appbarber_services':
-          case 'appbarber_availability':
-          case 'appbarber_appointment':
-          case 'appbarber_history':
-            return await executeAppBarberTool(toolName, args, agent);
+           case 'appbarber_professionals':
+           case 'appbarber_services':
+           case 'appbarber_availability':
+           case 'appbarber_appointment':
+           case 'appbarber_history':
+             return await executeAppBarberTool(toolName, args, agent);
           default:
             return 'Ferramenta desconhecida';
         }
