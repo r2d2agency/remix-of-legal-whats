@@ -366,16 +366,16 @@ router.get('/messages/search', authenticate, async (req, res) => {
       return res.json({ results: [] });
     }
 
-    const { q, limit = 50 } = req.query;
+    const { q, limit = 50, from_date, to_date } = req.query;
     
     if (!q || q.length < 2) {
       return res.json({ results: [] });
     }
 
     const searchQuery = `%${q}%`;
-    const maxResults = Math.min(parseInt(limit) || 50, 100);
+    const maxResults = Math.min(parseInt(limit) || 50, 500); // Increased to 500
 
-    const result = await query(`
+    let queryText = `
       SELECT 
         m.id as message_id,
         m.conversation_id,
@@ -394,11 +394,36 @@ router.get('/messages/search', authenticate, async (req, res) => {
         AND m.content IS NOT NULL
         AND m.content != ''
         AND COALESCE(conv.is_archived, false) = false
-      ORDER BY m.timestamp DESC
-      LIMIT $3
-    `, [connectionIds, searchQuery, maxResults]);
+    `;
+
+    const queryParams = [connectionIds, searchQuery];
+    let paramCount = 2;
+
+    if (from_date) {
+      paramCount++;
+      queryText += ` AND m.timestamp >= $${paramCount}`;
+      queryParams.push(from_date + ' 00:00:00');
+    }
+
+    if (to_date) {
+      paramCount++;
+      queryText += ` AND m.timestamp <= $${paramCount}`;
+      queryParams.push(to_date + ' 23:59:59');
+    }
+
+    // Count total results for this search (without limit)
+    const countQueryText = `SELECT COUNT(*) FROM (${queryText}) as search_results`;
+    const countResult = await query(countQueryText, queryParams);
+    const totalCount = parseInt(countResult.rows[0]?.count || 0);
+
+    // Now apply ordering and limit for the actual results
+    const finalQueryText = `${queryText} ORDER BY m.timestamp DESC LIMIT $${paramCount + 1}`;
+    const finalQueryParams = [...queryParams, maxResults];
+
+    const result = await query(finalQueryText, finalQueryParams);
 
     res.json({
+      totalCount,
       results: result.rows.map(row => ({
         message_id: row.message_id,
         conversation_id: row.conversation_id,
@@ -465,7 +490,7 @@ router.get('/conversations', authenticate, async (req, res) => {
       return res.json([]);
     }
 
-    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department, favorite } = req.query;
+    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department, favorite, limit, offset } = req.query;
 
     // Get user's role and department membership
     const userOrg = await getUserOrganization(req.userId);
@@ -644,6 +669,19 @@ router.get('/conversations', authenticate, async (req, res) => {
 
       // Order by pinned first, then by last_message_at
       sql += ` ORDER BY COALESCE(conv.is_pinned, false) DESC, conv.last_message_at DESC NULLS LAST, conv.created_at DESC`;
+
+      // Add pagination
+      if (limit) {
+        sql += ` LIMIT $${paramIndex}`;
+        params.push(parseInt(limit));
+        paramIndex++;
+      }
+
+      if (offset) {
+        sql += ` OFFSET $${paramIndex}`;
+        params.push(parseInt(offset));
+        paramIndex++;
+      }
 
       return { sql, params };
     };

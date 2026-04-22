@@ -39,21 +39,23 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
   const [query, setQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<{ results: SearchResult[], totalCount: number }>({ results: [], totalCount: 0 });
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
   // Debounced search
   useEffect(() => {
-    if (!query.trim() || query.length < 2) {
-      setResults([]);
+    const hasValidQuery = query.trim() && query.length >= 2;
+    
+    if (!hasValidQuery) {
+      setResults({ results: [], totalCount: 0 });
       setSearched(false);
       return;
     }
 
     const search = async () => {
       if (!query.trim() || query.length < 2) {
-        setResults([]);
+        setResults({ results: [], totalCount: 0 });
         setSearched(false);
         return;
       }
@@ -61,15 +63,18 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
       setLoading(true);
       setSearched(true);
       try {
-        let url = `/api/chat/messages/search?q=${encodeURIComponent(query)}&limit=50`;
+        let url = `/api/chat/messages/search?q=${encodeURIComponent(query)}&limit=100`;
         if (startDate) url += `&from_date=${startDate}`;
         if (endDate) url += `&to_date=${endDate}`;
         
-        const data = await api<{ results: SearchResult[] }>(url);
-        setResults(data.results || []);
+        const data = await api<{ results: SearchResult[], totalCount: number }>(url);
+        setResults({ 
+          results: data.results || [], 
+          totalCount: data.totalCount || (data.results?.length || 0) 
+        });
       } catch (error) {
         console.error('Global search error:', error);
-        setResults([]);
+        setResults({ results: [], totalCount: 0 });
       } finally {
         setLoading(false);
       }
@@ -85,7 +90,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
       setQuery('');
       setStartDate('');
       setEndDate('');
-      setResults([]);
+      setResults({ results: [], totalCount: 0 });
       setSearched(false);
     }
   }, [open]);
@@ -258,12 +263,12 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
         </div>
 
          {/* Results */}
-         <ScrollArea className="flex-1 border-t min-h-[350px]">
+          <div className="flex-1 border-t min-h-0 overflow-y-auto">
            {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
-          ) : results.length === 0 ? (
+          ) : results.results.length === 0 ? (
             searched && query.length >= 2 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <MessageSquare className="h-10 w-10 mb-2 opacity-50" />
@@ -278,8 +283,8 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
               </div>
             )
           ) : (
-             <div className="divide-y pb-4">
-              {results.map((result) => (
+              <div className="divide-y pb-4">
+               {results.results.map((result) => (
                 <button
                   key={result.message_id}
                   className="w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors"
@@ -333,12 +338,26 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
               ))}
             </div>
           )}
-         </ScrollArea>
+          </div>
 
         {/* Footer */}
-        {results.length > 0 && (
-          <div className="px-4 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
-            {results.length} resultado{results.length !== 1 ? 's' : ''} encontrado{results.length !== 1 ? 's' : ''}
+        {searched && (
+          <div className="px-4 py-2 border-t bg-muted/30 text-xs text-muted-foreground flex justify-between items-center shrink-0">
+            <div className="flex flex-col">
+              <span>
+                Mostrando {results.results.length} de {results.totalCount} resultado{results.totalCount !== 1 ? 's' : ''}
+              </span>
+              {results.totalCount > results.results.length && (
+                <span className="text-[9px] opacity-70">
+                  Refine a busca para ver resultados mais antigos
+                </span>
+              )}
+            </div>
+            {(startDate || endDate) && (
+              <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">
+                Período filtrado
+              </span>
+            )}
           </div>
         )}
       </DialogContent>
