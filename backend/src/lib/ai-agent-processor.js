@@ -1099,6 +1099,7 @@ async function buildToolsForAgent(agent, capabilities, organizationId) {
    if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
      tools.push(buildAppBarberProfessionalsTool());
      tools.push(buildAppBarberServicesTool());
+    tools.push(buildAppBarberPaymentTypesTool());
      tools.push(buildAppBarberAvailabilityTool());
      tools.push(buildAppBarberAppointmentTool());
      tools.push(buildAppBarberHistoryTool());
@@ -1416,6 +1417,21 @@ function buildAppBarberHistoryTool() {
   };
 }
 
+function buildAppBarberPaymentTypesTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_payment_types',
+      description: 'Lista os tipos de pagamento aceitos no estabelecimento (cache local, sem custo de API). Use SEMPRE esta ferramenta antes de informar formas de pagamento. NUNCA invente.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  };
+}
+
 async function executeAppBarberToolDirect(toolName, args, agent) {
   const t0 = Date.now();
   logInfo('ai_agent_processor.appbarber_call_start', {
@@ -1626,6 +1642,7 @@ function createToolExecutor(organizationId, userId, agent) {
         return executeCallAgent(organizationId, args.agent_name, args.question);
       case 'appbarber_professionals':
       case 'appbarber_services':
+      case 'appbarber_payment_types':
       case 'appbarber_availability':
       case 'appbarber_appointment':
       case 'appbarber_history':
