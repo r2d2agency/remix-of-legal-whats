@@ -1849,7 +1849,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                         <p className="text-xs italic text-muted-foreground mt-0.5">
                           {item.notes}
                         </p>
-                      </p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         {format(parseISO(item.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                       </p>
