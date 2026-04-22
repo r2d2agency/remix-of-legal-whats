@@ -1739,6 +1739,7 @@ async function executeAppBarberTool(toolName, args, agent) {
       Accept: 'application/json',
       'X-API-Key': apiKey,
       'Content-Type': 'application/json',
+      'User-Agent': 'curl/8.7.1',
     };
 
     switch (toolName) {
@@ -1773,9 +1774,18 @@ async function executeAppBarberTool(toolName, args, agent) {
           return resultText;
        }
        case 'appbarber_professionals': {
-         const params = new URLSearchParams({ establishment_code: estCode });
-         const resp = await fetch(`${baseUrl}/v1/professionals?${params}`, { headers });
+         const params = new URLSearchParams({ establishment_code: String(estCode), type: '1' });
+         const url = `${baseUrl}/v1/professionals?${params}`;
+         logInfo('ai_agents.appbarber_http_request', { agentId: agent.id, toolName, url });
+         const resp = await fetch(url, { headers });
          const { rawText, payload } = await readAppBarberResponse(resp);
+         logInfo('ai_agents.appbarber_http_response', {
+           agentId: agent.id,
+           toolName,
+           status: resp.status,
+           ok: resp.ok,
+           rawPreview: (rawText || '').slice(0, 300),
+         });
          if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
          const pros = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
          if (pros.length === 0) return 'Nenhum profissional encontrado no AppBarber para este estabelecimento.';
