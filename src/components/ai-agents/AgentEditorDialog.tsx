@@ -25,9 +25,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Bot, Brain, MessageSquare, Settings, Zap, Shield,
   Sparkles, X, Plus, Save, Loader2, Phone, BellRing, CalendarDays, Scissors,
-  RefreshCw, Trash2, Package, CheckCircle2, XCircle, ShieldCheck
+  RefreshCw, Trash2, Package, CheckCircle2, XCircle, ShieldCheck, Users, CreditCard
 } from 'lucide-react';
-import { useAIAgents, AIAgent, AgentCapability, AIModels, CallAgentConfig, CallAgentRule, AppBarberService } from '@/hooks/use-ai-agents';
+import { useAIAgents, AIAgent, AgentCapability, AIModels, CallAgentConfig, CallAgentRule, AppBarberService, AppBarberProfessional, AppBarberPaymentType } from '@/hooks/use-ai-agents';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
