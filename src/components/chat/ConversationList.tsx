@@ -1069,6 +1069,28 @@ export function ConversationList({
 
               return <div key={conv.id}>{conversationContent}</div>;
             })}
+            
+            {/* Load More Button */}
+            {hasMore && (
+              <div className="p-4 flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                  className="text-primary hover:text-primary hover:bg-primary/10"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Carregando mais...
+                    </>
+                  ) : (
+                    "Carregar mais conversas"
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>
