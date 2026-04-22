@@ -2705,10 +2705,12 @@ async function maybeHandleDeterministicAppBarberAvailability({ agent, history, c
   const currentNormalized = normalizeAppBarberText(currentText);
   const historyNormalized = normalizeAppBarberText(userHistoryTexts.join(' '));
   const currentHasPeriodOnly = !!extractAppBarberPeriodFromText(currentText);
+  const currentHasDate = !!extractAppBarberDateFromText(currentText);
   const currentRequiresAvailability = detectAppBarberRequiredTool(currentText) === 'appbarber_availability';
-  const hasSchedulingContext = APPBARBER_SCHEDULING_CUES.some(cue => historyNormalized.includes(cue));
+  const currentLooksLikeScheduling = APPBARBER_SCHEDULING_CUES.some(cue => currentNormalized.includes(cue));
+  const hasSchedulingContext = APPBARBER_SCHEDULING_CUES.some(cue => historyNormalized.includes(cue) || currentNormalized.includes(cue));
 
-  if (!currentRequiresAvailability && !(currentHasPeriodOnly && hasSchedulingContext)) {
+  if (!currentRequiresAvailability && !(hasSchedulingContext && (currentLooksLikeScheduling || currentHasPeriodOnly || currentHasDate))) {
     return null;
   }
 
@@ -2781,7 +2783,7 @@ async function maybeHandleDeterministicAppBarberAvailability({ agent, history, c
 
     let slots = parsed.slots;
     if (preferredProfessional) {
-      slots = slots.filter(slot => slot.professionalCode === preferredProfessional.employee_code);
+      slots = slots.filter(slot => String(slot.professionalCode) === String(preferredProfessional.employee_code));
     }
     if (requestedPeriod) {
       slots = slots.filter(slot => matchesRequestedAppBarberPeriod(slot.time, requestedPeriod));
