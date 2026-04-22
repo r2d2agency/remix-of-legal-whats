@@ -372,67 +372,88 @@ async function processMessageInternal({
     // 7. Build conversation history from session
     const history = await getSessionHistory(session.id, agent.context_window || 10);
 
-    // 8. Build system prompt with RAG knowledge base
-    const systemPrompt = await buildSystemPrompt(agent, organizationId, contactName, userMessageForAI || userMessageForHistory, aiConfig);
-
-    // 8. Build messages array
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...history,
-    ];
-
-    // Add current user message (might be multimodal for images)
-    if (Array.isArray(userMessageForAI)) {
-      messages.push({ role: 'user', content: userMessageForAI });
-    } else {
-      messages.push({ role: 'user', content: userMessageForAI || userMessageForHistory });
-    }
-
-    // 9. Build tools based on capabilities
-    const tools = await buildToolsForAgent(agent, capabilities, organizationId);
-
-    // 10. Get AI config (already loaded above)
-    // const aiConfig = await getAgentAIConfig(agent, organizationId);  // reuse from above
-
-    // 11. Call AI
+    // 8. Resolve AppBarber availability deterministically when the customer already gave the required inputs.
     let result;
     let toolCallsExecuted = [];
     const startTime = Date.now();
+    const deterministicAppBarberResult = capabilities.includes('appbarber')
+      ? await maybeHandleDeterministicAppBarberAvailability({
+          agent,
+          history,
+          currentMessage: userMessageForHistory || messageContent || '',
+        })
+      : null;
 
-    const userId = agent.default_user_id || agent.created_by;
+    if (deterministicAppBarberResult?.handled) {
+      result = {
+        content: deterministicAppBarberResult.responseText,
+        tokensUsed: 0,
+        model: aiConfig.model,
+        toolCallsExecuted: deterministicAppBarberResult.toolCallsExecuted || [],
+        lastModelContent: null,
+      };
+      toolCallsExecuted = deterministicAppBarberResult.toolCallsExecuted || [];
 
-    if (tools.length > 0) {
-      const toolExecutor = createToolExecutor(organizationId, userId, agent);
-      logInfo('ai_agent_processor.tools_registered', {
-        sessionId: session.id,
-        agentId: agent.id,
-        agentName: agent.name,
-        toolNames: tools.map(t => t.function?.name || 'unknown'),
-        capabilities,
-      });
-      result = await callAIWithTools(aiConfig, messages, {
-        temperature: parseFloat(agent.temperature) || 0.7,
-        maxTokens: parseInt(agent.max_tokens, 10) || 1000,
-        tools,
-      }, toolExecutor, 8);
-      toolCallsExecuted = result.toolCallsExecuted || [];
-      logInfo('ai_agent_processor.tools_finished', {
+      logInfo('ai_agent_processor.appbarber_deterministic_handled', {
         sessionId: session.id,
         agentId: agent.id,
         toolCallsCount: toolCallsExecuted.length,
-        toolsUsed: toolCallsExecuted.map(t => t.name),
+        responsePreview: String(deterministicAppBarberResult.responseText || '').substring(0, 240),
       });
     } else {
-      result = await callAI(aiConfig, messages, {
-        temperature: parseFloat(agent.temperature) || 0.7,
-        maxTokens: parseInt(agent.max_tokens, 10) || 1000,
-      });
+      // 9. Build system prompt with RAG knowledge base
+      const systemPrompt = await buildSystemPrompt(agent, organizationId, contactName, userMessageForAI || userMessageForHistory, aiConfig);
+
+      // 10. Build messages array
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history,
+      ];
+
+      // Add current user message (might be multimodal for images)
+      if (Array.isArray(userMessageForAI)) {
+        messages.push({ role: 'user', content: userMessageForAI });
+      } else {
+        messages.push({ role: 'user', content: userMessageForAI || userMessageForHistory });
+      }
+
+      // 11. Build tools based on capabilities
+      const tools = await buildToolsForAgent(agent, capabilities, organizationId);
+      const userId = agent.default_user_id || agent.created_by;
+
+      if (tools.length > 0) {
+        const toolExecutor = createToolExecutor(organizationId, userId, agent);
+        logInfo('ai_agent_processor.tools_registered', {
+          sessionId: session.id,
+          agentId: agent.id,
+          agentName: agent.name,
+          toolNames: tools.map(t => t.function?.name || 'unknown'),
+          capabilities,
+        });
+        result = await callAIWithTools(aiConfig, messages, {
+          temperature: parseFloat(agent.temperature) || 0.7,
+          maxTokens: parseInt(agent.max_tokens, 10) || 1000,
+          tools,
+        }, toolExecutor, 8);
+        toolCallsExecuted = result.toolCallsExecuted || [];
+        logInfo('ai_agent_processor.tools_finished', {
+          sessionId: session.id,
+          agentId: agent.id,
+          toolCallsCount: toolCallsExecuted.length,
+          toolsUsed: toolCallsExecuted.map(t => t.name),
+        });
+      } else {
+        result = await callAI(aiConfig, messages, {
+          temperature: parseFloat(agent.temperature) || 0.7,
+          maxTokens: parseInt(agent.max_tokens, 10) || 1000,
+        });
+      }
     }
 
     const responseTime = Date.now() - startTime;
     let responseText = result.content || agent.fallback_message || 'Desculpe, não consegui processar sua mensagem.';
 
-    if (capabilities.includes('appbarber')) {
+    if (!deterministicAppBarberResult?.handled && capabilities.includes('appbarber')) {
       const requiredTool = detectAppBarberRequiredTool(userMessageForHistory || userMessageForAI || messageContent);
       if (requiredTool) {
         const matchingToolCalls = toolCallsExecuted.filter(call => call.name === requiredTool);
@@ -1016,34 +1037,34 @@ async function buildSystemPrompt(agent, organizationId, contactName, userMessage
   if (agentCapabilitiesList.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
     prompt += `\n\n=== FLUXO DE AGENDAMENTO APPBARBER (REGRAS RÍGIDAS) ===
 
-ANTES DE CONSULTAR DISPONIBILIDADE você PRECISA ter coletado, NESTA ORDEM:
+ANTES DE CONSULTAR DISPONIBILIDADE você PRECISA ter:
   (a) DIA desejado (converta para YYYY-MM-DD usando o CONTEXTO TEMPORAL).
   (b) SERVIÇO desejado (use appbarber_services para pegar o service_code real — nunca invente).
-  (c) PERÍODO do dia: manhã, tarde ou noite. Se o cliente não disser, PERGUNTE de forma curta:
-      "Prefere de manhã, tarde ou à noite?"
-  (d) PROFISSIONAL (opcional): se o cliente tiver preferência, use o nome dele. Se não tiver, NÃO pergunte — siga sem profissional.
+  (c) PROFISSIONAL (opcional): se o cliente tiver preferência, use esse profissional. Se não tiver, NÃO pergunte.
+  (d) PERÍODO (opcional): só filtre por manhã/tarde/noite se o cliente disser isso explicitamente.
 
-DEFINIÇÃO DE PERÍODO (use para filtrar os horários retornados):
+DEFINIÇÃO DE PERÍODO (use apenas quando o cliente pedir):
   - manhã  = horários com hora < 12:00
   - tarde  = horários com hora >= 12:00 e < 18:00
   - noite  = horários com hora >= 18:00
 
 COMO CHAMAR appbarber_availability:
-  - Sempre envie start_date (YYYY-MM-DD) e service_code (quando já souber o serviço).
-  - Se o cliente citou profissional, envie professional_code também.
-  - Depois de receber o resultado, FILTRE você mesmo pelo período pedido (manhã/tarde/noite).
+  - Sempre envie start_date (YYYY-MM-DD).
+  - Envie service_code quando o serviço já estiver definido.
+  - Se houver profissional preferido, priorize os horários desse profissional.
+  - Se houver manhã/tarde/noite, filtre os horários retornados por esse período.
 
 COMO RESPONDER AO CLIENTE:
-  - Mostre no MÁXIMO 3 horários, os 3 MAIS PRÓXIMOS dentro do período pedido.
-  - COM profissional preferido: 3 horários desse profissional no período.
-  - SEM profissional: 3 horários mais próximos no período (de qualquer profissional disponível) e diga o nome do profissional ao lado de cada horário.
-  - Formato sugerido: "14h com Victor, 14h30 com João, 15h com Pedro".
+  - Mostre no MÁXIMO 3 horários, sempre os 3 MAIS PRÓXIMOS.
+  - COM profissional preferido: mostre 3 horários desse profissional.
+  - SEM profissional preferido: mostre 3 horários mais próximos e diga o nome do profissional em cada opção.
+  - Se o cliente NÃO falou manhã/tarde/noite, NÃO pergunte isso: ofereça os 3 horários mais próximos do dia.
 
-SE NÃO HOUVER HORÁRIO NO DIA/PERÍODO PEDIDO:
-  - Avise educadamente: "Para [dia] no período da [manhã/tarde/noite] não tenho mais horário."
-  - IMEDIATAMENTE chame appbarber_availability de novo para o PRÓXIMO dia (start_date + 1) mantendo o mesmo período e serviço.
-  - Se ainda assim vier vazio, avance um dia por vez (até 7 tentativas) até encontrar o primeiro horário disponível.
-  - Quando achar, ofereça: "Mas tenho [dia] às [hora] com [profissional]. Posso reservar?"
+SE NÃO HOUVER HORÁRIO NO DIA PEDIDO:
+  - Se o cliente pediu manhã/tarde/noite: diga que nesse período não há mais horário.
+  - Em seguida consulte o PRÓXIMO dia (start_date + 1) mantendo o mesmo serviço, profissional e período quando existirem.
+  - Se ainda vier vazio, avance um dia por vez (até 7 tentativas) até achar a primeira disponibilidade.
+  - Quando achar, ofereça os 3 próximos horários encontrados.
 
 CONFIRMAÇÃO OBRIGATÓRIA antes de appbarber_appointment:
   Confirme nome, telefone, serviço, profissional, data e hora. Só grave após "sim".
@@ -1052,7 +1073,7 @@ AGENDAMENTO: Use appbarber_appointment com professional_code, service_code, dura
 CONSULTA DE AGENDAMENTOS EXISTENTES: appbarber_history com start_date e end_date.
 LISTAS AUXILIARES: appbarber_professionals e appbarber_payment_types (tabelas locais sincronizadas).
 
-NUNCA diga "não tem horário" sem ter (1) chamado appbarber_availability para o dia pedido E (2) tentado os próximos dias quando vier vazio.`;
+NUNCA diga "não tem horário" sem ter (1) consultado o dia pedido e (2) tentado os próximos dias quando vier vazio.`;
   }
 
   // Add human-like WhatsApp communication style
@@ -2395,6 +2416,406 @@ export async function setHumanTakeover(conversationId, enabled, userId) {
 }
 
 // ==================== HELPERS ====================
+
+const APPBARBER_SCHEDULING_CUES = [
+  'agendar', 'agendamento', 'marcar', 'reservar', 'horario', 'horarios', 'disponibilidade',
+  'disponivel', 'disponiveis', 'agenda', 'vaga', 'vagas', 'encaixe', 'hoje', 'amanha',
+  'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo', 'manha', 'tarde', 'noite',
+];
+
+const APPBARBER_PERIOD_LABELS = {
+  morning: 'manhã',
+  afternoon: 'tarde',
+  night: 'noite',
+};
+
+const APPBARBER_SERVICE_ALIAS_GROUPS = [
+  { triggers: ['cabelo', 'corte', 'cortar o cabelo'], serviceTokens: ['corte', 'cabelo'] },
+  { triggers: ['barba', 'barbear'], serviceTokens: ['barba'] },
+  { triggers: ['sobrancelha'], serviceTokens: ['sobrancelha'] },
+  { triggers: ['pigmentacao', 'pigmentação'], serviceTokens: ['pigment'] },
+  { triggers: ['hidratacao', 'hidratação'], serviceTokens: ['hidrat'] },
+  { triggers: ['selagem'], serviceTokens: ['selagem'] },
+  { triggers: ['progressiva'], serviceTokens: ['progressiva'] },
+  { triggers: ['combo', 'corte e barba', 'barba e cabelo'], serviceTokens: ['combo', 'corte', 'barba'] },
+];
+
+function normalizeAppBarberText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function tokenizeAppBarberText(value) {
+  return normalizeAppBarberText(value)
+    .split(/[^a-z0-9]+/)
+    .filter(token => token.length >= 3);
+}
+
+function getAppBarberBrazilNow() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+}
+
+function formatAppBarberIsoDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseAppBarberIsoDate(isoDate) {
+  const [year, month, day] = String(isoDate || '').split('-').map(Number);
+  return new Date(Date.UTC(year, (month || 1) - 1, day || 1, 12, 0, 0));
+}
+
+function addDaysToAppBarberIsoDate(isoDate, days) {
+  const nextDate = parseAppBarberIsoDate(isoDate);
+  nextDate.setUTCDate(nextDate.getUTCDate() + days);
+  return nextDate.toISOString().slice(0, 10);
+}
+
+function humanizeAppBarberDate(isoDate) {
+  const today = getAppBarberBrazilNow();
+  today.setHours(0, 0, 0, 0);
+  const target = parseAppBarberIsoDate(isoDate);
+  const diffDays = Math.round((target.getTime() - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0)) / 86400000);
+
+  if (diffDays === 0) return 'hoje';
+  if (diffDays === 1) return 'amanhã';
+
+  return target.toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+  });
+}
+
+function extractAppBarberPeriodFromText(text) {
+  const raw = String(text || '').toLowerCase();
+  if (/(^|\b)(de manhã|de manha|pela manhã|pela manha|manhã|manha)(\b|$)/.test(raw)) return 'morning';
+  if (/(^|\b)(de tarde|a tarde|à tarde|tarde)(\b|$)/.test(raw)) return 'afternoon';
+  if (/(^|\b)(de noite|a noite|à noite|noite)(\b|$)|após as 18|apos as 18|depois das 18/.test(raw)) return 'night';
+  return null;
+}
+
+function extractAppBarberDateFromText(text) {
+  const raw = String(text || '');
+  const normalized = normalizeAppBarberText(raw);
+  const today = getAppBarberBrazilNow();
+  today.setHours(0, 0, 0, 0);
+
+  if (/\bdepois de amanha\b/.test(normalized)) return addDaysToAppBarberIsoDate(formatAppBarberIsoDate(today), 2);
+  if (/\bamanha\b/.test(normalized)) return addDaysToAppBarberIsoDate(formatAppBarberIsoDate(today), 1);
+  if (/\bhoje\b/.test(normalized)) return formatAppBarberIsoDate(today);
+
+  const isoMatch = raw.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+
+  const brMatch = raw.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  if (brMatch) {
+    const day = String(parseInt(brMatch[1], 10)).padStart(2, '0');
+    const month = String(parseInt(brMatch[2], 10)).padStart(2, '0');
+    let year = brMatch[3] ? parseInt(brMatch[3], 10) : today.getFullYear();
+    if (year < 100) year += 2000;
+    return `${year}-${month}-${day}`;
+  }
+
+  const weekdayMap = [
+    ['domingo', 0],
+    ['segunda', 1],
+    ['terca', 2],
+    ['quarta', 3],
+    ['quinta', 4],
+    ['sexta', 5],
+    ['sabado', 6],
+  ];
+
+  for (const [weekdayName, weekdayIndex] of weekdayMap) {
+    if (new RegExp(`\\b${weekdayName}\\b`).test(normalized)) {
+      const diff = (weekdayIndex - today.getDay() + 7) % 7;
+      return addDaysToAppBarberIsoDate(formatAppBarberIsoDate(today), diff);
+    }
+  }
+
+  return null;
+}
+
+function extractFirstAppBarberValue(texts, extractor) {
+  for (const text of texts) {
+    const resolved = extractor(text);
+    if (resolved) return resolved;
+  }
+  return null;
+}
+
+function resolveRequestedAppBarberService(texts, services) {
+  if (!Array.isArray(services) || services.length === 0) return null;
+  const joinedText = normalizeAppBarberText(texts.join(' '));
+  const comboRequested = joinedText.includes('corte e barba') || joinedText.includes('barba e cabelo') || (joinedText.includes('corte') && joinedText.includes('barba'));
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const service of services) {
+    const description = String(service.service_description || '');
+    const normalizedDescription = normalizeAppBarberText(description);
+    const tokens = tokenizeAppBarberText(description);
+    let score = 0;
+
+    if (joinedText.includes(normalizedDescription)) score += 200;
+    for (const token of tokens) {
+      if (joinedText.includes(token)) score += token.length >= 5 ? 20 : 12;
+    }
+
+    for (const aliasGroup of APPBARBER_SERVICE_ALIAS_GROUPS) {
+      const triggerHit = aliasGroup.triggers.some(trigger => joinedText.includes(normalizeAppBarberText(trigger)));
+      const tokenHit = aliasGroup.serviceTokens.some(token => normalizedDescription.includes(normalizeAppBarberText(token)));
+      if (triggerHit && tokenHit) score += 70;
+    }
+
+    if (comboRequested && normalizedDescription.includes('corte') && normalizedDescription.includes('barba')) {
+      score += 140;
+    }
+
+    if (score > bestScore) {
+      bestMatch = service;
+      bestScore = score;
+    }
+  }
+
+  return bestScore >= 60 ? bestMatch : null;
+}
+
+function resolveRequestedAppBarberProfessional(texts, professionals) {
+  if (!Array.isArray(professionals) || professionals.length === 0) return null;
+  const joinedText = normalizeAppBarberText(texts.join(' '));
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const professional of professionals) {
+    const variants = [professional.employee_name, professional.employee_nickname].filter(Boolean);
+    let score = 0;
+
+    for (const variant of variants) {
+      const normalizedVariant = normalizeAppBarberText(variant);
+      if (joinedText.includes(normalizedVariant)) score += 200;
+      for (const token of tokenizeAppBarberText(variant)) {
+        if (joinedText.includes(token)) score += token.length >= 4 ? 24 : 10;
+      }
+    }
+
+    if (score > bestScore) {
+      bestMatch = professional;
+      bestScore = score;
+    }
+  }
+
+  return bestScore >= 80 ? bestMatch : null;
+}
+
+function parseAppBarberAvailabilityToolResult(resultText, dateIso) {
+  const raw = String(resultText || '').trim();
+  const normalized = normalizeAppBarberText(raw);
+
+  if (!raw) return { status: 'empty', slots: [], raw };
+  if (normalized.includes('erro')) return { status: 'error', slots: [], raw };
+  if (normalized.includes('nenhum horario disponivel') || normalized.includes('nenhum profissional retornado')) {
+    return { status: 'empty', slots: [], raw };
+  }
+
+  const slots = [];
+  const blockRegex = /👤\s+(.+?)\s+\(código:\s*(\d+)\):[\s\S]*?Horários:\s*(.+?)(?=(?:\n\s*\n👤)|$)/g;
+  let match;
+  while ((match = blockRegex.exec(raw)) !== null) {
+    const professionalName = match[1].trim();
+    const professionalCode = parseInt(match[2], 10);
+    const times = match[3]
+      .split(',')
+      .map(time => time.trim())
+      .filter(time => time && !normalizeAppBarberText(time).includes('sem horarios disponiveis'));
+
+    for (const time of times) {
+      slots.push({
+        date: dateIso,
+        time,
+        professionalName,
+        professionalCode,
+      });
+    }
+  }
+
+  return { status: slots.length > 0 ? 'ok' : 'empty', slots, raw };
+}
+
+function appBarberTimeToMinutes(time) {
+  const [hours, minutes] = String(time || '').split(':').map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
+}
+
+function matchesRequestedAppBarberPeriod(time, period) {
+  if (!period) return true;
+  const totalMinutes = appBarberTimeToMinutes(time);
+  if (period === 'morning') return totalMinutes < 12 * 60;
+  if (period === 'afternoon') return totalMinutes >= 12 * 60 && totalMinutes < 18 * 60;
+  if (period === 'night') return totalMinutes >= 18 * 60;
+  return true;
+}
+
+function formatAppBarberHourLabel(time) {
+  const [hours, minutes] = String(time || '').split(':');
+  const hour = String(parseInt(hours || '0', 10));
+  return minutes === '00' ? `${hour}h` : `${hour}h${minutes || '00'}`;
+}
+
+function formatDeterministicAppBarberAvailabilityResponse({ requestedDate, offeredDate, period, preferredProfessional, slots }) {
+  const requestedLabel = humanizeAppBarberDate(requestedDate);
+  const offeredLabel = humanizeAppBarberDate(offeredDate);
+  const periodLabel = period ? ` no período da ${APPBARBER_PERIOD_LABELS[period]}` : '';
+  const preferredProfessionalName = preferredProfessional?.employee_name || preferredProfessional?.employee_nickname || null;
+  const slotList = preferredProfessionalName
+    ? slots.map(slot => `• ${formatAppBarberHourLabel(slot.time)}`).join('\n')
+    : slots.map(slot => `• ${formatAppBarberHourLabel(slot.time)} com ${slot.professionalName}`).join('\n');
+
+  if (requestedDate === offeredDate) {
+    if (preferredProfessionalName) {
+      return `Para ${requestedLabel}${periodLabel}, tenho estes 3 próximos horários com ${preferredProfessionalName}:\n${slotList}\n\nQuer que eu reserve algum?`;
+    }
+    return `Para ${requestedLabel}${periodLabel}, tenho estes 3 próximos horários:\n${slotList}\n\nQuer que eu reserve algum?`;
+  }
+
+  if (preferredProfessionalName) {
+    return `Para ${requestedLabel}${periodLabel} não tenho mais horário. Mas tenho ${offeredLabel}${periodLabel} com ${preferredProfessionalName}:\n${slotList}\n\nQuer que eu reserve algum?`;
+  }
+
+  return `Para ${requestedLabel}${periodLabel} não tenho mais horário. Mas tenho ${offeredLabel}${periodLabel}:\n${slotList}\n\nQuer que eu reserve algum?`;
+}
+
+async function maybeHandleDeterministicAppBarberAvailability({ agent, history, currentMessage }) {
+  const currentText = typeof currentMessage === 'string' ? currentMessage : '';
+  const userHistoryTexts = history
+    .filter(message => message.role === 'user' && typeof message.content === 'string')
+    .map(message => message.content)
+    .slice(-6)
+    .reverse();
+
+  const currentNormalized = normalizeAppBarberText(currentText);
+  const historyNormalized = normalizeAppBarberText(userHistoryTexts.join(' '));
+  const currentHasPeriodOnly = !!extractAppBarberPeriodFromText(currentText);
+  const currentRequiresAvailability = detectAppBarberRequiredTool(currentText) === 'appbarber_availability';
+  const hasSchedulingContext = APPBARBER_SCHEDULING_CUES.some(cue => historyNormalized.includes(cue));
+
+  if (!currentRequiresAvailability && !(currentHasPeriodOnly && hasSchedulingContext)) {
+    return null;
+  }
+
+  const extractionTexts = [currentText, ...userHistoryTexts];
+  const requestedDate = extractFirstAppBarberValue(extractionTexts, extractAppBarberDateFromText);
+  const requestedPeriod = extractFirstAppBarberValue(extractionTexts, extractAppBarberPeriodFromText);
+
+  if (!requestedDate) {
+    return {
+      handled: true,
+      responseText: 'Para qual dia você quer consultar?',
+      toolCallsExecuted: [],
+    };
+  }
+
+  const servicesResult = await query(
+    `SELECT service_code, service_description, service_interval
+     FROM appbarber_services
+     WHERE agent_id = $1 AND is_active = true
+     ORDER BY service_description`,
+    [agent.id]
+  );
+  const selectedService = resolveRequestedAppBarberService(extractionTexts, servicesResult.rows);
+
+  if (!selectedService) {
+    return {
+      handled: true,
+      responseText: 'Qual serviço você quer agendar?',
+      toolCallsExecuted: [],
+    };
+  }
+
+  const professionalsResult = await query(
+    `SELECT employee_code, employee_name, employee_nickname
+     FROM appbarber_professionals
+     WHERE agent_id = $1 AND is_active = true
+     ORDER BY employee_name`,
+    [agent.id]
+  );
+  const preferredProfessional = resolveRequestedAppBarberProfessional(extractionTexts, professionalsResult.rows);
+  const toolCalls = [];
+
+  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+    const queryDate = addDaysToAppBarberIsoDate(requestedDate, dayOffset);
+    const toolArgs = {
+      start_date: queryDate,
+      service_code: selectedService.service_code,
+    };
+    const toolResult = await executeAppBarberToolDirect('appbarber_availability', toolArgs, agent);
+    toolCalls.push({
+      name: 'appbarber_availability',
+      arguments: toolArgs,
+      result: toolResult,
+      reasoning: 'deterministic_appbarber_availability',
+    });
+
+    const parsed = parseAppBarberAvailabilityToolResult(toolResult, queryDate);
+    if (parsed.status === 'error') {
+      logInfo('ai_agent_processor.appbarber_deterministic_error', {
+        agentId: agent.id,
+        queryDate,
+        resultPreview: parsed.raw.substring(0, 240),
+      });
+      return {
+        handled: true,
+        responseText: 'Não consegui consultar a disponibilidade no AppBarber agora. Tenta novamente em instantes.',
+        toolCallsExecuted: toolCalls,
+      };
+    }
+
+    let slots = parsed.slots;
+    if (preferredProfessional) {
+      slots = slots.filter(slot => slot.professionalCode === preferredProfessional.employee_code);
+    }
+    if (requestedPeriod) {
+      slots = slots.filter(slot => matchesRequestedAppBarberPeriod(slot.time, requestedPeriod));
+    }
+
+    slots.sort((a, b) => appBarberTimeToMinutes(a.time) - appBarberTimeToMinutes(b.time));
+
+    if (slots.length > 0) {
+      return {
+        handled: true,
+        responseText: formatDeterministicAppBarberAvailabilityResponse({
+          requestedDate,
+          offeredDate: queryDate,
+          period: requestedPeriod,
+          preferredProfessional,
+          slots: slots.slice(0, 3),
+        }),
+        toolCallsExecuted: toolCalls,
+      };
+    }
+  }
+
+  const periodLabel = requestedPeriod ? ` no período da ${APPBARBER_PERIOD_LABELS[requestedPeriod]}` : '';
+  const serviceLabel = selectedService?.service_description ? ` para ${selectedService.service_description}` : '';
+  const professionalLabel = preferredProfessional
+    ? ` com ${preferredProfessional.employee_name || preferredProfessional.employee_nickname}`
+    : '';
+
+  return {
+    handled: true,
+    responseText: `Não encontrei horários disponíveis nos próximos 7 dias${periodLabel}${serviceLabel}${professionalLabel}. Quer que eu veja outro dia ou outro serviço?`,
+    toolCallsExecuted: toolCalls,
+  };
+}
 
 function parseArray(value, defaultValue) {
   if (Array.isArray(value)) return value;
