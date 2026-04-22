@@ -1439,25 +1439,33 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
     }
 
     const baseUrl = 'https://api.appbarber.com';
-    const headers = { 'X-API-Key': appbarber_api_key, 'Content-Type': 'application/json' };
+    const headers = {
+      Accept: 'application/json',
+      'X-API-Key': appbarber_api_key,
+      'Content-Type': 'application/json',
+      'User-Agent': 'curl/8.7.1',
+    };
 
     let resultText;
     switch (toolName) {
       case 'appbarber_professionals': {
-        const params = new URLSearchParams({ establishment_code: appbarber_establishment_code });
+        const params = new URLSearchParams({ establishment_code: String(appbarber_establishment_code), type: '1' });
         const url = `${baseUrl}/v1/professionals?${params}`;
         logInfo('ai_agent_processor.appbarber_http_request', { toolName, url });
         const resp = await fetch(url, { headers });
-        const data = await resp.json();
+        const rawText = await resp.text().catch(() => '');
+        let data = null;
+        try { data = rawText ? JSON.parse(rawText) : null; } catch { data = null; }
         const professionals = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
         logInfo('ai_agent_processor.appbarber_http_response', {
           toolName,
           status: resp.status,
           ok: resp.ok,
           professionalsCount: professionals.length,
+          rawPreview: (rawText || '').slice(0, 300),
         });
         if (!resp.ok) {
-          resultText = `Erro AppBarber: ${data.error || resp.status}`;
+          resultText = `Erro AppBarber: ${data?.error || data?.message || rawText?.slice(0, 200) || resp.status}`;
         } else {
           resultText = professionals.length > 0
             ? professionals.map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`).join('\n')
