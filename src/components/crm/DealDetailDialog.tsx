@@ -1838,6 +1838,17 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                         {item.action === 'created' && "criou a negociação"}
                         {item.action === 'stage_changed' && `moveu de "${item.from_value}" para "${item.to_value}"`}
                         {item.action === 'value_changed' && `alterou o valor de ${item.from_value} para ${item.to_value}`}
+                        {item.action === 'status_changed' && `alterou o status de "${item.from_value}" para "${item.to_value}"`}
+                        {item.action === 'owner_changed' && `alterou o responsável de "${item.from_value}" para "${item.to_value}"`}
+                        {item.action === 'description_changed' && "atualizou a descrição"}
+                        {item.action === 'title_changed' && `alterou o título para "${item.to_value}"`}
+                        {item.action === 'company_changed' && `alterou a empresa para "${item.to_value}"`}
+                        {!['created', 'stage_changed', 'value_changed', 'status_changed', 'owner_changed', 'description_changed', 'title_changed', 'company_changed'].includes(item.action) && item.action}
+                      </p>
+                      {item.notes && (
+                        <p className="text-xs italic text-muted-foreground mt-0.5">
+                          {item.notes}
+                        </p>
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {format(parseISO(item.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
