@@ -1884,9 +1884,14 @@ router.post('/:id/test', authenticate, async (req, res) => {
     if (agent.description && agent.description.trim()) {
       systemPrompt += `\n\n${agent.description.trim()}`;
     }
-    if (knowledgeContext) {
-      systemPrompt += `\n\nBase de Conhecimento (use estas informações para responder):\n${knowledgeContext}`;
-    }
+     if (knowledgeContext) {
+       systemPrompt += `\n\nBase de Conhecimento (use estas informações para responder):\n${knowledgeContext}`;
+     }
+ 
+     // Add explicit rules for AppBarber integration to prevent hallucinations
+     if (agent.capabilities.includes('appbarber')) {
+       systemPrompt += `\n\nREGRAS CRÍTICAS DE DADOS (AppBarber):\n1. NUNCA invente nomes de profissionais ou preços.\n2. Para saber quem trabalha no local, use SEMPRE a ferramenta 'appbarber_professionals'.\n3. Para saber preços e serviços, use 'appbarber_services'.\n4. Se o usuário perguntar por alguém ou algo que não retornou nas ferramentas, diga que não encontrou esse registro no sistema.`;
+     }
 
     // Build messages
     const messages = [
