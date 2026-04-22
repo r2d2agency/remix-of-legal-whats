@@ -61,7 +61,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
       setLoading(true);
       setSearched(true);
       try {
-        let url = `/api/chat/messages/search?q=${encodeURIComponent(query)}&limit=50`;
+        let url = `/api/chat/messages/search?q=${encodeURIComponent(query)}&limit=100`;
         if (startDate) url += `&from_date=${startDate}`;
         if (endDate) url += `&to_date=${endDate}`;
         
@@ -258,7 +258,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
         </div>
 
          {/* Results */}
-         <ScrollArea className="flex-1 border-t min-h-[350px]">
+          <div className="flex-1 border-t min-h-0 overflow-y-auto">
            {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -333,12 +333,20 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
               ))}
             </div>
           )}
-         </ScrollArea>
+          </div>
 
         {/* Footer */}
-        {results.length > 0 && (
-          <div className="px-4 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
-            {results.length} resultado{results.length !== 1 ? 's' : ''} encontrado{results.length !== 1 ? 's' : ''}
+        {searched && (
+          <div className="px-4 py-2 border-t bg-muted/30 text-xs text-muted-foreground flex justify-between items-center">
+            <span>
+              {results.length} resultado{results.length !== 1 ? 's' : ''} encontrado{results.length !== 1 ? 's' : ''}
+              {results.length >= 100 && " (limite atingido)"}
+            </span>
+            {(startDate || endDate) && (
+              <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                Filtro de data ativo
+              </span>
+            )}
           </div>
         )}
       </DialogContent>
