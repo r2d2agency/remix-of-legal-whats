@@ -1011,6 +1011,23 @@ async function buildSystemPrompt(agent, organizationId, contactName, userMessage
 3. PRIORIDADE DE DADOS: Dados obtidos via ferramentas (AppBarber, etc) são a VERDADE ABSOLUTA. Ignore qualquer conhecimento prévio que conflite com eles.
 4. RACIOCÍNIO LÓGICO: Antes de responder, pense passo a passo sobre qual ferramenta usar para obter a informação correta.`;
 
+  // AppBarber-specific scheduling playbook
+  const agentCapabilitiesList = parseArray(agent.capabilities, []);
+  if (agentCapabilitiesList.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
+    prompt += `\n\n=== FLUXO DE AGENDAMENTO APPBARBER ===
+1. SERVIÇO: Use appbarber_services (tabela local) para obter o service_code e o preço. Nunca invente.
+2. DATA: Pergunte o dia desejado e converta para o formato YYYY-MM-DD usando o CONTEXTO TEMPORAL acima.
+3. DISPONIBILIDADE: Chame appbarber_availability com start_date e service_code. NÃO envie professional_code se o cliente não tiver preferência — a API devolve TODOS os profissionais e horários do dia.
+4. SEM PREFERÊNCIA DE PROFISSIONAL: Se o cliente disser "tanto faz", "qualquer um", "sem preferência" ou similar:
+   - Liste de forma curta os horários consolidados (ex: "Tenho 9h, 10h, 14h e 15h amanhã").
+   - Quando o cliente escolher o horário, atribua automaticamente o PRIMEIRO profissional disponível naquele slot e CONFIRME o nome com o cliente antes de gravar (ex: "Posso marcar com o João às 10h, pode ser?").
+5. COM PREFERÊNCIA: Se o cliente citar um profissional, filtre os horários daquele employee_code antes de oferecer.
+6. CONFIRMAÇÃO OBRIGATÓRIA: Antes de chamar appbarber_appointment, confirme com o cliente: nome, telefone, serviço, profissional, data e hora. Só grave após o "sim".
+7. AGENDAMENTO: Use appbarber_appointment com professional_code, service_code, duration (vem de appbarber_services) e start_date no formato "YYYY-MM-DD HH:mm".
+8. CONSULTA DE AGENDAMENTOS EXISTENTES: Use appbarber_history com start_date e end_date.
+9. PROFISSIONAIS / TIPOS DE PAGAMENTO: Use appbarber_professionals e appbarber_payment_types (ambas tabelas locais sincronizadas).`;
+  }
+
   // Add human-like WhatsApp communication style
   prompt += `\n\nIMPORTANTE - Estilo de comunicação:
 - Você está conversando via WhatsApp. Seja natural e humano.
