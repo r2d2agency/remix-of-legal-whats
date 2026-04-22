@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, MessageSquare, Clock } from 'lucide-react';
+import { Search, Loader2, MessageSquare, Clock, Calendar } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -36,6 +36,8 @@ interface GlobalSearchDialogProps {
 
 export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: GlobalSearchDialogProps) {
   const [query, setQuery] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -48,13 +50,21 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
       return;
     }
 
-    const timer = setTimeout(async () => {
+    const search = async () => {
+      if (!query.trim() || query.length < 2) {
+        setResults([]);
+        setSearched(false);
+        return;
+      }
+
       setLoading(true);
       setSearched(true);
       try {
-        const data = await api<{ results: SearchResult[] }>(
-          `/api/chat/messages/search?q=${encodeURIComponent(query)}&limit=50`
-        );
+        let url = `/api/chat/messages/search?q=${encodeURIComponent(query)}&limit=50`;
+        if (startDate) url += `&from_date=${startDate}`;
+        if (endDate) url += `&to_date=${endDate}`;
+        
+        const data = await api<{ results: SearchResult[] }>(url);
         setResults(data.results || []);
       } catch (error) {
         console.error('Global search error:', error);
@@ -62,15 +72,18 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
       } finally {
         setLoading(false);
       }
-    }, 400);
+    };
 
+    const timer = setTimeout(search, 400);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, startDate, endDate]);
 
   // Reset on close
   useEffect(() => {
     if (!open) {
       setQuery('');
+      setStartDate('');
+      setEndDate('');
       setResults([]);
       setSearched(false);
     }
@@ -133,21 +146,49 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
           </DialogTitle>
         </DialogHeader>
 
-        {/* Search Input */}
-        <div className="px-4 pb-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Digite para buscar mensagens..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="pl-9"
-              autoFocus
-            />
+        <div className="px-4 pb-4 space-y-3">
+          {/* Search Input */}
+          <div className="space-y-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Digite para buscar mensagens..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="pl-9"
+                autoFocus
+              />
+            </div>
+            {query.length > 0 && query.length < 2 && (
+              <p className="text-xs text-muted-foreground">Digite pelo menos 2 caracteres</p>
+            )}
           </div>
-          {query.length > 0 && query.length < 2 && (
-            <p className="text-xs text-muted-foreground mt-1">Digite pelo menos 2 caracteres</p>
-          )}
+
+          {/* Date Filters */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="relative">
+              <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="pl-8 h-8 text-xs"
+                placeholder="Data inicial"
+                title="Data inicial"
+              />
+            </div>
+            <div className="relative">
+              <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="pl-8 h-8 text-xs"
+                placeholder="Data final"
+                title="Data final"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Results */}
