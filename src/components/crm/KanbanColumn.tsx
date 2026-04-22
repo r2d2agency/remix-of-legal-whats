@@ -13,7 +13,7 @@ interface KanbanColumnProps {
   deals: CRMDeal[];
   totalValue: number;
   onDealClick: (deal: CRMDeal) => void;
-  onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open') => void;
+   onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open', dealTitle?: string, stageId?: string) => void;
   newWinDealId?: string | null;
   activeId?: string | null;
   overId?: string | null;
@@ -37,7 +37,7 @@ function SortableDealItem({
 }: { 
   deal: CRMDeal; 
   onDealClick: (deal: CRMDeal) => void;
-  onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open') => void;
+   onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open', dealTitle?: string, stageId?: string) => void;
   isNewWin?: boolean;
   isActive?: boolean;
   isOver?: boolean;
