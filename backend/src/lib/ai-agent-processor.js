@@ -14,6 +14,7 @@ import { callAI, callAIWithTools } from './ai-caller.js';
 import { logInfo, logError } from '../logger.js';
 import { searchKnowledge } from './knowledge-processor.js';
 import * as whatsappProvider from './whatsapp-provider.js';
+import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, inferAppBarberToolSource, isAppBarberToolResultFailure } from './appbarber-intent.js';
 
 // ==================== MESSAGE BATCHING ====================
 // Collects multiple messages from same contact within a window before processing
@@ -429,7 +430,31 @@ async function processMessageInternal({
     }
 
     const responseTime = Date.now() - startTime;
-    const responseText = result.content || agent.fallback_message || 'Desculpe, não consegui processar sua mensagem.';
+    let responseText = result.content || agent.fallback_message || 'Desculpe, não consegui processar sua mensagem.';
+
+    if (capabilities.includes('appbarber')) {
+      const requiredTool = detectAppBarberRequiredTool(userMessageForHistory || userMessageForAI || messageContent);
+      if (requiredTool) {
+        const matchingToolCalls = toolCallsExecuted.filter(call => call.name === requiredTool);
+        const latestToolCall = matchingToolCalls[matchingToolCalls.length - 1] || null;
+        const mustBlockAnswer = !latestToolCall || isAppBarberToolResultFailure(latestToolCall.result);
+
+        logInfo('ai_agent_processor.appbarber_grounding_check', {
+          sessionId: session.id,
+          agentId: agent.id,
+          requiredTool,
+          requiredSource: inferAppBarberToolSource(requiredTool),
+          executedToolNames: toolCallsExecuted.map(call => call.name),
+          matchedCalls: matchingToolCalls.length,
+          blocked: mustBlockAnswer,
+          latestResultPreview: latestToolCall ? String(latestToolCall.result).substring(0, 240) : null,
+        });
+
+        if (mustBlockAnswer) {
+          responseText = buildAppBarberGuardrailResponse(requiredTool, latestToolCall?.result);
+        }
+      }
+    }
 
     // 12. Save assistant message
     await saveAgentMessage(session.id, 'assistant', responseText, result.tokensUsed || 0, toolCallsExecuted);

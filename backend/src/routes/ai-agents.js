@@ -4,6 +4,7 @@ import { query } from '../db.js';
 import { logInfo, logError, getRecentLogs } from '../logger.js';
 import { callAI, callAIWithTools } from '../lib/ai-caller.js';
 import { processKnowledgeSource, searchKnowledge } from '../lib/knowledge-processor.js';
+import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, inferAppBarberToolSource, isAppBarberToolResultFailure } from '../lib/appbarber-intent.js';
 
 const router = Router();
 
@@ -1722,8 +1723,15 @@ async function importAppBarberServices(agentId, organizationId, services) {
 
 async function executeAppBarberTool(toolName, args, agent) {
   try {
+    const startedAt = Date.now();
     const apiKey = agent.appbarber_api_key;
     const estCode = agent.appbarber_establishment_code;
+    logInfo('ai_agents.appbarber_tool_start', {
+      agentId: agent.id,
+      agentName: agent.name,
+      toolName,
+      args,
+    });
     if (!apiKey || !estCode) return 'Credenciais AppBarber não configuradas.';
 
     const baseUrl = 'https://api.appbarber.com';
@@ -1752,9 +1760,17 @@ async function executeAppBarberTool(toolName, args, agent) {
            return 'Nenhum serviço cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os serviços do AppBarber.';
          }
 
-         return result.rows
+          const resultText = result.rows
            .map(s => `• ${s.service_description} (código: ${s.service_code}) - R$ ${parseFloat(s.service_value).toFixed(2)} - ${s.service_interval} min`)
            .join('\n');
+          logInfo('ai_agents.appbarber_tool_done', {
+            agentId: agent.id,
+            toolName,
+            source: 'tabela_local',
+            durationMs: Date.now() - startedAt,
+            resultPreview: resultText.substring(0, 500),
+          });
+          return resultText;
        }
        case 'appbarber_professionals': {
          const params = new URLSearchParams({ establishment_code: estCode });
@@ -1763,7 +1779,15 @@ async function executeAppBarberTool(toolName, args, agent) {
          if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
          const pros = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
          if (pros.length === 0) return 'Nenhum profissional encontrado no AppBarber para este estabelecimento.';
-         return pros.map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`).join('\n');
+          const resultText = pros.map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`).join('\n');
+          logInfo('ai_agents.appbarber_tool_done', {
+            agentId: agent.id,
+            toolName,
+            source: 'api_appbarber',
+            durationMs: Date.now() - startedAt,
+            resultPreview: resultText.substring(0, 500),
+          });
+          return resultText;
        }
       case 'appbarber_availability': {
         const params = new URLSearchParams({ establishment_code: estCode, start_date: args.start_date });
@@ -2074,26 +2098,60 @@ router.post('/:id/test', authenticate, async (req, res) => {
       });
     }
 
+    const requiredTool = capabilities.includes('appbarber')
+      ? detectAppBarberRequiredTool(message)
+      : null;
+    const matchingToolCalls = requiredTool
+      ? toolCallsExecuted.filter(tc => tc.name === requiredTool)
+      : [];
+    const latestToolCall = matchingToolCalls[matchingToolCalls.length - 1] || null;
+    const guardrailApplied = !!requiredTool && (!latestToolCall || isAppBarberToolResultFailure(latestToolCall.result));
+    const finalResponse = guardrailApplied
+      ? buildAppBarberGuardrailResponse(requiredTool, latestToolCall?.result)
+      : result.content;
+
     logInfo('ai_agents.test_chat', {
       agentId: agent.id,
       userId: userCtx.id,
       tokensUsed: result.tokensUsed,
       toolCallsCount: toolCallsExecuted.length,
+      requiredTool,
+      guardrailApplied,
     });
 
      res.json({
-       response: result.content,
+        response: finalResponse,
        tokens_used: result.tokensUsed || 0,
        model_used: result.model || aiConfig.model,
        sources_used: Array.from(new Set([
          ...(knowledgeResult.rows.length > 0 ? ['knowledge_base'] : []),
          ...toolCallsExecuted.map(tc => tc.name),
        ])),
-       reasoning: result.toolCallsExecuted?.map(tc => tc.reasoning).filter(Boolean).join('\n') || null,
+        reasoning: result.toolCallsExecuted?.map(tc => tc.reasoning).filter(Boolean).join('\n') || null,
+        model_output: result.lastModelContent || result.content || null,
+        guardrail: requiredTool ? {
+          applied: guardrailApplied,
+          required_tool: requiredTool,
+          required_source: inferAppBarberToolSource(requiredTool),
+          matched_calls: matchingToolCalls.length,
+          latest_result_preview: latestToolCall ? String(latestToolCall.result).substring(0, 500) : null,
+        } : null,
+        trace: {
+          user_message: message,
+          system_prompt,
+          registered_tools: tools.map(tool => tool.function?.name).filter(Boolean),
+          required_tool: requiredTool,
+          required_source: requiredTool ? inferAppBarberToolSource(requiredTool) : null,
+          message_history: history.slice(-(agent.context_window || 10)),
+        },
        tool_calls: toolCallsExecuted.map(tc => ({
          tool: tc.name,
+          source: inferAppBarberToolSource(tc.name),
          arguments: tc.arguments,
-         response_preview: typeof tc.result === 'string' ? tc.result.substring(0, 500) : JSON.stringify(tc.result).substring(0, 500),
+          status: isAppBarberToolResultFailure(tc.result) ? 'error_or_empty' : 'ok',
+          reasoning: tc.reasoning || null,
+          response_preview: typeof tc.result === 'string' ? tc.result.substring(0, 500) : JSON.stringify(tc.result).substring(0, 500),
+          response_full: typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result),
        })),
      });
   } catch (error) {

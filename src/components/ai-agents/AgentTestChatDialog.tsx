@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { 
   Bot, Send, Loader2, User, AlertCircle, Trash2, 
   RefreshCw, Brain, Clock
@@ -26,8 +27,29 @@ interface AgentTestChatDialogProps {
 
 interface ToolCallInfo {
   tool: string;
+  source?: string;
+  status?: string;
   arguments: Record<string, unknown>;
   response_preview: string;
+  response_full?: string;
+  reasoning?: string | null;
+}
+
+interface DebugGuardrailInfo {
+  applied: boolean;
+  required_tool: string;
+  required_source: string;
+  matched_calls: number;
+  latest_result_preview?: string | null;
+}
+
+interface DebugTraceInfo {
+  user_message: string;
+  system_prompt: string;
+  registered_tools: string[];
+  required_tool?: string | null;
+  required_source?: string | null;
+  message_history?: Array<{ role: string; content: string }>;
 }
 
 interface TestMessage {
@@ -40,6 +62,9 @@ interface TestMessage {
   processing_time_ms?: number;
    tool_calls?: ToolCallInfo[];
    reasoning?: string;
+   model_output?: string | null;
+   guardrail?: DebugGuardrailInfo | null;
+   trace?: DebugTraceInfo | null;
    error?: boolean;
  }
 
@@ -97,6 +122,10 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
         sources_used?: string[];
         model_used?: string;
         tool_calls?: ToolCallInfo[];
+        reasoning?: string | null;
+        model_output?: string | null;
+        guardrail?: DebugGuardrailInfo | null;
+        trace?: DebugTraceInfo | null;
       }>(`/api/ai-agents/${agent.id}/test`, {
         method: 'POST',
         body: {
@@ -154,7 +183,10 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
          sources_used: response.sources_used,
          processing_time_ms: processingTime,
          tool_calls: response.tool_calls,
-         reasoning: (response as any).reasoning,
+          reasoning: response.reasoning || undefined,
+          model_output: response.model_output,
+          guardrail: response.guardrail,
+          trace: response.trace,
        };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -301,16 +333,88 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
                     </div>
                   )}
 
-                  {message.tool_calls && message.tool_calls.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {message.tool_calls.map((toolCall, index) => (
-                        <div key={`${message.id}-tool-${index}`} className="rounded-md border border-border bg-muted/40 p-2 text-xs">
-                          <div className="font-medium text-foreground">{toolCall.tool}</div>
-                          <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{toolCall.response_preview}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {(message.tool_calls && message.tool_calls.length > 0) || message.trace || message.guardrail || message.model_output ? (
+                    <Accordion type="single" collapsible className="mt-2 rounded-md border border-border bg-muted/30 px-3">
+                      {message.guardrail && (
+                        <AccordionItem value="guardrail">
+                          <AccordionTrigger className="text-xs">Validação de dados</AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-1 text-xs text-muted-foreground">
+                              <div><span className="text-foreground">Obrigatório:</span> {message.guardrail.required_tool}</div>
+                              <div><span className="text-foreground">Origem:</span> {message.guardrail.required_source}</div>
+                              <div><span className="text-foreground">Chamadas encontradas:</span> {message.guardrail.matched_calls}</div>
+                              <div><span className="text-foreground">Bloqueio aplicado:</span> {message.guardrail.applied ? 'sim' : 'não'}</div>
+                              {message.guardrail.latest_result_preview && (
+                                <pre className="whitespace-pre-wrap rounded bg-background p-2 text-[11px] text-foreground">{message.guardrail.latest_result_preview}</pre>
+                              )}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+
+                      {message.tool_calls && message.tool_calls.length > 0 && (
+                        <AccordionItem value="tools">
+                          <AccordionTrigger className="text-xs">Ferramentas consultadas</AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-2">
+                              {message.tool_calls.map((toolCall, index) => (
+                                <div key={`${message.id}-tool-${index}`} className="rounded-md border border-border bg-muted/40 p-2 text-xs">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="font-medium text-foreground">{toolCall.tool}</div>
+                                    {toolCall.source && <Badge variant="outline" className="text-[10px]">{toolCall.source}</Badge>}
+                                    {toolCall.status && <Badge variant={toolCall.status === 'ok' ? 'secondary' : 'destructive'} className="text-[10px]">{toolCall.status}</Badge>}
+                                  </div>
+                                  {toolCall.reasoning && <p className="mt-1 whitespace-pre-wrap text-primary text-[11px]">{toolCall.reasoning}</p>}
+                                  <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{toolCall.response_preview}</p>
+                                  <details className="mt-2">
+                                    <summary className="cursor-pointer text-[11px] text-primary">Ver payload completo</summary>
+                                    <pre className="mt-2 whitespace-pre-wrap rounded bg-background p-2 text-[11px] text-foreground">ARGS: {JSON.stringify(toolCall.arguments, null, 2)}{toolCall.response_full ? `\n\nRESULTADO:\n${toolCall.response_full}` : ''}</pre>
+                                  </details>
+                                </div>
+                              ))}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+
+                      {message.trace && (
+                        <AccordionItem value="trace">
+                          <AccordionTrigger className="text-xs">Cérebro / trilha completa</AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-2 text-xs">
+                              <div>
+                                <div className="font-medium text-foreground">Mensagem enviada</div>
+                                <pre className="mt-1 whitespace-pre-wrap rounded bg-background p-2 text-[11px] text-foreground">{message.trace.user_message}</pre>
+                              </div>
+                              <div>
+                                <div className="font-medium text-foreground">Ferramentas registradas</div>
+                                <pre className="mt-1 whitespace-pre-wrap rounded bg-background p-2 text-[11px] text-foreground">{message.trace.registered_tools.join(', ') || 'Nenhuma'}</pre>
+                              </div>
+                              <div>
+                                <div className="font-medium text-foreground">Prompt do sistema</div>
+                                <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded bg-background p-2 text-[11px] text-foreground">{message.trace.system_prompt}</pre>
+                              </div>
+                              {message.trace.message_history && message.trace.message_history.length > 0 && (
+                                <div>
+                                  <div className="font-medium text-foreground">Histórico enviado</div>
+                                  <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-background p-2 text-[11px] text-foreground">{JSON.stringify(message.trace.message_history, null, 2)}</pre>
+                                </div>
+                              )}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+
+                      {message.model_output && (
+                        <AccordionItem value="model-output">
+                          <AccordionTrigger className="text-xs">Saída bruta do modelo</AccordionTrigger>
+                          <AccordionContent>
+                            <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded bg-background p-2 text-[11px] text-foreground">{message.model_output}</pre>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                    </Accordion>
+                  ) : null}
                 </div>
 
                 {message.role === 'user' && (

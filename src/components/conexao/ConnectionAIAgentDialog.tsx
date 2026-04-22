@@ -88,7 +88,7 @@ export function ConnectionAIAgentDialog({ open, onClose, connectionId, connectio
     if (!connectionId) return;
     setLogsLoading(true);
     try {
-      const res = await api<{ logs: LogEntry[] }>(`/api/ai-agents/realtime-logs?limit=200`);
+      const res = await api<{ logs: LogEntry[] }>(`/api/ai-agents/debug/logs?limit=200`, { auth: true });
       const all = res?.logs || [];
       // Filter by connectionId OR by the agents currently assigned to this connection
       const assignedAgentIds = new Set(assigned.map(a => a.agent_id));
@@ -301,8 +301,8 @@ export function ConnectionAIAgentDialog({ open, onClose, connectionId, connectio
                           {l.toolName && <div>🔧 Ferramenta: <span className="text-foreground">{l.toolName}</span> {typeof l.durationMs === 'number' && <span className="text-[10px]">({l.durationMs}ms)</span>}</div>}
                           {l.toolNames && <div>🛠️ Disponíveis: {l.toolNames.join(', ')}</div>}
                           {l.toolsUsed && l.toolsUsed.length > 0 && <div>✅ Usadas: <span className="text-foreground">{l.toolsUsed.join(' → ')}</span></div>}
-                          {l.args && <div className="truncate">📥 Args: <span className="text-foreground">{JSON.stringify(l.args).substring(0, 150)}</span></div>}
-                          {l.resultPreview && <div className="truncate">📤 Result: <span className="text-foreground">{l.resultPreview}</span></div>}
+                          {l.args && <pre className="whitespace-pre-wrap break-words rounded bg-background/70 p-2 text-[10px] text-foreground">📥 Args: {JSON.stringify(l.args, null, 2)}</pre>}
+                          {l.resultPreview && <pre className="whitespace-pre-wrap break-words rounded bg-background/70 p-2 text-[10px] text-foreground">📤 Result: {l.resultPreview}</pre>}
                           {l.reason && <div>⚠️ Motivo: {l.reason}</div>}
                           {l.error?.message && <div className="text-destructive">❌ {l.error.message}</div>}
                         </div>
