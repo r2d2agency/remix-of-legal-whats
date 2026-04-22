@@ -164,6 +164,13 @@ router.post('/groups', async (req, res) => {
        VALUES ($1, $2, $3) RETURNING *`,
       [org.organization_id, name, description]
     );
+    // Log history for contact added
+    const contactData = await query(`SELECT name FROM contacts WHERE id = $1`, [finalContactId]);
+    await query(
+      `INSERT INTO crm_deal_history (deal_id, user_id, action, to_value) VALUES ($1, $2, 'contact_added', $3)`,
+      [req.params.id, req.userId, contactData.rows[0]?.name || 'Contato']
+    );
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error creating group:', error);
@@ -1563,10 +1570,18 @@ router.post('/deals/:id/contacts', async (req, res) => {
 // Remove contact from deal
 router.delete('/deals/:dealId/contacts/:contactId', async (req, res) => {
   try {
+    const contactData = await query(`SELECT name FROM contacts WHERE id = $1`, [req.params.contactId]);
     await query(
       `DELETE FROM crm_deal_contacts WHERE deal_id = $1 AND contact_id = $2`,
       [req.params.dealId, req.params.contactId]
     );
+
+    // Log history for contact removed
+    await query(
+      `INSERT INTO crm_deal_history (deal_id, user_id, action, from_value) VALUES ($1, $2, 'contact_removed', $3)`,
+      [req.params.dealId, req.userId, contactData.rows[0]?.name || 'Contato']
+    );
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error removing contact from deal:', error);
@@ -1822,9 +1837,14 @@ router.post('/tasks', async (req, res) => {
       console.error('Error creating kanban card from CRM:', kanbanErr);
     }
 
-    // If linked to deal, update last_activity
+    // If linked to deal, update last_activity and log history
     if (deal_id) {
       await query(`UPDATE crm_deals SET last_activity_at = NOW() WHERE id = $1`, [deal_id]);
+      
+      await query(
+        `INSERT INTO crm_deal_history (deal_id, user_id, action, to_value) VALUES ($1, $2, 'task_created', $3)`,
+        [deal_id, req.userId, title]
+      );
     }
 
     res.json(result.rows[0]);
