@@ -57,7 +57,7 @@ import {
   Pin,
   Star,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, subDays, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
@@ -68,6 +68,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { SwipeableConversationItem } from "./SwipeableConversationItem";
 import { GlobalSearchDialog } from "./GlobalSearchDialog";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
+
+import { Calendar as CalendarIcon, CalendarDays, Filter, X } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -87,6 +91,8 @@ interface ConversationListProps {
     attendance_status: 'waiting' | 'attending' | 'finished';
     department: string;
     favorite: boolean;
+    startDate?: string;
+    endDate?: string;
   };
   onFiltersChange: (filters: {
     search: string;
@@ -98,6 +104,8 @@ interface ConversationListProps {
     attendance_status: 'waiting' | 'attending' | 'finished';
     department: string;
     favorite: boolean;
+    startDate?: string;
+    endDate?: string;
   }) => void;
   isAdmin?: boolean;
   connections?: Connection[];
@@ -111,6 +119,9 @@ interface ConversationListProps {
   onFinishConversation?: (id: string) => Promise<void>;
   onReopenConversation?: (id: string) => Promise<void>;
   onGlobalSearchSelect?: (conversationId: string, messageId?: string) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 }
 
 // Predefined color palette for connection indicators
@@ -179,6 +190,9 @@ export function ConversationList({
   onGlobalSearchSelect,
   onPinConversation,
   onFavoriteConversation,
+  onLoadMore,
+  hasMore = false,
+  loadingMore = false,
 }: ConversationListProps) {
   const isMobile = useIsMobile();
   const [localSearch, setLocalSearch] = useState(filters.search);
@@ -380,6 +394,41 @@ export function ConversationList({
       .toUpperCase();
   };
 
+  const handleQuickDate = (type: 'today' | 'yesterday' | 'week' | 'month' | 'clear') => {
+    let start: Date | undefined;
+    let end: Date | undefined;
+
+    switch (type) {
+      case 'today':
+        start = startOfDay(new Date());
+        end = endOfDay(new Date());
+        break;
+      case 'yesterday':
+        start = startOfDay(subDays(new Date(), 1));
+        end = endOfDay(subDays(new Date(), 1));
+        break;
+      case 'week':
+        start = startOfDay(subDays(new Date(), 7));
+        end = endOfDay(new Date());
+        break;
+      case 'month':
+        start = startOfDay(subDays(new Date(), 30));
+        end = endOfDay(new Date());
+        break;
+      case 'clear':
+        onFiltersChange({ ...filters, startDate: undefined, endDate: undefined });
+        return;
+    }
+
+    if (start && end) {
+      onFiltersChange({
+        ...filters,
+        startDate: start.toISOString(),
+        endDate: end.toISOString()
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col h-full border-r bg-card overflow-hidden max-w-full">
       {/* Header */}
@@ -545,6 +594,55 @@ export function ConversationList({
               ))}
             </SelectContent>
           </Select>
+
+          {/* Date Filter */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "h-8 text-xs px-2 gap-1 min-w-[32px] max-w-[120px]",
+                  (filters.startDate || filters.endDate) && "border-primary text-primary"
+                )}
+              >
+                <CalendarDays className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">
+                  {filters.startDate ? format(new Date(filters.startDate), 'dd/MM') : 'Data'}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <div className="flex flex-col border-b p-2 gap-1 bg-muted/50">
+                <div className="flex flex-wrap gap-1">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => handleQuickDate('today')}>Hoje</Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => handleQuickDate('yesterday')}>Ontem</Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => handleQuickDate('week')}>7 dias</Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => handleQuickDate('month')}>30 dias</Button>
+                  {(filters.startDate || filters.endDate) && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-destructive" onClick={() => handleQuickDate('clear')}>Limpar</Button>
+                  )}
+                </div>
+              </div>
+              <Calendar
+                initialFocus
+                mode="range"
+                selected={{
+                  from: filters.startDate ? new Date(filters.startDate) : undefined,
+                  to: filters.endDate ? new Date(filters.endDate) : undefined,
+                }}
+                onSelect={(range) => {
+                  onFiltersChange({
+                    ...filters,
+                    startDate: range?.from?.toISOString(),
+                    endDate: range?.to?.toISOString(),
+                  });
+                }}
+                numberOfMonths={1}
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
 
           {/* Tag filter */}
           <Select
