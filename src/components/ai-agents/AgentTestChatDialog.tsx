@@ -130,6 +130,7 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
               : `📆 Listou eventos do Calendar`,
              suggest_actions: `💡 Sugeriu ações (${tc.arguments?.urgency}): ${tc.arguments?.context_summary}`,
              generate_content: `✍️ Gerou conteúdo: ${tc.arguments?.content_type} - "${tc.arguments?.title}"`,
+              appbarber_professionals: `👨‍🔧 Consultou a lista real de profissionais no AppBarber`,
              appbarber_services: `💈 Consultou serviços e preços da barbearia`,
              appbarber_availability: `📅 Consultou horários disponíveis para ${tc.arguments?.start_date}`,
              appbarber_appointment: `✅ Criou agendamento para ${tc.arguments?.customer_name}`,
@@ -282,7 +283,7 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
 
                   {/* Message metadata */}
                   {message.role === 'assistant' && !message.error && (
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                       {message.processing_time_ms && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
@@ -297,6 +298,17 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
                           {message.sources_used.length} fonte(s) usada(s)
                         </span>
                       )}
+                    </div>
+                  )}
+
+                  {message.tool_calls && message.tool_calls.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {message.tool_calls.map((toolCall, index) => (
+                        <div key={`${message.id}-tool-${index}`} className="rounded-md border border-border bg-muted/40 p-2 text-xs">
+                          <div className="font-medium text-foreground">{toolCall.tool}</div>
+                          <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{toolCall.response_preview}</p>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

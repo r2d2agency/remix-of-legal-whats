@@ -1735,15 +1735,26 @@ async function executeAppBarberTool(toolName, args, agent) {
 
     switch (toolName) {
        case 'appbarber_services': {
-         const params = new URLSearchParams({ establishment_code: estCode, type: '1' });
-         if (args.professional_code) params.set('professional_code', String(args.professional_code));
-         if (args.service_code) params.set('service_code', String(args.service_code));
-         const resp = await fetch(`${baseUrl}/v1/services?${params}`, { headers });
-         const { rawText, payload } = await readAppBarberResponse(resp);
-         if (!resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(resp, payload, rawText)}`;
-         const services = extractAppBarberServices(payload);
-         if (services.length === 0) return 'Nenhum serviço encontrado no AppBarber para este estabelecimento.';
-         return services.map(s => `• ${s.service_description} (código: ${s.service_code}) - R$ ${s.service_value} - ${s.service_interval} min`).join('\n');
+         const params = [agent.id];
+         let sql = `SELECT service_code, service_description, service_value, service_interval
+                    FROM appbarber_services
+                    WHERE agent_id = $1 AND is_active = true`;
+
+         if (args.service_code) {
+           params.push(args.service_code);
+           sql += ` AND service_code = $${params.length}`;
+         }
+
+         sql += ' ORDER BY service_description';
+
+         const result = await query(sql, params);
+         if (result.rows.length === 0) {
+           return 'Nenhum serviço cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os serviços do AppBarber.';
+         }
+
+         return result.rows
+           .map(s => `• ${s.service_description} (código: ${s.service_code}) - R$ ${parseFloat(s.service_value).toFixed(2)} - ${s.service_interval} min`)
+           .join('\n');
        }
        case 'appbarber_professionals': {
          const params = new URLSearchParams({ establishment_code: estCode });
@@ -2074,12 +2085,15 @@ router.post('/:id/test', authenticate, async (req, res) => {
        response: result.content,
        tokens_used: result.tokensUsed || 0,
        model_used: result.model || aiConfig.model,
-       sources_used: knowledgeResult.rows.length > 0 ? ['knowledge_base'] : [],
+       sources_used: Array.from(new Set([
+         ...(knowledgeResult.rows.length > 0 ? ['knowledge_base'] : []),
+         ...toolCallsExecuted.map(tc => tc.name),
+       ])),
        reasoning: result.toolCallsExecuted?.map(tc => tc.reasoning).filter(Boolean).join('\n') || null,
        tool_calls: toolCallsExecuted.map(tc => ({
          tool: tc.name,
          arguments: tc.arguments,
-         response_preview: typeof tc.result === 'string' ? tc.result.substring(0, 300) : JSON.stringify(tc.result).substring(0, 300),
+         response_preview: typeof tc.result === 'string' ? tc.result.substring(0, 500) : JSON.stringify(tc.result).substring(0, 500),
        })),
      });
   } catch (error) {
