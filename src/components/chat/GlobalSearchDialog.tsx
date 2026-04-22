@@ -257,9 +257,8 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
         </div>
 
          {/* Results */}
-         <ScrollArea className="flex-1 border-t">
-           <div className="max-h-[50vh] overflow-y-auto">
-          {loading ? (
+         <ScrollArea className="flex-1 border-t min-h-[350px]">
+           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
@@ -278,7 +277,7 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
               </div>
             )
           ) : (
-            <div className="divide-y">
+             <div className="divide-y pb-4">
               {results.map((result) => (
                 <button
                   key={result.message_id}
@@ -333,7 +332,6 @@ export function GlobalSearchDialog({ open, onOpenChange, onSelectResult }: Globa
               ))}
             </div>
           )}
-           </div>
          </ScrollArea>
 
         {/* Footer */}
