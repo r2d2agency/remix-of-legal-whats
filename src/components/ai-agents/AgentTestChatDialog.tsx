@@ -163,6 +163,7 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
              generate_content: `✍️ Gerou conteúdo: ${tc.arguments?.content_type} - "${tc.arguments?.title}"`,
               appbarber_professionals: `👨‍🔧 Consultou a lista real de profissionais no AppBarber`,
              appbarber_services: `💈 Consultou serviços e preços da barbearia`,
+             appbarber_payment_types: `💳 Consultou os tipos de pagamento aceitos`,
              appbarber_availability: `📅 Consultou horários disponíveis para ${tc.arguments?.start_date}`,
              appbarber_appointment: `✅ Criou agendamento para ${tc.arguments?.customer_name}`,
              appbarber_history: `📜 Consultou histórico de agendamentos`,
