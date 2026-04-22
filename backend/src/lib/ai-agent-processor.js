@@ -1465,27 +1465,37 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
     let resultText;
     switch (toolName) {
       case 'appbarber_professionals': {
-        const params = new URLSearchParams({ establishment_code: String(appbarber_establishment_code), type: '1' });
-        const url = `${baseUrl}/v1/professionals?${params}`;
-        logInfo('ai_agent_processor.appbarber_http_request', { toolName, url });
-        const resp = await fetch(url, { headers });
-        const rawText = await resp.text().catch(() => '');
-        let data = null;
-        try { data = rawText ? JSON.parse(rawText) : null; } catch { data = null; }
-        const professionals = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-        logInfo('ai_agent_processor.appbarber_http_response', {
-          toolName,
-          status: resp.status,
-          ok: resp.ok,
-          professionalsCount: professionals.length,
-          rawPreview: (rawText || '').slice(0, 300),
-        });
-        if (!resp.ok) {
-          resultText = `Erro AppBarber: ${data?.error || data?.message || rawText?.slice(0, 200) || resp.status}`;
+        const result = await query(
+          `SELECT employee_code, employee_name, employee_nickname
+           FROM appbarber_professionals
+           WHERE agent_id = $1 AND is_active = true
+           ORDER BY employee_name`,
+          [agent.id]
+        );
+        if (result.rows.length === 0) {
+          resultText = 'Nenhum profissional cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os profissionais do AppBarber.';
         } else {
-          resultText = professionals.length > 0
-            ? professionals.map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`).join('\n')
-            : 'Nenhum profissional encontrado no AppBarber para este estabelecimento.';
+          resultText = result.rows
+            .map(p => `• ${p.employee_name || p.employee_nickname} (código: ${p.employee_code})`)
+            .join('\n');
+        }
+        break;
+      }
+
+      case 'appbarber_payment_types': {
+        const result = await query(
+          `SELECT payment_code, payment_description
+           FROM appbarber_payment_types
+           WHERE agent_id = $1 AND is_active = true
+           ORDER BY payment_description`,
+          [agent.id]
+        );
+        if (result.rows.length === 0) {
+          resultText = 'Nenhum tipo de pagamento cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os tipos de pagamento do AppBarber.';
+        } else {
+          resultText = result.rows
+            .map(p => `• ${p.payment_description} (código: ${p.payment_code})`)
+            .join('\n');
         }
         break;
       }
