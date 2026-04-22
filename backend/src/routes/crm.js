@@ -1128,6 +1128,14 @@ router.put('/deals/:id', async (req, res) => {
     const fieldsToUpdate = { stage_id, title, value, probability, expected_close_date, 
                              description, tags, owner_id, group_id, status, lost_reason, loss_reason_id, company_id };
     
+    for (const [key, val] of Object.entries(fieldsToUpdate)) {
+      if (val !== undefined) {
+        updates.push(`${key} = $${paramIndex}`);
+        values.push(val);
+        paramIndex++;
+      }
+    }
+
     // Handle custom_fields as JSONB
     if (custom_fields !== undefined) {
       updates.push(`custom_fields = $${paramIndex}`);
