@@ -411,13 +411,19 @@ router.get('/messages/search', authenticate, async (req, res) => {
       queryParams.push(to_date + ' 23:59:59');
     }
 
-    paramCount++;
-    queryText += ` ORDER BY m.timestamp DESC LIMIT $${paramCount}`;
-    queryParams.push(maxResults);
+    // Count total results for this search (without limit)
+    const countQueryText = `SELECT COUNT(*) FROM (${queryText}) as search_results`;
+    const countResult = await query(countQueryText, queryParams);
+    const totalCount = parseInt(countResult.rows[0]?.count || 0);
 
-    const result = await query(queryText, queryParams);
+    // Now apply ordering and limit for the actual results
+    const finalQueryText = `${queryText} ORDER BY m.timestamp DESC LIMIT $${paramCount + 1}`;
+    const finalQueryParams = [...queryParams, maxResults];
+
+    const result = await query(finalQueryText, finalQueryParams);
 
     res.json({
+      totalCount,
       results: result.rows.map(row => ({
         message_id: row.message_id,
         conversation_id: row.conversation_id,
