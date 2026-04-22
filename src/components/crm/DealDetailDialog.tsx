@@ -1296,6 +1296,15 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                                 },
                               });
                               
+                              // Log history
+                              await api(`/api/crm/deals/${deal.id}/history`, {
+                                method: "POST",
+                                body: {
+                                  action: 'whatsapp_scheduled',
+                                  to_value: whatsAppContent.length > 30 ? whatsAppContent.substring(0, 30) + "..." : whatsAppContent
+                                }
+                              }).catch(console.error);
+                              
                               toast.success("Mensagem agendada!");
                               setWhatsAppContent("");
                               setWhatsAppDate(undefined);
