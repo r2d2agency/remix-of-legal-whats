@@ -1300,8 +1300,8 @@ function buildAppBarberServicesTool() {
   return {
     type: 'function',
     function: {
-      name: 'appbarber_services',
-      description: 'Lista os serviços disponíveis para agendamento (cache local, sem custo de API). Use SEMPRE esta ferramenta primeiro para mostrar opções ao cliente antes de qualquer outra consulta AppBarber.',
+       name: 'appbarber_services',
+       description: 'Lista os serviços disponíveis para agendamento (cache local, sem custo de API). Use OBRIGATORIAMENTE esta ferramenta para obter preços, nomes de serviços e durações. NUNCA invente estes dados.',
       parameters: {
         type: 'object',
         properties: {},
@@ -1315,8 +1315,8 @@ function buildAppBarberAvailabilityTool() {
   return {
     type: 'function',
     function: {
-      name: 'appbarber_availability',
-      description: 'Consulta horários disponíveis para agendamento (COBRA por consulta na API). IMPORTANTE: Só use DEPOIS de ter confirmado com o cliente: 1) qual serviço deseja, 2) qual data. Nunca chame sem ter esses dados.',
+       name: 'appbarber_availability',
+       description: 'Consulta profissionais e horários disponíveis para agendamento. Use para saber quem está livre em qual horário. NUNCA invente nomes de profissionais.',
       parameters: {
         type: 'object',
         properties: {
