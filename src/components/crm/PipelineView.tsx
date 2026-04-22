@@ -12,7 +12,7 @@ interface PipelineViewProps {
   stages: CRMStage[];
   dealsByStage: Record<string, CRMDeal[]>;
   onDealClick: (deal: CRMDeal) => void;
-  onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open') => void;
+   onStatusChange?: (dealId: string, status: 'won' | 'lost' | 'paused' | 'open', dealTitle?: string, stageId?: string) => void;
   newWinDealId?: string | null;
 }
 
