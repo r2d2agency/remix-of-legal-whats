@@ -273,7 +273,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
           </div>
         )}
 
-        <Tabs defaultValue="info" className="flex-1 overflow-hidden flex flex-col">
+        <Tabs defaultValue="info" className="flex-1 min-h-0 flex flex-col">
           <TabsList>
             <TabsTrigger value="info">Informações</TabsTrigger>
             <TabsTrigger value="transcript">Transcrição</TabsTrigger>
