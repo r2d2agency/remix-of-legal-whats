@@ -303,7 +303,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
               <div><span className="text-sm font-medium text-muted-foreground">Criado em:</span> <span className="text-sm">{new Date(session.created_at).toLocaleString('pt-BR')}</span></div>
             </TabsContent>
 
-            <TabsContent value="transcript" className="p-4 m-0">
+            <TabsContent value="transcript" className="py-4 m-0">
               {session.transcript ? (
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{session.transcript}</p>
               ) : (
@@ -311,7 +311,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
               )}
             </TabsContent>
 
-            <TabsContent value="analysis" className="p-4 m-0 space-y-4">
+            <TabsContent value="analysis" className="py-4 m-0 space-y-4">
               {!hasTranscript ? (
                 <p className="text-sm text-muted-foreground">Aguardando transcrição para habilitar análises.</p>
               ) : (
@@ -363,7 +363,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
               )}
             </TabsContent>
 
-            <TabsContent value="audit" className="p-4 m-0">
+            <TabsContent value="audit" className="py-4 m-0">
               {session.audit_logs?.length ? (
                 <div className="space-y-2">
                   {session.audit_logs.map(log => (
