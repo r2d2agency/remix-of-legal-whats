@@ -219,9 +219,9 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 px-6 pt-6 pb-2">
             <span className="truncate">{session.title || 'Sessão sem título'}</span>
             <Badge className={cn('shrink-0', statusInfo.color)}>
               <StatusIcon className={cn("h-3 w-3 mr-1", ['processing', 'transcribing'].includes(session.status) && 'animate-spin')} />
@@ -232,7 +232,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
 
         {/* Pipeline tracker */}
         {['processing', 'transcribing', 'completed', 'error'].includes(session.status) && (
-          <div className="flex items-center gap-1 px-1">
+          <div className="flex items-center gap-1 px-6 mb-2">
             {[
               { key: 'processing', label: 'Enviado', icon: Upload },
               { key: 'transcribing', label: 'Transcrevendo', icon: Mic },
@@ -264,7 +264,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
         )}
 
         {session.status === 'error' && (
-          <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
+          <div className="flex items-center gap-2 m-6 p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
             <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
             <p className="text-sm flex-1">{session.error_message || 'Erro no processamento'}</p>
             <Button size="sm" variant="outline" onClick={() => onRetry(session.id)} className="gap-1">
@@ -273,16 +273,16 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
           </div>
         )}
 
-        <Tabs defaultValue="info" className="flex-1 overflow-hidden flex flex-col">
-          <TabsList>
+        <Tabs defaultValue="info" className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <TabsList className="mx-6">
             <TabsTrigger value="info">Informações</TabsTrigger>
             <TabsTrigger value="transcript">Transcrição</TabsTrigger>
             <TabsTrigger value="analysis">Análise IA</TabsTrigger>
             <TabsTrigger value="audit">Auditoria</TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1">
-            <TabsContent value="info" className="p-4 space-y-3 m-0">
+          <ScrollArea className="flex-1 px-6 pb-6">
+            <TabsContent value="info" className="py-4 space-y-3 m-0">
               {session.contact_name && <div><span className="text-sm font-medium text-muted-foreground">Contato:</span> <span className="text-sm">{session.contact_name}</span></div>}
               {session.deal_title && <div><span className="text-sm font-medium text-muted-foreground">Negociação:</span> <span className="text-sm">{session.deal_title}</span></div>}
               {session.reason && <div><span className="text-sm font-medium text-muted-foreground">Motivo:</span> <p className="text-sm mt-1">{session.reason}</p></div>}
@@ -303,7 +303,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
               <div><span className="text-sm font-medium text-muted-foreground">Criado em:</span> <span className="text-sm">{new Date(session.created_at).toLocaleString('pt-BR')}</span></div>
             </TabsContent>
 
-            <TabsContent value="transcript" className="p-4 m-0">
+            <TabsContent value="transcript" className="py-4 m-0">
               {session.transcript ? (
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{session.transcript}</p>
               ) : (
@@ -311,7 +311,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
               )}
             </TabsContent>
 
-            <TabsContent value="analysis" className="p-4 m-0 space-y-4">
+            <TabsContent value="analysis" className="py-4 m-0 space-y-4">
               {!hasTranscript ? (
                 <p className="text-sm text-muted-foreground">Aguardando transcrição para habilitar análises.</p>
               ) : (
@@ -363,7 +363,7 @@ export function SessionDetailDialog({ session, open, onClose, onRetry, onAnalyze
               )}
             </TabsContent>
 
-            <TabsContent value="audit" className="p-4 m-0">
+            <TabsContent value="audit" className="py-4 m-0">
               {session.audit_logs?.length ? (
                 <div className="space-y-2">
                   {session.audit_logs.map(log => (
