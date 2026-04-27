@@ -569,31 +569,99 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
     let migrateResult;
 
     if (from) {
-      // Migrate all conversations from a specific source connection to the target
-      // Also migrate conversations with NULL connection_id (orphaned from deleted connections)
-      // Skip conversations that would violate UNIQUE(connection_id, remote_jid)
-      // Identificar duplicatas antes da migração
-      const duplicates = await query(`
-        SELECT c2.id as duplicate_id, c1.id as original_id
-        FROM conversations c1
-        JOIN conversations c2 ON c1.remote_jid = c2.remote_jid
-        WHERE c1.connection_id = $1
-          AND (c2.connection_id = $2 OR c2.connection_id IS NULL)
-      `, [id, from]);
+      // Migra todas as conversas da conexão de origem (e órfãs da MESMA organização)
+      // para a conexão de destino. Resolve duplicatas (mesmo remote_jid já existir no destino,
+      // ou múltiplas órfãs com o mesmo jid) re-apontando mensagens e removendo a duplicata.
 
-      // Se houver duplicatas, movemos as mensagens da antiga para a nova e deletamos a antiga
-      for (const dup of duplicates.rows) {
-        await query(`UPDATE chat_messages SET conversation_id = $1 WHERE conversation_id = $2`, [dup.original_id, dup.duplicate_id]);
-        await query(`DELETE FROM conversations WHERE id = $1`, [dup.duplicate_id]);
+      // 1) Conjunto de conversas candidatas a migrar (origem + órfãs da mesma org)
+      //    Filtramos órfãs por organization_id para evitar pegar conversas de outras orgs.
+      const candidatesQ = await query(`
+        SELECT id, remote_jid
+        FROM conversations
+        WHERE remote_jid IS NOT NULL
+          AND (
+            connection_id = $1
+            OR (connection_id IS NULL AND organization_id = $2)
+          )
+      `, [from, connection.organization_id]);
+
+      const candidates = candidatesQ.rows;
+
+      // 2) Para cada candidata, verificar se já existe no destino com o mesmo remote_jid
+      //    Se existir: mover mensagens, deletar a duplicata.
+      //    Caso contrário: atualizar connection_id para o destino.
+      //    Também deduplicar entre as próprias candidatas (várias órfãs do mesmo jid).
+      const seenJid = new Map(); // remote_jid -> kept conversation id
+
+      // Pré-carrega conversas existentes no destino para evitar N queries
+      const existingQ = await query(
+        `SELECT id, remote_jid FROM conversations WHERE connection_id = $1`,
+        [id]
+      );
+      for (const row of existingQ.rows) {
+        if (row.remote_jid) seenJid.set(row.remote_jid, row.id);
       }
 
-      // Agora migramos as que sobraram (que não tinham duplicatas)
-      migrateResult = await query(`
-        UPDATE conversations 
-        SET connection_id = $1, updated_at = NOW()
-        WHERE (connection_id = $2 OR connection_id IS NULL)
-        RETURNING id, contact_name, contact_phone
-      `, [id, from]);
+      const migratedRows = [];
+
+      for (const cand of candidates) {
+        const jid = cand.remote_jid;
+        const existingId = seenJid.get(jid);
+
+        if (existingId && existingId !== cand.id) {
+          // Já existe no destino (ou já foi promovida outra órfã com o mesmo jid)
+          // Move mensagens para a conversa existente e remove a duplicata.
+          try {
+            await query(
+              `UPDATE chat_messages SET conversation_id = $1 WHERE conversation_id = $2`,
+              [existingId, cand.id]
+            );
+          } catch (e) {
+            console.warn('[migrate] failed moving messages', cand.id, '->', existingId, e.message);
+          }
+          try {
+            await query(`DELETE FROM conversations WHERE id = $1`, [cand.id]);
+          } catch (e) {
+            console.warn('[migrate] failed deleting duplicate', cand.id, e.message);
+          }
+        } else {
+          // Promove a conversa para o destino
+          try {
+            const upd = await query(
+              `UPDATE conversations
+                 SET connection_id = $1, updated_at = NOW()
+               WHERE id = $2
+               RETURNING id, contact_name, contact_phone`,
+              [id, cand.id]
+            );
+            if (upd.rows[0]) {
+              migratedRows.push(upd.rows[0]);
+              seenJid.set(jid, cand.id);
+            }
+          } catch (e) {
+            // Em caso de race/colisão UNIQUE, tenta tratar como duplicata
+            console.warn('[migrate] update failed, treating as duplicate', cand.id, e.message);
+            try {
+              const dest = await query(
+                `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`,
+                [id, jid]
+              );
+              if (dest.rows[0]) {
+                await query(
+                  `UPDATE chat_messages SET conversation_id = $1 WHERE conversation_id = $2`,
+                  [dest.rows[0].id, cand.id]
+                );
+                await query(`DELETE FROM conversations WHERE id = $1`, [cand.id]);
+                seenJid.set(jid, dest.rows[0].id);
+              }
+            } catch (e2) {
+              console.error('[migrate] failed fallback for', cand.id, e2.message);
+            }
+          }
+        }
+      }
+
+      migrateResult = { rowCount: migratedRows.length, rows: migratedRows };
 
       // Also update chat_messages connection_id when this legacy column exists
       if (migrateResult.rowCount > 0) {
