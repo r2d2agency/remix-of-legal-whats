@@ -55,7 +55,7 @@ const isWapiConnection = (connection: Pick<Connection, 'provider' | 'instance_id
   connection.provider === 'wapi' ||
   (!!connection.instance_id && connection.provider !== 'uazapi' && connection.provider !== 'meta');
 
- const DEFAULT_UAZAPI_WEBHOOK_URL = `${window.location.origin.replace('id-preview--', '').replace('.lovable.app', '')}/api/uazapi/webhook`;
+ const DEFAULT_UAZAPI_WEBHOOK_URL = `${window.location.origin.replace('id-preview--', '').replace('.lovable.app', '')}/api/uazapi/webhook`.replace('https://id-', 'https://');
  
 const Conexao = () => {
   const { user, isLoading: authLoading } = useAuth();
