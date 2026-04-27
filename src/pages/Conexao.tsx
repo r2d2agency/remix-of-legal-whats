@@ -2344,6 +2344,76 @@ const handleGetQRCode = async (connection: Connection) => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Import History Progress Dialog */}
+        <Dialog
+          open={importDialogOpen}
+          onOpenChange={(open) => {
+            // Prevent closing while importing
+            if (!open && importingConnectionId) return;
+            setImportDialogOpen(open);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Importar Histórico</DialogTitle>
+              <DialogDescription>
+                {importError
+                  ? "A importação falhou."
+                  : importDone
+                    ? "Histórico importado com sucesso para esta conexão."
+                    : "Aguarde enquanto enviamos os dados para o servidor."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{importStatus}</span>
+                  <span className="font-medium">{importProgress}%</span>
+                </div>
+                <Progress value={importProgress} className="h-2" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">Conversas</div>
+                  <div className="font-semibold">
+                    {importStats.convs_created + importStats.convs_merged} / {importStats.convs_total}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {importStats.convs_created} novas · {importStats.convs_merged} mescladas
+                  </div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">Mensagens</div>
+                  <div className="font-semibold">
+                    {importStats.msgs_inserted} / {importStats.msgs_total}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {importStats.msgs_skipped} ignoradas (duplicadas)
+                  </div>
+                </div>
+              </div>
+
+              {importError && (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                  {importError}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setImportDialogOpen(false)}
+                disabled={!!importingConnectionId}
+              >
+                {importDone || importError ? "Fechar" : "Aguarde..."}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
