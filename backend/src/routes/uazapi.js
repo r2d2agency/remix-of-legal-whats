@@ -199,7 +199,7 @@ function extractMessageData(payload) {
 async function persistIncomingMessage(connection, payload) {
   const message = extractMessageData(payload);
 
-  if (message.fromMe || !message.chatId || (!message.content && !message.mediaUrl)) {
+  if (!message.chatId || (!message.content && !message.mediaUrl)) {
     return { skipped: true, reason: 'not_incoming_or_empty' };
   }
 
@@ -264,7 +264,7 @@ async function persistIncomingMessage(connection, payload) {
 
   await query(
     `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
-     VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8, 'received', NOW())`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
     [
       conversationId,
       message.messageId,
@@ -272,8 +272,10 @@ async function persistIncomingMessage(connection, payload) {
       message.messageType,
       message.mediaUrl,
       message.mediaMimetype,
+      message.fromMe,
       message.senderName,
       message.phone,
+      message.fromMe ? 'sent' : 'received',
     ]
   );
 
@@ -336,7 +338,7 @@ async function handleWebhook(req, res, routeMeta = {}) {
     }
 
     let persistence = null;
-    if (eventType === 'message_received') {
+    if (eventType === 'message_received' || eventType === 'message_sent') {
       persistence = await persistIncomingMessage(connection, payload);
     }
 
