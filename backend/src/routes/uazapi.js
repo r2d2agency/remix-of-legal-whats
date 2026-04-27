@@ -210,7 +210,12 @@ function extractMessageData(payload) {
     !!msg?.albumMessage ||
     !!payload?.albumMessage ||
     !!msg?.album ||
-    !!payload?.album;
+    !!payload?.album ||
+    // Texto literal gerado pelo provedor para containers de álbum
+    (typeof (msg?.text || msg?.body || msg?.content) === 'string' &&
+      /^album:\s*\d+\s+(image|video|photo)/i.test(
+        String(msg?.text || msg?.body || msg?.content).trim()
+      ));
 
   // Texto: prioriza campos de texto puros; se for JSON de mídia, ignora
   function pickText() {
