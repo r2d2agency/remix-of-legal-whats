@@ -224,8 +224,6 @@ function extractMessageData(payload) {
   const text = pickText();
 
   // URL da mídia: prefere URL pública direta; .enc precisa ser baixada via UAZAPI
-  const messageId = getMessageId(payload, msg);
-
   const rawMediaUrl =
     msg?.mediaUrl ||
     msg?.url ||
