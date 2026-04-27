@@ -298,11 +298,17 @@ function extractMessageData(payload) {
     messageType,
     mediaUrl,
     mediaMimetype,
+    isAlbumContainer,
   };
 }
 
 async function persistIncomingMessage(connection, payload) {
   const message = extractMessageData(payload);
+
+  // Ignora containers de álbum: as mídias virão em webhooks separados
+  if (message.isAlbumContainer) {
+    return { skipped: true, reason: 'album_container' };
+  }
 
   if (!message.chatId || (!message.content && !message.mediaUrl)) {
     return { skipped: true, reason: 'not_incoming_or_empty' };
