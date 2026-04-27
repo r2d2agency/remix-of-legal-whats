@@ -469,8 +469,8 @@ const handleGetQRCode = async (connection: Connection) => {
    const handleConfigureUazapiWebhooks = async (connection: Connection) => {
      setConfiguringUazapiWebhooks(connection.id);
      try {
-       await api(`/api/uazapi/${connection.id}/configure-webhook`, {
-         method: 'POST',
+       await api(`/api/connections/${connection.id}`, {
+         method: 'PATCH',
          body: { webhookUrl: DEFAULT_UAZAPI_WEBHOOK_URL },
        });
        toast.success('Webhook UAZAPI configurado com sucesso!');
