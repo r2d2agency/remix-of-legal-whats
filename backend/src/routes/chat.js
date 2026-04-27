@@ -1743,7 +1743,7 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     const { content, message_type = 'text', media_url, media_mimetype, quoted_message_id } = req.body;
     const connectionIds = await getUserConnections(req.userId);
 
-    // Get conversation with connection details (including W-API and Meta fields)
+    // Get conversation with connection details (including W-API, UAZAPI and Meta fields)
     const convResult = await query(
       `SELECT 
         conv.*,
@@ -1753,9 +1753,12 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
         conn.provider,
         conn.instance_id,
         conn.wapi_token,
+        conn.uazapi_url,
+        conn.uazapi_token,
         conn.meta_token,
         conn.meta_phone_number_id,
         conn.meta_waba_id,
+        conn.phone_number,
         conn.status as connection_status
       FROM conversations conv
       JOIN connections conn ON conn.id = conv.connection_id
@@ -1769,12 +1772,41 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
 
     const conversation = convResult.rows[0];
 
-    // For W-API, consider connected if has instance_id and token (status may not be updated yet)
+    // For W-API/UAZAPI, tolerate stale DB status and fall back to live status check.
     const provider = whatsappProvider.detectProvider(conversation);
     const isConnected = conversation.connection_status === 'connected' || 
-      (provider === 'wapi' && conversation.instance_id && conversation.wapi_token);
+      (provider === 'wapi' && conversation.instance_id && conversation.wapi_token) ||
+      (provider === 'uazapi' && (conversation.instance_id || (conversation.uazapi_url && conversation.uazapi_token)));
 
-    if (!isConnected) {
+    let resolvedConnected = Boolean(isConnected);
+
+    if (!resolvedConnected) {
+      try {
+        const liveStatus = await whatsappProvider.checkStatus(conversation);
+        const rawStatus = liveStatus?.status || 'disconnected';
+        const phoneNumber = liveStatus?.phoneNumber || conversation.phone_number || null;
+        const resolvedStatus =
+          conversation.connection_status === 'connected' && rawStatus === 'disconnected' && liveStatus?.transient
+            ? 'connected'
+            : rawStatus;
+
+        if (conversation.connection_status !== resolvedStatus || conversation.phone_number !== phoneNumber) {
+          await query(
+            'UPDATE connections SET status = $1, phone_number = $2, updated_at = NOW() WHERE id = $3',
+            [resolvedStatus, phoneNumber, conversation.connection_id]
+          );
+        }
+
+        resolvedConnected =
+          resolvedStatus === 'connected' ||
+          (provider === 'wapi' && conversation.instance_id && conversation.wapi_token) ||
+          (provider === 'uazapi' && (conversation.instance_id || (conversation.uazapi_url && conversation.uazapi_token)));
+      } catch (statusError) {
+        console.warn('[Chat] Live status check failed during send:', statusError?.message || statusError);
+      }
+    }
+
+    if (!resolvedConnected) {
       return res.status(400).json({ error: 'Conexão não está ativa' });
     }
 
