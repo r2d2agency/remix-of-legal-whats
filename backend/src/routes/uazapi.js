@@ -5,6 +5,8 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import * as uazapiProvider from '../lib/uazapi-provider.js';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const router = Router();
 
@@ -130,33 +132,66 @@ function extractMessageData(payload) {
     msg?.chat?.subject ||
     null;
 
-  const text =
-    msg?.text ||
-    msg?.body ||
-    msg?.caption ||
-    msg?.content ||
-    msg?.conversation ||
-    payload?.text ||
-    payload?.body ||
-    payload?.caption ||
-    '';
+  // ===== Detecção de tipo + extração de mídia =====
+  // UAZAPI/Baileys pode entregar:
+  //   - msg.type = 'image'|'video'|'audio'|'document'|'sticker'|'text'
+  //   - msg.imageMessage / videoMessage / audioMessage / documentMessage / stickerMessage
+  //   - msg.image / video / audio / document (objetos com URL/mimetype/caption ou string JSON)
+  //   - msg.text, msg.body, msg.caption, msg.conversation (texto puro)
+  //
+  // ATENÇÃO: campos como msg.image podem vir como STRING contendo JSON inteiro
+  // ({"URL":"...enc","mimetype":"image/jpeg",...}). Precisamos parsear e extrair.
 
-  const mediaUrl =
-    msg?.mediaUrl ||
-    msg?.url ||
-    msg?.file ||
-    msg?.media?.url ||
-    payload?.mediaUrl ||
-    payload?.url ||
-    null;
+  function tryParseJSON(v) {
+    if (!v || typeof v !== 'string') return v;
+    const s = v.trim();
+    if (!s.startsWith('{') && !s.startsWith('[')) return v;
+    try { return JSON.parse(s); } catch { return v; }
+  }
 
-  const mediaMimetype =
-    msg?.mimetype ||
-    msg?.mimeType ||
-    msg?.media?.mimetype ||
-    payload?.mimetype ||
-    payload?.mimeType ||
-    null;
+  function pickMediaObject() {
+    const candidates = [
+      ['image', 'image'],
+      ['video', 'video'],
+      ['audio', 'audio'],
+      ['document', 'document'],
+      ['sticker', 'sticker'],
+      ['imageMessage', 'image'],
+      ['videoMessage', 'video'],
+      ['audioMessage', 'audio'],
+      ['documentMessage', 'document'],
+      ['stickerMessage', 'sticker'],
+    ];
+    for (const [field, type] of candidates) {
+      const raw = msg?.[field] ?? payload?.[field];
+      if (!raw) continue;
+      const obj = typeof raw === 'object' ? raw : tryParseJSON(raw);
+      if (obj && typeof obj === 'object') return { obj, type };
+    }
+    return null;
+  }
+
+  // Algumas instâncias UAZAPI colocam o JSON da mídia direto em text/body/content
+  function tryExtractMediaFromText() {
+    const candidates = [msg?.text, msg?.body, msg?.content, msg?.caption, payload?.text, payload?.body];
+    for (const c of candidates) {
+      if (!c || typeof c !== 'string') continue;
+      const s = c.trim();
+      if (!s.startsWith('{')) continue;
+      const parsed = tryParseJSON(s);
+      if (parsed && typeof parsed === 'object' && (parsed.URL || parsed.url || parsed.directPath || parsed.mediaKey)) {
+        const mt = String(parsed.mimetype || parsed.mimeType || '').toLowerCase();
+        let type = 'document';
+        if (mt.startsWith('image/')) type = 'sticker' === parsed.kind ? 'sticker' : 'image';
+        else if (mt.startsWith('video/')) type = 'video';
+        else if (mt.startsWith('audio/')) type = 'audio';
+        return { obj: parsed, type };
+      }
+    }
+    return null;
+  }
+
+  let mediaObj = pickMediaObject() || tryExtractMediaFromText();
 
   const typeRaw = String(
     msg?.type ||
@@ -164,11 +199,65 @@ function extractMessageData(payload) {
     payload?.messageType ||
     payload?.type ||
     ''
-  ).toLowerCase();
+  ).toLowerCase().replace(/message$/, '');
 
-  const messageType = (() => {
+  // Texto: prioriza campos de texto puros; se for JSON de mídia, ignora
+  function pickText() {
+    const candidates = [
+      mediaObj?.obj?.caption,
+      msg?.caption,
+      payload?.caption,
+      msg?.text,
+      msg?.body,
+      msg?.content,
+      msg?.conversation,
+      payload?.text,
+      payload?.body,
+    ];
+    for (const c of candidates) {
+      if (!c || typeof c !== 'string') continue;
+      const s = c.trim();
+      if (s.startsWith('{') && (s.includes('"URL"') || s.includes('"directPath"') || s.includes('"mediaKey"'))) continue;
+      if (s) return s;
+    }
+    return '';
+  }
+
+  const text = pickText();
+
+  // URL da mídia: prefere URL pública direta; .enc precisa ser baixada via UAZAPI
+  const rawMediaUrl =
+    msg?.mediaUrl ||
+    msg?.url ||
+    msg?.file ||
+    msg?.media?.url ||
+    payload?.mediaUrl ||
+    payload?.url ||
+    mediaObj?.obj?.mediaUrl ||
+    mediaObj?.obj?.url ||
+    mediaObj?.obj?.URL ||
+    null;
+
+  const mediaMimetype =
+    mediaObj?.obj?.mimetype ||
+    mediaObj?.obj?.mimeType ||
+    msg?.mimetype ||
+    msg?.mimeType ||
+    msg?.media?.mimetype ||
+    payload?.mimetype ||
+    payload?.mimeType ||
+    null;
+
+  let messageType = (() => {
     if (['image', 'video', 'audio', 'document', 'sticker'].includes(typeRaw)) return typeRaw;
-    if (mediaUrl && !typeRaw) return 'document';
+    if (mediaObj?.type) return mediaObj.type;
+    if (rawMediaUrl) {
+      const m = String(mediaMimetype || '').toLowerCase();
+      if (m.startsWith('image/')) return 'image';
+      if (m.startsWith('video/')) return 'video';
+      if (m.startsWith('audio/')) return 'audio';
+      return 'document';
+    }
     return 'text';
   })();
 
@@ -180,6 +269,11 @@ function extractMessageData(payload) {
     messageType === 'document' ? '[Documento]' :
     ''
   );
+
+  // mediaUrl final: marcamos com placeholder especial para o persist resolver
+  // (precisa do connection.uazapi_url para montar o proxy de download).
+  const needsProxy = !!(mediaObj && (!rawMediaUrl || String(rawMediaUrl).includes('.enc')));
+  const mediaUrl = needsProxy ? `__UAZAPI_DOWNLOAD__:${messageId}` : rawMediaUrl;
 
   return {
     chatId,
@@ -201,6 +295,51 @@ async function persistIncomingMessage(connection, payload) {
 
   if (!message.chatId || (!message.content && !message.mediaUrl)) {
     return { skipped: true, reason: 'not_incoming_or_empty' };
+  }
+
+  // Resolve placeholder de download da UAZAPI: baixa mídia decifrada,
+  // salva em /uploads e substitui mediaUrl pelo caminho público.
+  if (typeof message.mediaUrl === 'string' && message.mediaUrl.startsWith('__UAZAPI_DOWNLOAD__:')) {
+    const msgIdForDownload = message.mediaUrl.slice('__UAZAPI_DOWNLOAD__:'.length);
+    try {
+      const dl = await uazapiProvider.downloadMedia(
+        connection.uazapi_url,
+        connection.uazapi_token,
+        msgIdForDownload
+      );
+      if (dl?.success) {
+        if (dl.url) {
+          message.mediaUrl = dl.url;
+          if (!message.mediaMimetype && dl.mimetype) message.mediaMimetype = dl.mimetype;
+        } else if (dl.buffer || dl.base64) {
+          const buf = dl.buffer || Buffer.from(dl.base64, 'base64');
+          const mt = (dl.mimetype || message.mediaMimetype || 'application/octet-stream').toLowerCase();
+          const extMap = {
+            'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png',
+            'image/gif': '.gif', 'image/webp': '.webp',
+            'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/3gpp': '.3gp',
+            'audio/ogg': '.ogg', 'audio/mpeg': '.mp3', 'audio/mp4': '.m4a',
+            'audio/wav': '.wav', 'audio/webm': '.webm',
+            'application/pdf': '.pdf',
+          };
+          const ext = extMap[mt] || '.bin';
+          const fname = `uazapi_${Date.now()}_${crypto.randomUUID()}${ext}`;
+          const uploadsDir = path.join(process.cwd(), 'uploads');
+          if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+          fs.writeFileSync(path.join(uploadsDir, fname), buf);
+          message.mediaUrl = `/uploads/${fname}`;
+          if (!message.mediaMimetype) message.mediaMimetype = mt;
+        } else {
+          message.mediaUrl = null;
+        }
+      } else {
+        console.warn('[UAZAPI] downloadMedia falhou para', msgIdForDownload, dl?.error);
+        message.mediaUrl = null;
+      }
+    } catch (e) {
+      console.error('[UAZAPI] erro ao baixar mídia', e?.message);
+      message.mediaUrl = null;
+    }
   }
 
   const existingMessage = await query(
