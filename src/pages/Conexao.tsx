@@ -131,6 +131,9 @@ const Conexao = () => {
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
   const [agentDialogConnection, setAgentDialogConnection] = useState<Connection | null>(null);
 
+  // UAZAPI webhook state
+  const [configuringUazapiWebhooks, setConfiguringUazapiWebhooks] = useState<string | null>(null);
+
   // Migration dialog state
   const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
   const [migrateTargetConnection, setMigrateTargetConnection] = useState<Connection | null>(null);
@@ -462,6 +465,21 @@ const handleGetQRCode = async (connection: Connection) => {
       setMigrating(false);
     }
   };
+
+   const handleConfigureUazapiWebhooks = async (connection: Connection) => {
+     setConfiguringUazapiWebhooks(connection.id);
+     try {
+       await api(`/api/uazapi/${connection.id}/configure-webhook`, {
+         method: 'POST',
+         body: { webhookUrl: DEFAULT_UAZAPI_WEBHOOK_URL },
+       });
+       toast.success('Webhook UAZAPI configurado com sucesso!');
+     } catch (error: any) {
+       toast.error(error.message || 'Erro ao configurar webhook UAZAPI');
+     } finally {
+       setConfiguringUazapiWebhooks(null);
+     }
+   };
 
   const handleWebhookDiagnostic = async (connection: Connection) => {
     setDiagLoading(connection.id);
