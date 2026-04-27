@@ -640,6 +640,11 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
 
 // Reconfigure webhooks for W-API connection
 router.post('/:id/configure-webhooks', async (req, res) => {
+  // placeholder line replaced below
+  return _configureWebhooksHandler(req, res);
+});
+
+async function _configureWebhooksHandler(req, res) {
   try {
     const { id } = req.params;
     const org = await getUserOrganization(req.userId);
