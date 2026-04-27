@@ -201,6 +201,22 @@ function extractMessageData(payload) {
     ''
   ).toLowerCase().replace(/message$/, '');
 
+  // ===== Album (Baileys/UAZAPI) =====
+  // O 'albumMessage' é apenas um container — as imagens/vídeos chegam como
+  // mensagens individuais separadas no webhook. Ignoramos o container para
+  // evitar registros sem conteúdo (ex.: "Album: 1 Image, 1 video").
+  const isAlbumContainer =
+    typeRaw === 'album' ||
+    !!msg?.albumMessage ||
+    !!payload?.albumMessage ||
+    !!msg?.album ||
+    !!payload?.album ||
+    // Texto literal gerado pelo provedor para containers de álbum
+    (typeof (msg?.text || msg?.body || msg?.content) === 'string' &&
+      /^album:\s*\d+\s+(image|video|photo)/i.test(
+        String(msg?.text || msg?.body || msg?.content).trim()
+      ));
+
   // Texto: prioriza campos de texto puros; se for JSON de mídia, ignora
   function pickText() {
     const candidates = [
@@ -287,11 +303,17 @@ function extractMessageData(payload) {
     messageType,
     mediaUrl,
     mediaMimetype,
+    isAlbumContainer,
   };
 }
 
 async function persistIncomingMessage(connection, payload) {
   const message = extractMessageData(payload);
+
+  // Ignora containers de álbum: as mídias virão em webhooks separados
+  if (message.isAlbumContainer) {
+    return { skipped: true, reason: 'album_container' };
+  }
 
   if (!message.chatId || (!message.content && !message.mediaUrl)) {
     return { skipped: true, reason: 'not_incoming_or_empty' };
