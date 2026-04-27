@@ -674,7 +674,41 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
 
         const chatContactsTableExists = await hasTable('chat_contacts');
         if (chatContactsTableExists) {
-          await query(`UPDATE chat_contacts SET connection_id = $1 WHERE connection_id = $2`, [id, from]);
+          // chat_contacts pode ter UNIQUE(connection_id, remote_jid). Migra um a um,
+          // consolidando duplicatas: se o destino já existe, deleta o de origem.
+          try {
+            const ccCols = await query(`
+              SELECT column_name FROM information_schema.columns
+              WHERE table_name = 'chat_contacts'
+            `);
+            const hasRemoteJid = ccCols.rows.some(r => r.column_name === 'remote_jid');
+            if (hasRemoteJid) {
+              const srcContacts = await query(
+                `SELECT id, remote_jid FROM chat_contacts WHERE connection_id = $1`,
+                [from]
+              );
+              for (const c of srcContacts.rows) {
+                try {
+                  await query(
+                    `UPDATE chat_contacts SET connection_id = $1 WHERE id = $2`,
+                    [id, c.id]
+                  );
+                } catch (ccErr) {
+                  // colisão UNIQUE: já existe no destino, deleta o duplicado da origem
+                  console.warn('[migrate] chat_contacts collision, deleting source', c.id, ccErr.message);
+                  try {
+                    await query(`DELETE FROM chat_contacts WHERE id = $1`, [c.id]);
+                  } catch (delErr) {
+                    console.warn('[migrate] failed deleting duplicate chat_contact', c.id, delErr.message);
+                  }
+                }
+              }
+            } else {
+              await query(`UPDATE chat_contacts SET connection_id = $1 WHERE connection_id = $2`, [id, from]);
+            }
+          } catch (ccErr) {
+            console.warn('[migrate] chat_contacts migration warning:', ccErr.message);
+          }
         }
       }
 
@@ -701,8 +735,12 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
 
     res.json({ success: true, migrated: migrateResult.rowCount, conversations: migrateResult.rows });
   } catch (error) {
-    console.error('Migrate conversations error:', error);
-    res.status(500).json({ error: 'Erro ao migrar conversas' });
+    console.error('Migrate conversations error:', error, error?.stack);
+    res.status(500).json({
+      error: 'Erro ao migrar conversas',
+      detail: error?.message || String(error),
+      code: error?.code,
+    });
   }
 });
 
