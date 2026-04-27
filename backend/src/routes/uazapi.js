@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import * as uazapiProvider from '../lib/uazapi-provider.js';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -36,21 +37,267 @@ function detectEventType(payload) {
   return 'unknown';
 }
 
+function isTruthy(value) {
+  if (value === true || value === 1) return true;
+  if (typeof value === 'string') {
+    return ['true', '1', 'yes', 'sim'].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
+
+function normalizePhone(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits || null;
+}
+
+function normalizeChatId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (raw.includes('@')) return raw;
+
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  return `${digits}@s.whatsapp.net`;
+}
+
+function extractMessagePayload(payload) {
+  return payload?.message || payload?.data?.message || payload?.data || payload;
+}
+
+function getMessageId(payload, messagePayload) {
+  return (
+    payload?.messageId ||
+    payload?.id ||
+    payload?.key?.id ||
+    messagePayload?.id ||
+    messagePayload?.messageId ||
+    messagePayload?.key?.id ||
+    `uazapi_${Date.now()}_${crypto.randomUUID()}`
+  );
+}
+
+function extractMessageData(payload) {
+  const msg = extractMessagePayload(payload);
+  const fromMe = isTruthy(
+    payload?.fromMe ??
+    msg?.fromMe ??
+    payload?.key?.fromMe ??
+    msg?.key?.fromMe
+  );
+
+  const chatId = normalizeChatId(
+    payload?.chatId ||
+    payload?.chatid ||
+    payload?.remoteJid ||
+    payload?.from ||
+    msg?.chatId ||
+    msg?.chatid ||
+    msg?.remoteJid ||
+    msg?.from ||
+    msg?.jid ||
+    msg?.id
+  );
+
+  const isGroup = String(chatId || '').includes('@g.us');
+  const phone = normalizePhone(
+    payload?.phone ||
+    payload?.number ||
+    payload?.from ||
+    msg?.phone ||
+    msg?.number ||
+    msg?.from ||
+    chatId
+  );
+
+  const messageId = getMessageId(payload, msg);
+  const senderName =
+    payload?.senderName ||
+    payload?.pushName ||
+    msg?.senderName ||
+    msg?.pushName ||
+    msg?.sender?.pushName ||
+    payload?.sender?.pushName ||
+    payload?.name ||
+    msg?.name ||
+    null;
+
+  const groupName =
+    payload?.groupName ||
+    msg?.groupName ||
+    payload?.chat?.name ||
+    msg?.chat?.name ||
+    payload?.chat?.subject ||
+    msg?.chat?.subject ||
+    null;
+
+  const text =
+    msg?.text ||
+    msg?.body ||
+    msg?.caption ||
+    msg?.content ||
+    msg?.conversation ||
+    payload?.text ||
+    payload?.body ||
+    payload?.caption ||
+    '';
+
+  const mediaUrl =
+    msg?.mediaUrl ||
+    msg?.url ||
+    msg?.file ||
+    msg?.media?.url ||
+    payload?.mediaUrl ||
+    payload?.url ||
+    null;
+
+  const mediaMimetype =
+    msg?.mimetype ||
+    msg?.mimeType ||
+    msg?.media?.mimetype ||
+    payload?.mimetype ||
+    payload?.mimeType ||
+    null;
+
+  const typeRaw = String(
+    msg?.type ||
+    msg?.messageType ||
+    payload?.messageType ||
+    payload?.type ||
+    ''
+  ).toLowerCase();
+
+  const messageType = (() => {
+    if (['image', 'video', 'audio', 'document', 'sticker'].includes(typeRaw)) return typeRaw;
+    if (mediaUrl && !typeRaw) return 'document';
+    return 'text';
+  })();
+
+  const content = text || (
+    messageType === 'image' ? '[Imagem]' :
+    messageType === 'video' ? '[Vídeo]' :
+    messageType === 'audio' ? '[Áudio]' :
+    messageType === 'sticker' ? '[Sticker]' :
+    messageType === 'document' ? '[Documento]' :
+    ''
+  );
+
+  return {
+    chatId,
+    phone,
+    isGroup,
+    fromMe,
+    messageId,
+    senderName,
+    groupName,
+    content,
+    messageType,
+    mediaUrl,
+    mediaMimetype,
+  };
+}
+
+async function persistIncomingMessage(connection, payload) {
+  const message = extractMessageData(payload);
+
+  if (message.fromMe || !message.chatId || (!message.content && !message.mediaUrl)) {
+    return { skipped: true, reason: 'not_incoming_or_empty' };
+  }
+
+  const existingMessage = await query(
+    `SELECT id FROM chat_messages WHERE message_id = $1 LIMIT 1`,
+    [message.messageId]
+  );
+
+  if (existingMessage.rows.length > 0) {
+    return { skipped: true, reason: 'duplicate' };
+  }
+
+  let conversationResult = await query(
+    `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`,
+    [connection.id, message.chatId]
+  );
+
+  if (conversationResult.rows.length === 0 && !message.isGroup && message.phone) {
+    conversationResult = await query(
+      `SELECT id FROM conversations
+       WHERE connection_id = $1 AND contact_phone = $2 AND COALESCE(is_group, false) = false
+       ORDER BY last_message_at DESC
+       LIMIT 1`,
+      [connection.id, message.phone]
+    );
+  }
+
+  let conversationId;
+  if (conversationResult.rows.length === 0) {
+    const contactName = message.isGroup
+      ? (message.groupName || 'Grupo')
+      : (message.senderName || message.phone || 'Contato');
+
+    const createdConversation = await query(
+      `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), 1, 'waiting')
+       RETURNING id`,
+      [
+        connection.id,
+        message.chatId,
+        contactName,
+        message.isGroup ? null : message.phone,
+        message.isGroup,
+        message.isGroup ? message.groupName : null,
+      ]
+    );
+    conversationId = createdConversation.rows[0].id;
+  } else {
+    conversationId = conversationResult.rows[0].id;
+    await query(
+      `UPDATE conversations
+       SET last_message_at = NOW(),
+           unread_count = unread_count + 1,
+           contact_name = COALESCE($2, contact_name),
+           group_name = CASE WHEN COALESCE(is_group, false) = true THEN COALESCE($3, group_name) ELSE group_name END,
+           attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [conversationId, message.senderName, message.groupName]
+    );
+  }
+
+  await query(
+    `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
+     VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8, 'received', NOW())`,
+    [
+      conversationId,
+      message.messageId,
+      message.content,
+      message.messageType,
+      message.mediaUrl,
+      message.mediaMimetype,
+      message.senderName,
+      message.phone,
+    ]
+  );
+
+  return { skipped: false, conversationId, messageId: message.messageId };
+}
+
 /**
  * Webhook handler
  * Configurar em UAZAPI: POST {SUA_URL}/api/uazapi/webhook
  */
-router.post('/webhook', async (req, res) => {
+async function handleWebhook(req, res, routeMeta = {}) {
   try {
-    const payload = req.body || {};
+    const payload = {
+      ...(req.body || {}),
+      event: req.body?.event || routeMeta.event || req.params?.event || null,
+      messageType: req.body?.messageType || routeMeta.messageType || req.params?.messageType || null,
+    };
     const instanceId = extractInstanceId(payload);
     const eventType = detectEventType(payload);
 
     console.log('[UAZAPI Webhook] Received:', JSON.stringify(payload).slice(0, 400));
 
-    uazapiProvider.pushUazapiEvent({ instanceId, eventType, payload });
-
     if (!instanceId) {
+      uazapiProvider.pushUazapiEvent({ instanceId, eventType, payload });
       return res.status(200).json({ received: true, skipped: 'no instanceId' });
     }
 
@@ -69,6 +316,15 @@ router.post('/webhook', async (req, res) => {
 
     const connection = connResult.rows[0];
 
+    uazapiProvider.pushUazapiEvent({
+      instanceId,
+      eventType,
+      payload,
+      connectionId: connection.id,
+      connectionInstanceId: connection.instance_id,
+      connectionToken: connection.uazapi_token,
+    });
+
     // Atualizar status quando recebe evento de conexão
     if (eventType === 'connection_update') {
       const status = String(payload?.status || payload?.state || '').toLowerCase();
@@ -79,27 +335,40 @@ router.post('/webhook', async (req, res) => {
       );
     }
 
-    // TODO: handler completo de mensagens (image/audio/text) - similar ao W-API
-    // Por enquanto registramos e retornamos OK
+    let persistence = null;
+    if (eventType === 'message_received') {
+      persistence = await persistIncomingMessage(connection, payload);
+    }
 
-    res.status(200).json({ received: true, processed: eventType });
+    res.status(200).json({ received: true, processed: eventType, persistence });
   } catch (error) {
     console.error('[UAZAPI Webhook] Error:', error);
     res.status(200).json({ received: true, error: error.message });
   }
+}
+
+router.post('/webhook', async (req, res) => {
+  return handleWebhook(req, res);
+});
+
+router.post('/webhook/:event/:messageType?', async (req, res) => {
+  return handleWebhook(req, res, {
+    event: req.params.event,
+    messageType: req.params.messageType,
+  });
 });
 
 /**
  * Eventos diagnósticos (apenas leitura)
  */
 router.get('/events', (req, res) => {
-  const { instanceId, limit } = req.query;
-  res.json({ events: uazapiProvider.getUazapiEvents({ instanceId, limit: Number(limit) || 100 }) });
+  const { instanceId, connectionId, limit } = req.query;
+  res.json({ events: uazapiProvider.getUazapiEvents({ instanceId, connectionId, limit: Number(limit) || 100 }) });
 });
 
 router.delete('/events', (req, res) => {
-  const { instanceId } = req.query;
-  uazapiProvider.clearUazapiEvents(instanceId);
+  const { instanceId, connectionId } = req.query;
+  uazapiProvider.clearUazapiEvents({ instanceId, connectionId });
   res.json({ cleared: true });
 });
 
