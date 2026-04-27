@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as wapiProvider from '../lib/wapi-provider.js';
+import * as uazapiProvider from '../lib/uazapi-provider.js';
 
 const router = Router();
 router.use(authenticate);
@@ -684,6 +685,54 @@ router.post('/:id/configure-webhooks', async (req, res) => {
   } catch (error) {
     console.error('Configure webhooks error:', error);
     res.status(500).json({ error: 'Erro ao configurar webhooks' });
+  }
+});
+
+router.post('/:id/configure-uazapi-webhook', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const org = await getUserOrganization(req.userId);
+
+    let whereClause = 'id = $1 AND user_id = $2';
+    let params = [id, req.userId];
+
+    if (org) {
+      whereClause = 'id = $1 AND organization_id = $2';
+      params = [id, org.organization_id];
+    }
+
+    const connResult = await query(`SELECT * FROM connections WHERE ${whereClause}`, params);
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    const connection = connResult.rows[0];
+    if (connection.provider !== 'uazapi') {
+      return res.status(400).json({ error: 'Esta funcionalidade é apenas para conexões UAZAPI' });
+    }
+
+    if (!connection.uazapi_url || !connection.uazapi_token) {
+      return res.status(400).json({ error: 'URL ou token da UAZAPI não configurados' });
+    }
+
+    const webhookBaseUrl = String(process.env.WEBHOOK_BASE_URL || process.env.API_BASE_URL || '').trim().replace(/\/+$/, '');
+    const webhookUrl = webhookBaseUrl ? `${webhookBaseUrl}/api/uazapi/webhook` : null;
+
+    if (!webhookUrl || !/^https?:\/\//i.test(webhookUrl)) {
+      return res.status(400).json({ error: 'WEBHOOK_BASE_URL/API_BASE_URL não configurado com URL pública válida' });
+    }
+
+    const result = await uazapiProvider.configureWebhook(connection.uazapi_url, connection.uazapi_token, webhookUrl, ['messages', 'status', 'connection']);
+
+    res.json({
+      success: result.success,
+      webhookUrl,
+      details: result.data || null,
+      message: result.success ? 'Webhook UAZAPI configurado com sucesso' : 'Falha ao configurar webhook UAZAPI',
+    });
+  } catch (error) {
+    console.error('Configure UAZAPI webhook error:', error);
+    res.status(500).json({ error: 'Erro ao configurar webhook UAZAPI' });
   }
 });
 

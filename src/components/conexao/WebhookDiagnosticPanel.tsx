@@ -356,7 +356,10 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
      if (!isUazapi) return;
      setUazapiEventsLoading(true);
      try {
-       const result = await api<{ events: any[] }>(`/api/uazapi/events?instanceId=${connection.instance_id}&limit=100`);
+       const params = new URLSearchParams({ limit: '100' });
+       if (connection.id) params.set('connectionId', connection.id);
+       if (connection.instance_id) params.set('instanceId', connection.instance_id);
+       const result = await api<{ events: any[] }>(`/api/uazapi/events?${params.toString()}`);
        setUazapiEvents(result.events || []);
      } catch (error) {
        console.error('Error fetching UAZAPI events:', error);
@@ -367,7 +370,10 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
  
    const handleClearUazapiEvents = async () => {
      try {
-       await api(`/api/uazapi/events?instanceId=${connection.instance_id}`, { method: 'DELETE' });
+        const params = new URLSearchParams();
+        if (connection.id) params.set('connectionId', connection.id);
+        if (connection.instance_id) params.set('instanceId', connection.instance_id);
+        await api(`/api/uazapi/events?${params.toString()}`, { method: 'DELETE' });
        setUazapiEvents([]);
        toast.success('Eventos UAZAPI limpos');
      } catch (error: any) {
@@ -676,7 +682,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
                Configuração de Webhooks
              </CardTitle>
              <CardDescription>
-               Configure este URL no painel da UAZAPI para receber mensagens
+                Configure este URL base no painel da UAZAPI. Se ela montar a URL final automaticamente, use também os eventos/tipos `messages`.
              </CardDescription>
            </CardHeader>
            <CardContent className="space-y-4">
@@ -735,7 +741,7 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
                    <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
                      <MessageSquare className="h-10 w-10 mb-2 opacity-20" />
                      <p className="text-sm">Nenhum evento registrado ainda.</p>
-                     <p className="text-xs">O backend registrará eventos assim que chegarem.</p>
+                      <p className="text-xs">O backend aceita tanto a URL base quanto o formato final com /evento/tipodemensagem.</p>
                    </div>
                  ) : (
                    uazapiEvents.map((ev, i) => (

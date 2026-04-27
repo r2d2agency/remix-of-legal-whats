@@ -14,7 +14,7 @@ const DEFAULT_TIMEOUT = 15000;
 
 // Buffer em memória para diagnóstico
 const EVENTS_MAX = 300;
-const webhookEvents = []; // { at, instanceId, eventType, payload }
+const webhookEvents = []; // { at, instanceId, connectionId, connectionInstanceId, connectionToken, eventType, payload }
 
 export function pushUazapiEvent(event) {
   try {
@@ -25,20 +25,35 @@ export function pushUazapiEvent(event) {
   }
 }
 
-export function getUazapiEvents({ instanceId, limit = 100 } = {}) {
-  const filtered = instanceId
-    ? webhookEvents.filter((e) => e.instanceId === instanceId)
-    : webhookEvents;
+export function getUazapiEvents({ instanceId, connectionId, limit = 100 } = {}) {
+  const filtered = webhookEvents.filter((event) => {
+    if (connectionId && event.connectionId !== connectionId) return false;
+    if (!instanceId) return true;
+
+    return [
+      event.instanceId,
+      event.connectionInstanceId,
+      event.connectionToken,
+    ].filter(Boolean).includes(instanceId);
+  });
+
   return filtered.slice(0, Math.max(1, Math.min(EVENTS_MAX, Number(limit) || 100)));
 }
 
-export function clearUazapiEvents(instanceId) {
-  if (!instanceId) {
+export function clearUazapiEvents({ instanceId, connectionId } = {}) {
+  if (!instanceId && !connectionId) {
     webhookEvents.length = 0;
     return;
   }
+
   for (let i = webhookEvents.length - 1; i >= 0; i--) {
-    if (webhookEvents[i]?.instanceId === instanceId) webhookEvents.splice(i, 1);
+    const event = webhookEvents[i];
+    const matchesConnection = connectionId ? event?.connectionId === connectionId : true;
+    const matchesInstance = instanceId
+      ? [event?.instanceId, event?.connectionInstanceId, event?.connectionToken].filter(Boolean).includes(instanceId)
+      : true;
+
+    if (matchesConnection && matchesInstance) webhookEvents.splice(i, 1);
   }
 }
 
