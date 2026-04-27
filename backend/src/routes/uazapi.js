@@ -223,36 +223,9 @@ function extractMessageData(payload) {
 
   const text = pickText();
 
-  // URL da mídia: prioriza URL pública (não .enc). UAZAPI fornece endpoint
-  // de download decifrado via /message/download/{messageId}; usamos proxy.
+  // URL da mídia: prefere URL pública direta; .enc precisa ser baixada via UAZAPI
   const messageId = getMessageId(payload, msg);
 
-  function pickMediaUrl() {
-    // Primeiro: URLs já públicas/decifradas
-    const direct =
-      msg?.mediaUrl ||
-      msg?.url ||
-      msg?.file ||
-      msg?.media?.url ||
-      payload?.mediaUrl ||
-      payload?.url ||
-      mediaObj?.obj?.mediaUrl ||
-      mediaObj?.obj?.url ||
-      null;
-    if (direct && typeof direct === 'string' && !direct.includes('.enc')) {
-      return direct;
-    }
-    // Caso contrário, usar endpoint de download da UAZAPI (proxy decifrado)
-    if (mediaObj && messageId) {
-      const base = String(connection?.uazapi_url || '').replace(/\/+$/, '');
-      if (base) return `${base}/message/download/${encodeURIComponent(messageId)}`;
-    }
-    // Último recurso: a própria URL .enc (improvável de funcionar no client)
-    return direct || mediaObj?.obj?.URL || null;
-  }
-
-  // connection só está disponível em persistIncomingMessage; aqui ainda não.
-  // Para manter pickMediaUrl simples, deixamos sem proxy aqui e ajustamos depois.
   const rawMediaUrl =
     msg?.mediaUrl ||
     msg?.url ||
