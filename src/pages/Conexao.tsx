@@ -484,37 +484,119 @@ const handleGetQRCode = async (connection: Connection) => {
 
   const handleImportHistoryFile = async (connection: Connection, file: File) => {
     setImportingConnectionId(connection.id);
+    setImportDialogOpen(true);
+    setImportDone(false);
+    setImportError(null);
+    setImportProgress(0);
+    setImportStats({ convs_created: 0, convs_merged: 0, msgs_inserted: 0, msgs_skipped: 0, msgs_total: 0, convs_total: 0 });
+    setImportStatus("Lendo arquivo...");
     try {
       const text = await file.text();
       let payload: any;
       try {
         payload = JSON.parse(text);
       } catch {
-        toast.error("Arquivo inválido: não é um JSON válido.");
-        return;
-      }
-      if (payload?.type !== "connection_export" || !Array.isArray(payload?.conversations)) {
-        toast.error("Arquivo inválido: formato não reconhecido.");
-        return;
+        throw new Error("Arquivo inválido: não é um JSON válido.");
       }
 
-      toast.info(`Importando ${payload.conversations.length} conversas e ${payload.messages?.length || 0} mensagens...`);
-      const result = await api<{
-        conversations_created: number;
-        conversations_merged: number;
-        messages_inserted: number;
-        messages_skipped: number;
-      }>(`/api/connections/${connection.id}/import-history`, {
-        method: "POST",
-        body: payload,
-        auth: true,
-      });
+      // Normalize to a flexible shape — the backend already accepts many variants,
+      // but we split messages into batches on the frontend so we can show progress
+      // and avoid huge payloads timing out.
+      const root = (payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object') ? payload.data : payload;
+      const conversations: any[] = Array.isArray(root?.conversations)
+        ? root.conversations
+        : Array.isArray(root?.chats)
+          ? root.chats
+          : Array.isArray(root)
+            ? root
+            : [];
 
+      // Collect messages: from a top-level array or embedded inside each conversation
+      let allMessages: any[] = Array.isArray(root?.messages) ? [...root.messages] : [];
+      if (allMessages.length === 0) {
+        for (const c of conversations) {
+          const embedded = c?.messages || c?.chat_messages || c?.history;
+          if (Array.isArray(embedded)) {
+            for (const m of embedded) {
+              allMessages.push({
+                ...m,
+                conversation_id: m.conversation_id || c.id || c.conversation_id || c.remote_jid,
+                remote_jid: m.remote_jid || c.remote_jid || c.jid || c.chatId,
+              });
+            }
+          }
+        }
+      }
+
+      const totalMsgs = allMessages.length;
+      const totalConvs = conversations.length;
+
+      if (totalMsgs === 0 && totalConvs === 0) {
+        throw new Error("Arquivo não contém conversas nem mensagens reconhecíveis.");
+      }
+
+      setImportStats((s) => ({ ...s, msgs_total: totalMsgs, convs_total: totalConvs }));
+      setImportStatus(`Enviando ${totalConvs} conversas e ${totalMsgs} mensagens...`);
+
+      // First batch: conversations + first slice of messages.
+      // Subsequent batches: only messages (without conversations) — they are matched by remote_jid on the backend.
+      const BATCH = 500;
+      let cursor = 0;
+      const acc = { convs_created: 0, convs_merged: 0, msgs_inserted: 0, msgs_skipped: 0 };
+      let batchIndex = 0;
+
+      while (cursor < Math.max(totalMsgs, 1)) {
+        const slice = allMessages.slice(cursor, cursor + BATCH);
+        const body: any = {
+          conversations: batchIndex === 0 ? conversations : [],
+          messages: slice,
+        };
+        setImportStatus(`Enviando lote ${batchIndex + 1} (${cursor + slice.length}/${totalMsgs} mensagens)...`);
+
+        const result = await api<{
+          conversations_created: number;
+          conversations_merged: number;
+          messages_inserted: number;
+          messages_skipped: number;
+        }>(`/api/connections/${connection.id}/import-history`, {
+          method: "POST",
+          body,
+          auth: true,
+        });
+
+        acc.convs_created += result.conversations_created || 0;
+        acc.convs_merged += result.conversations_merged || 0;
+        acc.msgs_inserted += result.messages_inserted || 0;
+        acc.msgs_skipped += result.messages_skipped || 0;
+
+        setImportStats({
+          convs_created: acc.convs_created,
+          convs_merged: acc.convs_merged,
+          msgs_inserted: acc.msgs_inserted,
+          msgs_skipped: acc.msgs_skipped,
+          msgs_total: totalMsgs,
+          convs_total: totalConvs,
+        });
+
+        cursor += BATCH;
+        batchIndex++;
+        const pct = totalMsgs > 0 ? Math.min(100, Math.round((Math.min(cursor, totalMsgs) / totalMsgs) * 100)) : 100;
+        setImportProgress(pct);
+
+        if (totalMsgs === 0) break;
+      }
+
+      setImportProgress(100);
+      setImportStatus("Importação concluída!");
+      setImportDone(true);
       toast.success(
-        `Importação concluída: ${result.conversations_created} novas, ${result.conversations_merged} mescladas, ${result.messages_inserted} mensagens.`
+        `Importação concluída: ${acc.convs_created} novas, ${acc.convs_merged} mescladas, ${acc.msgs_inserted} mensagens.`
       );
     } catch (error: any) {
-      toast.error(error?.message || "Erro ao importar histórico");
+      const msg = error?.message || "Erro ao importar histórico";
+      setImportError(msg);
+      setImportStatus("Falha na importação");
+      toast.error(msg);
     } finally {
       setImportingConnectionId(null);
     }
