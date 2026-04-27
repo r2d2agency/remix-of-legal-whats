@@ -201,6 +201,17 @@ function extractMessageData(payload) {
     ''
   ).toLowerCase().replace(/message$/, '');
 
+  // ===== Album (Baileys/UAZAPI) =====
+  // O 'albumMessage' é apenas um container — as imagens/vídeos chegam como
+  // mensagens individuais separadas no webhook. Ignoramos o container para
+  // evitar registros sem conteúdo (ex.: "Album: 1 Image, 1 video").
+  const isAlbumContainer =
+    typeRaw === 'album' ||
+    !!msg?.albumMessage ||
+    !!payload?.albumMessage ||
+    !!msg?.album ||
+    !!payload?.album;
+
   // Texto: prioriza campos de texto puros; se for JSON de mídia, ignora
   function pickText() {
     const candidates = [
