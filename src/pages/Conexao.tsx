@@ -475,11 +475,21 @@ const handleGetQRCode = async (connection: Connection) => {
          body: { webhookUrl: DEFAULT_UAZAPI_WEBHOOK_URL },
        });
  
-       // Then, trigger the external configuration on UAZAPI side
-       // Using /api/connections/${id}/configure-uazapi-webhook as the correct endpoint
-       await api(`/api/connections/${connection.id}/configure-uazapi-webhook`, {
-         method: 'POST',
-       });
+        // Try to trigger the external configuration using the correct server-side endpoint
+        try {
+          await api(`/api/uazapi/${connection.id}/configure-webhook`, {
+            method: 'POST',
+          });
+        } catch (uazErr: any) {
+          // Fallback to the other common path if the first one fails with 404
+          if (uazErr.status === 404) {
+            await api(`/api/connections/${connection.id}/configure-uazapi-webhook`, {
+              method: 'POST',
+            });
+          } else {
+            throw uazErr;
+          }
+        }
  
        toast.success('Webhook UAZAPI configurado e ativado com sucesso!');
      } catch (error: any) {
