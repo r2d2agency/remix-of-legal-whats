@@ -78,34 +78,37 @@ interface DiagnosticResult {
   errors: string[];
 }
 
-interface WapiDiagnosticResult {
-  connection: {
-    id: string;
-    name: string;
-    instanceId: string;
-    status: string;
-    provider: string;
-  };
-  instanceStatus: {
-    connected: boolean;
-    phoneNumber: string | null;
-    error?: string;
-  } | null;
-  webhooksConfigured: {
-    success: boolean;
-    configured: number;
-    total: number;
-    results: Array<{
-      type: string;
-      success: boolean;
-      status?: number;
-      error?: string;
-    }>;
-  } | null;
-  webhookEndpoint: string;
-  healthy: boolean;
-  errors: string[];
-}
+ interface UniversalDiagnosticResult {
+   connection: {
+     id: string;
+     name: string;
+     instanceId: string;
+     status: string;
+     provider: string;
+   };
+   instanceStatus: {
+     connected: boolean;
+     phoneNumber: string | null;
+     error?: string;
+   } | null;
+   webhooksConfigured: {
+     success: boolean;
+     configured: number;
+     total: number;
+     results: Array<{
+       type: string;
+       success: boolean;
+       status?: number;
+       error?: string;
+     }>;
+   } | null;
+   webhookEndpoint: string;
+   healthy: boolean;
+   errors: string[];
+ }
+ 
+ type WapiDiagnosticResult = UniversalDiagnosticResult;
+ type UazapiDiagnosticResult = UniversalDiagnosticResult;
 
 interface WebhookEvent {
   at: string;
@@ -153,14 +156,16 @@ interface Props {
 export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   // Detect provider type
   const isMeta = connection.provider === 'meta';
-  const isWapi = !isMeta && (connection.provider === 'wapi' || 
+   const isUazapi = connection.provider === 'uazapi';
+   const isWapi = !isMeta && !isUazapi && (connection.provider === 'wapi' || 
     (!!connection.instance_id && !connection.instance_name) ||
     (!!connection.instance_id && connection.instance_id.length > 0));
   
   const [loading, setLoading] = useState(true);
   const [reconfiguring, setReconfiguring] = useState(false);
   const [diagnostic, setDiagnostic] = useState<DiagnosticResult | null>(null);
-  const [wapiDiagnostic, setWapiDiagnostic] = useState<WapiDiagnosticResult | null>(null);
+   const [wapiDiagnostic, setWapiDiagnostic] = useState<WapiDiagnosticResult | null>(null);
+   const [uazapiDiagnostic, setUazapiDiagnostic] = useState<UazapiDiagnosticResult | null>(null);
   const [metaDiagnostic, setMetaDiagnostic] = useState<{
     status: string;
     phoneNumber?: string | null;
@@ -174,7 +179,9 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   const [eventsLoading, setEventsLoading] = useState(false);
 
   // W-API diagnostics (in-memory on backend)
-  const [wapiEvents, setWapiEvents] = useState<WapiWebhookEvent[]>([]);
+   const [wapiEvents, setWapiEvents] = useState<WapiWebhookEvent[]>([]);
+   const [uazapiEvents, setUazapiEvents] = useState<any[]>([]);
+   const [uazapiEventsLoading, setUazapiEventsLoading] = useState(false);
   const [wapiEventsLoading, setWapiEventsLoading] = useState(false);
   const [wapiSendAttempts, setWapiSendAttempts] = useState<WapiSendAttempt[]>([]);
   const [wapiSendAttemptsLoading, setWapiSendAttemptsLoading] = useState(false);
@@ -259,10 +266,49 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
           errors,
         };
         
-        setWapiDiagnostic(wapiDiag);
-        setDiagnostic(null);
-        setMetaDiagnostic(null);
-      } else {
+         setWapiDiagnostic(wapiDiag);
+         setUazapiDiagnostic(null);
+         setDiagnostic(null);
+         setMetaDiagnostic(null);
+       } else if (isUazapi) {
+         const statusResult = await api<{
+           status: string;
+           phoneNumber?: string | null;
+           error?: string | null;
+         }>(`/api/evolution/${connection.id}/status`);
+ 
+         const webhookEndpoint = `${API_URL}/api/uazapi/webhook`;
+         const errors: string[] = [];
+ 
+         if (statusResult.status !== 'connected') {
+           errors.push('UAZAPI não conectada');
+           if (statusResult.error) errors.push(`Detalhe: ${statusResult.error}`);
+         }
+ 
+         const uazapiDiag: UazapiDiagnosticResult = {
+           connection: {
+             id: connection.id,
+             name: connection.name,
+             instanceId: connection.instance_id || '',
+             status: statusResult.status,
+             provider: 'uazapi',
+           },
+           instanceStatus: {
+             connected: statusResult.status === 'connected',
+             phoneNumber: statusResult.phoneNumber || null,
+             error: statusResult.error || undefined,
+           },
+           webhooksConfigured: null,
+           webhookEndpoint,
+           healthy: statusResult.status === 'connected',
+           errors,
+         };
+         
+         setUazapiDiagnostic(uazapiDiag);
+         setWapiDiagnostic(null);
+         setDiagnostic(null);
+         setMetaDiagnostic(null);
+       } else {
         const result = await api<DiagnosticResult>(`/api/evolution/${connection.id}/webhook-diagnostic`);
         setDiagnostic(result);
         setWapiDiagnostic(null);
@@ -306,7 +352,30 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
     }
   }, [connection.id, isWapi]);
 
-  const fetchWapiEvents = useCallback(async () => {
+   const fetchUazapiEvents = useCallback(async () => {
+     if (!isUazapi) return;
+     setUazapiEventsLoading(true);
+     try {
+       const result = await api<{ events: any[] }>(`/api/uazapi/events?instanceId=${connection.instance_id}&limit=100`);
+       setUazapiEvents(result.events || []);
+     } catch (error) {
+       console.error('Error fetching UAZAPI events:', error);
+     } finally {
+       setUazapiEventsLoading(false);
+     }
+   }, [connection.instance_id, isUazapi]);
+ 
+   const handleClearUazapiEvents = async () => {
+     try {
+       await api(`/api/uazapi/events?instanceId=${connection.instance_id}`, { method: 'DELETE' });
+       setUazapiEvents([]);
+       toast.success('Eventos UAZAPI limpos');
+     } catch (error: any) {
+       toast.error(error.message || 'Erro ao limpar eventos UAZAPI');
+     }
+   };
+ 
+   const fetchWapiEvents = useCallback(async () => {
     if (!isWapi) return;
 
     setWapiEventsLoading(true);
@@ -460,16 +529,18 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
   useEffect(() => {
     fetchDiagnostic();
 
-    if (isMeta) {
-      fetchMetaEvents();
-    } else if (isWapi) {
-      fetchWapiEvents();
-      fetchWapiSendAttempts();
-      fetchEndpointDiscovery();
-    } else {
-      fetchEvents();
-    }
-  }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, fetchMetaEvents, isWapi, isMeta]);
+     if (isMeta) {
+       fetchMetaEvents();
+     } else if (isWapi) {
+       fetchWapiEvents();
+       fetchWapiSendAttempts();
+       fetchEndpointDiscovery();
+     } else if (isUazapi) {
+       fetchUazapiEvents();
+     } else {
+       fetchEvents();
+     }
+   }, [fetchDiagnostic, fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, fetchMetaEvents, fetchUazapiEvents, isWapi, isMeta, isUazapi]);
 
   // Auto-refresh every 3 seconds
   useEffect(() => {
@@ -477,15 +548,17 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
       const interval = setInterval(fetchMetaEvents, 5000);
       return () => clearInterval(interval);
     }
-    const interval = setInterval(() => {
-      if (isWapi) {
-        fetchWapiEvents();
-        fetchWapiSendAttempts();
-        fetchEndpointDiscovery();
-      } else {
-        fetchEvents();
-      }
-    }, 3000);
+     const interval = setInterval(() => {
+       if (isWapi) {
+         fetchWapiEvents();
+         fetchWapiSendAttempts();
+         fetchEndpointDiscovery();
+       } else if (isUazapi) {
+         fetchUazapiEvents();
+       } else {
+         fetchEvents();
+       }
+     }, 3000);
 
     return () => clearInterval(interval);
   }, [fetchEvents, fetchWapiEvents, fetchWapiSendAttempts, fetchEndpointDiscovery, fetchMetaEvents, isWapi, isMeta]);
@@ -505,8 +578,188 @@ export function WebhookDiagnosticPanel({ connection, onClose }: Props) {
       <XCircle className="h-4 w-4 text-destructive" />
     );
 
-  // W-API Diagnostic View
-  if (isWapi && wapiDiagnostic) {
+   // UAZAPI Diagnostic View
+   if (isUazapi && uazapiDiagnostic) {
+     return (
+       <div className="space-y-6">
+         {/* Header */}
+         <div className="flex items-center justify-between">
+           <div>
+             <h2 className="text-xl font-semibold flex items-center gap-2">
+               <Activity className="h-5 w-5 text-primary" />
+               Diagnóstico UAZAPI: {connection.name}
+             </h2>
+             <p className="text-sm text-muted-foreground mt-1">
+               Instance ID / Token: <code className="text-xs bg-muted px-1 py-0.5 rounded">{connection.instance_id}</code>
+             </p>
+           </div>
+           <div className="flex items-center gap-2">
+             <Button variant="outline" size="sm" onClick={fetchDiagnostic} disabled={loading}>
+               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+               Atualizar
+             </Button>
+             {onClose && (
+               <Button variant="ghost" size="sm" onClick={onClose}>
+                 Fechar
+               </Button>
+             )}
+           </div>
+         </div>
+ 
+         {/* Health Status */}
+         <Card>
+           <CardHeader className="pb-3">
+             <CardTitle className="text-base flex items-center gap-2">
+               {uazapiDiagnostic.healthy ? (
+                 <Badge variant="default" className="bg-green-500">
+                   <CheckCircle className="h-3 w-3 mr-1" />
+                   Conectado
+                 </Badge>
+               ) : (
+                 <Badge variant="destructive">
+                   <AlertTriangle className="h-3 w-3 mr-1" />
+                   Problemas Detectados
+                 </Badge>
+               )}
+               <Badge variant="outline" className="ml-2">
+                 UAZAPI
+               </Badge>
+             </CardTitle>
+           </CardHeader>
+           {uazapiDiagnostic.errors && uazapiDiagnostic.errors.length > 0 && (
+             <CardContent className="pt-0">
+               <div className="space-y-2">
+                 {uazapiDiagnostic.errors.map((err, i) => (
+                   <div key={i} className="flex items-start gap-2 text-sm text-destructive">
+                     <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                     <span>{err}</span>
+                   </div>
+                 ))}
+               </div>
+             </CardContent>
+           )}
+         </Card>
+ 
+         {/* Instance Status */}
+         <Card>
+           <CardHeader className="pb-2">
+             <CardTitle className="text-sm flex items-center gap-2">
+               <Server className="h-4 w-4" />
+               Estado da Instância UAZAPI
+             </CardTitle>
+           </CardHeader>
+           <CardContent>
+             <div className="grid grid-cols-2 gap-4 text-sm">
+               <div className="flex items-center gap-2">
+                 <StatusIcon ok={uazapiDiagnostic.instanceStatus?.connected || false} />
+                 <span className="text-muted-foreground">Status:</span>
+                 <Badge
+                   variant={uazapiDiagnostic.instanceStatus?.connected ? "default" : "outline"}
+                   className={uazapiDiagnostic.instanceStatus?.connected ? "bg-green-500" : ""}
+                 >
+                   {uazapiDiagnostic.instanceStatus?.connected ? "Conectado" : "Desconectado"}
+                 </Badge>
+               </div>
+               <div>
+                 <span className="text-muted-foreground">Telefone:</span>
+                 <span className="ml-2">{uazapiDiagnostic.instanceStatus?.phoneNumber || "—"}</span>
+               </div>
+             </div>
+           </CardContent>
+         </Card>
+ 
+         {/* Webhook Configuration */}
+         <Card>
+           <CardHeader className="pb-2">
+             <CardTitle className="text-sm flex items-center gap-2">
+               <Webhook className="h-4 w-4" />
+               Configuração de Webhooks
+             </CardTitle>
+             <CardDescription>
+               Configure este URL no painel da UAZAPI para receber mensagens
+             </CardDescription>
+           </CardHeader>
+           <CardContent className="space-y-4">
+             <div className="space-y-2 text-sm">
+               <div className="flex items-center gap-2">
+                 <span className="text-muted-foreground">URL do Webhook:</span>
+                 <div className="flex items-center gap-1 flex-1 min-w-0">
+                   <code className="text-xs bg-muted px-1 py-0.5 rounded truncate flex-1">
+                     {uazapiDiagnostic.webhookEndpoint}
+                   </code>
+                   <Button
+                     variant="ghost"
+                     size="sm"
+                     className="h-6 w-6 p-0"
+                     onClick={() => copyToClipboard(uazapiDiagnostic.webhookEndpoint)}
+                   >
+                     <Copy className="h-3 w-3" />
+                   </Button>
+                 </div>
+               </div>
+             </div>
+           </CardContent>
+         </Card>
+ 
+         {/* Monitor */}
+         <Card>
+           <CardHeader className="pb-2">
+             <CardTitle className="text-sm flex items-center gap-2">
+               <Activity className="h-4 w-4" />
+               Monitor de Eventos (UAZAPI)
+             </CardTitle>
+             <CardDescription>
+               Log em tempo real dos webhooks recebidos da UAZAPI.
+             </CardDescription>
+           </CardHeader>
+           <CardContent>
+             <div className="flex items-center justify-between gap-2 mb-3">
+               <div className="text-xs text-muted-foreground">
+                 {uazapiEvents.length ? `${uazapiEvents.length} eventos registrados` : 'Aguardando eventos...'}
+               </div>
+               <div className="flex items-center gap-2">
+                 <Button variant="outline" size="sm" onClick={fetchUazapiEvents} disabled={uazapiEventsLoading}>
+                   <RefreshCw className={`h-4 w-4 mr-2 ${uazapiEventsLoading ? 'animate-spin' : ''}`} />
+                   Atualizar
+                 </Button>
+                 <Button variant="destructive" size="sm" onClick={handleClearUazapiEvents}>
+                   <Trash2 className="h-4 w-4 mr-2" />
+                   Limpar
+                 </Button>
+               </div>
+             </div>
+ 
+             <ScrollArea className="h-[400px] rounded-md border border-border">
+               <div className="p-3 space-y-3">
+                 {uazapiEvents.length === 0 ? (
+                   <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                     <MessageSquare className="h-10 w-10 mb-2 opacity-20" />
+                     <p className="text-sm">Nenhum evento registrado ainda.</p>
+                     <p className="text-xs">O backend registrará eventos assim que chegarem.</p>
+                   </div>
+                 ) : (
+                   uazapiEvents.map((ev, i) => (
+                     <div key={i} className="rounded-md border border-border p-3">
+                       <div className="flex items-center justify-between gap-2">
+                         <div className="text-xs text-muted-foreground">{new Date(ev.at).toLocaleString()}</div>
+                         <Badge variant="outline">{ev.eventType || 'webhook'}</Badge>
+                       </div>
+                       <pre className="mt-2 text-[10px] leading-tight whitespace-pre-wrap break-words bg-muted/40 rounded p-2 overflow-hidden max-h-[150px]">
+                         {JSON.stringify(ev.payload || ev, null, 2)}
+                       </pre>
+                     </div>
+                   ))
+                 )}
+               </div>
+             </ScrollArea>
+           </CardContent>
+         </Card>
+       </div>
+     );
+   }
+ 
+   // W-API Diagnostic View
+   if (isWapi && wapiDiagnostic) {
     return (
       <div className="space-y-6">
         {/* Header */}
