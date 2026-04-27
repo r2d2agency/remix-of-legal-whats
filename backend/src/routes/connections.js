@@ -644,8 +644,34 @@ router.post('/:id/import-history', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const payload = req.body || {};
-    const importedConversations = Array.isArray(payload.conversations) ? payload.conversations : [];
-    const importedMessages = Array.isArray(payload.messages) ? payload.messages : [];
+
+    // Accept multiple legacy formats: { conversations, messages } OR
+    // arrays nested in { data: { ... } } / { chats, messages } / array of chats with embedded messages.
+    let importedConversations = [];
+    let importedMessages = [];
+
+    const root = payload.data && typeof payload.data === 'object' ? payload.data : payload;
+    if (Array.isArray(root.conversations)) importedConversations = root.conversations;
+    else if (Array.isArray(root.chats)) importedConversations = root.chats;
+    else if (Array.isArray(root)) importedConversations = root;
+
+    if (Array.isArray(root.messages)) {
+      importedMessages = root.messages;
+    } else {
+      // Pull messages embedded inside each conversation
+      for (const c of importedConversations) {
+        const embedded = c.messages || c.chat_messages || c.history;
+        if (Array.isArray(embedded)) {
+          for (const m of embedded) {
+            importedMessages.push({
+              ...m,
+              conversation_id: m.conversation_id || c.id || c.conversation_id || c.remote_jid,
+              remote_jid: m.remote_jid || c.remote_jid || c.jid || c.chatId,
+            });
+          }
+        }
+      }
+    }
 
     if (importedConversations.length === 0 && importedMessages.length === 0) {
       return res.status(400).json({ error: 'Arquivo de exportação inválido (sem conversas ou mensagens).' });
@@ -659,13 +685,32 @@ router.post('/:id/import-history', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
-    // Map old conversation_id -> new conversation_id
+    // Normalize a conversation entry from possibly different schemas
+    const normConv = (c) => ({
+      old_id: c.id || c.conversation_id || c.remote_jid || c.jid || c.chatId || null,
+      remote_jid: c.remote_jid || c.jid || c.chatId || c.chat_id || c.phone || null,
+      contact_name: c.contact_name || c.name || c.pushName || c.push_name || null,
+      contact_phone: c.contact_phone || c.phone || c.number || null,
+      last_message_at: c.last_message_at || c.lastMessageAt || c.updated_at || null,
+      unread_count: c.unread_count || c.unread || 0,
+      is_archived: c.is_archived || c.archived || false,
+      created_at: c.created_at || c.createdAt || null,
+      updated_at: c.updated_at || c.updatedAt || null,
+      is_pinned: c.is_pinned || c.pinned || false,
+      is_group: c.is_group || c.isGroup || (typeof (c.remote_jid || c.jid) === 'string' && (c.remote_jid || c.jid).includes('@g.us')) || false,
+      group_name: c.group_name || c.groupName || null,
+      attendance_status: c.attendance_status || 'finished',
+    });
+
+    // Map old conversation_id (or remote_jid) -> new conversation_id
     const convIdMap = new Map();
+    const convByJid = new Map();
     let createdConvs = 0;
     let mergedConvs = 0;
 
-    for (const c of importedConversations) {
-      if (!c.remote_jid) continue;
+    const ensureConversation = async (c) => {
+      if (!c.remote_jid) return null;
+      if (convByJid.has(c.remote_jid)) return convByJid.get(c.remote_jid);
       // Try to find an existing conversation in target connection by remote_jid
       const existing = await query(
         `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`,
@@ -682,8 +727,8 @@ router.post('/:id/import-history', authenticate, async (req, res) => {
              connection_id, remote_jid, contact_name, contact_phone,
              last_message_at, unread_count, is_archived,
              created_at, updated_at, is_pinned, is_group, group_name,
-             attendance_status, accepted_at, accepted_by, department_id
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+             attendance_status
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
            RETURNING id`,
           [
             id,
@@ -699,36 +744,52 @@ router.post('/:id/import-history', authenticate, async (req, res) => {
             c.is_group || false,
             c.group_name || null,
             c.attendance_status || 'finished',
-            c.accepted_at || null,
-            c.accepted_by || null,
-            c.department_id || null,
           ]
         );
         newId = ins.rows[0].id;
         createdConvs++;
       }
-      if (c.id) convIdMap.set(c.id, newId);
+      convByJid.set(c.remote_jid, newId);
+      if (c.old_id) convIdMap.set(c.old_id, newId);
+      return newId;
+    };
+
+    for (const raw of importedConversations) {
+      const c = normConv(raw);
+      await ensureConversation(c);
     }
 
     // Insert messages in batches, skipping duplicates by (conversation_id, message_id)
     let insertedMsgs = 0;
     let skippedMsgs = 0;
-    const batchSize = 200;
-    for (let i = 0; i < importedMessages.length; i += batchSize) {
-      const batch = importedMessages.slice(i, i + batchSize);
-      for (const m of batch) {
-        const newConvId = convIdMap.get(m.conversation_id);
-        if (!newConvId) { skippedMsgs++; continue; }
+    for (const m of importedMessages) {
+      // Resolve target conversation: by old conv id, then by jid
+      let newConvId = m.conversation_id ? convIdMap.get(m.conversation_id) : null;
+      const jid = m.remote_jid || m.jid || m.chatId || m.from || m.to || null;
+      if (!newConvId && jid) {
+        newConvId = await ensureConversation(normConv({
+          remote_jid: jid,
+          contact_name: m.contact_name || m.pushName || null,
+          contact_phone: m.contact_phone || null,
+        }));
+      }
+      if (!newConvId) { skippedMsgs++; continue; }
 
-        if (m.message_id) {
+      const messageId = m.message_id || m.id || m.key?.id || null;
+      if (messageId) {
           const dup = await query(
             `SELECT 1 FROM chat_messages WHERE conversation_id = $1 AND message_id = $2 LIMIT 1`,
-            [newConvId, m.message_id]
+            [newConvId, messageId]
           );
           if (dup.rows.length > 0) { skippedMsgs++; continue; }
-        }
+      }
 
-        try {
+      const fromMe = m.from_me ?? m.fromMe ?? m.key?.fromMe ?? false;
+      const content = m.content ?? m.text ?? m.body ?? m.message ?? null;
+      const messageType = m.message_type || m.type || 'text';
+      const ts = m.timestamp || m.created_at || m.messageTimestamp || new Date().toISOString();
+
+      try {
           await query(
             `INSERT INTO chat_messages (
                conversation_id, message_id, from_me, content, message_type,
@@ -737,22 +798,21 @@ router.post('/:id/import-history', authenticate, async (req, res) => {
              ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
             [
               newConvId,
-              m.message_id || null,
-              m.from_me || false,
-              m.content || null,
-              m.message_type || 'text',
-              m.media_url || null,
-              m.media_mimetype || null,
+              messageId,
+              !!fromMe,
+              typeof content === 'string' ? content : (content ? JSON.stringify(content) : null),
+              messageType,
+              m.media_url || m.mediaUrl || null,
+              m.media_mimetype || m.mimetype || null,
               m.quoted_message_id || null,
               m.status || 'received',
-              m.timestamp || m.created_at || new Date().toISOString(),
-              m.created_at || m.timestamp || new Date().toISOString(),
+              ts,
+              m.created_at || ts,
             ]
           );
           insertedMsgs++;
-        } catch (err) {
+      } catch (err) {
           skippedMsgs++;
-        }
       }
     }
 
@@ -764,10 +824,12 @@ router.post('/:id/import-history', authenticate, async (req, res) => {
       conversations_merged: mergedConvs,
       messages_inserted: insertedMsgs,
       messages_skipped: skippedMsgs,
+      conversations_total: importedConversations.length,
+      messages_total: importedMessages.length,
     });
   } catch (error) {
     console.error('Import history error:', error);
-    res.status(500).json({ error: 'Erro ao importar histórico' });
+    res.status(500).json({ error: error?.message || 'Erro ao importar histórico' });
   }
 });
 
