@@ -297,6 +297,51 @@ async function persistIncomingMessage(connection, payload) {
     return { skipped: true, reason: 'not_incoming_or_empty' };
   }
 
+  // Resolve placeholder de download da UAZAPI: baixa mídia decifrada,
+  // salva em /uploads e substitui mediaUrl pelo caminho público.
+  if (typeof message.mediaUrl === 'string' && message.mediaUrl.startsWith('__UAZAPI_DOWNLOAD__:')) {
+    const msgIdForDownload = message.mediaUrl.slice('__UAZAPI_DOWNLOAD__:'.length);
+    try {
+      const dl = await uazapiProvider.downloadMedia(
+        connection.uazapi_url,
+        connection.uazapi_token,
+        msgIdForDownload
+      );
+      if (dl?.success) {
+        if (dl.url) {
+          message.mediaUrl = dl.url;
+          if (!message.mediaMimetype && dl.mimetype) message.mediaMimetype = dl.mimetype;
+        } else if (dl.buffer || dl.base64) {
+          const buf = dl.buffer || Buffer.from(dl.base64, 'base64');
+          const mt = (dl.mimetype || message.mediaMimetype || 'application/octet-stream').toLowerCase();
+          const extMap = {
+            'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png',
+            'image/gif': '.gif', 'image/webp': '.webp',
+            'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/3gpp': '.3gp',
+            'audio/ogg': '.ogg', 'audio/mpeg': '.mp3', 'audio/mp4': '.m4a',
+            'audio/wav': '.wav', 'audio/webm': '.webm',
+            'application/pdf': '.pdf',
+          };
+          const ext = extMap[mt] || '.bin';
+          const fname = `uazapi_${Date.now()}_${crypto.randomUUID()}${ext}`;
+          const uploadsDir = path.join(process.cwd(), 'uploads');
+          if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+          fs.writeFileSync(path.join(uploadsDir, fname), buf);
+          message.mediaUrl = `/uploads/${fname}`;
+          if (!message.mediaMimetype) message.mediaMimetype = mt;
+        } else {
+          message.mediaUrl = null;
+        }
+      } else {
+        console.warn('[UAZAPI] downloadMedia falhou para', msgIdForDownload, dl?.error);
+        message.mediaUrl = null;
+      }
+    } catch (e) {
+      console.error('[UAZAPI] erro ao baixar mídia', e?.message);
+      message.mediaUrl = null;
+    }
+  }
+
   const existingMessage = await query(
     `SELECT id FROM chat_messages WHERE message_id = $1 LIMIT 1`,
     [message.messageId]
