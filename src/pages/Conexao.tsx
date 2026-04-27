@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Users, Download, Pencil, UserCheck, MessageSquare, Check, History, Smartphone, Globe, Copy, Bot } from "lucide-react";
+import { Plus, QrCode, RefreshCw, Plug, Unplug, Trash2, Phone, Loader2, Wifi, WifiOff, Send, Settings2, AlertTriangle, CheckCircle, Eye, Activity, Users, Download, Pencil, UserCheck, MessageSquare, Check, History, Smartphone, Globe, Copy, Bot, Upload } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api, API_URL } from "@/lib/api";
@@ -139,6 +139,9 @@ const Conexao = () => {
   const [migrateTargetConnection, setMigrateTargetConnection] = useState<Connection | null>(null);
   const [migrateSourceId, setMigrateSourceId] = useState<string>("");
   const [migrating, setMigrating] = useState(false);
+
+  // Import history (Gleego legacy export) state
+  const [importingConnectionId, setImportingConnectionId] = useState<string | null>(null);
 
   const refreshConnectionStatus = useCallback(
     async (
@@ -463,6 +466,44 @@ const handleGetQRCode = async (connection: Connection) => {
       toast.error('Erro ao migrar conversas');
     } finally {
       setMigrating(false);
+    }
+  };
+
+  const handleImportHistoryFile = async (connection: Connection, file: File) => {
+    setImportingConnectionId(connection.id);
+    try {
+      const text = await file.text();
+      let payload: any;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        toast.error("Arquivo inválido: não é um JSON válido.");
+        return;
+      }
+      if (payload?.type !== "connection_export" || !Array.isArray(payload?.conversations)) {
+        toast.error("Arquivo inválido: formato não reconhecido.");
+        return;
+      }
+
+      toast.info(`Importando ${payload.conversations.length} conversas e ${payload.messages?.length || 0} mensagens...`);
+      const result = await api<{
+        conversations_created: number;
+        conversations_merged: number;
+        messages_inserted: number;
+        messages_skipped: number;
+      }>(`/api/connections/${connection.id}/import-history`, {
+        method: "POST",
+        body: payload,
+        auth: true,
+      });
+
+      toast.success(
+        `Importação concluída: ${result.conversations_created} novas, ${result.conversations_merged} mescladas, ${result.messages_inserted} mensagens.`
+      );
+    } catch (error: any) {
+      toast.error(error?.message || "Erro ao importar histórico");
+    } finally {
+      setImportingConnectionId(null);
     }
   };
 
@@ -1570,6 +1611,30 @@ const handleGetQRCode = async (connection: Connection) => {
                       title="Migrar conversas de outra conexão"
                     >
                       <History className="h-4 w-4 text-primary" />
+                    </Button>
+
+                    {/* Import history from a previous Gleego export (.json) */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'application/json,.json';
+                        input.onchange = (e: any) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImportHistoryFile(connection, file);
+                        };
+                        input.click();
+                      }}
+                      disabled={importingConnectionId === connection.id}
+                      title="Importar histórico de chat de uma versão anterior (Gleego)"
+                    >
+                      {importingConnectionId === connection.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      ) : (
+                        <Upload className="h-4 w-4 text-primary" />
+                      )}
                     </Button>
 
                     {/* Delete button - always visible */}
