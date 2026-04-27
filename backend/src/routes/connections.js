@@ -638,13 +638,141 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
   }
 });
 
-// Reconfigure webhooks for W-API connection
-router.post('/:id/configure-webhooks', async (req, res) => {
-  // placeholder line replaced below
-  return _configureWebhooksHandler(req, res);
+// Import chat history from a previous Gleego export (JSON file)
+// Body: { connection: {...}, conversations: [...], messages: [...], chat_contacts?: [...] }
+router.post('/:id/import-history', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payload = req.body || {};
+    const importedConversations = Array.isArray(payload.conversations) ? payload.conversations : [];
+    const importedMessages = Array.isArray(payload.messages) ? payload.messages : [];
+
+    if (importedConversations.length === 0 && importedMessages.length === 0) {
+      return res.status(400).json({ error: 'Arquivo de exportação inválido (sem conversas ou mensagens).' });
+    }
+
+    const org = await getUserOrganization(req.userId);
+    const connResult = await query(`SELECT id, organization_id FROM connections WHERE id = $1`, [id]);
+    if (connResult.rows.length === 0) return res.status(404).json({ error: 'Conexão de destino não encontrada' });
+    const targetConnection = connResult.rows[0];
+    if (org && targetConnection.organization_id !== org.organization_id) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+
+    // Map old conversation_id -> new conversation_id
+    const convIdMap = new Map();
+    let createdConvs = 0;
+    let mergedConvs = 0;
+
+    for (const c of importedConversations) {
+      if (!c.remote_jid) continue;
+      // Try to find an existing conversation in target connection by remote_jid
+      const existing = await query(
+        `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`,
+        [id, c.remote_jid]
+      );
+
+      let newId;
+      if (existing.rows.length > 0) {
+        newId = existing.rows[0].id;
+        mergedConvs++;
+      } else {
+        const ins = await query(
+          `INSERT INTO conversations (
+             connection_id, remote_jid, contact_name, contact_phone,
+             last_message_at, unread_count, is_archived,
+             created_at, updated_at, is_pinned, is_group, group_name,
+             attendance_status, accepted_at, accepted_by, department_id
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+           RETURNING id`,
+          [
+            id,
+            c.remote_jid,
+            c.contact_name || null,
+            c.contact_phone || null,
+            c.last_message_at || null,
+            c.unread_count || 0,
+            c.is_archived || false,
+            c.created_at || new Date().toISOString(),
+            c.updated_at || new Date().toISOString(),
+            c.is_pinned || false,
+            c.is_group || false,
+            c.group_name || null,
+            c.attendance_status || 'finished',
+            c.accepted_at || null,
+            c.accepted_by || null,
+            c.department_id || null,
+          ]
+        );
+        newId = ins.rows[0].id;
+        createdConvs++;
+      }
+      if (c.id) convIdMap.set(c.id, newId);
+    }
+
+    // Insert messages in batches, skipping duplicates by (conversation_id, message_id)
+    let insertedMsgs = 0;
+    let skippedMsgs = 0;
+    const batchSize = 200;
+    for (let i = 0; i < importedMessages.length; i += batchSize) {
+      const batch = importedMessages.slice(i, i + batchSize);
+      for (const m of batch) {
+        const newConvId = convIdMap.get(m.conversation_id);
+        if (!newConvId) { skippedMsgs++; continue; }
+
+        if (m.message_id) {
+          const dup = await query(
+            `SELECT 1 FROM chat_messages WHERE conversation_id = $1 AND message_id = $2 LIMIT 1`,
+            [newConvId, m.message_id]
+          );
+          if (dup.rows.length > 0) { skippedMsgs++; continue; }
+        }
+
+        try {
+          await query(
+            `INSERT INTO chat_messages (
+               conversation_id, message_id, from_me, content, message_type,
+               media_url, media_mimetype, quoted_message_id, status,
+               timestamp, created_at
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+            [
+              newConvId,
+              m.message_id || null,
+              m.from_me || false,
+              m.content || null,
+              m.message_type || 'text',
+              m.media_url || null,
+              m.media_mimetype || null,
+              m.quoted_message_id || null,
+              m.status || 'received',
+              m.timestamp || m.created_at || new Date().toISOString(),
+              m.created_at || m.timestamp || new Date().toISOString(),
+            ]
+          );
+          insertedMsgs++;
+        } catch (err) {
+          skippedMsgs++;
+        }
+      }
+    }
+
+    console.log(`[Connections] Import history into ${id}: ${createdConvs} created, ${mergedConvs} merged, ${insertedMsgs} messages inserted, ${skippedMsgs} skipped`);
+
+    res.json({
+      success: true,
+      conversations_created: createdConvs,
+      conversations_merged: mergedConvs,
+      messages_inserted: insertedMsgs,
+      messages_skipped: skippedMsgs,
+    });
+  } catch (error) {
+    console.error('Import history error:', error);
+    res.status(500).json({ error: 'Erro ao importar histórico' });
+  }
 });
 
-async function _configureWebhooksHandler(req, res) {
+// Reconfigure webhooks for W-API connection
+router.post('/:id/configure-webhooks', async (req, res) => {
   try {
     const { id } = req.params;
     const org = await getUserOrganization(req.userId);
