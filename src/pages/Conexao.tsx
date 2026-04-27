@@ -1613,6 +1613,30 @@ const handleGetQRCode = async (connection: Connection) => {
                       <History className="h-4 w-4 text-primary" />
                     </Button>
 
+                    {/* Import history from a previous Gleego export (.json) */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'application/json,.json';
+                        input.onchange = (e: any) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImportHistoryFile(connection, file);
+                        };
+                        input.click();
+                      }}
+                      disabled={importingConnectionId === connection.id}
+                      title="Importar histórico de chat de uma versão anterior (Gleego)"
+                    >
+                      {importingConnectionId === connection.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      ) : (
+                        <Upload className="h-4 w-4 text-primary" />
+                      )}
+                    </Button>
+
                     {/* Delete button - always visible */}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
