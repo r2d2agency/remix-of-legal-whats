@@ -1382,6 +1382,23 @@ const handleGetQRCode = async (connection: Connection) => {
                       </Button>
                     )}
                     
+                    {/* UAZAPI: Configure webhooks */}
+                    {isUazapiConnection(connection) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleConfigureUazapiWebhooks(connection)}
+                        disabled={configuringUazapiWebhooks === connection.id}
+                        title="Configurar webhook (UAZAPI)"
+                      >
+                        {configuringUazapiWebhooks === connection.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Settings2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
+                    
                     {/* W-API: Sync contacts */}
                     {isWapiConnection(connection) && connection.status === 'connected' && (
                       <Button
