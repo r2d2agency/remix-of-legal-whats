@@ -86,6 +86,18 @@ async function uazapiFetch(baseUrl, path, { method = 'GET', body, token, adminto
     const text = await res.text().catch(() => '');
     let data;
     try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+    // Interceptar erro 463 do WhatsApp (restrição temporária)
+    if (res.status === 463 || (data && (String(data.error).includes('463') || String(data.message).includes('463')))) {
+      return { 
+        ok: false, 
+        status: res.status, 
+        data: { 
+          ...data,
+          error: "O WhatsApp reportou que esta conta está com uma restrição temporária para iniciar novas conversas (Erro 463). Isso geralmente ocorre por alto volume de envios ou denúncias. Verifique sua conexão e tente novamente mais tarde." 
+        } 
+      };
+    }
+
     return { ok: res.ok, status: res.status, data };
   } catch (err) {
     return { ok: false, status: 0, data: { error: err.message }, error: err.message };
