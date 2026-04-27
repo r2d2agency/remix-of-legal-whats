@@ -23,7 +23,7 @@ interface UazapiInstance {
   local?: { connectionName?: string; orgName?: string; phoneNumber?: string };
 }
 
-const DEFAULT_WEBHOOK_URL = `${window.location.origin.replace('id-preview--', '').replace('.lovable.app', '')}/api/uazapi/webhook`;
+const DEFAULT_WEBHOOK_URL = `${window.location.origin.replace('id-preview--', '').replace('.lovable.app', '')}/api/uazapi/webhook`.replace('https://id-', 'https://');
 
 export function UazapiInstancesTab() {
   const [config, setConfig] = useState({ url: '', admintoken: '', hasToken: false });
