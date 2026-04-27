@@ -503,30 +503,47 @@ const handleGetQRCode = async (connection: Connection) => {
       // but we split messages into batches on the frontend so we can show progress
       // and avoid huge payloads timing out.
       const root = (payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object') ? payload.data : payload;
-      const conversations: any[] = Array.isArray(root?.conversations)
-        ? root.conversations
-        : Array.isArray(root?.chats)
-          ? root.chats
-          : Array.isArray(root)
-            ? root
-            : [];
+      let conversations: any[] = [];
+      if (Array.isArray(root?.conversations)) conversations = root.conversations;
+      else if (Array.isArray(root?.chats)) conversations = root.chats;
+      else if (Array.isArray(root)) conversations = root;
 
-      // Collect messages: from a top-level array or embedded inside each conversation
-      let allMessages: any[] = Array.isArray(root?.messages) ? [...root.messages] : [];
-      if (allMessages.length === 0) {
-        for (const c of conversations) {
-          const embedded = c?.messages || c?.chat_messages || c?.history;
-          if (Array.isArray(embedded)) {
-            for (const m of embedded) {
-              allMessages.push({
-                ...m,
-                conversation_id: m.conversation_id || c.id || c.conversation_id || c.remote_jid,
-                remote_jid: m.remote_jid || c.remote_jid || c.jid || c.chatId,
-              });
-            }
+      // More aggressive message collection
+      let allMessages: any[] = [];
+      if (Array.isArray(root?.messages)) allMessages = [...root.messages];
+      
+      // Always check for embedded messages even if top-level messages exist, 
+      // to ensure we get everything if the format is mixed
+      for (const c of conversations) {
+        const embedded = c?.messages || c?.chat_messages || c?.history || c?.msgs;
+        if (Array.isArray(embedded)) {
+          for (const m of embedded) {
+            allMessages.push({
+              ...m,
+              conversation_id: m.conversation_id || c.id || c.conversation_id || c.remote_jid || c.jid || c.chatId,
+              remote_jid: m.remote_jid || c.remote_jid || c.jid || c.chatId || c.chat_id,
+            });
           }
         }
       }
+
+      // If we still have no messages, maybe the root itself is just a message array?
+      if (allMessages.length === 0 && Array.isArray(root)) {
+        const looksLikeMessages = root.some(item => item.content || item.text || item.body || item.message_id);
+        if (looksLikeMessages) {
+          allMessages = root;
+        }
+      }
+
+      // Dedup messages by id if possible before sending
+      const seenIds = new Set();
+      allMessages = allMessages.filter(m => {
+        const mid = m.message_id || m.id || m.key?.id;
+        if (!mid) return true;
+        if (seenIds.has(mid)) return false;
+        seenIds.add(mid);
+        return true;
+      });
 
       const totalMsgs = allMessages.length;
       const totalConvs = conversations.length;
