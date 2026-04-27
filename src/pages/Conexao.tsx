@@ -466,28 +466,29 @@ const handleGetQRCode = async (connection: Connection) => {
     }
   };
 
-  const handleConfigureUazapiWebhooks = async (connection: Connection) => {
-    setConfiguringUazapiWebhooks(connection.id);
-    try {
-      // First, update the webhook URL in our database
-      await api(`/api/connections/${connection.id}`, {
-        method: 'PATCH',
-        body: { webhookUrl: DEFAULT_UAZAPI_WEBHOOK_URL },
-      });
-
-      // Then, trigger the external configuration on UAZAPI side
-      await api(`/api/uazapi/${connection.id}/configure-webhook`, {
-        method: 'POST',
-      });
-
-      toast.success('Webhook UAZAPI configurado e ativado com sucesso!');
-    } catch (error: any) {
-      console.error('Error configuring UAZAPI webhook:', error);
-      toast.error(error.message || 'Erro ao configurar webhook UAZAPI no servidor');
-    } finally {
-      setConfiguringUazapiWebhooks(null);
-    }
-  };
+   const handleConfigureUazapiWebhooks = async (connection: Connection) => {
+     setConfiguringUazapiWebhooks(connection.id);
+     try {
+       // First, update the webhook URL in our database
+       await api(`/api/connections/${connection.id}`, {
+         method: 'PATCH',
+         body: { webhookUrl: DEFAULT_UAZAPI_WEBHOOK_URL },
+       });
+ 
+       // Then, trigger the external configuration on UAZAPI side
+       // Using /api/connections/${id}/configure-uazapi-webhook as the correct endpoint
+       await api(`/api/connections/${connection.id}/configure-uazapi-webhook`, {
+         method: 'POST',
+       });
+ 
+       toast.success('Webhook UAZAPI configurado e ativado com sucesso!');
+     } catch (error: any) {
+       console.error('Error configuring UAZAPI webhook:', error);
+       toast.error(error.message || 'Erro ao configurar webhook UAZAPI no servidor');
+     } finally {
+       setConfiguringUazapiWebhooks(null);
+     }
+   };
 
   const handleWebhookDiagnostic = async (connection: Connection) => {
     setDiagLoading(connection.id);
