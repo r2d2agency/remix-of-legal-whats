@@ -669,32 +669,30 @@ export function ConversationList({
             </SelectContent>
           </Select>
 
-          {/* Connection filter */}
-          {connections && connections.length > 1 && (
-            <Select
-              value={filters.connection}
-              onValueChange={(v) => onFiltersChange({ ...filters, connection: v })}
-            >
-              <SelectTrigger className="flex-1 h-8 text-xs min-w-[80px] max-w-[100px]">
-                <Smartphone className="h-3 w-3 mr-1" />
-                <SelectValue placeholder="Conexão" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas conexões</SelectItem>
-                {connections.map(conn => (
-                  <SelectItem key={conn.id} value={conn.id}>
-                    <div className="flex items-center gap-2">
-                      <div className={cn(
-                        "w-2 h-2 rounded-full",
-                        conn.status === 'connected' ? "bg-green-500" : "bg-red-400"
-                      )} />
-                      {conn.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+           {/* Connection filter */}
+           <Select
+             value={filters.connection}
+             onValueChange={(v) => onFiltersChange({ ...filters, connection: v })}
+           >
+             <SelectTrigger className="flex-1 h-8 text-xs min-w-[80px] max-w-[100px]">
+               <Smartphone className="h-3 w-3 mr-1" />
+               <SelectValue placeholder="Conexão" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="all">Todas conexões</SelectItem>
+               {connections && connections.map(conn => (
+                 <SelectItem key={conn.id} value={conn.id}>
+                   <div className="flex items-center gap-2">
+                     <div className={cn(
+                       "w-2 h-2 rounded-full",
+                       String(conn.status || '').toLowerCase() === 'connected' ? "bg-green-500" : "bg-red-400"
+                     )} />
+                     {conn.name}
+                   </div>
+                 </SelectItem>
+               ))}
+             </SelectContent>
+           </Select>
 
           {/* Department filter - show if there are any departments */}
           {allDepartments.length > 0 && (
