@@ -226,14 +226,16 @@ const Chat = () => {
     return () => clearInterval(interval);
   }, [selectedConversation?.id, getMessages, isMobile]);
 
-  const loadConnections = async () => {
-    try {
-      const data = await getConnections();
-      setConnections(data);
-    } catch (error) {
-      console.error('Error loading connections:', error);
-    }
-  };
+   const loadConnections = useCallback(async () => {
+     try {
+       console.log('[Chat] Loading connections...');
+       const data = await getConnections();
+       console.log('[Chat] Connections loaded:', data);
+       setConnections(data);
+     } catch (error) {
+       console.error('[Chat] Error loading connections:', error);
+     }
+   }, [getConnections]);
 
   const loadConversations = useCallback(async (isLoadMore = false) => {
     // Prevent overlapping loads unless it's a load more
