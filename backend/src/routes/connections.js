@@ -775,7 +775,7 @@ router.post('/:id/import-history', authenticate, async (req, res) => {
       }
       if (!newConvId) { skippedMsgs++; continue; }
 
-      const messageId = m.message_id || m.id || m.key?.id || null;
+      const messageId = String(m.message_id || m.id || m.key?.id || "").trim() || null;
       if (messageId) {
           const dup = await query(
             `SELECT 1 FROM chat_messages WHERE conversation_id = $1 AND message_id = $2 LIMIT 1`,
@@ -784,32 +784,39 @@ router.post('/:id/import-history', authenticate, async (req, res) => {
           if (dup.rows.length > 0) { skippedMsgs++; continue; }
       }
 
-      const fromMe = m.from_me ?? m.fromMe ?? m.key?.fromMe ?? false;
+      const fromMe = m.from_me ?? m.fromMe ?? m.key?.fromMe ?? m.from_me === true;
       const content = m.content ?? m.text ?? m.body ?? m.message ?? null;
       const messageType = m.message_type || m.type || 'text';
-      const ts = m.timestamp || m.created_at || m.messageTimestamp || new Date().toISOString();
+      // Handle timestamp in seconds (WhatsApp format) or milliseconds/ISO
+      let ts = m.timestamp || m.created_at || m.messageTimestamp || m.time || m.date || new Date().toISOString();
+      if (typeof ts === 'number' && ts < 10000000000) {
+        ts = new Date(ts * 1000).toISOString();
+      }
 
       try {
-          await query(
-            `INSERT INTO chat_messages (
-               conversation_id, message_id, from_me, content, message_type,
-               media_url, media_mimetype, quoted_message_id, status,
-               timestamp, created_at
-             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-            [
-              newConvId,
-              messageId,
-              !!fromMe,
-              typeof content === 'string' ? content : (content ? JSON.stringify(content) : null),
-              messageType,
-              m.media_url || m.mediaUrl || null,
-              m.media_mimetype || m.mimetype || null,
-              m.quoted_message_id || null,
-              m.status || 'received',
-              ts,
-              m.created_at || ts,
-            ]
-          );
+          const sql = `
+            INSERT INTO chat_messages (
+              conversation_id, message_id, from_me, content, message_type,
+              media_url, media_mimetype, quoted_message_id, status,
+              timestamp, created_at, sender_name, sender_phone
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          `;
+          const values = [
+            newConvId,
+            messageId,
+            !!fromMe,
+            typeof content === 'string' ? content : (content ? JSON.stringify(content) : null),
+            messageType,
+            m.media_url || m.mediaUrl || m.url || null,
+            m.media_mimetype || m.mimetype || m.mimeType || null,
+            m.quoted_message_id || m.quotedMsgId || null,
+            m.status || (fromMe ? 'sent' : 'received'),
+            ts,
+            m.created_at || ts,
+            m.sender_name || m.pushName || m.senderName || null,
+            m.sender_phone || m.senderPhone || m.sender || null,
+          ];
+          await query(sql, values);
           insertedMsgs++;
       } catch (err) {
           skippedMsgs++;
