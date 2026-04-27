@@ -469,6 +469,44 @@ const handleGetQRCode = async (connection: Connection) => {
     }
   };
 
+  const handleImportHistoryFile = async (connection: Connection, file: File) => {
+    setImportingConnectionId(connection.id);
+    try {
+      const text = await file.text();
+      let payload: any;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        toast.error("Arquivo inválido: não é um JSON válido.");
+        return;
+      }
+      if (payload?.type !== "connection_export" || !Array.isArray(payload?.conversations)) {
+        toast.error("Arquivo inválido: formato não reconhecido.");
+        return;
+      }
+
+      toast.info(`Importando ${payload.conversations.length} conversas e ${payload.messages?.length || 0} mensagens...`);
+      const result = await api<{
+        conversations_created: number;
+        conversations_merged: number;
+        messages_inserted: number;
+        messages_skipped: number;
+      }>(`/api/connections/${connection.id}/import-history`, {
+        method: "POST",
+        body: payload,
+        auth: true,
+      });
+
+      toast.success(
+        `Importação concluída: ${result.conversations_created} novas, ${result.conversations_merged} mescladas, ${result.messages_inserted} mensagens.`
+      );
+    } catch (error: any) {
+      toast.error(error?.message || "Erro ao importar histórico");
+    } finally {
+      setImportingConnectionId(null);
+    }
+  };
+
    const handleConfigureUazapiWebhooks = async (connection: Connection) => {
      setConfiguringUazapiWebhooks(connection.id);
      try {
