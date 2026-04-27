@@ -5,6 +5,8 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import * as uazapiProvider from '../lib/uazapi-provider.js';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const router = Router();
 
