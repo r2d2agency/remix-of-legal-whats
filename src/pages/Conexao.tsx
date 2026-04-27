@@ -1923,17 +1923,64 @@ const handleGetQRCode = async (connection: Connection) => {
                 </p>
               </div>
               
-              {/* W-API specific fields */}
-              {editingConnection && (editingConnection.provider === 'wapi' || !!editingConnection.instance_id) && (
+               {/* W-API and UAZAPI specific fields */}
+               {editingConnection && (editingConnection.provider === 'wapi' || isUazapiConnection(editingConnection) || !!editingConnection.instance_id) && (
                 <>
-                  <div className="space-y-2">
-                    <Label>Instance ID</Label>
-                    <Input 
-                      placeholder="Seu Instance ID da W-API"
-                      value={editInstanceId}
-                      onChange={(e) => setEditInstanceId(e.target.value)}
-                    />
-                  </div>
+                   {!isUazapiConnection(editingConnection) && (
+                     <div className="space-y-2">
+                       <Label>Instance ID</Label>
+                       <Input 
+                         placeholder="Seu Instance ID"
+                         value={editInstanceId}
+                         onChange={(e) => setEditInstanceId(e.target.value)}
+                       />
+                     </div>
+                   )}
+                   
+                   {isUazapiConnection(editingConnection) && (
+                     <div className="space-y-4 rounded-lg border border-primary/20 p-4 bg-primary/5">
+                       <div className="flex items-center gap-2 mb-1">
+                         <Settings2 className="h-4 w-4 text-primary" />
+                         <h4 className="font-semibold text-sm">Configuração de Webhook UAZAPI</h4>
+                       </div>
+                       <div className="space-y-2">
+                         <Label className="text-xs">URL do Webhook</Label>
+                         <div className="flex items-center gap-2">
+                           <code className="text-[10px] bg-background px-2 py-1 rounded border flex-1 break-all">
+                             {DEFAULT_UAZAPI_WEBHOOK_URL}
+                           </code>
+                           <Button
+                             variant="outline"
+                             size="icon"
+                             className="h-8 w-8"
+                             onClick={() => {
+                               navigator.clipboard.writeText(DEFAULT_UAZAPI_WEBHOOK_URL);
+                               toast.success('URL copiada!');
+                             }}
+                           >
+                             <Copy className="h-3 w-3" />
+                           </Button>
+                         </div>
+                       </div>
+                       <Button 
+                         className="w-full mt-2" 
+                         variant="default"
+                         size="sm"
+                         onClick={() => handleConfigureUazapiWebhooks(editingConnection)}
+                         disabled={configuringUazapiWebhooks === editingConnection.id}
+                       >
+                         {configuringUazapiWebhooks === editingConnection.id ? (
+                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                         ) : (
+                           <RefreshCw className="h-4 w-4 mr-2" />
+                         )}
+                         Ativar Webhook Automaticamente
+                       </Button>
+                       <p className="text-[10px] text-muted-foreground mt-2 italic">
+                         Dica: A ativação automática envia a URL acima diretamente para o servidor UAZAPI.
+                       </p>
+                     </div>
+                   )}
                   <div className="space-y-2">
                     <Label>Token (deixe em branco para manter o atual)</Label>
                     <Input 
