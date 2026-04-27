@@ -142,6 +142,19 @@ const Conexao = () => {
 
   // Import history (Gleego legacy export) state
   const [importingConnectionId, setImportingConnectionId] = useState<string | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importStatus, setImportStatus] = useState<string>("");
+  const [importProgress, setImportProgress] = useState<number>(0);
+  const [importStats, setImportStats] = useState<{
+    convs_created: number;
+    convs_merged: number;
+    msgs_inserted: number;
+    msgs_skipped: number;
+    msgs_total: number;
+    convs_total: number;
+  }>({ convs_created: 0, convs_merged: 0, msgs_inserted: 0, msgs_skipped: 0, msgs_total: 0, convs_total: 0 });
+  const [importDone, setImportDone] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const refreshConnectionStatus = useCallback(
     async (
