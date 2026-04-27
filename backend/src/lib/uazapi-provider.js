@@ -322,6 +322,72 @@ function normalizePhone(phone) {
 /**
  * Envia mensagem de texto
  */
+/**
+ * Baixa mídia decifrada de uma mensagem recebida.
+ * UAZAPI expõe POST /message/download com { id } retornando { fileURL } ou bytes.
+ * Tenta múltiplos endpoints (varia entre versões da UAZAPI).
+ */
+export async function downloadMedia(baseUrl, token, messageId) {
+  const base = normalizeBaseUrl(baseUrl);
+  const headers = buildHeaders({ token });
+
+  // 1) POST /message/download { id }
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    const r = await fetch(`${base}/message/download`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: messageId }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    if (r.ok) {
+      const ct = r.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const data = await r.json();
+        const url = data?.fileURL || data?.url || data?.URL || data?.mediaUrl || null;
+        const mimetype = data?.mimetype || data?.mimeType || null;
+        if (url) return { success: true, url, mimetype };
+        if (data?.base64) {
+          return { success: true, base64: data.base64, mimetype };
+        }
+      } else {
+        const buf = Buffer.from(await r.arrayBuffer());
+        return { success: true, buffer: buf, mimetype: ct };
+      }
+    }
+  } catch (e) {
+    // continua para próxima tentativa
+  }
+
+  // 2) GET /message/download/{id}
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    const r = await fetch(`${base}/message/download/${encodeURIComponent(messageId)}`, {
+      method: 'GET', headers, signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    if (r.ok) {
+      const ct = r.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const data = await r.json();
+        const url = data?.fileURL || data?.url || data?.URL || data?.mediaUrl || null;
+        const mimetype = data?.mimetype || data?.mimeType || null;
+        if (url) return { success: true, url, mimetype };
+      } else {
+        const buf = Buffer.from(await r.arrayBuffer());
+        return { success: true, buffer: buf, mimetype: ct };
+      }
+    }
+  } catch (e) {
+    // continua
+  }
+
+  return { success: false, error: 'Falha ao baixar mídia da UAZAPI' };
+}
+
 export async function sendText(baseUrl, token, phone, message) {
   const r = await uazapiFetch(baseUrl, '/send/text', {
     method: 'POST',
