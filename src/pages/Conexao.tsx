@@ -55,6 +55,8 @@ const isWapiConnection = (connection: Pick<Connection, 'provider' | 'instance_id
   connection.provider === 'wapi' ||
   (!!connection.instance_id && connection.provider !== 'uazapi' && connection.provider !== 'meta');
 
+ const DEFAULT_UAZAPI_WEBHOOK_URL = `${window.location.origin.replace('id-preview--', '').replace('.lovable.app', '')}/api/uazapi/webhook`;
+ 
 const Conexao = () => {
   const { user, isLoading: authLoading } = useAuth();
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -128,6 +130,9 @@ const Conexao = () => {
   const [leadDistributionConnection, setLeadDistributionConnection] = useState<Connection | null>(null);
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
   const [agentDialogConnection, setAgentDialogConnection] = useState<Connection | null>(null);
+
+  // UAZAPI webhook state
+  const [configuringUazapiWebhooks, setConfiguringUazapiWebhooks] = useState<string | null>(null);
 
   // Migration dialog state
   const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
@@ -259,18 +264,19 @@ const Conexao = () => {
           },
         });
         toast.success('Conexão Meta API criada com sucesso!');
-      } else if (newConnectionProvider === 'uazapi') {
-        result = await api<Connection>('/api/connections', {
-          method: 'POST',
-          body: {
-            provider: 'uazapi',
-            name: newConnectionName,
-          },
-        });
-        toast.success('Conexão UAZAPI criada! Instância gerada automaticamente.');
-        setSelectedConnection(result);
-        handleGetQRCode(result);
-      } else {
+       } else if (newConnectionProvider === 'uazapi') {
+         result = await api<Connection>('/api/connections', {
+           method: 'POST',
+           body: {
+             provider: 'uazapi',
+             name: newConnectionName,
+             webhookUrl: DEFAULT_UAZAPI_WEBHOOK_URL,
+           },
+         });
+         toast.success('Conexão UAZAPI criada com Webhook automático!');
+         setSelectedConnection(result);
+         handleGetQRCode(result);
+       } else {
         result = await api<Connection>('/api/connections', {
           method: 'POST',
           body: {
@@ -459,6 +465,21 @@ const handleGetQRCode = async (connection: Connection) => {
       setMigrating(false);
     }
   };
+
+   const handleConfigureUazapiWebhooks = async (connection: Connection) => {
+     setConfiguringUazapiWebhooks(connection.id);
+     try {
+       await api(`/api/uazapi/${connection.id}/configure-webhook`, {
+         method: 'POST',
+         body: { webhookUrl: DEFAULT_UAZAPI_WEBHOOK_URL },
+       });
+       toast.success('Webhook UAZAPI configurado com sucesso!');
+     } catch (error: any) {
+       toast.error(error.message || 'Erro ao configurar webhook UAZAPI');
+     } finally {
+       setConfiguringUazapiWebhooks(null);
+     }
+   };
 
   const handleWebhookDiagnostic = async (connection: Connection) => {
     setDiagLoading(connection.id);
@@ -1354,6 +1375,23 @@ const handleGetQRCode = async (connection: Connection) => {
                         title="Configurar webhooks (W-API)"
                       >
                         {configuringWapiWebhooks === connection.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Settings2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
+                    
+                    {/* UAZAPI: Configure webhooks */}
+                    {isUazapiConnection(connection) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleConfigureUazapiWebhooks(connection)}
+                        disabled={configuringUazapiWebhooks === connection.id}
+                        title="Configurar webhook (UAZAPI)"
+                      >
+                        {configuringUazapiWebhooks === connection.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Settings2 className="h-4 w-4" />
