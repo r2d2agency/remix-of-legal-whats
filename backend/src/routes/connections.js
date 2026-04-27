@@ -572,17 +572,26 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
       // Migrate all conversations from a specific source connection to the target
       // Also migrate conversations with NULL connection_id (orphaned from deleted connections)
       // Skip conversations that would violate UNIQUE(connection_id, remote_jid)
+      // Identificar duplicatas antes da migração
+      const duplicates = await query(`
+        SELECT c2.id as duplicate_id, c1.id as original_id
+        FROM conversations c1
+        JOIN conversations c2 ON c1.remote_jid = c2.remote_jid
+        WHERE c1.connection_id = $1
+          AND (c2.connection_id = $2 OR c2.connection_id IS NULL)
+      `, [id, from]);
+
+      // Se houver duplicatas, movemos as mensagens da antiga para a nova e deletamos a antiga
+      for (const dup of duplicates.rows) {
+        await query(`UPDATE chat_messages SET conversation_id = $1 WHERE conversation_id = $2`, [dup.original_id, dup.duplicate_id]);
+        await query(`DELETE FROM conversations WHERE id = $1`, [dup.duplicate_id]);
+      }
+
+      // Agora migramos as que sobraram (que não tinham duplicatas)
       migrateResult = await query(`
         UPDATE conversations 
         SET connection_id = $1, updated_at = NOW()
         WHERE (connection_id = $2 OR connection_id IS NULL)
-          AND NOT EXISTS (
-            SELECT 1
-            FROM conversations target
-            WHERE target.connection_id = $1
-              AND target.remote_jid = conversations.remote_jid
-              AND target.id <> conversations.id
-          )
         RETURNING id, contact_name, contact_phone
       `, [id, from]);
 
