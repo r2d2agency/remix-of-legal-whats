@@ -490,6 +490,28 @@ const handleGetQRCode = async (connection: Connection) => {
     };
   };
 
+  const handleResyncUazapiNames = async (connection: Connection) => {
+    if (resyncingNames) return;
+    setResyncingNames(connection.id);
+    try {
+      const res = await api(`/api/uazapi/${connection.id}/resync-contact-names`, {
+        method: 'POST',
+        body: JSON.stringify({ overwrite: true }),
+      });
+      if (res?.success) {
+        toast.success(`${res.updated} conversa(s) atualizadas com nome real`, {
+          description: `${res.contactsLoaded} contatos da agenda lidos · ${res.skipped} sem alteração`,
+        });
+      } else {
+        toast.error(res?.error || 'Falha ao sincronizar nomes');
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao sincronizar nomes');
+    } finally {
+      setResyncingNames(null);
+    }
+  };
+
   const handleLogout = async (connection: Connection) => {
     try {
       await api(`/api/evolution/${connection.id}/logout`, { method: 'POST' });
