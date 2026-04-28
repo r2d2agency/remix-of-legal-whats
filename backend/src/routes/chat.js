@@ -1906,6 +1906,18 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
           }
         }
 
+        // Parse interactive menu content for clean display in local DB
+        let cleanContent = content;
+        if (message_type === 'interactive_menu') {
+          try {
+            const data = typeof content === 'string' ? JSON.parse(content) : content;
+            if (data && data.text) {
+              cleanContent = data.text;
+              if (data.footer) cleanContent += `\n_${data.footer}_`;
+            }
+          } catch (e) {}
+        }
+
         // Use unified provider to send message
         const result = await whatsappProvider.sendMessage(
           conversation,
@@ -1917,10 +1929,10 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
         );
 
         if (result.success) {
-          // Update message with provider message_id and status='sent'
+          // Update message with provider message_id, status='sent' and clean content
           await query(
-            `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
-            [result.messageId || null, savedMessage.id]
+            `UPDATE chat_messages SET message_id = $1, status = 'sent', content = $3 WHERE id = $2`,
+            [result.messageId || null, savedMessage.id, cleanContent]
           );
         } else {
           throw new Error(result.error || 'Falha ao enviar mensagem');
