@@ -930,11 +930,23 @@ router.post('/:connectionId/resync-contact-names', async (req, res) => {
   try {
     const conn = await loadUazapiConnection(req.params.connectionId);
     if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
-    const dryRun = !!req.body?.dryRun;
-    const overwrite = req.body?.overwrite !== false; // default true
+    const parsedBody = typeof req.body === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(req.body);
+          } catch {
+            return {};
+          }
+        })()
+      : (req.body || {});
+    const dryRun = !!parsedBody?.dryRun;
+    const overwrite = parsedBody?.overwrite !== false; // default true
 
     const out = await uazapiProvider.listContacts(conn.uazapi_url, conn.uazapi_token, {});
-    if (!out.success) return res.status(502).json({ error: out.error || 'Falha ao listar contatos' });
+    if (!out.success) {
+      const status = /HTTP 400/.test(String(out.error || '')) ? 400 : 502;
+      return res.status(status).json({ error: out.error || 'Falha ao listar contatos' });
+    }
 
     // Mapa: últimos 9 dígitos -> melhor nome encontrado
     const map = new Map();
