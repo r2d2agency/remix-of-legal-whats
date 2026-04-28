@@ -191,7 +191,22 @@ function extractMessageData(payload) {
     return null;
   }
 
+  function tryExtractMediaFromContent() {
+    const c = msg?.content;
+    if (!c || typeof c !== 'object') return null;
+    if (c.URL || c.url || c.directPath || c.mediaKey) {
+      const mt = String(c.mimetype || c.mimeType || '').toLowerCase();
+      let type = 'document';
+      if (mt.startsWith('image/')) type = 'image';
+      else if (mt.startsWith('video/')) type = 'video';
+      else if (mt.startsWith('audio/')) type = 'audio';
+      return { obj: c, type };
+    }
+    return null;
+  }
+
   let mediaObj = pickMediaObject() || tryExtractMediaFromText();
+  if (!mediaObj) mediaObj = tryExtractMediaFromContent();
 
   const typeRaw = String(
     msg?.type ||
@@ -244,6 +259,10 @@ function extractMessageData(payload) {
   // URL da mídia: prefere URL pública direta; .enc precisa ser baixada via UAZAPI.
   // Algumas versões entregam a URL em campos diferentes.
   const rawMediaUrl = [
+    msg?.content?.URL,
+    msg?.content?.url,
+    msg?.content?.mediaUrl,
+    msg?.content?.file,
     msg?.mediaUrl,
     msg?.url,
     msg?.file,
