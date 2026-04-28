@@ -494,7 +494,7 @@ const handleGetQRCode = async (connection: Connection) => {
     if (resyncingNames) return;
     setResyncingNames(connection.id);
     try {
-      const res = await api(`/api/uazapi/${connection.id}/resync-contact-names`, {
+      const res: any = await api(`/api/uazapi/${connection.id}/resync-contact-names`, {
         method: 'POST',
         body: JSON.stringify({ overwrite: true }),
       });
