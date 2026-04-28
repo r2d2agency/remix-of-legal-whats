@@ -437,13 +437,25 @@ function extractMessageData(payload) {
     payload?.filename
   ].find(v => !!v) || null;
 
-  const content = text || 
-    (messageType === 'image' ? '[Imagem]' :
-     messageType === 'video' ? '[Vídeo]' :
-     messageType === 'audio' ? '[Áudio]' :
-     messageType === 'sticker' ? '[Sticker]' :
-     messageType === 'document' ? (originalFilename ? `[Documento: ${originalFilename}]` : '[Documento]') :
-     '[Mensagem interativa]');
+  let content = text;
+  if (!content) {
+    if (messageType === 'image') content = '[Imagem]';
+    else if (messageType === 'video') content = '[Vídeo]';
+    else if (messageType === 'audio') content = '[Áudio]';
+    else if (messageType === 'sticker') content = '[Sticker]';
+    else if (messageType === 'document') content = originalFilename ? `[Documento: ${originalFilename}]` : '[Documento]';
+    else if (typeRaw === 'interactive' || typeRaw === 'button' || typeRaw === 'list') {
+      const choices = msg?.choices || payload?.choices || [];
+      if (Array.isArray(choices) && choices.length > 0) {
+        const btnList = choices.map(c => `[${typeof c === 'string' ? c : (c.label || c.text || c.id)}]`).join(' ');
+        content = `Opções: ${btnList}`;
+      } else {
+        content = '[Mensagem interativa]';
+      }
+    } else {
+      content = '[Mensagem interativa]';
+    }
+  }
 
   // mediaUrl final: marcamos com placeholder especial para o persist resolver.
   // (precisa do connection.uazapi_url para montar o proxy de download). 
