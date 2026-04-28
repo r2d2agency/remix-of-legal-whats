@@ -308,7 +308,7 @@ function extractMessageData(payload) {
     messageType === 'video' ? '[Vídeo]' :
     messageType === 'audio' ? '[Áudio]' :
     messageType === 'sticker' ? '[Sticker]' :
-    messageType === 'document' ? '[Documento]' :
+    messageType === 'document' ? (originalFilename ? `[Documento: ${originalFilename}]` : '[Documento]') :
     ''
   );
 
@@ -383,17 +383,12 @@ async function persistIncomingMessage(connection, payload) {
             'audio/wav': '.wav', 'audio/webm': '.webm',
             'application/pdf': '.pdf',
           };
-          const ext = extMap[mt] || '.bin';
-          let fname;
-          if (message.originalFilename) {
-            // Sanitizar nome original para evitar problemas de filesystem
-            const safeName = message.originalFilename.replace(/[^a-zA-Z0-9.-]/g, '_');
-            fname = `${Date.now()}_${safeName}`;
-            // Garante que tem extensão correta
-            if (!path.extname(fname)) fname += ext;
-          } else {
-            fname = `uazapi_${Date.now()}_${crypto.randomUUID()}${ext}`;
-          }
+          const ext = extMap[mt] || path.extname(message.originalFilename || '') || '.bin';
+          const baseName = message.originalFilename 
+            ? path.parse(message.originalFilename).name.replace(/[^a-zA-Z0-9.-]/g, '_')
+            : `uazapi_${crypto.randomUUID()}`;
+          
+          const fname = `${Date.now()}_${baseName}${ext}`;
           const uploadsDir = path.join(process.cwd(), 'uploads');
           if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
           fs.writeFileSync(path.join(uploadsDir, fname), buf);
