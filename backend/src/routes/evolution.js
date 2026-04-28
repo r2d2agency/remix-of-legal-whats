@@ -1831,6 +1831,40 @@ async function handleMessageUpsert(connection, data) {
     if (msgContent.conversation) {
       content = msgContent.conversation;
       messageType = 'text';
+    } else if (msgContent.buttonsResponseMessage) {
+      content = msgContent.buttonsResponseMessage.selectedDisplayText || msgContent.buttonsResponseMessage.selectedId || '';
+      messageType = 'text';
+    } else if (msgContent.templateButtonReplyMessage) {
+      content = msgContent.templateButtonReplyMessage.selectedDisplayText || msgContent.templateButtonReplyMessage.selectedId || '';
+      messageType = 'text';
+    } else if (msgContent.listResponseMessage) {
+      content = msgContent.listResponseMessage.title || msgContent.listResponseMessage.singleSelectReply?.selectedRowId || '';
+      messageType = 'text';
+    } else if (msgContent.interactiveResponseMessage) {
+      const interactiveResp = msgContent.interactiveResponseMessage;
+      const bodyText = interactiveResp.body?.text || '';
+      const nativeFlow = interactiveResp.nativeFlowResponseMessage;
+      if (nativeFlow) {
+        try {
+          const params = JSON.parse(nativeFlow.paramsJson || '{}');
+          content = params.title || params.id || bodyText || '[Resposta]';
+        } catch {
+          content = bodyText || '[Resposta]';
+        }
+      } else {
+        content = bodyText || '[Resposta]';
+      }
+      messageType = 'text';
+    } else if (msgContent.interactiveMessage || msgContent.interactive) {
+      const interactive = msgContent.interactiveMessage || msgContent.interactive;
+      if (interactive.button_reply) {
+        content = interactive.button_reply.title || interactive.button_reply.id;
+      } else if (interactive.list_reply) {
+        content = interactive.list_reply.title || interactive.list_reply.id;
+      } else {
+        content = interactive.body?.text || '[Mensagem interativa]';
+      }
+      messageType = 'text';
     } else if (msgContent.extendedTextMessage) {
       const ext = msgContent.extendedTextMessage;
       content = ext.text;

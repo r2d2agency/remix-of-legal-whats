@@ -2543,6 +2543,50 @@ function extractMessageContent(payload) {
     return { messageType, content, mediaUrl, mediaMimetype, waMediaKey };
   }
 
+  // Interactive message responses
+  if (msgContent.buttonsResponseMessage) {
+    const btnResp = msgContent.buttonsResponseMessage;
+    content = btnResp.selectedDisplayText || btnResp.selectedId || '';
+    return { messageType: 'text', content, mediaUrl, mediaMimetype, waMediaKey };
+  }
+  if (msgContent.templateButtonReplyMessage) {
+    const btnResp = msgContent.templateButtonReplyMessage;
+    content = btnResp.selectedDisplayText || btnResp.selectedId || '';
+    return { messageType: 'text', content, mediaUrl, mediaMimetype, waMediaKey };
+  }
+  if (msgContent.listResponseMessage) {
+    const listResp = msgContent.listResponseMessage;
+    content = listResp.title || listResp.singleSelectReply?.selectedRowId || '';
+    return { messageType: 'text', content, mediaUrl, mediaMimetype, waMediaKey };
+  }
+  if (msgContent.interactiveResponseMessage) {
+    const interactiveResp = msgContent.interactiveResponseMessage;
+    const bodyText = interactiveResp.body?.text || '';
+    const nativeFlow = interactiveResp.nativeFlowResponseMessage;
+    if (nativeFlow) {
+      try {
+        const params = JSON.parse(nativeFlow.paramsJson || '{}');
+        content = params.title || params.id || bodyText || '[Resposta]';
+      } catch {
+        content = bodyText || '[Resposta]';
+      }
+    } else {
+      content = bodyText || '[Resposta]';
+    }
+    return { messageType: 'text', content, mediaUrl, mediaMimetype, waMediaKey };
+  }
+  if (msgContent.interactiveMessage || msgContent.interactive) {
+    const interactive = msgContent.interactiveMessage || msgContent.interactive;
+    if (interactive.button_reply) {
+      content = interactive.button_reply.title || interactive.button_reply.id;
+    } else if (interactive.list_reply) {
+      content = interactive.list_reply.title || interactive.list_reply.id;
+    } else {
+      content = interactive.body?.text || '[Mensagem interativa]';
+    }
+    return { messageType: 'text', content, mediaUrl, mediaMimetype, waMediaKey };
+  }
+
   // Extended text message (with link preview data)
   if (msgContent.extendedTextMessage) {
     const ext = msgContent.extendedTextMessage;
