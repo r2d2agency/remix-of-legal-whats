@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { setRequestContext } from '../request-context.js';
 
 export const authenticate = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  const authHeader = req.headers.authorization || (req.query.token ? `Bearer ${req.query.token}` : null);
 
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Token não fornecido' });
