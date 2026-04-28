@@ -2577,10 +2577,9 @@ function extractMessageContent(payload) {
   }
   if (msgContent.interactiveMessage || msgContent.interactive) {
     const interactive = msgContent.interactiveMessage || msgContent.interactive;
-    if (interactive.button_reply) {
-      content = interactive.button_reply.title || interactive.button_reply.id;
-    } else if (interactive.list_reply) {
-      content = interactive.list_reply.title || interactive.list_reply.id;
+    const reply = interactive.button_reply || interactive.list_reply || interactive.native_flow_response;
+    if (reply) {
+      content = reply.title || reply.name || reply.id;
     } else if (interactive.header || interactive.body || interactive.footer) {
       const body = interactive.body?.text || '';
       const footer = interactive.footer?.text ? `\n_${interactive.footer.text}_` : '';
