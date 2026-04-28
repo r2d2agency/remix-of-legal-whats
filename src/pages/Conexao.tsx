@@ -131,8 +131,9 @@ const Conexao = () => {
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
   const [agentDialogConnection, setAgentDialogConnection] = useState<Connection | null>(null);
 
-  // UAZAPI webhook state
+  // UAZAPI state
   const [configuringUazapiWebhooks, setConfiguringUazapiWebhooks] = useState<string | null>(null);
+  const [syncingUazapiContacts, setSyncingUazapiContacts] = useState<string | null>(null);
 
   // Migration dialog state
   const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
@@ -426,6 +427,23 @@ const handleGetQRCode = async (connection: Connection) => {
       toast.error('Erro ao verificar status');
     } finally {
       setCheckingStatus(null);
+    }
+  };
+
+  const handleSyncUazapiContacts = async (connection: Connection) => {
+    setSyncingUazapiContacts(connection.id);
+    try {
+      const result = await api<{ success: boolean; count: number; message: string }>(`/api/connections/${connection.id}/sync-uazapi-contacts`, {
+        method: 'POST',
+      });
+      if (result.success) {
+        toast.success(result.message);
+      }
+    } catch (error: any) {
+      console.error('Error syncing UAZAPI contacts:', error);
+      toast.error(error.message || 'Erro ao sincronizar contatos');
+    } finally {
+      setSyncingUazapiContacts(null);
     }
   };
 
@@ -1554,24 +1572,40 @@ const handleGetQRCode = async (connection: Connection) => {
                       </Button>
                     )}
                     
-                    {/* UAZAPI: Configure webhooks */}
+                    {/* UAZAPI: Actions */}
                     {isUazapiConnection(connection) && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleConfigureUazapiWebhooks(connection)}
-                        disabled={configuringUazapiWebhooks === connection.id}
-                        title="Configurar webhook (UAZAPI)"
-                      >
-                        {configuringUazapiWebhooks === connection.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Settings2 className="h-4 w-4" />
+                      <div className="flex gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleConfigureUazapiWebhooks(connection)}
+                          disabled={configuringUazapiWebhooks === connection.id}
+                          title="Configurar webhook (UAZAPI)"
+                        >
+                          {configuringUazapiWebhooks === connection.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Settings2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                        {connection.status === 'connected' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSyncUazapiContacts(connection)}
+                            disabled={syncingUazapiContacts === connection.id}
+                            title="Sincronizar contatos do celular (UAZAPI)"
+                          >
+                            {syncingUazapiContacts === connection.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                          </Button>
                         )}
-                      </Button>
+                      </div>
                     )}
-                    
-                    {/* W-API: Sync contacts */}
+
                     {isWapiConnection(connection) && connection.status === 'connected' && (
                       <Button
                         variant="outline"
