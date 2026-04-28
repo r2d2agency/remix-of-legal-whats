@@ -220,6 +220,7 @@ export function ChatArea({
   const [savingCall, setSavingCall] = useState(false);
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [showInteractiveMenuDialog, setShowInteractiveMenuDialog] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [aiAgentActive, setAiAgentActive] = useState(false);
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
