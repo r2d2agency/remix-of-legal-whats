@@ -348,33 +348,76 @@ function extractMessageData(payload) {
     return 'text';
   })();
 
-  // ===== Tratamento Adicional de Respostas (Fallbacks) =====
+  // ===== Tratamento Adicional de Respostas (Fallbacks Exaustivos) =====
   if (!text) {
-    // Resposta de Botões Interativos (Stuctured)
-    const btnResponse = msg?.buttonsResponseMessage || payload?.buttonsResponseMessage || 
-                        msg?.templateButtonReplyMessage || payload?.templateButtonReplyMessage ||
-                        msg?.message?.buttonsResponseMessage;
+    // 1. Resposta de Botões (vários formatos)
+    const btnResponse = 
+      msg?.buttonsResponseMessage || 
+      payload?.buttonsResponseMessage || 
+      msg?.message?.buttonsResponseMessage ||
+      msg?.templateButtonReplyMessage || 
+      payload?.templateButtonReplyMessage ||
+      msg?.message?.templateButtonReplyMessage ||
+      msg?.buttonReplyMessage ||
+      msg?.message?.buttonReplyMessage;
     
     if (btnResponse) {
-      text = btnResponse.selectedDisplayText || btnResponse.selectedId;
+      text = btnResponse.selectedDisplayText || btnResponse.selectedId || btnResponse.displayText || '';
     }
     
-    // Resposta de Lista (Stuctured)
-    const listResp = msg?.listResponseMessage || payload?.listResponseMessage || msg?.message?.listResponseMessage;
+    // 2. Resposta de Lista (vários formatos)
+    const listResp = 
+      msg?.listResponseMessage || 
+      payload?.listResponseMessage || 
+      msg?.message?.listResponseMessage ||
+      msg?.listResponse ||
+      msg?.message?.listResponse;
+
     if (listResp) {
-      text = listResp.title || listResp.singleSelectReply?.selectedRowId;
+      text = listResp.title || listResp.singleSelectReply?.selectedRowId || listResp.selectedRowId || '';
     }
 
-    // Resposta de Botão dentro de 'interactive' (Stuctured)
-    if (interactive?.button_reply) {
-      text = interactive.button_reply.title || interactive.button_reply.id;
-    } else if (interactive?.list_reply) {
-      text = interactive.list_reply.title || interactive.list_reply.id;
+    // 3. Resposta 'interactive' (Baileys/Evolution moderno)
+    const interactiveResp = 
+      msg?.interactiveResponseMessage || 
+      payload?.interactiveResponseMessage || 
+      msg?.message?.interactiveResponseMessage;
+
+    if (interactiveResp) {
+      const bodyText = interactiveResp.body?.text || '';
+      const nativeFlow = interactiveResp.nativeFlowResponseMessage;
+      if (nativeFlow) {
+        try {
+          const params = JSON.parse(nativeFlow.paramsJson || '{}');
+          text = params.title || params.id || bodyText || '[Resposta]';
+        } catch {
+          text = bodyText || '[Resposta]';
+        }
+      } else {
+        text = bodyText || '[Resposta]';
+      }
     }
 
-    // Enquetes (Poll)
-    if (msg?.pollUpdateMessage || msg?.pollCreationMessage) {
+    // 4. Resposta dentro do objeto 'interactive'
+    if (!text && interactive) {
+      if (interactive.button_reply) {
+        text = interactive.button_reply.title || interactive.button_reply.id;
+      } else if (interactive.list_reply) {
+        text = interactive.list_reply.title || interactive.list_reply.id;
+      } else if (interactive.native_flow_response) {
+        text = interactive.native_flow_response.name || '[Resposta]';
+      }
+    }
+
+    // 5. Enquetes (Poll)
+    if (!text && (msg?.pollUpdateMessage || msg?.pollCreationMessage || msg?.message?.pollUpdateMessage || msg?.message?.pollCreationMessage)) {
       text = `[Voto em enquete]`;
+    }
+
+    // 6. Reações
+    if (!text && (typeRaw === 'reaction' || msg?.reactionMessage || msg?.message?.reactionMessage)) {
+      const react = msg?.reactionMessage || msg?.message?.reactionMessage;
+      text = react?.text ? `[Reação: ${react.text}]` : '[Reação]';
     }
   }
 
