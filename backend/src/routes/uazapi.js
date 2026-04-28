@@ -265,10 +265,9 @@ function extractMessageData(payload) {
   // Se for uma resposta de menu ou o próprio menu interativo, o conteúdo pode estar em msg.interactive ou campos similares
   const interactive = msg?.interactive || payload?.interactive || msg?.message?.interactive;
   if (interactive) {
-    if (interactive.type === 'button_reply') {
-      text = interactive.button_reply?.title || text;
-    } else if (interactive.type === 'list_reply') {
-      text = interactive.list_reply?.title || text;
+    const reply = interactive.button_reply || interactive.list_reply || interactive.native_flow_response;
+    if (reply) {
+      text = reply.title || reply.name || reply.id || text;
     } else if (interactive.header || interactive.body || interactive.footer) {
       // É a mensagem do menu que enviamos (quando recebida de volta via webhook message_sent)
       const body = interactive.body?.text || '';
