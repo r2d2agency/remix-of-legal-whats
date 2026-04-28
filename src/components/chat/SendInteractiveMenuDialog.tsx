@@ -20,7 +20,7 @@ import { toast } from "sonner";
 interface SendInteractiveMenuDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSend: (text: string, buttons: string[], footer?: string) => Promise<void>;
+  onSend: (text: string, buttons: string[], footer?: string, image?: string) => Promise<void>;
 }
 
 export function SendInteractiveMenuDialog({
