@@ -1249,6 +1249,11 @@ router.get('/:id/sync-uazapi-contacts/stream', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
+  // Keep-alive heartbeat para evitar timeouts de proxy (ex: Cloudflare/Nginx)
+  const heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+  }, 15000);
+
   const sendEvent = (data) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
@@ -1330,6 +1335,7 @@ router.get('/:id/sync-uazapi-contacts/stream', async (req, res) => {
     console.error('SSE Sync Exception:', error);
     sendEvent({ error: 'Erro interno na sincronização' });
   } finally {
+    clearInterval(heartbeat);
     res.end();
   }
 });
