@@ -942,15 +942,38 @@ router.post('/:connectionId/resync-contact-names', async (req, res) => {
     const dryRun = !!parsedBody?.dryRun;
     const overwrite = parsedBody?.overwrite !== false; // default true
 
-    const out = await uazapiProvider.listContacts(conn.uazapi_url, conn.uazapi_token, {});
-    if (!out.success) {
-      const status = /HTTP 400/.test(String(out.error || '')) ? 400 : 502;
-      return res.status(status).json({ error: out.error || 'Falha ao listar contatos' });
+    const allContacts = [];
+    const seenJids = new Set();
+    let offset = 0;
+    const pageSize = 1000;
+
+    while (true) {
+      const out = await uazapiProvider.listContacts(conn.uazapi_url, conn.uazapi_token, {
+        limit: pageSize,
+        offset,
+        contactScope: 'address_book',
+      });
+
+      if (!out.success) {
+        const status = /HTTP 400/.test(String(out.error || '')) ? 400 : 502;
+        return res.status(status).json({ error: out.error || 'Falha ao listar contatos' });
+      }
+
+      const pageContacts = Array.isArray(out.contacts) ? out.contacts : [];
+      for (const contact of pageContacts) {
+        const dedupeKey = contact.jid || `${contact.phone}`;
+        if (seenJids.has(dedupeKey)) continue;
+        seenJids.add(dedupeKey);
+        allContacts.push(contact);
+      }
+
+      if (pageContacts.length < pageSize) break;
+      offset += pageSize;
     }
 
     // Mapa: últimos 9 dígitos -> melhor nome encontrado
     const map = new Map();
-    for (const c of out.contacts) {
+    for (const c of allContacts) {
       if (!c.phone || !c.name) continue;
       const key = c.phone.slice(-9);
       const name = String(c.name).trim();
@@ -1000,7 +1023,7 @@ router.post('/:connectionId/resync-contact-names', async (req, res) => {
       success: true,
       dryRun,
       overwrite,
-      contactsLoaded: out.contacts.length,
+      contactsLoaded: allContacts.length,
       conversationsScanned: convs.rows.length,
       updated,
       skipped,
