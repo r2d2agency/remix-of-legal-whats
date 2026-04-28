@@ -134,7 +134,7 @@ const Conexao = () => {
   // UAZAPI state
   const [configuringUazapiWebhooks, setConfiguringUazapiWebhooks] = useState<string | null>(null);
   const [syncingUazapiContacts, setSyncingUazapiContacts] = useState<string | null>(null);
-  const [uazapiSyncProgress, setUazapiSyncProgress] = useState<{ current: number; total: number; lastContact?: string; status?: string } | null>(null);
+  const [uazapiSyncProgress, setUazapiSyncProgress] = useState<{ current: number; total: number; lastContact?: string; status?: string; created?: number; updated?: number } | null>(null);
 
   // Migration dialog state
   const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
@@ -457,16 +457,20 @@ const handleGetQRCode = async (connection: Connection) => {
         if (data.status === 'fetching') {
           setUazapiSyncProgress(prev => ({ ...prev!, status: data.message }));
         } else if (data.status === 'starting') {
-          setUazapiSyncProgress({ current: 0, total: data.total, status: 'Importando contatos...' });
+          setUazapiSyncProgress({ current: 0, total: data.total, status: 'Importando contatos...', created: 0, updated: 0 });
         } else if (data.status === 'progress') {
           setUazapiSyncProgress({ 
             current: data.current, 
             total: data.total, 
             lastContact: data.lastContact,
-            status: `Sincronizando: ${data.lastContact || ''}`
+            status: `Sincronizando: ${data.lastContact || ''}`,
+            created: data.created,
+            updated: data.updated
           });
         } else if (data.status === 'completed') {
-          toast.success(data.message);
+          toast.success(data.message, {
+            description: `${data.created} contatos novos e ${data.updated} atualizados.`
+          });
           eventSource.close();
           setSyncingUazapiContacts(null);
           setUazapiSyncProgress(null);
@@ -1659,7 +1663,13 @@ const handleGetQRCode = async (connection: Connection) => {
                           )}
                         </div>
                         {uazapiSyncProgress.total > 0 && (
-                          <Progress value={(uazapiSyncProgress.current / uazapiSyncProgress.total) * 100} className="h-2" />
+                          <>
+                            <Progress value={(uazapiSyncProgress.current / uazapiSyncProgress.total) * 100} className="h-2" />
+                            <div className="flex gap-3 text-[10px] text-muted-foreground mt-1">
+                              {uazapiSyncProgress.created !== undefined && <span>{uazapiSyncProgress.created} novos</span>}
+                              {uazapiSyncProgress.updated !== undefined && <span>{uazapiSyncProgress.updated} atualizados</span>}
+                            </div>
+                          </>
                         )}
                       </div>
                     )}

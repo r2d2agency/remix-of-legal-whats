@@ -1304,25 +1304,38 @@ router.get('/:id/sync-uazapi-contacts/stream', async (req, res) => {
     }
 
     let imported = 0;
+    let created = 0;
+    let updated = 0;
+
     for (let i = 0; i < uazResult.contacts.length; i++) {
       const contact = uazResult.contacts[i];
       try {
-        await query(
+        const result = await query(
           `INSERT INTO contacts (list_id, name, phone, is_whatsapp)
            VALUES ($1, $2, $3, true)
-           ON CONFLICT (list_id, phone) DO UPDATE SET name = EXCLUDED.name`,
+           ON CONFLICT (list_id, phone) 
+           DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
+           RETURNING (xmax = 0) AS is_new`,
           [listId, contact.name, contact.phone]
         );
+
+        if (result.rows[0]?.is_new) {
+          created++;
+        } else {
+          updated++;
+        }
+
         imported++;
         
-        // Envia progresso a cada 5 contatos ou no último para não sobrecarregar o stream
         if (imported % 5 === 0 || imported === total) {
           sendEvent({ 
             status: 'progress', 
             current: imported, 
             total, 
             lastContact: contact.name,
-            percent: Math.round((imported / total) * 100)
+            percent: Math.round((imported / total) * 100),
+            created,
+            updated
           });
         }
       } catch (err) {
@@ -1330,7 +1343,13 @@ router.get('/:id/sync-uazapi-contacts/stream', async (req, res) => {
       }
     }
 
-    sendEvent({ status: 'completed', count: imported, message: 'Sincronização concluída!' });
+    sendEvent({ 
+      status: 'completed', 
+      count: imported, 
+      created, 
+      updated, 
+      message: `Sincronização concluída! ${created} novos, ${updated} atualizados.` 
+    });
   } catch (error) {
     console.error('SSE Sync Exception:', error);
     sendEvent({ error: 'Erro interno na sincronização' });
