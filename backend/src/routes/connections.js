@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, response } from 'express';
 import crypto from 'crypto';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
@@ -1239,6 +1239,106 @@ router.delete('/:id/ai-agents/:linkId', async (req, res) => {
   }
 });
 
+
+router.get('/:id/sync-uazapi-contacts/stream', async (req, res) => {
+  const { id } = req.params;
+  
+  // SSE Headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  // Keep-alive heartbeat para evitar timeouts de proxy (ex: Cloudflare/Nginx)
+  const heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+  }, 15000);
+
+  const sendEvent = (data) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const org = await getUserOrganization(req.userId);
+    const connResult = await query(
+      `SELECT * FROM connections WHERE id = $1 AND (organization_id = $2 OR user_id = $3)`,
+      [id, org?.organization_id, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      sendEvent({ error: 'Conexão não encontrada' });
+      return res.end();
+    }
+
+    const connection = connResult.rows[0];
+    if (connection.provider !== 'uazapi' && !connection.uazapi_token) {
+      sendEvent({ error: 'Conexão não é do tipo UAZAPI' });
+      return res.end();
+    }
+
+    sendEvent({ status: 'fetching', message: 'Buscando contatos na UAZAPI...' });
+    const uazResult = await uazapiProvider.listContacts(connection.uazapi_url, connection.uazapi_token, { limit: 2000 });
+    
+    if (!uazResult.success) {
+      sendEvent({ error: uazResult.error || 'Erro ao buscar contatos na UAZAPI' });
+      return res.end();
+    }
+
+    const total = uazResult.contacts.length;
+    sendEvent({ status: 'starting', total, message: `${total} contatos encontrados. Iniciando importação...` });
+
+    let listId;
+    const listResult = await query(
+      `SELECT id FROM contact_lists WHERE connection_id = $1 AND name = 'Contatos Sincronizados' LIMIT 1`,
+      [connection.id]
+    );
+
+    if (listResult.rows.length === 0) {
+      const newList = await query(
+        `INSERT INTO contact_lists (user_id, name, connection_id) VALUES ($1, 'Contatos Sincronizados', $2) RETURNING id`,
+        [req.userId, connection.id]
+      );
+      listId = newList.rows[0].id;
+    } else {
+      listId = listResult.rows[0].id;
+    }
+
+    let imported = 0;
+    for (let i = 0; i < uazResult.contacts.length; i++) {
+      const contact = uazResult.contacts[i];
+      try {
+        await query(
+          `INSERT INTO contacts (list_id, name, phone, is_whatsapp)
+           VALUES ($1, $2, $3, true)
+           ON CONFLICT (list_id, phone) DO UPDATE SET name = EXCLUDED.name`,
+          [listId, contact.name, contact.phone]
+        );
+        imported++;
+        
+        // Envia progresso a cada 5 contatos ou no último para não sobrecarregar o stream
+        if (imported % 5 === 0 || imported === total) {
+          sendEvent({ 
+            status: 'progress', 
+            current: imported, 
+            total, 
+            lastContact: contact.name,
+            percent: Math.round((imported / total) * 100)
+          });
+        }
+      } catch (err) {
+        console.error('SSE Sync Error:', err.message);
+      }
+    }
+
+    sendEvent({ status: 'completed', count: imported, message: 'Sincronização concluída!' });
+  } catch (error) {
+    console.error('SSE Sync Exception:', error);
+    sendEvent({ error: 'Erro interno na sincronização' });
+  } finally {
+    clearInterval(heartbeat);
+    res.end();
+  }
+});
 
 router.post('/:id/sync-uazapi-contacts', async (req, res) => {
   try {

@@ -134,6 +134,7 @@ const Conexao = () => {
   // UAZAPI state
   const [configuringUazapiWebhooks, setConfiguringUazapiWebhooks] = useState<string | null>(null);
   const [syncingUazapiContacts, setSyncingUazapiContacts] = useState<string | null>(null);
+  const [uazapiSyncProgress, setUazapiSyncProgress] = useState<{ current: number; total: number; lastContact?: string; status?: string } | null>(null);
 
   // Migration dialog state
   const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
@@ -431,20 +432,57 @@ const handleGetQRCode = async (connection: Connection) => {
   };
 
   const handleSyncUazapiContacts = async (connection: Connection) => {
+    if (syncingUazapiContacts) return;
+    
     setSyncingUazapiContacts(connection.id);
-    try {
-      const result = await api<{ success: boolean; count: number; message: string }>(`/api/connections/${connection.id}/sync-uazapi-contacts`, {
-        method: 'POST',
-      });
-      if (result.success) {
-        toast.success(result.message);
+    setUazapiSyncProgress({ current: 0, total: 0, status: 'Iniciando...' });
+    
+    const token = localStorage.getItem('auth_token');
+    const url = `${API_URL}/api/connections/${connection.id}/sync-uazapi-contacts/stream`;
+    
+    const eventSource = new EventSource(`${url}?token=${token}`);
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.error) {
+          toast.error(data.error);
+          eventSource.close();
+          setSyncingUazapiContacts(null);
+          setUazapiSyncProgress(null);
+          return;
+        }
+        
+        if (data.status === 'fetching') {
+          setUazapiSyncProgress(prev => ({ ...prev!, status: data.message }));
+        } else if (data.status === 'starting') {
+          setUazapiSyncProgress({ current: 0, total: data.total, status: 'Importando contatos...' });
+        } else if (data.status === 'progress') {
+          setUazapiSyncProgress({ 
+            current: data.current, 
+            total: data.total, 
+            lastContact: data.lastContact,
+            status: `Sincronizando: ${data.lastContact || ''}`
+          });
+        } else if (data.status === 'completed') {
+          toast.success(data.message);
+          eventSource.close();
+          setSyncingUazapiContacts(null);
+          setUazapiSyncProgress(null);
+        }
+      } catch (err) {
+        console.error('Error parsing SSE data:', err);
       }
-    } catch (error: any) {
-      console.error('Error syncing UAZAPI contacts:', error);
-      toast.error(error.message || 'Erro ao sincronizar contatos');
-    } finally {
+    };
+    
+    eventSource.onerror = (err) => {
+      console.error('SSE connection error:', err);
+      toast.error('Erro na conexão de sincronização');
+      eventSource.close();
       setSyncingUazapiContacts(null);
-    }
+      setUazapiSyncProgress(null);
+    };
   };
 
   const handleLogout = async (connection: Connection) => {
@@ -1602,6 +1640,26 @@ const handleGetQRCode = async (connection: Connection) => {
                               <Download className="h-4 w-4" />
                             )}
                           </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* UAZAPI Sync progress bar */}
+                    {syncingUazapiContacts === connection.id && uazapiSyncProgress && (
+                      <div className="w-full mt-2 space-y-1.5 col-span-full animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            {uazapiSyncProgress.status}
+                          </span>
+                          {uazapiSyncProgress.total > 0 && (
+                            <span className="font-medium">
+                              {uazapiSyncProgress.current}/{uazapiSyncProgress.total} contatos
+                            </span>
+                          )}
+                        </div>
+                        {uazapiSyncProgress.total > 0 && (
+                          <Progress value={(uazapiSyncProgress.current / uazapiSyncProgress.total) * 100} className="h-2" />
                         )}
                       </div>
                     )}
