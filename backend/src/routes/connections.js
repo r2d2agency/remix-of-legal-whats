@@ -568,16 +568,28 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
 
     let migrateResult;
 
-    if (from) {
-      const candidatesQ = await query(`
-        SELECT id, remote_jid
-        FROM conversations
-        WHERE remote_jid IS NOT NULL
-          AND (
-            connection_id = $1
-            OR (connection_id IS NULL AND organization_id = $2)
-          )
-      `, [from, connection.organization_id]);
+    if (from && from !== 'undefined') {
+      const hasOrgCol = await hasColumn('conversations', 'organization_id');
+      let candidatesQ;
+      
+      if (hasOrgCol) {
+        candidatesQ = await query(`
+          SELECT id, remote_jid
+          FROM conversations
+          WHERE remote_jid IS NOT NULL
+            AND (
+              connection_id = $1
+              OR (connection_id IS NULL AND organization_id = $2)
+            )
+        `, [from, connection.organization_id]);
+      } else {
+        candidatesQ = await query(`
+          SELECT id, remote_jid
+          FROM conversations
+          WHERE remote_jid IS NOT NULL
+            AND connection_id = $1
+        `, [from]);
+      }
 
       const candidates = candidatesQ.rows;
       const seenJid = new Map();
