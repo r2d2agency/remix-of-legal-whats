@@ -569,12 +569,6 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
     let migrateResult;
 
     if (from) {
-      // Migra todas as conversas da conexão de origem (e órfãs da MESMA organização)
-      // para a conexão de destino. Resolve duplicatas (mesmo remote_jid já existir no destino,
-      // ou múltiplas órfãs com o mesmo jid) re-apontando mensagens e removendo a duplicata.
-
-      // 1) Conjunto de conversas candidatas a migrar (origem + órfãs da mesma org)
-      //    Filtramos órfãs por organization_id para evitar pegar conversas de outras orgs.
       const candidatesQ = await query(`
         SELECT id, remote_jid
         FROM conversations
@@ -586,14 +580,8 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
       `, [from, connection.organization_id]);
 
       const candidates = candidatesQ.rows;
+      const seenJid = new Map();
 
-      // 2) Para cada candidata, verificar se já existe no destino com o mesmo remote_jid
-      //    Se existir: mover mensagens, deletar a duplicata.
-      //    Caso contrário: atualizar connection_id para o destino.
-      //    Também deduplicar entre as próprias candidatas (várias órfãs do mesmo jid).
-      const seenJid = new Map(); // remote_jid -> kept conversation id
-
-      // Pré-carrega conversas existentes no destino para evitar N queries
       const existingQ = await query(
         `SELECT id, remote_jid FROM conversations WHERE connection_id = $1`,
         [id]
@@ -609,8 +597,6 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
         const existingId = seenJid.get(jid);
 
         if (existingId && existingId !== cand.id) {
-          // Já existe no destino (ou já foi promovida outra órfã com o mesmo jid)
-          // Move mensagens para a conversa existente e remove a duplicata.
           try {
             await query(
               `UPDATE chat_messages SET conversation_id = $1 WHERE conversation_id = $2`,
@@ -620,12 +606,13 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
             console.warn('[migrate] failed moving messages', cand.id, '->', existingId, e.message);
           }
           try {
+            await query(`DELETE FROM conversation_tag_links WHERE conversation_id = $1`, [cand.id]);
+            await query(`DELETE FROM conversation_notes WHERE conversation_id = $1`, [cand.id]);
             await query(`DELETE FROM conversations WHERE id = $1`, [cand.id]);
           } catch (e) {
             console.warn('[migrate] failed deleting duplicate', cand.id, e.message);
           }
         } else {
-          // Promove a conversa para o destino
           try {
             const upd = await query(
               `UPDATE conversations
@@ -639,7 +626,6 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
               seenJid.set(jid, cand.id);
             }
           } catch (e) {
-            // Em caso de race/colisão UNIQUE, tenta tratar como duplicata
             console.warn('[migrate] update failed, treating as duplicate', cand.id, e.message);
             try {
               const dest = await query(
@@ -651,6 +637,8 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
                   `UPDATE chat_messages SET conversation_id = $1 WHERE conversation_id = $2`,
                   [dest.rows[0].id, cand.id]
                 );
+                await query(`DELETE FROM conversation_tag_links WHERE conversation_id = $1`, [cand.id]);
+                await query(`DELETE FROM conversation_notes WHERE conversation_id = $1`, [cand.id]);
                 await query(`DELETE FROM conversations WHERE id = $1`, [cand.id]);
                 seenJid.set(jid, dest.rows[0].id);
               }
@@ -660,59 +648,8 @@ router.post('/:id/migrate-conversations', authenticate, async (req, res) => {
           }
         }
       }
-
       migrateResult = { rowCount: migratedRows.length, rows: migratedRows };
 
-      // Also update chat_messages connection_id when this legacy column exists
-      if (migrateResult.rowCount > 0) {
-        const migratedIds = migrateResult.rows.map(r => r.id);
-        const chatMessagesHasConnectionId = await hasColumn('chat_messages', 'connection_id');
-
-        if (chatMessagesHasConnectionId) {
-          await query(`UPDATE chat_messages SET connection_id = $1 WHERE conversation_id = ANY($2)`, [id, migratedIds]);
-        }
-
-        const chatContactsTableExists = await hasTable('chat_contacts');
-        if (chatContactsTableExists) {
-          // chat_contacts pode ter UNIQUE(connection_id, remote_jid). Migra um a um,
-          // consolidando duplicatas: se o destino já existe, deleta o de origem.
-          try {
-            const ccCols = await query(`
-              SELECT column_name FROM information_schema.columns
-              WHERE table_name = 'chat_contacts'
-            `);
-            const hasRemoteJid = ccCols.rows.some(r => r.column_name === 'remote_jid');
-            if (hasRemoteJid) {
-              const srcContacts = await query(
-                `SELECT id, remote_jid FROM chat_contacts WHERE connection_id = $1`,
-                [from]
-              );
-              for (const c of srcContacts.rows) {
-                try {
-                  await query(
-                    `UPDATE chat_contacts SET connection_id = $1 WHERE id = $2`,
-                    [id, c.id]
-                  );
-                } catch (ccErr) {
-                  // colisão UNIQUE: já existe no destino, deleta o duplicado da origem
-                  console.warn('[migrate] chat_contacts collision, deleting source', c.id, ccErr.message);
-                  try {
-                    await query(`DELETE FROM chat_contacts WHERE id = $1`, [c.id]);
-                  } catch (delErr) {
-                    console.warn('[migrate] failed deleting duplicate chat_contact', c.id, delErr.message);
-                  }
-                }
-              }
-            } else {
-              await query(`UPDATE chat_contacts SET connection_id = $1 WHERE connection_id = $2`, [id, from]);
-            }
-          } catch (ccErr) {
-            console.warn('[migrate] chat_contacts migration warning:', ccErr.message);
-          }
-        }
-      }
-
-      console.log(`[Connections] Bulk migration from ${from}: ${migrateResult.rowCount} conversations migrated to ${id}`);
     } else {
       // Original behavior: migrate only orphaned conversations
       migrateResult = await query(`
