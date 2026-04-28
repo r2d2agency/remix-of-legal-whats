@@ -241,28 +241,35 @@ function extractMessageData(payload) {
 
   const text = pickText();
 
-  // URL da mídia: prefere URL pública direta; .enc precisa ser baixada via UAZAPI
-  const rawMediaUrl =
-    msg?.mediaUrl ||
-    msg?.url ||
-    msg?.file ||
-    msg?.media?.url ||
-    payload?.mediaUrl ||
-    payload?.url ||
-    mediaObj?.obj?.mediaUrl ||
-    mediaObj?.obj?.url ||
-    mediaObj?.obj?.URL ||
-    null;
+  // URL da mídia: prefere URL pública direta; .enc precisa ser baixada via UAZAPI.
+  // Algumas versões entregam a URL em campos diferentes.
+  const rawMediaUrl = [
+    msg?.mediaUrl,
+    msg?.url,
+    msg?.file,
+    msg?.media?.url,
+    payload?.mediaUrl,
+    payload?.url,
+    payload?.file,
+    mediaObj?.obj?.mediaUrl,
+    mediaObj?.obj?.url,
+    mediaObj?.obj?.URL,
+    mediaObj?.obj?.file,
+    msg?.urlFull, // Algumas versões da UAZAPI usam urlFull para a URL pública
+    payload?.urlFull
+  ].find(v => !!v) || null;
 
-  const mediaMimetype =
-    mediaObj?.obj?.mimetype ||
-    mediaObj?.obj?.mimeType ||
-    msg?.mimetype ||
-    msg?.mimeType ||
-    msg?.media?.mimetype ||
-    payload?.mimetype ||
-    payload?.mimeType ||
-    null;
+  const mediaMimetype = [
+    mediaObj?.obj?.mimetype,
+    mediaObj?.obj?.mimeType,
+    msg?.mimetype,
+    msg?.mimeType,
+    msg?.media?.mimetype,
+    payload?.mimetype,
+    payload?.mimeType,
+    payload?.data?.mimetype,
+    payload?.data?.mimeType
+  ].find(v => !!v) || null;
 
   let messageType = (() => {
     if (['image', 'video', 'audio', 'document', 'sticker'].includes(typeRaw)) return typeRaw;
@@ -286,10 +293,11 @@ function extractMessageData(payload) {
     ''
   );
 
-  // mediaUrl final: marcamos com placeholder especial para o persist resolver
-  // (precisa do connection.uazapi_url para montar o proxy de download).
-  const needsProxy = !!(mediaObj && (!rawMediaUrl || String(rawMediaUrl).includes('.enc')));
-  const mediaUrl = needsProxy ? `__UAZAPI_DOWNLOAD__:${messageId}` : rawMediaUrl;
+  // mediaUrl final: marcamos com placeholder especial para o persist resolver.
+  // (precisa do connection.uazapi_url para montar o proxy de download). 
+  // Priorizamos o download via endpoint decifrado se o mediaObj existir e não houver uma URL pública clara.
+  const needsProxy = !!(mediaObj && (!rawMediaUrl || String(rawMediaUrl).includes('.enc') || String(rawMediaUrl).includes('mmg.whatsapp.net')));
+  const mediaUrl = needsProxy ? `__UAZAPI_DOWNLOAD__:${messageId}` : (rawMediaUrl || null);
 
   return {
     chatId,
