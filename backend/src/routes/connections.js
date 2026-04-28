@@ -1239,7 +1239,6 @@ router.delete('/:id/ai-agents/:linkId', async (req, res) => {
   }
 });
 
-export default router;
 
 router.post('/:id/sync-uazapi-contacts', async (req, res) => {
   try {
@@ -1306,3 +1305,5 @@ router.post('/:id/sync-uazapi-contacts', async (req, res) => {
   }
 });
 
+
+export default router;
