@@ -343,6 +343,20 @@ function extractMessageData(payload) {
     return 'text';
   })();
 
+  // Tratamento para respostas de botões simples (UAZAPI entrega em diferentes estruturas)
+  if (!text) {
+    const buttonResponse = msg?.buttonsResponseMessage || payload?.buttonsResponseMessage || 
+                           msg?.templateButtonReplyMessage || payload?.templateButtonReplyMessage;
+    if (buttonResponse) {
+      text = buttonResponse.selectedDisplayText || buttonResponse.selectedId;
+    }
+  }
+
+  // Tratamento para respostas de Enquetes (Poll)
+  if (!text && msg?.pollUpdateMessage) {
+    text = `[Voto em enquete]`;
+  }
+
   const content = text || 
     (messageType === 'image' ? '[Imagem]' :
      messageType === 'video' ? '[Vídeo]' :
