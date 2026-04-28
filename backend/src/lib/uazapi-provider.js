@@ -794,7 +794,11 @@ export async function sendMessage(baseUrl, token, phone, content, messageType, m
   if (messageType === 'interactive_menu') {
     try {
       const data = typeof content === 'string' ? JSON.parse(content) : content;
-      return sendButtons(baseUrl, token, phone, data.text, data.buttons, { footer: data.footer, header: data.header });
+    return sendButtons(baseUrl, token, phone, data.text, data.buttons, { 
+      footer: data.footer, 
+      header: data.header,
+      image: data.image 
+    });
     } catch {
       return { success: false, error: 'Invalid interactive menu data' };
     }
