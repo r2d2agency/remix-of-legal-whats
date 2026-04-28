@@ -134,6 +134,7 @@ const Conexao = () => {
   // UAZAPI state
   const [configuringUazapiWebhooks, setConfiguringUazapiWebhooks] = useState<string | null>(null);
   const [syncingUazapiContacts, setSyncingUazapiContacts] = useState<string | null>(null);
+  const [resyncingNames, setResyncingNames] = useState<string | null>(null);
   const [uazapiSyncProgress, setUazapiSyncProgress] = useState<{ current: number; total: number; lastContact?: string; status?: string; created?: number; updated?: number } | null>(null);
 
   // Migration dialog state
@@ -487,6 +488,28 @@ const handleGetQRCode = async (connection: Connection) => {
       setSyncingUazapiContacts(null);
       setUazapiSyncProgress(null);
     };
+  };
+
+  const handleResyncUazapiNames = async (connection: Connection) => {
+    if (resyncingNames) return;
+    setResyncingNames(connection.id);
+    try {
+      const res: any = await api(`/api/uazapi/${connection.id}/resync-contact-names`, {
+        method: 'POST',
+        body: JSON.stringify({ overwrite: true }),
+      });
+      if (res?.success) {
+        toast.success(`${res.updated} conversa(s) atualizadas com nome real`, {
+          description: `${res.contactsLoaded} contatos da agenda lidos · ${res.skipped} sem alteração`,
+        });
+      } else {
+        toast.error(res?.error || 'Falha ao sincronizar nomes');
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao sincronizar nomes');
+    } finally {
+      setResyncingNames(null);
+    }
   };
 
   const handleLogout = async (connection: Connection) => {
@@ -1642,6 +1665,21 @@ const handleGetQRCode = async (connection: Connection) => {
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <Download className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                        {connection.status === 'connected' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleResyncUazapiNames(connection)}
+                            disabled={resyncingNames === connection.id}
+                            title="Corrigir nomes das conversas usando a agenda do WhatsApp"
+                          >
+                            {resyncingNames === connection.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <UserCheck className="h-4 w-4" />
                             )}
                           </Button>
                         )}

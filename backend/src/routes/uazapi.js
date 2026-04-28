@@ -916,4 +916,87 @@ router.post('/:connectionId/sender/folders/:folderId/action', async (req, res) =
   }
 });
 
+/**
+ * Sincroniza nomes reais dos contatos para conversas existentes (UAZAPI).
+ * Busca contatos da agenda do WhatsApp via /contacts/list e atualiza
+ * conversations.contact_name por correspondência dos últimos 9 dígitos do telefone.
+ * NÃO altera grupos.
+ * POST /api/uazapi/:connectionId/resync-contact-names
+ * body: { dryRun?: boolean, overwrite?: boolean }
+ *   - overwrite=true substitui qualquer nome (default true: corrige nomes errados antigos)
+ *   - overwrite=false só preenche quando o nome atual parece ser um telefone
+ */
+router.post('/:connectionId/resync-contact-names', async (req, res) => {
+  try {
+    const conn = await loadUazapiConnection(req.params.connectionId);
+    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const dryRun = !!req.body?.dryRun;
+    const overwrite = req.body?.overwrite !== false; // default true
+
+    const out = await uazapiProvider.listContacts(conn.uazapi_url, conn.uazapi_token, {});
+    if (!out.success) return res.status(502).json({ error: out.error || 'Falha ao listar contatos' });
+
+    // Mapa: últimos 9 dígitos -> melhor nome encontrado
+    const map = new Map();
+    for (const c of out.contacts) {
+      if (!c.phone || !c.name) continue;
+      const key = c.phone.slice(-9);
+      const name = String(c.name).trim();
+      if (!name || /^\+?\d[\d\s\-()]*$/.test(name)) continue; // pula nomes que são só números
+      const prev = map.get(key);
+      // prefere isMyContact e nome mais longo
+      if (!prev || (c.isMyContact && !prev.isMyContact) || name.length > prev.name.length) {
+        map.set(key, { name, isMyContact: !!c.isMyContact });
+      }
+    }
+
+    // Carrega conversas individuais (não-grupo) desta conexão
+    const convs = await query(
+      `SELECT id, contact_phone, contact_name FROM conversations
+       WHERE connection_id = $1 AND COALESCE(is_group, false) = false`,
+      [conn.id]
+    );
+
+    let updated = 0;
+    let skipped = 0;
+    const samples = [];
+    for (const row of convs.rows) {
+      const phone = String(row.contact_phone || '').replace(/\D/g, '');
+      if (phone.length < 9) { skipped++; continue; }
+      const key = phone.slice(-9);
+      const hit = map.get(key);
+      if (!hit) { skipped++; continue; }
+      if (hit.name === row.contact_name) { skipped++; continue; }
+
+      // Se overwrite=false só atualiza quando o nome atual é um telefone
+      if (!overwrite) {
+        const cur = String(row.contact_name || '').trim();
+        const looksLikePhone = !cur || /^\+?\d[\d\s\-()]*$/.test(cur);
+        if (!looksLikePhone) { skipped++; continue; }
+      }
+
+      if (samples.length < 20) {
+        samples.push({ phone, from: row.contact_name, to: hit.name });
+      }
+      if (!dryRun) {
+        await query(`UPDATE conversations SET contact_name = $1 WHERE id = $2`, [hit.name, row.id]);
+      }
+      updated++;
+    }
+
+    res.json({
+      success: true,
+      dryRun,
+      overwrite,
+      contactsLoaded: out.contacts.length,
+      conversationsScanned: convs.rows.length,
+      updated,
+      skipped,
+      samples,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
