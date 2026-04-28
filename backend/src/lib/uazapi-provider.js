@@ -621,10 +621,12 @@ export async function syncMessages(baseUrl, token, chatId, { limit = 100, fromMe
  *
  * Retorna contatos da agenda do celular vinculado ao WhatsApp
  */
-export async function listContacts(baseUrl, token, { limit, search } = {}) {
+export async function listContacts(baseUrl, token, { limit, offset, search, contactScope } = {}) {
   const body = {};
   if (limit) body.limit = limit;
+  if (typeof offset === 'number') body.offset = offset;
   if (search) body.search = search;
+  if (contactScope) body.contactScope = contactScope;
 
   const r = await uazapiFetch(baseUrl, '/contacts/list', { method: 'POST', token, body, timeout: 30000 });
   if (!r.ok) return { success: false, error: r.data?.error || `HTTP ${r.status}`, contacts: [] };
