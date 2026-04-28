@@ -496,7 +496,7 @@ const handleGetQRCode = async (connection: Connection) => {
     try {
       const res: any = await api(`/api/uazapi/${connection.id}/resync-contact-names`, {
         method: 'POST',
-        body: JSON.stringify({ overwrite: true }),
+        body: { overwrite: true },
       });
       if (res?.success) {
         toast.success(`${res.updated} conversa(s) atualizadas com nome real`, {
