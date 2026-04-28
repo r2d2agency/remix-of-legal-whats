@@ -1,68 +1,3 @@
-router.post('/:id/sync-uazapi-contacts', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const org = await getUserOrganization(req.userId);
-
-    const connResult = await query(
-      `SELECT * FROM connections WHERE id = $1 AND (organization_id = $2 OR user_id = $3)`,
-      [id, org?.organization_id, req.userId]
-    );
-
-    if (connResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Conexão não encontrada' });
-    }
-
-    const connection = connResult.rows[0];
-    if (connection.provider !== 'uazapi' && !connection.uazapi_token) {
-      return res.status(400).json({ error: 'Conexão não é do tipo UAZAPI' });
-    }
-
-    // 1. Busca contatos da UAZAPI
-    const uazResult = await uazapiProvider.listContacts(connection.uazapi_url, connection.uazapi_token, { limit: 2000 });
-    if (!uazResult.success) {
-      return res.status(400).json({ error: uazResult.error || 'Erro ao buscar contatos na UAZAPI' });
-    }
-
-    // 2. Garante que existe uma lista de contatos para esta conexão
-    let listId;
-    const listResult = await query(
-      `SELECT id FROM contact_lists WHERE connection_id = $1 AND name = 'Contatos Sincronizados' LIMIT 1`,
-      [connection.id]
-    );
-
-    if (listResult.rows.length === 0) {
-      const newList = await query(
-        `INSERT INTO contact_lists (user_id, name, connection_id) VALUES ($1, 'Contatos Sincronizados', $2) RETURNING id`,
-        [req.userId, connection.id]
-      );
-      listId = newList.rows[0].id;
-    } else {
-      listId = listResult.rows[0].id;
-    }
-
-    // 3. Insere/Atualiza contatos na tabela de contatos do sistema
-    let imported = 0;
-    for (const contact of uazResult.contacts) {
-      try {
-        await query(
-          `INSERT INTO contacts (list_id, name, phone, is_whatsapp)
-           VALUES ($1, $2, $3, true)
-           ON CONFLICT (list_id, phone) DO UPDATE SET name = EXCLUDED.name`,
-          [listId, contact.name, contact.phone]
-        );
-        imported++;
-      } catch (err) {
-        console.error('Error syncing UAZAPI contact:', err.message);
-      }
-    }
-
-    res.json({ success: true, count: imported, message: `${imported} contatos sincronizados com sucesso` });
-  } catch (error) {
-    console.error('Sync UAZAPI contacts error:', error);
-    res.status(500).json({ error: 'Erro ao sincronizar contatos' });
-  }
-});
-
 import { Router } from 'express';
 import crypto from 'crypto';
 import { query } from '../db.js';
@@ -1305,4 +1240,69 @@ router.delete('/:id/ai-agents/:linkId', async (req, res) => {
 });
 
 export default router;
+
+router.post('/:id/sync-uazapi-contacts', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const org = await getUserOrganization(req.userId);
+
+    const connResult = await query(
+      `SELECT * FROM connections WHERE id = $1 AND (organization_id = $2 OR user_id = $3)`,
+      [id, org?.organization_id, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada' });
+    }
+
+    const connection = connResult.rows[0];
+    if (connection.provider !== 'uazapi' && !connection.uazapi_token) {
+      return res.status(400).json({ error: 'Conexão não é do tipo UAZAPI' });
+    }
+
+    // 1. Busca contatos da UAZAPI
+    const uazResult = await uazapiProvider.listContacts(connection.uazapi_url, connection.uazapi_token, { limit: 2000 });
+    if (!uazResult.success) {
+      return res.status(400).json({ error: uazResult.error || 'Erro ao buscar contatos na UAZAPI' });
+    }
+
+    // 2. Garante que existe uma lista de contatos para esta conexão
+    let listId;
+    const listResult = await query(
+      `SELECT id FROM contact_lists WHERE connection_id = $1 AND name = 'Contatos Sincronizados' LIMIT 1`,
+      [connection.id]
+    );
+
+    if (listResult.rows.length === 0) {
+      const newList = await query(
+        `INSERT INTO contact_lists (user_id, name, connection_id) VALUES ($1, 'Contatos Sincronizados', $2) RETURNING id`,
+        [req.userId, connection.id]
+      );
+      listId = newList.rows[0].id;
+    } else {
+      listId = listResult.rows[0].id;
+    }
+
+    // 3. Insere/Atualiza contatos na tabela de contatos do sistema
+    let imported = 0;
+    for (const contact of uazResult.contacts) {
+      try {
+        await query(
+          `INSERT INTO contacts (list_id, name, phone, is_whatsapp)
+           VALUES ($1, $2, $3, true)
+           ON CONFLICT (list_id, phone) DO UPDATE SET name = EXCLUDED.name`,
+          [listId, contact.name, contact.phone]
+        );
+        imported++;
+      } catch (err) {
+        console.error('Error syncing UAZAPI contact:', err.message);
+      }
+    }
+
+    res.json({ success: true, count: imported, message: `${imported} contatos sincronizados com sucesso` });
+  } catch (error) {
+    console.error('Sync UAZAPI contacts error:', error);
+    res.status(500).json({ error: 'Erro ao sincronizar contatos' });
+  }
+});
 
