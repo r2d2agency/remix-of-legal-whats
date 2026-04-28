@@ -423,22 +423,50 @@ async function persistIncomingMessage(connection, payload) {
     );
   }
 
-  await query(
-    `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
-    [
-      conversationId,
-      message.messageId,
-      message.content,
-      message.messageType,
-      message.mediaUrl,
-      message.mediaMimetype,
-      message.fromMe,
-      message.senderName,
-      message.phone,
-      message.fromMe ? 'sent' : 'received',
-    ]
-  );
+  // Verifica se chat_messages tem a coluna connection_id
+  const chatMessagesHasConnectionId = await query(`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'chat_messages' AND column_name = 'connection_id'
+    ) as exists_column
+  `).then(r => r.rows[0].exists_column);
+
+  if (chatMessagesHasConnectionId) {
+    await query(
+      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp, connection_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11)`,
+      [
+        conversationId,
+        message.messageId,
+        message.content,
+        message.messageType,
+        message.mediaUrl,
+        message.mediaMimetype,
+        message.fromMe,
+        message.senderName,
+        message.phone,
+        message.fromMe ? 'sent' : 'received',
+        connection.id
+      ]
+    );
+  } else {
+    await query(
+      `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, media_url, media_mimetype, from_me, sender_name, sender_phone, status, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
+      [
+        conversationId,
+        message.messageId,
+        message.content,
+        message.messageType,
+        message.mediaUrl,
+        message.mediaMimetype,
+        message.fromMe,
+        message.senderName,
+        message.phone,
+        message.fromMe ? 'sent' : 'received',
+      ]
+    );
+  }
 
   return { skipped: false, conversationId, messageId: message.messageId };
 }
