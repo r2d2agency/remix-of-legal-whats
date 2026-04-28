@@ -112,7 +112,11 @@ function extractMessageData(payload) {
   );
 
   const messageId = getMessageId(payload, msg);
-  const senderName =
+  // IMPORTANTE: quando fromMe=true, pushName/senderName é o nome do DONO da conta
+  // (quem enviou), e não do contato remoto. Nesse caso não devemos usar como nome
+  // do contato — caso contrário todas as conversas iniciadas por nós ficariam
+  // com o mesmo nome (o nome do operador do WhatsApp).
+  const rawSenderName =
     payload?.senderName ||
     payload?.pushName ||
     msg?.senderName ||
@@ -122,6 +126,7 @@ function extractMessageData(payload) {
     payload?.name ||
     msg?.name ||
     null;
+  const senderName = fromMe ? null : rawSenderName;
 
   const groupName =
     payload?.groupName ||
