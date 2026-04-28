@@ -2581,8 +2581,12 @@ function extractMessageContent(payload) {
       content = interactive.button_reply.title || interactive.button_reply.id;
     } else if (interactive.list_reply) {
       content = interactive.list_reply.title || interactive.list_reply.id;
+    } else if (interactive.header || interactive.body || interactive.footer) {
+      const body = interactive.body?.text || '';
+      const footer = interactive.footer?.text ? `\n_${interactive.footer.text}_` : '';
+      content = `${body}${footer}`.trim() || '[Mensagem interativa]';
     } else {
-      content = interactive.body?.text || '[Mensagem interativa]';
+      content = '[Mensagem interativa]';
     }
     return { messageType: 'text', content, mediaUrl, mediaMimetype, waMediaKey };
   }
