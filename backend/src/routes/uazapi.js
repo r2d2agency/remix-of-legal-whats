@@ -343,14 +343,13 @@ function extractMessageData(payload) {
     return 'text';
   })();
 
-  const content = text || (
-    messageType === 'image' ? '[Imagem]' :
-    messageType === 'video' ? '[Vídeo]' :
-    messageType === 'audio' ? '[Áudio]' :
-    messageType === 'sticker' ? '[Sticker]' :
-    messageType === 'document' ? (originalFilename ? `[Documento: ${originalFilename}]` : '[Documento]') :
-    ''
-  );
+  const content = text || 
+    (messageType === 'image' ? '[Imagem]' :
+     messageType === 'video' ? '[Vídeo]' :
+     messageType === 'audio' ? '[Áudio]' :
+     messageType === 'sticker' ? '[Sticker]' :
+     messageType === 'document' ? (originalFilename ? `[Documento: ${originalFilename}]` : '[Documento]') :
+     '[Mensagem interativa]');
 
   // mediaUrl final: marcamos com placeholder especial para o persist resolver.
   // (precisa do connection.uazapi_url para montar o proxy de download). 
