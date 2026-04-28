@@ -60,31 +60,9 @@ import {
   X as XIcon,
   LayoutList,
 } from "lucide-react";
+import { FileSignature, LayoutList } from "lucide-react";
 import { SendInteractiveMenuDialog } from "./SendInteractiveMenuDialog";
   const [showInteractiveMenuDialog, setShowInteractiveMenuDialog] = useState(false);
-  // Detect if current connection is UAZAPI
-  const isUazapiConnection = connections.some(
-    (c) => c.id === conversation?.connection_id && (c.provider === 'uazapi' || (c as any).uazapi_url)
-  );
-
-              {isUazapiConnection && (
-                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0 text-primary" onClick={() => setShowInteractiveMenuDialog(true)} title="Enviar Menu Interativo">
-                  <LayoutList className="h-4 w-4" />
-                </Button>
-              )}
-      {conversation && (
-        <SendInteractiveMenuDialog
-          open={showInteractiveMenuDialog}
-          onOpenChange={setShowInteractiveMenuDialog}
-          onSend={async (text, buttons, footer) => {
-            const payload = JSON.stringify({ text, buttons, footer });
-            await onSendMessage(payload, 'interactive_menu');
-            toast.success('Menu interativo enviado!');
-          }}
-        />
-      )}
-
-import { FileSignature } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessage, Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
 import { useChat } from "@/hooks/use-chat";
@@ -276,11 +254,15 @@ export function ChatArea({
     (d) => (d as any)?.status && String((d as any).status).toLowerCase() === 'open'
   );
 
-  // Detect if current conversation uses Meta provider
+  // Detect current connection provider
   const isMetaConnection = connections.some(
     (c) => c.id === conversation?.connection_id && c.provider === 'meta'
   );
-  
+
+  const isUazapiConnection = connections.some(
+    (c) => c.id === conversation?.connection_id && (c.provider === 'uazapi' || (c as any).uazapi_url)
+  );
+
   const {
     isRecording, duration, audioBlob, audioLevels,
     startRecording, stopRecording, cancelRecording, clearAudio, formatDuration,
@@ -1329,7 +1311,24 @@ export function ChatArea({
                   <FileText className="h-4 w-4" />
                 </Button>
               )}
+              {isUazapiConnection && (
+                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0 text-primary" onClick={() => setShowInteractiveMenuDialog(true)} title="Enviar Menu Interativo">
+                  <LayoutList className="h-4 w-4" />
+                </Button>
+              )}
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setShowStartFlowDialog(true)} title="Iniciar fluxo"><Zap className="h-4 w-4 text-primary" /></Button>
+      {conversation && (
+        <SendInteractiveMenuDialog
+          open={showInteractiveMenuDialog}
+          onOpenChange={setShowInteractiveMenuDialog}
+          onSend={async (text, buttons, footer) => {
+            const payload = JSON.stringify({ text, buttons, footer });
+            await onSendMessage(payload, 'interactive_menu');
+            toast.success('Menu interativo enviado!');
+          }}
+        />
+      )}
+
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setShowQuickReplies(!showQuickReplies)} title="Respostas rápidas"><Reply className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => fileInputRef.current?.click()} disabled={isUploading || sending}>
                 {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
