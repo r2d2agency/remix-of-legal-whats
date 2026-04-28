@@ -324,10 +324,6 @@ export async function sendMessage(connection, phone, content, messageType, media
     phone_preview: phone ? String(phone).substring(0, 15) : null,
   });
 
-  if (provider === 'meta') {
-    return sendMetaMessage(connection, phone, content, messageType, mediaUrl);
-  }
-
   if (provider === 'uazapi') {
     try {
       const result = await uazapiProvider.sendMessage(
@@ -353,6 +349,10 @@ export async function sendMessage(connection, phone, content, messageType, media
       });
       return { success: false, error: error.message };
     }
+  }
+
+  if (provider === 'meta') {
+    return sendMetaMessage(connection, phone, content, messageType, mediaUrl);
   }
 
   if (provider === 'wapi') {

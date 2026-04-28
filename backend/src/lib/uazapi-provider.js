@@ -765,5 +765,13 @@ export async function sendMessage(baseUrl, token, phone, content, messageType, m
       return { success: false, error: 'Invalid contact data' };
     }
   }
+  if (messageType === 'interactive_menu') {
+    try {
+      const data = typeof content === 'string' ? JSON.parse(content) : content;
+      return sendButtons(baseUrl, token, phone, data.text, data.buttons, { footer: data.footer, header: data.header });
+    } catch {
+      return { success: false, error: 'Invalid interactive menu data' };
+    }
+  }
   return sendMedia(baseUrl, token, phone, mediaUrl, messageType, content, filename);
 }
