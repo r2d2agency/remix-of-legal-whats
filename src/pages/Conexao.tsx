@@ -134,6 +134,7 @@ const Conexao = () => {
   // UAZAPI state
   const [configuringUazapiWebhooks, setConfiguringUazapiWebhooks] = useState<string | null>(null);
   const [syncingUazapiContacts, setSyncingUazapiContacts] = useState<string | null>(null);
+  const [resyncingNames, setResyncingNames] = useState<string | null>(null);
   const [uazapiSyncProgress, setUazapiSyncProgress] = useState<{ current: number; total: number; lastContact?: string; status?: string; created?: number; updated?: number } | null>(null);
 
   // Migration dialog state
