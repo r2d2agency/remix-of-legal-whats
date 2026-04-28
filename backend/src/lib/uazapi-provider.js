@@ -483,12 +483,21 @@ export async function sendPresenceComposing(baseUrl, token, phone) {
  * Envia menu interativo de BOTÕES (até 3)
  * UAZAPI: POST /send/menu  { type: 'button', text, choices: ['Sim','Não'], footerText? }
  */
-export async function sendButtons(baseUrl, token, phone, text, buttons, { footer, header } = {}) {
+export async function sendButtons(baseUrl, token, phone, text, buttons, { footer, header, image } = {}) {
   // buttons: array de strings OU objetos { id, label }
-  const choices = (buttons || []).map((b) => (typeof b === 'string' ? b : (b.label || b.text || b.id))).filter(Boolean).slice(0, 3);
+  // Suporte a formatos novos: "texto|id", "texto|url:http...", "texto|call:+num", "texto|copy:code"
+  const choices = (buttons || []).map((b) => {
+    if (typeof b === 'string') return b;
+    if (b.url) return `${b.label || b.text}|${b.url}`;
+    if (b.phoneNumber) return `${b.label || b.text}|call:${b.phoneNumber}`;
+    if (b.copyCode) return `${b.label || b.text}|copy:${b.copyCode}`;
+    return b.label || b.text || b.id;
+  }).filter(Boolean);
+
   if (!choices.length) {
     return { success: false, error: 'Nenhum botão informado' };
   }
+
   const body = {
     number: normalizePhone(phone),
     type: 'button',
@@ -497,6 +506,7 @@ export async function sendButtons(baseUrl, token, phone, text, buttons, { footer
   };
   if (footer) body.footerText = footer;
   if (header) body.headerText = header;
+  if (image) body.imageButton = image;
 
   const r = await uazapiFetch(baseUrl, '/send/menu', { method: 'POST', token, body });
   
@@ -529,22 +539,22 @@ export async function sendList(baseUrl, token, phone, text, options, { buttonTex
     number: normalizePhone(phone),
     type: 'list',
     text,
-    buttonText,
+    listButton: buttonText, // Campo correto segundo a documentação é listButton
   };
   if (footer) body.footerText = footer;
 
   if (Array.isArray(sections) && sections.length) {
-    // Concatena todas as rows como choices em formato "title|description"
     const choices = [];
     sections.forEach((sec) => {
+      if (sec.title) choices.push(`[${sec.title}]`);
       (sec.rows || []).forEach((row) => {
         const label = row.title || row.label;
-        const desc = row.description ? ` - ${row.description}` : '';
-        if (label) choices.push(`${label}${desc}`);
+        const id = row.id || label;
+        const desc = row.description ? `|${row.description}` : '';
+        if (label) choices.push(`${label}|${id}${desc}`);
       });
     });
     body.choices = choices;
-    body.sections = sections;
   } else {
     body.choices = (options || []).map((o) => (typeof o === 'string' ? o : (o.label || o.title))).filter(Boolean);
   }
