@@ -32,7 +32,7 @@ function extractInstanceId(payload) {
 function detectEventType(payload) {
   const ev = String(payload?.event || payload?.type || '').toLowerCase();
   if (ev.includes('connect') || ev.includes('status')) return 'connection_update';
-  if (ev.includes('message') || payload?.message || payload?.text) {
+  if (ev.includes('message') || payload?.message || payload?.text || payload?.data?.message) {
     if (payload?.fromMe || payload?.message?.fromMe) return 'message_sent';
     return 'message_received';
   }
