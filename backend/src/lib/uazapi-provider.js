@@ -499,8 +499,22 @@ export async function sendButtons(baseUrl, token, phone, text, buttons, { footer
   if (header) body.headerText = header;
 
   const r = await uazapiFetch(baseUrl, '/send/menu', { method: 'POST', token, body });
-  if (!r.ok) return { success: false, error: r.data?.error || r.data?.message || `HTTP ${r.status}` };
-  return { success: true, messageId: r.data?.id || r.data?.messageId || r.data?.key?.id || null };
+  
+  // Diagnóstico para o log
+  if (!r.ok) {
+    logError('uazapi.send_buttons_failed', null, { 
+      status: r.status, 
+      error: r.data?.error || r.data?.message,
+      phone 
+    });
+    return { success: false, error: r.data?.error || r.data?.message || `HTTP ${r.status}` };
+  }
+
+  // Retorna sucesso e o ID da mensagem para persistência
+  return { 
+    success: true, 
+    messageId: r.data?.id || r.data?.messageId || r.data?.key?.id || r.data?.message?.key?.id || null 
+  };
 }
 
 /**

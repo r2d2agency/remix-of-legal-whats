@@ -254,7 +254,47 @@ function extractMessageData(payload) {
     return '';
   }
 
-  const text = pickText();
+  let text = pickText();
+
+  // ===== Tratamento de Mensagens Interativas (Menus/Botões) =====
+  // Se for uma resposta de menu ou o próprio menu interativo, o conteúdo pode estar em msg.interactive ou campos similares
+  const interactive = msg?.interactive || payload?.interactive || msg?.message?.interactive;
+  if (interactive) {
+    if (interactive.type === 'button_reply') {
+      text = interactive.button_reply?.title || text;
+    } else if (interactive.type === 'list_reply') {
+      text = interactive.list_reply?.title || text;
+    } else if (interactive.header || interactive.body || interactive.footer) {
+      // É a mensagem do menu que enviamos (quando recebida de volta via webhook message_sent)
+      const body = interactive.body?.text || '';
+      const footer = interactive.footer?.text ? `\n_${interactive.footer.text}_` : '';
+      text = `${body}${footer}`;
+    }
+  }
+
+  // Resposta de Botão Simples (versões legadas ou específicas)
+  if (msg?.buttonText || msg?.selectedButtonId) {
+    text = msg.buttonText || msg.selectedButtonId;
+  }
+
+  // Resposta de Lista (versões legadas)
+  if (msg?.listReply || msg?.selectedRowId) {
+    text = msg.listReply?.title || msg.selectedRowId;
+  }
+
+  // Caso a UAZAPI envie o menu como JSON string no text (comum em message_sent)
+  if (!text && (msg?.text || msg?.body || msg?.content)) {
+    const rawText = String(msg?.text || msg?.body || msg?.content);
+    if (rawText.startsWith('{') && rawText.includes('"buttons"')) {
+      try {
+        const parsed = JSON.parse(rawText);
+        if (parsed.text) {
+          text = parsed.text;
+          if (parsed.footer) text += `\n_${parsed.footer}_`;
+        }
+      } catch (e) {}
+    }
+  }
 
   // URL da mídia: prefere URL pública direta; .enc precisa ser baixada via UAZAPI.
   // Algumas versões entregam a URL em campos diferentes.
@@ -303,14 +343,13 @@ function extractMessageData(payload) {
     return 'text';
   })();
 
-  const content = text || (
-    messageType === 'image' ? '[Imagem]' :
-    messageType === 'video' ? '[Vídeo]' :
-    messageType === 'audio' ? '[Áudio]' :
-    messageType === 'sticker' ? '[Sticker]' :
-    messageType === 'document' ? (originalFilename ? `[Documento: ${originalFilename}]` : '[Documento]') :
-    ''
-  );
+  const content = text || 
+    (messageType === 'image' ? '[Imagem]' :
+     messageType === 'video' ? '[Vídeo]' :
+     messageType === 'audio' ? '[Áudio]' :
+     messageType === 'sticker' ? '[Sticker]' :
+     messageType === 'document' ? (originalFilename ? `[Documento: ${originalFilename}]` : '[Documento]') :
+     '[Mensagem interativa]');
 
   // mediaUrl final: marcamos com placeholder especial para o persist resolver.
   // (precisa do connection.uazapi_url para montar o proxy de download). 
