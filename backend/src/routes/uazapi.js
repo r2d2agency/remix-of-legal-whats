@@ -343,18 +343,39 @@ function extractMessageData(payload) {
     return 'text';
   })();
 
-  // Tratamento para respostas de botões simples (UAZAPI entrega em diferentes estruturas)
+  // ===== Tratamento Adicional de Respostas (Fallbacks) =====
   if (!text) {
-    const buttonResponse = msg?.buttonsResponseMessage || payload?.buttonsResponseMessage || 
-                           msg?.templateButtonReplyMessage || payload?.templateButtonReplyMessage;
-    if (buttonResponse) {
-      text = buttonResponse.selectedDisplayText || buttonResponse.selectedId;
+    // Resposta de Botões Interativos (Stuctured)
+    const btnResponse = msg?.buttonsResponseMessage || payload?.buttonsResponseMessage || 
+                        msg?.templateButtonReplyMessage || payload?.templateButtonReplyMessage ||
+                        msg?.message?.buttonsResponseMessage;
+    
+    if (btnResponse) {
+      text = btnResponse.selectedDisplayText || btnResponse.selectedId;
+    }
+    
+    // Resposta de Lista (Stuctured)
+    const listResp = msg?.listResponseMessage || payload?.listResponseMessage || msg?.message?.listResponseMessage;
+    if (listResp) {
+      text = listResp.title || listResp.singleSelectReply?.selectedRowId;
+    }
+
+    // Resposta de Botão dentro de 'interactive' (Stuctured)
+    if (interactive?.button_reply) {
+      text = interactive.button_reply.title || interactive.button_reply.id;
+    } else if (interactive?.list_reply) {
+      text = interactive.list_reply.title || interactive.list_reply.id;
+    }
+
+    // Enquetes (Poll)
+    if (msg?.pollUpdateMessage || msg?.pollCreationMessage) {
+      text = `[Voto em enquete]`;
     }
   }
 
-  // Tratamento para respostas de Enquetes (Poll)
-  if (!text && msg?.pollUpdateMessage) {
-    text = `[Voto em enquete]`;
+  // Se chegarmos aqui e ainda for uma mensagem de sistema da UAZAPI sobre o menu, tentamos forçar o texto
+  if (!text && (typeRaw === 'interactive' || typeRaw === 'button' || typeRaw === 'list')) {
+    text = interactive?.body?.text || interactive?.header?.text || '';
   }
 
   const content = text || 
