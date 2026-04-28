@@ -793,11 +793,11 @@ router.post('/:connectionId/send-buttons', async (req, res) => {
   try {
     const conn = await loadUazapiConnection(req.params.connectionId);
     if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
-    const { phone, text, buttons, footer, header } = req.body || {};
+    const { phone, text, buttons, footer, header, image } = req.body || {};
     if (!phone || !text || !Array.isArray(buttons)) {
       return res.status(400).json({ error: 'phone, text e buttons[] são obrigatórios' });
     }
-    const out = await uazapiProvider.sendButtons(conn.uazapi_url, conn.uazapi_token, phone, text, buttons, { footer, header });
+    const out = await uazapiProvider.sendButtons(conn.uazapi_url, conn.uazapi_token, phone, text, buttons, { footer, header, image });
     res.json(out);
   } catch (e) {
     res.status(500).json({ error: e.message });

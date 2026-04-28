@@ -1321,9 +1321,9 @@ export function ChatArea({
         <SendInteractiveMenuDialog
           open={showInteractiveMenuDialog}
           onOpenChange={setShowInteractiveMenuDialog}
-          onSend={async (text, buttons, footer) => {
-            const payload = JSON.stringify({ text, buttons, footer });
-            await onSendMessage(payload, 'interactive_menu');
+          onSend={async (text, buttons, footer, image) => {
+            const payload = JSON.stringify({ text, buttons, footer, image });
+            await (onSendMessage as any)(payload, 'interactive_menu');
             toast.success('Menu interativo enviado!');
           }}
         />
