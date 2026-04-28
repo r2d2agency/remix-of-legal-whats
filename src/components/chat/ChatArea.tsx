@@ -62,7 +62,6 @@ import {
   FileSignature,
 } from "lucide-react";
 import { SendInteractiveMenuDialog } from "./SendInteractiveMenuDialog";
-  const [showInteractiveMenuDialog, setShowInteractiveMenuDialog] = useState(false);
 import { cn } from "@/lib/utils";
 import { ChatMessage, Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
 import { useChat } from "@/hooks/use-chat";
