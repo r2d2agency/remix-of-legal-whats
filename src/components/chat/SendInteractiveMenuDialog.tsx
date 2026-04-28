@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, Plus, Trash2, List, Link, Phone, Copy } from "lucide-react";
+import { Loader2, Send, Plus, Trash2, List, Link, Phone, Copy, Upload, X } from "lucide-react";
+import { useUpload } from "@/hooks/use-upload";
 import { toast } from "sonner";
 
 type ButtonType = 'reply' | 'url' | 'call' | 'copy';
@@ -36,6 +37,8 @@ export function SendInteractiveMenuDialog({
   const [buttonTypes, setButtonTypes] = useState<ButtonType[]>(["reply"]);
   const [buttonValues, setButtonValues] = useState<string[]>([""]);
   const [sending, setSending] = useState(false);
+  const { uploadFile, isUploading } = useUpload();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddButton = () => {
     if (buttons.length >= MAX_BUTTONS) {
@@ -57,6 +60,23 @@ export function SendInteractiveMenuDialog({
     const next = [...buttons];
     next[index] = value;
     setButtons(next);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const url = await uploadFile(file);
+      if (url) {
+        setImage(url);
+        toast.success("Imagem enviada com sucesso");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao enviar imagem");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const handleSend = async () => {
@@ -114,21 +134,49 @@ export function SendInteractiveMenuDialog({
 
         <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto px-1">
           <div className="space-y-2">
-            <Label>Imagem do Menu (URL opcional)</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="https://exemplo.com/imagem.jpg"
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
-              />
+            <Label>Imagem do Menu (Opcional)</Label>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="URL da imagem..."
+                  value={image}
+                  onChange={(e) => setImage(e.target.value)}
+                  className="flex-1"
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  title="Subir imagem do computador"
+                >
+                  {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                </Button>
+              </div>
+              
               {image && (
-                <div className="h-10 w-10 rounded border overflow-hidden shrink-0">
-                  <img src={image} alt="Preview" className="h-full w-full object-cover" />
+                <div className="relative w-full aspect-video rounded-lg border overflow-hidden bg-muted group">
+                  <img src={image} alt="Preview" className="h-full w-full object-contain" />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="h-6 w-6 absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => setImage("")}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
                 </div>
               )}
             </div>
           </div>
-
           <div className="space-y-2">
             <Label>Mensagem principal</Label>
             <Textarea
