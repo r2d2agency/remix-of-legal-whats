@@ -3505,7 +3505,13 @@ router.get('/contacts', authenticate, async (req, res) => {
            AND (conv.remote_jid IS NULL OR conv.remote_jid NOT LIKE '%@g.us')
          ON CONFLICT (connection_id, phone)
          DO UPDATE SET
-           name = COALESCE(NULLIF(EXCLUDED.name, ''), chat_contacts.name),
+           name = CASE
+             WHEN chat_contacts.name IS NULL
+               OR chat_contacts.name = ''
+               OR regexp_replace(chat_contacts.name, '\D', '', 'g') = regexp_replace(COALESCE(chat_contacts.phone, ''), '\D', '', 'g')
+             THEN COALESCE(NULLIF(EXCLUDED.name, ''), chat_contacts.name)
+             ELSE chat_contacts.name
+           END,
            jid = COALESCE(EXCLUDED.jid, chat_contacts.jid),
            updated_at = NOW()
          WHERE COALESCE(chat_contacts.is_deleted, false) = false`,
@@ -3621,7 +3627,20 @@ router.patch('/contacts/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Contato não encontrado' });
     }
 
-    res.json(result.rows[0]);
+    const updatedContact = result.rows[0];
+
+    await query(
+      `UPDATE conversations
+       SET contact_name = $1, updated_at = NOW()
+       WHERE connection_id = $2
+         AND (
+           regexp_replace(COALESCE(contact_phone, ''), '\D', '', 'g') = regexp_replace(COALESCE($3, ''), '\D', '', 'g')
+           OR regexp_replace(split_part(COALESCE(remote_jid, ''), '@', 1), '\D', '', 'g') = regexp_replace(COALESCE($3, ''), '\D', '', 'g')
+         )`,
+      [name.trim(), updatedContact.connection_id, updatedContact.phone]
+    );
+
+    res.json(updatedContact);
   } catch (error) {
     console.error('Update chat contact error:', error);
     res.status(500).json({ error: 'Erro ao atualizar contato' });

@@ -469,7 +469,7 @@ export function EditContactDialog({ open, onOpenChange, conversation }: EditCont
     if (open) {
       setName(conversation?.contact_name || conversation?.contact_phone || '');
     }
-  }, [open, conversation]);
+  }, [open, conversation?.id, conversation?.contact_phone]);
 
   const handleSave = async () => {
     if (!conversation || !name.trim()) return;
