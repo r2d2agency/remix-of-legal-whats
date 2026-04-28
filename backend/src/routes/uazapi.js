@@ -426,6 +426,17 @@ function extractMessageData(payload) {
     text = interactive?.body?.text || interactive?.header?.text || '';
   }
 
+  const originalFilename = [
+    msg?.content?.fileName,
+    msg?.content?.filename,
+    mediaObj?.obj?.fileName,
+    mediaObj?.obj?.filename,
+    msg?.fileName,
+    msg?.filename,
+    payload?.fileName,
+    payload?.filename
+  ].find(v => !!v) || null;
+
   const content = text || 
     (messageType === 'image' ? '[Imagem]' :
      messageType === 'video' ? '[Vídeo]' :
@@ -439,18 +450,6 @@ function extractMessageData(payload) {
   // Priorizamos o download via endpoint decifrado se o mediaObj existir e não houver uma URL pública clara.
   const needsProxy = !!(mediaObj && (!rawMediaUrl || String(rawMediaUrl).includes('.enc') || String(rawMediaUrl).includes('mmg.whatsapp.net')));
   const mediaUrl = needsProxy ? `__UAZAPI_DOWNLOAD__:${messageId}` : (rawMediaUrl || null);
-
-  const originalFilename = [
-    msg?.content?.fileName,
-    msg?.content?.filename,
-    mediaObj?.obj?.fileName,
-    mediaObj?.obj?.filename,
-    msg?.fileName,
-    msg?.filename,
-    payload?.fileName,
-    payload?.filename
-  ].find(v => !!v) || null;
-
   return {
     chatId,
     phone,
