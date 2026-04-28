@@ -1668,6 +1668,21 @@ const handleGetQRCode = async (connection: Connection) => {
                             )}
                           </Button>
                         )}
+                        {connection.status === 'connected' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleResyncUazapiNames(connection)}
+                            disabled={resyncingNames === connection.id}
+                            title="Corrigir nomes das conversas usando a agenda do WhatsApp"
+                          >
+                            {resyncingNames === connection.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <UserCheck className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
                       </div>
                     )}
 
