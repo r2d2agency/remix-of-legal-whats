@@ -750,7 +750,7 @@ export async function sendContact(baseUrl, token, phone, contactName, contactPho
 /**
  * Sender unificado (compatível com whatsapp-provider.js)
  */
-export async function sendMessage(baseUrl, token, phone, content, messageType, mediaUrl) {
+export async function sendMessage(baseUrl, token, phone, content, messageType, mediaUrl, filename = null) {
   if (messageType === 'text' || !messageType) {
     return sendText(baseUrl, token, phone, content);
   }
@@ -765,5 +765,5 @@ export async function sendMessage(baseUrl, token, phone, content, messageType, m
       return { success: false, error: 'Invalid contact data' };
     }
   }
-  return sendMedia(baseUrl, token, phone, mediaUrl, messageType, content);
+  return sendMedia(baseUrl, token, phone, mediaUrl, messageType, content, filename);
 }

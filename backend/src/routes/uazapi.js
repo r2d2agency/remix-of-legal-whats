@@ -318,6 +318,17 @@ function extractMessageData(payload) {
   const needsProxy = !!(mediaObj && (!rawMediaUrl || String(rawMediaUrl).includes('.enc') || String(rawMediaUrl).includes('mmg.whatsapp.net')));
   const mediaUrl = needsProxy ? `__UAZAPI_DOWNLOAD__:${messageId}` : (rawMediaUrl || null);
 
+  const originalFilename = [
+    msg?.content?.fileName,
+    msg?.content?.filename,
+    mediaObj?.obj?.fileName,
+    mediaObj?.obj?.filename,
+    msg?.fileName,
+    msg?.filename,
+    payload?.fileName,
+    payload?.filename
+  ].find(v => !!v) || null;
+
   return {
     chatId,
     phone,
@@ -331,6 +342,7 @@ function extractMessageData(payload) {
     mediaUrl,
     mediaMimetype,
     isAlbumContainer,
+    originalFilename,
   };
 }
 
@@ -372,7 +384,16 @@ async function persistIncomingMessage(connection, payload) {
             'application/pdf': '.pdf',
           };
           const ext = extMap[mt] || '.bin';
-          const fname = `uazapi_${Date.now()}_${crypto.randomUUID()}${ext}`;
+          let fname;
+          if (message.originalFilename) {
+            // Sanitizar nome original para evitar problemas de filesystem
+            const safeName = message.originalFilename.replace(/[^a-zA-Z0-9.-]/g, '_');
+            fname = `${Date.now()}_${safeName}`;
+            // Garante que tem extensão correta
+            if (!path.extname(fname)) fname += ext;
+          } else {
+            fname = `uazapi_${Date.now()}_${crypto.randomUUID()}${ext}`;
+          }
           const uploadsDir = path.join(process.cwd(), 'uploads');
           if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
           fs.writeFileSync(path.join(uploadsDir, fname), buf);

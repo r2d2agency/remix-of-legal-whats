@@ -1740,7 +1740,7 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     }
 
     const { id } = req.params;
-    const { content, message_type = 'text', media_url, media_mimetype, quoted_message_id } = req.body;
+    const { content, message_type = 'text', media_url, media_mimetype, quoted_message_id, filename } = req.body;
     const connectionIds = await getUserConnections(req.userId);
 
     // Get conversation with connection details (including W-API, UAZAPI and Meta fields)
@@ -1912,7 +1912,8 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
           to,
           content,
           message_type,
-          media_url
+          media_url,
+          filename
         );
 
         if (result.success) {

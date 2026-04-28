@@ -311,7 +311,7 @@ export async function disconnect(connection) {
 /**
  * Send message (unified)
  */
-export async function sendMessage(connection, phone, content, messageType, mediaUrl) {
+export async function sendMessage(connection, phone, content, messageType, mediaUrl, filename = null) {
   const provider = detectProvider(connection);
   const startedAt = Date.now();
 
@@ -336,7 +336,8 @@ export async function sendMessage(connection, phone, content, messageType, media
         phone,
         content,
         messageType,
-        mediaUrl
+        mediaUrl,
+        filename
       );
       logInfo('whatsapp.send_message_uazapi_result', {
         connection_id: connection.id,
@@ -363,7 +364,8 @@ export async function sendMessage(connection, phone, content, messageType, media
         phone,
         content,
         messageType,
-        mediaUrl
+        mediaUrl,
+        filename
       );
 
       logInfo('whatsapp.send_message_wapi_result', {
