@@ -58,7 +58,32 @@ import {
   Pin,
   Contact as ContactIcon,
   X as XIcon,
+  LayoutList,
 } from "lucide-react";
+import { SendInteractiveMenuDialog } from "./SendInteractiveMenuDialog";
+  const [showInteractiveMenuDialog, setShowInteractiveMenuDialog] = useState(false);
+  // Detect if current connection is UAZAPI
+  const isUazapiConnection = connections.some(
+    (c) => c.id === conversation?.connection_id && (c.provider === 'uazapi' || (c as any).uazapi_url)
+  );
+
+              {isUazapiConnection && (
+                <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0 text-primary" onClick={() => setShowInteractiveMenuDialog(true)} title="Enviar Menu Interativo">
+                  <LayoutList className="h-4 w-4" />
+                </Button>
+              )}
+      {conversation && (
+        <SendInteractiveMenuDialog
+          open={showInteractiveMenuDialog}
+          onOpenChange={setShowInteractiveMenuDialog}
+          onSend={async (text, buttons, footer) => {
+            const payload = JSON.stringify({ text, buttons, footer });
+            await onSendMessage(payload, 'interactive_menu');
+            toast.success('Menu interativo enviado!');
+          }}
+        />
+      )}
+
 import { FileSignature } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChatMessage, Conversation, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
