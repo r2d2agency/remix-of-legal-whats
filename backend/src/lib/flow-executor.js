@@ -570,12 +570,34 @@ async function processMenuNode(content, connection, phone, variables, conversati
   let menuText = content.prompt || content.message || 'Selecione uma opção:';
   menuText = replaceVariables(menuText, variables);
 
-  // Build menu options text
-  if (content.options?.length > 0) {
-    menuText += '\n\n';
-    content.options.forEach((opt, idx) => {
-      menuText += `${idx + 1}. ${opt.label || opt.text}\n`;
-    });
+  // Check if provider is UAZAPI and use native interactive menu if possible
+  if (connection.provider === 'uazapi' && Array.isArray(content.options) && content.options.length > 0) {
+    const options = content.options.map(opt => opt.label || opt.text).filter(Boolean).slice(0, 3);
+    
+    if (options.length > 0) {
+      console.log(`Flow executor: Sending UAZAPI native interactive menu to ${phone}`);
+      const result = await whatsappProvider.sendMessage(
+        connection, 
+        phone, 
+        JSON.stringify({
+          text: menuText,
+          buttons: options,
+          footer: content.footer || ''
+        }), 
+        'interactive_menu'
+      );
+      
+      if (result?.success) {
+        await saveSentMessage(conversationId, menuText, 'text', null, result?.messageId);
+        return;
+      }
+      console.warn('Flow executor: UAZAPI native menu failed, falling back to text menu');
+    }
+  }
+
+  // Fallback: Build text menu
+  if (Array.isArray(content.options) && content.options.length > 0) {
+    menuText += '\n\n' + content.options.map((opt, idx) => `${idx + 1}. ${opt.label || opt.text}`).join('\n');
   }
 
   const result = await whatsappProvider.sendMessage(connection, phone, menuText, 'text');

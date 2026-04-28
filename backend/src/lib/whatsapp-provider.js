@@ -328,33 +328,6 @@ export async function sendMessage(connection, phone, content, messageType, media
     return sendMetaMessage(connection, phone, content, messageType, mediaUrl);
   }
 
-  if (provider === 'uazapi') {
-    try {
-      const result = await uazapiProvider.sendMessage(
-        connection.uazapi_url,
-        connection.uazapi_token,
-        phone,
-        content,
-        messageType,
-        mediaUrl,
-        filename
-      );
-      logInfo('whatsapp.send_message_uazapi_result', {
-        connection_id: connection.id,
-        success: result.success,
-        error: result.error || null,
-        duration_ms: Date.now() - startedAt,
-      });
-      return result;
-    } catch (error) {
-      logError('whatsapp.send_message_uazapi_exception', error, {
-        connection_id: connection.id,
-        duration_ms: Date.now() - startedAt,
-      });
-      return { success: false, error: error.message };
-    }
-  }
-
   if (provider === 'wapi') {
     try {
       const resolvedToken = await resolveWapiToken(connection);
