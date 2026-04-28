@@ -1816,22 +1816,45 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
     // ============================================================
     const tempMessageId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
-    const messageResult = await query(
-      `INSERT INTO chat_messages 
-        (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, quoted_message_id, status, timestamp)
-       VALUES ($1, $2, true, $3, $4, $5, $6, $7, $8, 'pending', NOW())
-       RETURNING *`,
-      [
-        id,
-        tempMessageId,
-        req.userId,
-        content,
-        message_type,
-        media_url || null,
-        media_mimetype || null,
-        quoted_message_id || null,
-      ]
-    );
+    const chatMessagesHasConnectionId = await hasColumn('chat_messages', 'connection_id');
+    let messageResult;
+
+    if (chatMessagesHasConnectionId) {
+      messageResult = await query(
+        `INSERT INTO chat_messages 
+          (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, quoted_message_id, status, timestamp, connection_id)
+         VALUES ($1, $2, true, $3, $4, $5, $6, $7, $8, 'pending', NOW(), $9)
+         RETURNING *`,
+        [
+          id,
+          tempMessageId,
+          req.userId,
+          content,
+          message_type,
+          media_url || null,
+          media_mimetype || null,
+          quoted_message_id || null,
+          conversation.connection_id
+        ]
+      );
+    } else {
+      messageResult = await query(
+        `INSERT INTO chat_messages 
+          (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, quoted_message_id, status, timestamp)
+         VALUES ($1, $2, true, $3, $4, $5, $6, $7, $8, 'pending', NOW())
+         RETURNING *`,
+        [
+          id,
+          tempMessageId,
+          req.userId,
+          content,
+          message_type,
+          media_url || null,
+          media_mimetype || null,
+          quoted_message_id || null,
+        ]
+      );
+    }
 
     const savedMessage = messageResult.rows[0];
 
