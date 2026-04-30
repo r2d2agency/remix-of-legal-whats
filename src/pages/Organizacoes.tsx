@@ -941,7 +941,10 @@ export default function Organizacoes() {
                                             <Checkbox
                                               id={`conn-new-${conn.id}`}
                                               checked={newMemberConnectionIds.includes(conn.id)}
-                                              onCheckedChange={() => toggleConnection(conn.id, newMemberConnectionIds, setNewMemberConnectionIds)}
+                                              onCheckedChange={() => {
+                                                toggleConnection(conn.id, newMemberConnectionIds, setNewMemberConnectionIds);
+                                                if (newMemberDefaultConnectionId === conn.id) setNewMemberDefaultConnectionId(null);
+                                              }}
                                             />
                                             <label
                                               htmlFor={`conn-new-${conn.id}`}
@@ -954,6 +957,20 @@ export default function Organizacoes() {
                                                 </span>
                                               )}
                                             </label>
+                                            {newMemberConnectionIds.includes(conn.id) && (
+                                              <button
+                                                type="button"
+                                                onClick={() => setNewMemberDefaultConnectionId(conn.id)}
+                                                className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
+                                                  newMemberDefaultConnectionId === conn.id
+                                                    ? 'bg-primary text-primary-foreground border-primary'
+                                                    : 'bg-muted text-muted-foreground border-border hover:bg-primary/10'
+                                                }`}
+                                                title="Definir como conexão padrão deste vendedor"
+                                              >
+                                                {newMemberDefaultConnectionId === conn.id ? '★ Padrão' : 'Tornar padrão'}
+                                              </button>
+                                            )}
                                           </div>
                                         ))}
                                       </div>
@@ -1681,7 +1698,10 @@ export default function Organizacoes() {
                         <Checkbox
                           id={`edit-conn-${conn.id}`}
                           checked={editMemberConnectionIds.includes(conn.id)}
-                          onCheckedChange={() => toggleConnection(conn.id, editMemberConnectionIds, setEditMemberConnectionIds)}
+                          onCheckedChange={() => {
+                            toggleConnection(conn.id, editMemberConnectionIds, setEditMemberConnectionIds);
+                            if (editMemberDefaultConnectionId === conn.id) setEditMemberDefaultConnectionId(null);
+                          }}
                         />
                         <label
                           htmlFor={`edit-conn-${conn.id}`}
@@ -1694,12 +1714,26 @@ export default function Organizacoes() {
                             </span>
                           )}
                         </label>
+                        {editMemberConnectionIds.includes(conn.id) && (
+                          <button
+                            type="button"
+                            onClick={() => setEditMemberDefaultConnectionId(conn.id)}
+                            className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
+                              editMemberDefaultConnectionId === conn.id
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-muted text-muted-foreground border-border hover:bg-primary/10'
+                            }`}
+                            title="Definir como conexão padrão deste vendedor"
+                          >
+                            {editMemberDefaultConnectionId === conn.id ? '★ Padrão' : 'Tornar padrão'}
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Sem seleção = acesso a todas as conexões
+                  Sem seleção = acesso a todas as conexões. A conexão marcada como ★ <b>Padrão</b> é a usada para envios automáticos do CRM.
                 </p>
               </div>
 
