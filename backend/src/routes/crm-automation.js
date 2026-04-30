@@ -230,9 +230,9 @@ router.post('/deals/:dealId/start-automation', async (req, res) => {
       [req.params.dealId]
     );
 
-    // Create new automation record
-    const waitUntil = new Date();
-    waitUntil.setHours(waitUntil.getHours() + (deal.wait_hours || 24));
+    // Create new automation record (wait_hours can be decimal — e.g. 0.5 = 30min)
+    const waitHours = Number(deal.wait_hours) || 24;
+    const waitUntil = new Date(Date.now() + Math.round(waitHours * 3600 * 1000));
 
     const automationResult = await query(
       `INSERT INTO crm_deal_automations 
@@ -400,8 +400,8 @@ router.post('/deals/bulk-start-automation', async (req, res) => {
         );
 
         // Create new automation
-        const waitUntil = new Date();
-        waitUntil.setHours(waitUntil.getHours() + (automation.wait_hours || 24));
+        const waitHoursBulk = Number(automation.wait_hours) || 24;
+        const waitUntil = new Date(Date.now() + Math.round(waitHoursBulk * 3600 * 1000));
 
         await query(
           `INSERT INTO crm_deal_automations 

@@ -517,18 +517,54 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
               <div className="space-y-1">
                 <Label className="text-xs flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  Tempo de espera (horas)
+                  Tempo de espera
                 </Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={localConfig.wait_hours}
-                  onChange={(e) => setLocalConfig(prev => ({ ...prev, wait_hours: Number(e.target.value) }))}
-                  className="h-8 text-xs"
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Se não houver resposta em {localConfig.wait_hours}h, move para próxima etapa
-                </p>
+                {(() => {
+                  // Derive unit + amount from wait_hours (decimal)
+                  const wh = Number(localConfig.wait_hours) || 0;
+                  const unit: 'minutes' | 'hours' | 'days' =
+                    wh > 0 && wh < 1 ? 'minutes' : (wh >= 24 && wh % 24 === 0 ? 'days' : 'hours');
+                  const amount =
+                    unit === 'minutes' ? Math.round(wh * 60) :
+                    unit === 'days' ? Math.round(wh / 24) :
+                    wh;
+                  const updateWait = (newAmount: number, newUnit: 'minutes' | 'hours' | 'days') => {
+                    const safe = Math.max(1, Number(newAmount) || 1);
+                    const hours =
+                      newUnit === 'minutes' ? safe / 60 :
+                      newUnit === 'days' ? safe * 24 :
+                      safe;
+                    setLocalConfig(prev => ({ ...prev, wait_hours: hours }));
+                  };
+                  const labelUnit = unit === 'minutes' ? 'min' : unit === 'days' ? 'd' : 'h';
+                  return (
+                    <>
+                      <div className="flex gap-1">
+                        <Input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={amount}
+                          onChange={(e) => updateWait(Number(e.target.value), unit)}
+                          className="h-8 text-xs flex-1"
+                        />
+                        <Select value={unit} onValueChange={(v) => updateWait(amount, v as any)}>
+                          <SelectTrigger className="h-8 text-xs w-[110px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="minutes">Minutos</SelectItem>
+                            <SelectItem value="hours">Horas</SelectItem>
+                            <SelectItem value="days">Dias</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Se não houver resposta em {amount}{labelUnit}, move para próxima etapa
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Business Hours Schedule */}

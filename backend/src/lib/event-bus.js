@@ -48,6 +48,8 @@ import { logInfo, logError } from '../logger.js';
     await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS next_stage_on_timeout UUID`);
     await query(`ALTER TABLE crm_deal_automations ADD COLUMN IF NOT EXISTS follow_up_sent_at TIMESTAMP WITH TIME ZONE`);
     await query(`ALTER TABLE crm_deal_automations ADD COLUMN IF NOT EXISTS follow_up_due_at TIMESTAMP WITH TIME ZONE`);
+    // Convert wait_hours to NUMERIC to support fractional hours (e.g. minutes via 0.5)
+    try { await query(`ALTER TABLE crm_stage_automations ALTER COLUMN wait_hours TYPE NUMERIC(10,4) USING wait_hours::numeric`); } catch(e) {}
     logInfo('[event-bus] schema ready');
   } catch (err) {
     logError('[event-bus] self-heal failed', err);
