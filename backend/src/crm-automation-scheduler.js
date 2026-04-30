@@ -623,11 +623,25 @@ function getConditionFieldValue(dealData, variable) {
   const normalizedVariable = String(variable).trim();
   if (!normalizedVariable) return undefined;
 
-  if (normalizedVariable.startsWith('custom_fields.')) {
-    const rawKey = normalizedVariable.slice('custom_fields.'.length);
-    if (Object.prototype.hasOwnProperty.call(dealData, rawKey)) {
-      return dealData[rawKey];
+  // Support both "custom_fields.foo" and "custom_fields:foo" prefixes
+  for (const sep of ['custom_fields.', 'custom_fields:']) {
+    if (normalizedVariable.startsWith(sep)) {
+      const rawKey = normalizedVariable.slice(sep.length);
+      if (Object.prototype.hasOwnProperty.call(dealData, rawKey)) {
+        return dealData[rawKey];
+      }
+      const cf = dealData.custom_fields || {};
+      if (Object.prototype.hasOwnProperty.call(cf, rawKey)) {
+        return cf[rawKey];
+      }
+      return undefined;
     }
+  }
+
+  // Also try inside custom_fields directly (in case spread missed it)
+  const cf = dealData.custom_fields || {};
+  if (Object.prototype.hasOwnProperty.call(cf, normalizedVariable)) {
+    return cf[normalizedVariable];
   }
 
   const parts = normalizedVariable.split('.');
@@ -739,25 +753,79 @@ export async function executeCRMAutomations() {
   }
 }
 
+// Parse a possibly-formatted number (handles "R$ 65.000,00", "65,000.00", "65 mil" → fails gracefully)
+function parseNumeric(v) {
+  if (v === null || v === undefined) return NaN;
+  if (typeof v === 'number') return v;
+  let s = String(v).trim();
+  if (!s) return NaN;
+  // Strip currency symbols / spaces / letters
+  s = s.replace(/[^\d,.\-]/g, '');
+  if (!s) return NaN;
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma > -1 && lastDot > -1) {
+    // Whichever comes last is the decimal separator
+    if (lastComma > lastDot) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      s = s.replace(/,/g, '');
+    }
+  } else if (lastComma > -1) {
+    // Only comma present: treat as decimal if 1-2 digits after, otherwise thousands
+    const after = s.length - lastComma - 1;
+    if (after === 1 || after === 2) {
+      s = s.replace(',', '.');
+    } else {
+      s = s.replace(/,/g, '');
+    }
+  }
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 // Evaluate a single condition rule against deal data
 function evaluateConditionRule(dealData, rule) {
   const rawFieldValue = getConditionFieldValue(dealData, rule.variable);
-  const fieldValue = String(rawFieldValue ?? '').toLowerCase();
-  const compareValue = String(rule.value || '').toLowerCase();
+  const fieldValue = String(rawFieldValue ?? '').toLowerCase().trim();
+  const compareValue = String(rule.value ?? '').toLowerCase().trim();
+  const op = String(rule.operator || '').toLowerCase();
 
-  switch (rule.operator) {
-    case 'equals': case 'equal': return fieldValue === compareValue;
-    case 'not_equals': case 'not_equal': return fieldValue !== compareValue;
-    case 'contains': return fieldValue.includes(compareValue);
-    case 'not_contains': return !fieldValue.includes(compareValue);
-    case 'starts_with': return fieldValue.startsWith(compareValue);
-    case 'ends_with': return fieldValue.endsWith(compareValue);
-    case 'is_empty': return fieldValue === '';
-    case 'is_not_empty': return fieldValue !== '';
-    case 'greater_than': return parseFloat(rawFieldValue) > parseFloat(rule.value);
-    case 'less_than': return parseFloat(rawFieldValue) < parseFloat(rule.value);
-    default: return false;
+  const numField = parseNumeric(rawFieldValue);
+  const numCompare = parseNumeric(rule.value);
+
+  let result;
+  switch (op) {
+    case 'equals': case 'equal': case '=': case '==':
+      // If both are numeric, compare numerically (handles "65000" vs 65000)
+      result = (!isNaN(numField) && !isNaN(numCompare))
+        ? numField === numCompare
+        : fieldValue === compareValue;
+      break;
+    case 'not_equals': case 'not_equal': case '!=':
+      result = (!isNaN(numField) && !isNaN(numCompare))
+        ? numField !== numCompare
+        : fieldValue !== compareValue;
+      break;
+    case 'contains': result = fieldValue.includes(compareValue); break;
+    case 'not_contains': result = !fieldValue.includes(compareValue); break;
+    case 'starts_with': result = fieldValue.startsWith(compareValue); break;
+    case 'ends_with': result = fieldValue.endsWith(compareValue); break;
+    case 'is_empty': result = fieldValue === ''; break;
+    case 'is_not_empty': result = fieldValue !== ''; break;
+    case 'greater_than': case 'gt': case '>':
+      result = !isNaN(numField) && !isNaN(numCompare) && numField > numCompare; break;
+    case 'greater_than_or_equal': case 'gte': case '>=':
+      result = !isNaN(numField) && !isNaN(numCompare) && numField >= numCompare; break;
+    case 'less_than': case 'lt': case '<':
+      result = !isNaN(numField) && !isNaN(numCompare) && numField < numCompare; break;
+    case 'less_than_or_equal': case 'lte': case '<=':
+      result = !isNaN(numField) && !isNaN(numCompare) && numField <= numCompare; break;
+    default: result = false;
   }
+
+  logInfo(`[CRM-AUTOMATION] cond ${rule.variable} (${op}) ${rule.value} → raw="${rawFieldValue}" num=${numField} vs ${numCompare} = ${result}`);
+  return result;
 }
 
 // Evaluate all conditions for a stage automation against deal data
