@@ -1959,7 +1959,7 @@ CREATE TABLE IF NOT EXISTS crm_stage_automations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     stage_id UUID REFERENCES crm_stages(id) ON DELETE CASCADE NOT NULL UNIQUE,
     flow_id UUID REFERENCES flows(id) ON DELETE SET NULL,
-    wait_hours INTEGER NOT NULL DEFAULT 24,
+    wait_hours NUMERIC(10,4) NOT NULL DEFAULT 24,
     next_stage_id UUID REFERENCES crm_stages(id) ON DELETE SET NULL,
     fallback_funnel_id UUID REFERENCES crm_funnels(id) ON DELETE SET NULL,
     fallback_stage_id UUID REFERENCES crm_stages(id) ON DELETE SET NULL,
