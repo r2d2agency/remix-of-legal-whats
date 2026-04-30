@@ -71,32 +71,125 @@ async function executeFlowForDeal(automation, organizationId) {
       }
     }
 
-    // Get connection for the organization - prefer funnel-specific connection
-    let connectionResult = await query(
-      `SELECT c.* FROM connections c
-       JOIN crm_stages s ON s.funnel_id = (SELECT funnel_id FROM crm_stages WHERE id = $2)
-       JOIN crm_funnels f ON f.id = s.funnel_id
-       WHERE c.id = f.connection_id AND c.status = 'connected'
-       LIMIT 1`,
-      [organizationId, automation.stage_id]
+    // ============================================================
+    // HIERARQUIA DE SELEÇÃO DE CONEXÃO (envio automático Kanban)
+    // 1) Conexão do vendedor responsável (assigned_to via connection_members)
+    // 2) Conexão configurada no funil (crm_funnels.connection_id)
+    // 3) Fallback: qualquer conexão ativa da organização
+    // ------------------------------------------------------------
+    // Logs sempre indicam qual estratégia foi usada e alertam quando
+    // o vendedor responsável não tem conexão ativa vinculada.
+    // ============================================================
+    const dealOwnerResult = await query(
+      `SELECT d.assigned_to, u.name as assigned_name
+         FROM crm_deals d
+         LEFT JOIN users u ON u.id = d.assigned_to
+        WHERE d.id = $1`,
+      [automation.deal_id]
     );
-    
-    if (!connectionResult.rows[0]) {
-      // Fallback to any active connection
+    const assignedTo = dealOwnerResult.rows[0]?.assigned_to || null;
+    const assignedName = dealOwnerResult.rows[0]?.assigned_name || null;
+
+    let connectionResult = { rows: [] };
+    let connectionSource = null;
+
+    // 1) Conexão do vendedor responsável
+    if (assignedTo) {
       connectionResult = await query(
-        `SELECT * FROM connections 
-         WHERE organization_id = $1 AND status = 'connected' 
-         ORDER BY created_at DESC LIMIT 1`,
+        `SELECT c.*
+           FROM connections c
+           JOIN connection_members cm ON cm.connection_id = c.id
+          WHERE c.organization_id = $1
+            AND cm.user_id = $2
+            AND cm.can_send = true
+            AND c.status = 'connected'
+          ORDER BY cm.created_at ASC
+          LIMIT 1`,
+        [organizationId, assignedTo]
+      );
+      if (connectionResult.rows[0]) {
+        connectionSource = 'assigned_user';
+      } else {
+        logError(
+          `[CRM-Auto] ⚠️ Vendedor responsável (${assignedName || assignedTo}) ` +
+          `do deal ${automation.deal_id} não possui conexão ativa vinculada. ` +
+          `Caindo para fallback (funil/organização).`
+        );
+      }
+    } else {
+      logInfo(`[CRM-Auto] Deal ${automation.deal_id} sem vendedor responsável (assigned_to=null) — usando funil/organização.`);
+    }
+
+    // 2) Conexão do funil
+    if (!connectionResult.rows[0]) {
+      connectionResult = await query(
+        `SELECT c.* FROM connections c
+           JOIN crm_stages s ON s.funnel_id = (SELECT funnel_id FROM crm_stages WHERE id = $2)
+           JOIN crm_funnels f ON f.id = s.funnel_id
+          WHERE c.id = f.connection_id AND c.status = 'connected'
+          LIMIT 1`,
+        [organizationId, automation.stage_id]
+      );
+      if (connectionResult.rows[0]) {
+        connectionSource = 'funnel_default';
+      }
+    }
+
+    // 3) Qualquer conexão ativa da org
+    if (!connectionResult.rows[0]) {
+      connectionResult = await query(
+        `SELECT * FROM connections
+          WHERE organization_id = $1 AND status = 'connected'
+          ORDER BY created_at DESC LIMIT 1`,
         [organizationId]
       );
+      if (connectionResult.rows[0]) {
+        connectionSource = 'org_fallback';
+      }
     }
 
     if (!connectionResult.rows[0]) {
-      logError(`No active connection for org ${organizationId}`);
+      logError(
+        `[CRM-Auto] ❌ Nenhuma conexão ativa encontrada para org ${organizationId} ` +
+        `(deal ${automation.deal_id}, vendedor=${assignedName || 'sem responsável'})`
+      );
       return false;
     }
 
     const connection = connectionResult.rows[0];
+
+    // Log de auditoria — qual conexão será usada e por qual motivo
+    logInfo(
+      `[CRM-Auto] ✅ Disparo deal=${automation.deal_id} ` +
+      `vendedor=${assignedName || 'n/a'} (${assignedTo || 'sem assigned_to'}) ` +
+      `→ conexão=${connection.name || connection.instance_name || connection.id} ` +
+      `[id=${connection.id}] origem=${connectionSource}`
+    );
+
+    // Registrar no log da automação para auditoria via UI
+    try {
+      await query(
+        `INSERT INTO crm_automation_logs (deal_automation_id, deal_id, action, details)
+         VALUES ($1, $2, 'connection_selected', $3)`,
+        [
+          automation.id,
+          automation.deal_id,
+          JSON.stringify({
+            connection_id: connection.id,
+            connection_name: connection.name || connection.instance_name || null,
+            source: connectionSource,
+            assigned_to: assignedTo,
+            assigned_name: assignedName,
+            warning: connectionSource !== 'assigned_user' && assignedTo
+              ? 'Vendedor responsável sem conexão vinculada — usado fallback'
+              : null,
+          }),
+        ]
+      );
+    } catch (logErr) {
+      // Não bloqueia execução se o log falhar
+      logError(`[CRM-Auto] Falha ao gravar log de seleção de conexão: ${logErr.message}`);
+    }
 
     // Get flow data
     const flowResult = await query(
