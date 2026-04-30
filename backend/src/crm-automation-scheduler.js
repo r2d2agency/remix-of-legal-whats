@@ -922,19 +922,29 @@ export async function onDealStageChanged(dealId, newStageId, organizationId) {
       const moveStageId = conditionResult ? config.condition_true_stage_id : config.condition_false_stage_id;
       const moveFlowId = conditionResult ? config.condition_true_flow_id : config.condition_false_flow_id;
 
-      if (moveStageId && !moveFlowId) {
-        // Direct move without flow
-        await query(
-          `UPDATE crm_deals SET stage_id = $1, funnel_id = COALESCE((SELECT funnel_id FROM crm_stages WHERE id = $1), funnel_id), last_activity_at = NOW(), updated_at = NOW() WHERE id = $2`,
-          [moveStageId, dealId]
-        );
-        await query(
-          `INSERT INTO crm_deal_history (deal_id, action, from_value, to_value, notes)
-           VALUES ($1, 'stage_changed', $2, $3, 'Movido automaticamente por condição da automação')`,
-          [dealId, newStageId, moveStageId]
-        );
-        logInfo(`Condition ${conditionResult ? 'TRUE' : 'FALSE'}: Moved deal ${dealId} to stage ${moveStageId} directly`);
-        return;
+      if (moveStageId) {
+        // Se houver um destino de etapa condicional, movemos IMEDIATAMENTE.
+        // Isso permite que a nova etapa processe suas próprias automações (ex: Boas vindas).
+        if (moveStageId !== newStageId) {
+          await query(
+            `UPDATE crm_deals 
+             SET stage_id = $1, 
+                 funnel_id = COALESCE((SELECT funnel_id FROM crm_stages WHERE id = $1), funnel_id), 
+                 last_activity_at = NOW(), 
+                 updated_at = NOW() 
+             WHERE id = $2`,
+            [moveStageId, dealId]
+          );
+          await query(
+            `INSERT INTO crm_deal_history (deal_id, action, from_value, to_value, notes)
+             VALUES ($1, 'stage_changed', $2, $3, 'Movido automaticamente por condição da automação')`,
+            [dealId, newStageId, moveStageId]
+          );
+          logInfo(`[CRM-Auto] Condição ${conditionResult ? 'VERDADEIRA' : 'FALSA'}: Lead ${dealId} movido para etapa ${moveStageId}`);
+          
+          // Disparar automação da NOVA etapa recursivamente
+          return onDealStageChanged(dealId, moveStageId, organizationId);
+        }
       }
     }
 
