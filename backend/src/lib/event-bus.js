@@ -50,6 +50,9 @@ import { logInfo, logError } from '../logger.js';
     await query(`ALTER TABLE crm_deal_automations ADD COLUMN IF NOT EXISTS follow_up_due_at TIMESTAMP WITH TIME ZONE`);
     // Convert wait_hours to NUMERIC to support fractional hours (e.g. minutes via 0.5)
     try { await query(`ALTER TABLE crm_stage_automations ALTER COLUMN wait_hours TYPE NUMERIC(10,4) USING wait_hours::numeric`); } catch(e) {}
+    // Outside business hours flow (fired once per lead/stage when current time is outside schedule)
+    await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS outside_hours_flow_id UUID`);
+    await query(`ALTER TABLE crm_deal_automations ADD COLUMN IF NOT EXISTS outside_hours_sent_at TIMESTAMP WITH TIME ZONE`);
     logInfo('[event-bus] schema ready');
   } catch (err) {
     logError('[event-bus] self-heal failed', err);
