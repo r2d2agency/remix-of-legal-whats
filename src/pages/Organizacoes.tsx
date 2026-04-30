@@ -119,6 +119,7 @@ export default function Organizacoes() {
   const [newMemberRole, setNewMemberRole] = useState<string>('agent');
   const [newMemberConnectionIds, setNewMemberConnectionIds] = useState<string[]>([]);
   const [newMemberDepartmentIds, setNewMemberDepartmentIds] = useState<string[]>([]);
+  const [newMemberDefaultConnectionId, setNewMemberDefaultConnectionId] = useState<string | null>(null);
 
   // Edit member dialog
   const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
@@ -126,6 +127,7 @@ export default function Organizacoes() {
   const [editMemberRole, setEditMemberRole] = useState<string>('agent');
   const [editMemberConnectionIds, setEditMemberConnectionIds] = useState<string[]>([]);
   const [editMemberDepartmentIds, setEditMemberDepartmentIds] = useState<string[]>([]);
+  const [editMemberDefaultConnectionId, setEditMemberDefaultConnectionId] = useState<string | null>(null);
 
   // Edit password dialog
   const [editPasswordDialogOpen, setEditPasswordDialogOpen] = useState(false);
@@ -486,6 +488,7 @@ export default function Organizacoes() {
       name: newMemberName,
       password: newMemberPassword,
       connection_ids: newMemberConnectionIds.length > 0 ? newMemberConnectionIds : undefined,
+      default_connection_id: newMemberDefaultConnectionId || undefined,
       department_ids: newMemberDepartmentIds.length > 0 ? newMemberDepartmentIds : undefined
     });
 
@@ -506,6 +509,7 @@ export default function Organizacoes() {
     setNewMemberRole('agent');
     setNewMemberConnectionIds([]);
     setNewMemberDepartmentIds([]);
+    setNewMemberDefaultConnectionId(null);
   };
 
   const handleOpenEditMember = (member: OrganizationMember) => {
@@ -513,6 +517,7 @@ export default function Organizacoes() {
     setEditMemberRole(member.role);
     setEditMemberConnectionIds(member.assigned_connections?.map(c => c.id) || []);
     setEditMemberDepartmentIds(member.assigned_departments?.map(d => d.id) || []);
+    setEditMemberDefaultConnectionId((member as any).default_connection_id || null);
     setEditMemberTemplateId(member.permission_template_id || '');
     setEditMemberDialogOpen(true);
   };
@@ -520,9 +525,10 @@ export default function Organizacoes() {
   const handleUpdateMember = async () => {
     if (!selectedOrg || !editingMember) return;
 
-    const updateData: { role?: string; connection_ids?: string[]; department_ids?: string[] } = {
+    const updateData: { role?: string; connection_ids?: string[]; department_ids?: string[]; default_connection_id?: string | null } = {
       connection_ids: editMemberConnectionIds,
       department_ids: editMemberDepartmentIds,
+      default_connection_id: editMemberDefaultConnectionId,
     };
     
     // Only include role if it's different and member is not owner
