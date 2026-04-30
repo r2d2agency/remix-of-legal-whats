@@ -1065,6 +1065,13 @@ router.post('/deals', async (req, res) => {
       source: 'crm',
     }).catch((err) => logError('emit lead_created failed', err));
 
+    // Also trigger stage automation for the initial stage (entry_rules may not exist).
+    // Defer slightly so contact links below have a chance to be created first.
+    setTimeout(() => {
+      onDealStageChanged(deal.id, stage_id, org.organization_id)
+        .catch((err) => logError('initial onDealStageChanged failed', err));
+    }, 1500);
+
     // Add contacts by ID
     if (contact_ids && contact_ids.length > 0) {
       for (let i = 0; i < contact_ids.length; i++) {
