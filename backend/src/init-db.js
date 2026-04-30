@@ -297,9 +297,13 @@ CREATE TABLE IF NOT EXISTS connection_members (
     can_view BOOLEAN DEFAULT true,
     can_send BOOLEAN DEFAULT true,
     can_manage BOOLEAN DEFAULT false,
+    is_default BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (connection_id, user_id)
 );
+ALTER TABLE connection_members ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_connection_members_user_default
+  ON connection_members(user_id) WHERE is_default = true;
 `;
 
 // ============================================
