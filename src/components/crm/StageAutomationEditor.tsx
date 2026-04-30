@@ -80,6 +80,7 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
     condition_true_stage_id: null,
     condition_false_flow_id: null,
     condition_false_stage_id: null,
+    outside_hours_flow_id: null,
   });
 
   const { data: existingAutomation, isLoading: loadingAutomation } = useStageAutomation(stage.id || null);
@@ -172,6 +173,7 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
         condition_true_stage_id: ea.condition_true_stage_id || null,
         condition_false_flow_id: ea.condition_false_flow_id || null,
         condition_false_stage_id: ea.condition_false_stage_id || null,
+        outside_hours_flow_id: ea.outside_hours_flow_id || null,
       });
     }
   }, [existingAutomation]);
@@ -612,6 +614,30 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
                 <p className="text-[10px] text-muted-foreground">
                   Fora deste horário, ações serão agendadas para o próximo dia útil
                 </p>
+
+                {/* Outside-hours flow */}
+                <div className="space-y-1 pt-2 border-t">
+                  <Label className="text-[11px] font-medium">
+                    Fluxo fora do horário (opcional)
+                  </Label>
+                  <Select
+                    value={localConfig.outside_hours_flow_id || "none"}
+                    onValueChange={(v) => setLocalConfig(prev => ({ ...prev, outside_hours_flow_id: v === "none" ? null : v }))}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Nenhum (apenas reagendar)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum (apenas reagendar)</SelectItem>
+                      {flows.map(f => (
+                        <SelectItem key={f.id} value={f.id!}>{f.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground">
+                    Se o lead cair fora do horário, este fluxo é disparado <strong>uma única vez</strong> (ex.: aviso "voltamos às 8h"). O fluxo principal segue agendado para o próximo horário comercial.
+                  </p>
+                </div>
               </div>
 
               {/* Next Stage (no response fallback) */}
