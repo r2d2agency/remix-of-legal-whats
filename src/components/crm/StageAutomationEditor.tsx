@@ -80,6 +80,7 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
     condition_true_stage_id: null,
     condition_false_flow_id: null,
     condition_false_stage_id: null,
+    outside_hours_flow_id: null,
   });
 
   const { data: existingAutomation, isLoading: loadingAutomation } = useStageAutomation(stage.id || null);
@@ -172,6 +173,7 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
         condition_true_stage_id: ea.condition_true_stage_id || null,
         condition_false_flow_id: ea.condition_false_flow_id || null,
         condition_false_stage_id: ea.condition_false_stage_id || null,
+        outside_hours_flow_id: ea.outside_hours_flow_id || null,
       });
     }
   }, [existingAutomation]);
