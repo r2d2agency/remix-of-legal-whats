@@ -856,8 +856,9 @@ export async function onDealStageChanged(dealId, newStageId, organizationId) {
     );
 
     // Create new automation with resolved flow/stage
-    const waitUntil = new Date();
-    waitUntil.setHours(waitUntil.getHours() + (config.wait_hours || 24));
+    // wait_hours is stored as decimal hours (e.g. 0.5 = 30min)
+    const waitHours = Number(config.wait_hours) || 24;
+    const waitUntil = new Date(Date.now() + Math.round(waitHours * 3600 * 1000));
 
     await query(
       `INSERT INTO crm_deal_automations 
