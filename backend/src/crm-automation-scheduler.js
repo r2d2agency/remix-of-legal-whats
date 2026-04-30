@@ -46,11 +46,14 @@ function getNextBusinessDateTime(scheduleDays, startTime, endTime) {
   return null;
 }
 
-async function executeFlowForDeal(automation, organizationId) {
+async function executeFlowForDeal(automation, organizationId, opts = {}) {
+  const overrideFlowId = opts.overrideFlowId || null;
+  const skipScheduleCheck = !!opts.skipScheduleCheck;
+  const skipStatusUpdate = !!opts.skipStatusUpdate;
   try {
     // Check business hours schedule
-    const scheduleConfig = await query(
-      `SELECT schedule_days, schedule_start_time, schedule_end_time 
+    const scheduleConfig = skipScheduleCheck ? { rows: [] } : await query(
+      `SELECT schedule_days, schedule_start_time, schedule_end_time, outside_hours_flow_id
        FROM crm_stage_automations WHERE id = $1`,
       [automation.automation_id]
     );
@@ -61,6 +64,34 @@ async function executeFlowForDeal(automation, organizationId) {
       const nextTime = getNextBusinessDateTime(scheduleDays, cfg.schedule_start_time, cfg.schedule_end_time);
       
       if (nextTime) {
+        // Optionally fire the "outside hours" flow once per lead/stage before rescheduling
+        if (cfg.outside_hours_flow_id) {
+          try {
+            const sentCheck = await query(
+              `SELECT outside_hours_sent_at FROM crm_deal_automations WHERE id = $1`,
+              [automation.id]
+            );
+            if (!sentCheck.rows[0]?.outside_hours_sent_at) {
+              await executeFlowForDeal(
+                { ...automation, flow_id: cfg.outside_hours_flow_id },
+                organizationId,
+                { skipScheduleCheck: true, skipStatusUpdate: true }
+              );
+              await query(
+                `UPDATE crm_deal_automations SET outside_hours_sent_at = NOW() WHERE id = $1`,
+                [automation.id]
+              );
+              await query(
+                `INSERT INTO crm_automation_logs (deal_automation_id, deal_id, action, details)
+                 VALUES ($1, $2, 'outside_hours_flow_triggered', $3)`,
+                [automation.id, automation.deal_id, JSON.stringify({ flow_id: cfg.outside_hours_flow_id })]
+              );
+              logInfo(`Outside-hours flow fired once for automation ${automation.id}`);
+            }
+          } catch (e) {
+            logError('[outside-hours-flow] failed', e);
+          }
+        }
         // Not within business hours, reschedule
         await query(
           `UPDATE crm_deal_automations SET wait_until = $1, status = 'waiting', updated_at = NOW() WHERE id = $2`,
