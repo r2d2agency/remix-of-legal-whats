@@ -22,6 +22,7 @@ export interface StageAutomation {
   condition_true_stage_id?: string | null;
   condition_false_flow_id?: string | null;
   condition_false_stage_id?: string | null;
+  outside_hours_flow_id?: string | null;
   created_at: string;
   updated_at: string;
 }
