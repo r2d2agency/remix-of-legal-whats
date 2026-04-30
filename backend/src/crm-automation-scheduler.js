@@ -105,24 +105,31 @@ async function executeFlowForDeal(automation, organizationId) {
       );
       const funnelConnectionId = funnelConnRes.rows[0]?.connection_id || null;
 
-      // Prioriza: (a) conexão do funil se o vendedor tiver acesso com can_send;
-      //          (b) caso contrário, a conexão mais antiga vinculada ao vendedor.
+      // Prioridade ao escolher a conexão do vendedor:
+      //   (a) Conexão padrão do vendedor (connection_members.is_default = true)
+      //   (b) Conexão do funil, se o vendedor tiver acesso a ela
+      //   (c) Qualquer conexão dele com can_send (mais antiga primeiro)
       connectionResult = await query(
         `SELECT c.*
+              , cm.is_default
            FROM connections c
            JOIN connection_members cm ON cm.connection_id = c.id
           WHERE c.organization_id = $1
             AND cm.user_id = $2
             AND cm.can_send = true
             AND c.status = 'connected'
-          ORDER BY (c.id = $3) DESC, cm.created_at ASC
+          ORDER BY cm.is_default DESC, (c.id = $3) DESC, cm.created_at ASC
           LIMIT 1`,
         [organizationId, assignedTo, funnelConnectionId]
       );
       if (connectionResult.rows[0]) {
-        connectionSource = funnelConnectionId && connectionResult.rows[0].id === funnelConnectionId
-          ? 'assigned_user_funnel_match'
-          : 'assigned_user';
+        if (connectionResult.rows[0].is_default) {
+          connectionSource = 'user_default';
+        } else if (funnelConnectionId && connectionResult.rows[0].id === funnelConnectionId) {
+          connectionSource = 'assigned_user_funnel_match';
+        } else {
+          connectionSource = 'assigned_user';
+        }
       } else {
         logError(
           `[CRM-Auto] ⚠️ Vendedor responsável (${assignedName || assignedTo}) ` +
