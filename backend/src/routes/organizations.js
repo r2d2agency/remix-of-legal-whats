@@ -338,9 +338,12 @@ router.get('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
 
     // Tentar buscar conexões atribuídas (não falha se tabela não existir)
     let connectionAssignments = {};
+    let defaultConnections = {};
     try {
       const connResult = await query(
-        `SELECT cm.user_id, json_agg(json_build_object('id', c.id, 'name', c.name)) as connections
+        `SELECT cm.user_id,
+                json_agg(json_build_object('id', c.id, 'name', c.name, 'is_default', cm.is_default)) as connections,
+                MAX(CASE WHEN cm.is_default THEN c.id::text END) as default_connection_id
          FROM connection_members cm
          JOIN connections c ON c.id = cm.connection_id
          WHERE c.organization_id = $1
@@ -349,6 +352,10 @@ router.get('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
       );
       connectionAssignments = connResult.rows.reduce((acc, row) => {
         acc[row.user_id] = row.connections;
+        return acc;
+      }, {});
+      defaultConnections = connResult.rows.reduce((acc, row) => {
+        acc[row.user_id] = row.default_connection_id;
         return acc;
       }, {});
     } catch (e) {
@@ -378,6 +385,7 @@ router.get('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
     const members = result.rows.map(member => ({
       ...member,
       assigned_connections: connectionAssignments[member.user_id] || [],
+      default_connection_id: defaultConnections[member.user_id] || null,
       assigned_departments: departmentAssignments[member.user_id] || []
     }));
 
@@ -464,10 +472,10 @@ router.post('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
       // Add new connection assignments
       for (const connId of connection_ids) {
         await query(
-          `INSERT INTO connection_members (connection_id, user_id, can_view, can_send, can_manage)
-           VALUES ($1, $2, true, true, false)
+          `INSERT INTO connection_members (connection_id, user_id, can_view, can_send, can_manage, is_default)
+           VALUES ($1, $2, true, true, false, $3)
            ON CONFLICT (connection_id, user_id) DO NOTHING`,
-          [connId, userId]
+          [connId, userId, req.body.default_connection_id === connId]
         );
       }
     }
@@ -553,10 +561,10 @@ router.patch('/:id/members/:userId', async (req, res) => {
         // Add new assignments
         for (const connId of connection_ids) {
           await query(
-            `INSERT INTO connection_members (connection_id, user_id, can_view, can_send, can_manage)
-             VALUES ($1, $2, true, true, false)
+            `INSERT INTO connection_members (connection_id, user_id, can_view, can_send, can_manage, is_default)
+             VALUES ($1, $2, true, true, false, $3)
              ON CONFLICT (connection_id, user_id) DO NOTHING`,
-            [connId, userId]
+            [connId, userId, req.body.default_connection_id === connId]
           );
         }
       } catch (e) {
