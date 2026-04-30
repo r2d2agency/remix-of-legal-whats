@@ -358,13 +358,15 @@ async function executeFlowForDeal(automation, organizationId, opts = {}) {
       [automation.flow_id, conversationId, connection.id, automation.contact_phone, JSON.stringify(variables)]
     );
 
-    // Update automation status
-    await query(
-      `UPDATE crm_deal_automations 
-       SET status = 'flow_sent', flow_session_id = $1, flow_sent_at = NOW(), updated_at = NOW()
-       WHERE id = $2`,
-      [sessionResult.rows[0]?.id, automation.id]
-    );
+    // Update automation status (skip when firing the outside-hours flow as a side-effect)
+    if (!skipStatusUpdate) {
+      await query(
+        `UPDATE crm_deal_automations 
+         SET status = 'flow_sent', flow_session_id = $1, flow_sent_at = NOW(), updated_at = NOW()
+         WHERE id = $2`,
+        [sessionResult.rows[0]?.id, automation.id]
+      );
+    }
 
     // Log the action
     await query(
