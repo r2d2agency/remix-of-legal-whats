@@ -108,29 +108,53 @@ router.post('/receive/:token', async (req, res) => {
     for (const [sourceField, targetField] of Object.entries(fieldMapping)) {
       const value = getNestedValue(payload, sourceField);
       if (value !== undefined && value !== null) {
-        if (targetField === 'custom_fields' || targetField.startsWith('custom_fields:')) {
-          // Support "custom_fields:varName" format for named variables
-          const varName = targetField.includes(':') ? targetField.split(':')[1] : sourceField.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-          mappedData.custom_fields[varName] = value;
-          mappingLog[sourceField] = { target: `custom_fields.${varName}`, value: String(value), source: 'mapping' };
-        } else if (targetField in mappedData) {
+        if (targetField in mappedData && targetField !== 'custom_fields') {
+          // Standard fields: name, email, phone, company_name, value, description
           mappedData[targetField] = value;
           mappingLog[sourceField] = { target: targetField, value: String(value), source: 'mapping' };
+        } else {
+          // Custom fields or prefixed fields (custom_fields:varName)
+          const varName = targetField.startsWith('custom_fields:') 
+            ? targetField.split(':')[1] 
+            : (targetField === 'custom_fields' ? sourceField : targetField);
+          
+          // Clean variable name for safety
+          const cleanVarName = varName.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+          
+          mappedData.custom_fields[cleanVarName] = value;
+          mappingLog[sourceField] = { target: `custom_fields.${cleanVarName}`, value: String(value), source: 'mapping' };
         }
       } else {
         mappingLog[sourceField] = { target: targetField, value: null, source: 'mapping', error: 'Campo não encontrado no payload' };
       }
     }
 
-    // Auto-extract custom_fields from payload (nested object)
+    // Auto-extract custom_fields from payload (nested object OR prefixed root keys)
+    const autoMappedKeys = new Set(Object.keys(fieldMapping));
+
     if (payload.custom_fields && typeof payload.custom_fields === 'object') {
       for (const [cfKey, cfValue] of Object.entries(payload.custom_fields)) {
         if (cfValue !== null && cfValue !== undefined && cfValue !== '') {
-          // Only add if not already mapped via field_mapping
-          if (!mappedData.custom_fields[cfKey] && !mappedData.custom_fields[`custom_fields.${cfKey}`]) {
-            mappedData.custom_fields[cfKey] = cfValue;
-            mappingLog[`custom_fields.${cfKey}`] = { target: `custom_fields.${cfKey}`, value: String(cfValue), source: 'auto' };
+          const cleanKey = cfKey.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+          if (!mappedData.custom_fields[cleanKey]) {
+            mappedData.custom_fields[cleanKey] = cfValue;
+            mappingLog[`custom_fields.${cleanKey}`] = { target: `custom_fields.${cleanKey}`, value: String(cfValue), source: 'auto' };
           }
+        }
+      }
+    }
+
+    // Also auto-extract root keys that look like custom fields (e.g. from platforms like Facebook/Typeform)
+    for (const [key, value] of Object.entries(payload)) {
+      if (autoMappedKeys.has(key)) continue; // Already mapped
+      if (typeof value === 'object') continue; // Skip objects/arrays
+      
+      // If key starts with common prefixes or is long/specific
+      if (key.startsWith('custom_fields_') || key.startsWith('field_') || key.includes('investir') || key.includes('capital')) {
+        const cleanKey = key.replace(/^custom_fields_/, '').replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+        if (!mappedData.custom_fields[cleanKey]) {
+          mappedData.custom_fields[cleanKey] = value;
+          mappingLog[key] = { target: `custom_fields.${cleanKey}`, value: String(value), source: 'auto_detected' };
         }
       }
     }
@@ -1074,13 +1098,23 @@ function buildDescription(mappedData, rawPayload, webhookName) {
   }
 
   // Add raw payload summary for unmapped fields
-  const mappedKeys = new Set(['name', 'full_name', 'nome', 'firstName', 'first_name', 'last_name',
+  const standardKeys = ['name', 'full_name', 'nome', 'firstName', 'first_name', 'last_name',
     'email', 'email_address', 'e_mail', 'phone', 'telefone', 'whatsapp', 'phone_number', 
-    'cellphone', 'celular', 'company', 'empresa', 'company_name']);
+    'cellphone', 'celular', 'company', 'empresa', 'company_name', 'description', 'notes', 'value'];
+    
+  const mappedKeys = new Set([...standardKeys, ...Object.keys(mappedData.custom_fields)]);
   
   const extraFields = Object.entries(rawPayload)
-    .filter(([key]) => !mappedKeys.has(key) && typeof rawPayload[key] !== 'object')
-    .slice(0, 10);
+    .filter(([key]) => {
+      // Skip if it was already mapped or is a known standard key
+      if (mappedKeys.has(key)) return false;
+      // Check if it's in custom_fields under a clean name
+      const cleanKey = key.replace(/^custom_fields_/, '').replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      if (mappedData.custom_fields[cleanKey] !== undefined) return false;
+      
+      return typeof rawPayload[key] !== 'object';
+    })
+    .slice(0, 15);
 
   if (extraFields.length > 0) {
     lines.push('');
