@@ -53,11 +53,11 @@
              'Content-Type': 'application/json',
              Authorization: `Bearer ${connection.meta_token}`,
            },
-           body: JSON.stringify({
-             messaging_product: 'whatsapp',
-             status: 'deleted',
-             message_id: messageId,
-           }),
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              message_id: messageId,
+              status: 'inactive',
+            }),
          }
        );
        const data = await response.json();
@@ -114,8 +114,8 @@
           },
           body: JSON.stringify({
             messaging_product: 'whatsapp',
-            status: 'edited',
             message_id: messageId,
+            status: 'edited',
             text: { body: newText },
           }),
          }
