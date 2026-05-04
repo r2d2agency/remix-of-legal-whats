@@ -1,3 +1,137 @@
+ /**
+  * Upload media to Meta Cloud API
+  */
+ async function uploadMetaMedia(connection, filePath, mimetype) {
+   try {
+     const token = connection.meta_token;
+     const phoneNumberId = connection.meta_phone_number_id;
+ 
+     if (!token || !phoneNumberId) {
+       throw new Error('Meta credentials not configured');
+     }
+ 
+     const formData = new FormData();
+     const fileBuffer = fs.readFileSync(filePath);
+     const blob = new Blob([fileBuffer], { type: mimetype });
+     formData.append('file', blob, path.basename(filePath));
+     formData.append('messaging_product', 'whatsapp');
+     formData.append('type', mimetype);
+ 
+     const response = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+       method: 'POST',
+       headers: {
+         Authorization: `Bearer ${token}`,
+       },
+       body: formData,
+     });
+ 
+     const data = await response.json();
+     if (!response.ok) {
+       throw new Error(data?.error?.message || `Upload failed with status ${response.status}`);
+     }
+ 
+     return data.id; // Returns the media ID
+   } catch (error) {
+     logError('meta.upload_media_failed', error, { connection_id: connection.id });
+     throw error;
+   }
+ }
+ 
+ /**
+  * Delete/Revoke message (unified)
+  */
+ export async function deleteMessage(connection, phone, messageId) {
+   const provider = detectProvider(connection);
+   
+   if (provider === 'meta') {
+     try {
+       const response = await fetch(
+         `https://graph.facebook.com/v21.0/${connection.meta_phone_number_id}/messages`,
+         {
+           method: 'POST',
+           headers: {
+             'Content-Type': 'application/json',
+             Authorization: `Bearer ${connection.meta_token}`,
+           },
+           body: JSON.stringify({
+             messaging_product: 'whatsapp',
+             status: 'deleted',
+             message_id: messageId,
+           }),
+         }
+       );
+       const data = await response.json();
+       return { success: response.ok, error: data?.error?.message };
+     } catch (error) {
+       return { success: false, error: error.message };
+     }
+   }
+ 
+   if (provider === 'wapi') {
+     const resolvedToken = await resolveWapiToken(connection);
+     return wapiProvider.deleteMessage(connection.instance_id, resolvedToken, messageId, phone);
+   }
+ 
+   if (provider === 'evolution') {
+     try {
+       const isGroup = phone.includes('@g.us');
+       const remoteJid = isGroup ? phone : `${phone.replace(/\D/g, '')}@s.whatsapp.net`;
+       const response = await fetch(`${connection.api_url}/message/deleteMessage/${connection.instance_name}`, {
+         method: 'DELETE',
+         headers: {
+           apikey: connection.api_key,
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({
+           number: remoteJid,
+           key: { id: messageId, fromMe: true },
+         }),
+       });
+       return { success: response.ok };
+     } catch (error) {
+       return { success: false, error: error.message };
+     }
+   }
+ 
+   return { success: false, error: 'Provider not supported for delete' };
+ }
+ 
+ /**
+  * Edit message (unified)
+  */
+ export async function editMessage(connection, phone, messageId, newText) {
+   const provider = detectProvider(connection);
+ 
+   if (provider === 'wapi') {
+     const resolvedToken = await resolveWapiToken(connection);
+     return wapiProvider.editMessage(connection.instance_id, resolvedToken, messageId, phone, newText);
+   }
+ 
+   if (provider === 'evolution') {
+     try {
+       const isGroup = phone.includes('@g.us');
+       const remoteJid = isGroup ? phone : `${phone.replace(/\D/g, '')}@s.whatsapp.net`;
+       const response = await fetch(`${connection.api_url}/message/editMessage/${connection.instance_name}`, {
+         method: 'POST',
+         headers: {
+           apikey: connection.api_key,
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({
+           number: remoteJid,
+           text: newText,
+           key: { id: messageId, fromMe: true },
+         }),
+       });
+       return { success: response.ok };
+     } catch (error) {
+       return { success: false, error: error.message };
+     }
+   }
+ 
+   return { success: false, error: 'Provider not supported for edit' };
+ }
+ 
 // Unified WhatsApp Provider
 // Routes requests to the correct provider (Evolution API or W-API)
 
