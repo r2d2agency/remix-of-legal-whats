@@ -1,7 +1,9 @@
 // Unified WhatsApp Provider
 // Routes requests to the correct provider (Evolution API or W-API)
 
-import { query } from '../db.js';
+ import fs from 'fs';
+ import path from 'path';
+ import { query } from '../db.js';
 import * as wapiProvider from './wapi-provider.js';
 import * as uazapiProvider from './uazapi-provider.js';
 import { logError, logInfo, logWarn } from '../logger.js';
