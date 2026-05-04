@@ -2148,7 +2148,8 @@ router.patch('/conversations/:id/messages/:messageId', authenticate, async (req,
     // Get message + connection info
     const msgResult = await query(
       `SELECT m.*, conv.remote_jid, conv.is_group, conv.contact_phone,
-              conn.provider, conn.instance_id, conn.wapi_token, conn.api_url, conn.api_key, conn.instance_name
+              conn.provider, conn.instance_id, conn.wapi_token, conn.api_url, conn.api_key, conn.instance_name,
+              conn.meta_token, conn.meta_phone_number_id
        FROM chat_messages m
        JOIN conversations conv ON conv.id = m.conversation_id
        JOIN connections conn ON conn.id = conv.connection_id
@@ -2174,11 +2175,8 @@ router.patch('/conversations/:id/messages/:messageId', authenticate, async (req,
 
     (async () => {
       try {
-        if (msg.provider === 'wapi' && msg.instance_id && msg.wapi_token && msg.message_id) {
-          const { editMessage } = await import('../lib/wapi-provider.js');
-          const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', ''));
-          await editMessage(msg.instance_id, msg.wapi_token, msg.message_id, phone, content.trim());
-        }
+        const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', '').replace('@c.us', ''));
+        await whatsappProvider.editMessage(msg, phone, msg.message_id, content.trim());
       } catch (err) {
         console.error('Edit message on WhatsApp error:', err.message);
       }
@@ -2202,7 +2200,8 @@ router.delete('/conversations/:id/messages/:messageId', authenticate, async (req
 
     const msgResult = await query(
       `SELECT m.*, conv.remote_jid, conv.is_group, conv.contact_phone,
-              conn.provider, conn.instance_id, conn.wapi_token, conn.api_url, conn.api_key, conn.instance_name
+              conn.provider, conn.instance_id, conn.wapi_token, conn.api_url, conn.api_key, conn.instance_name,
+              conn.meta_token, conn.meta_phone_number_id
        FROM chat_messages m
        JOIN conversations conv ON conv.id = m.conversation_id
        JOIN connections conn ON conn.id = conv.connection_id
@@ -2228,11 +2227,8 @@ router.delete('/conversations/:id/messages/:messageId', authenticate, async (req
     // Try to delete on WhatsApp (async)
     (async () => {
       try {
-        if (msg.provider === 'wapi' && msg.instance_id && msg.wapi_token && msg.message_id) {
-          const { deleteMessage } = await import('../lib/wapi-provider.js');
-          const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', ''));
-          await deleteMessage(msg.instance_id, msg.wapi_token, msg.message_id, phone);
-        }
+        const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', '').replace('@c.us', ''));
+        await whatsappProvider.deleteMessage(msg, phone, msg.message_id);
       } catch (err) {
         console.error('Delete message on WhatsApp error:', err.message);
       }
