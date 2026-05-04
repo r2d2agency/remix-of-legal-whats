@@ -1005,7 +1005,15 @@ export async function onDealStageChanged(dealId, newStageId, organizationId) {
       [dealId, newStageId, config.id, effectiveFlowId, waitUntil, contactPhone, effectiveNextStageId]
     );
 
-    logInfo(`Automation queued for deal ${dealId} in stage ${newStageId} (condition: ${conditionResult})`);
+     // Only queue/execute flow if execute_immediately is true OR if we have a resolved flow to send
+     // If execute_immediately is false, we'll let the scheduler pick it up later (if we implement that)
+     // But for now, we follow the existing pattern: only active if execute_immediately is true.
+     if (!executeImmediately && !config.condition_true_flow_id && !config.condition_false_flow_id) {
+       logInfo(`[CRM-Auto] Automation for stage ${newStageId} is not set to execute immediately. Skipping flow queue.`);
+       return;
+     }
+ 
+     logInfo(`Automation queued for deal ${dealId} in stage ${newStageId} (condition: ${conditionResult}, immediate: ${executeImmediately})`);
   } catch (error) {
     logError('Error triggering stage automation:', error);
   }
