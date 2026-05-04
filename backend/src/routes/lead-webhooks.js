@@ -108,14 +108,21 @@ router.post('/receive/:token', async (req, res) => {
     for (const [sourceField, targetField] of Object.entries(fieldMapping)) {
       const value = getNestedValue(payload, sourceField);
       if (value !== undefined && value !== null) {
-        if (targetField === 'custom_fields' || targetField.startsWith('custom_fields:')) {
-          // Support "custom_fields:varName" format for named variables
-          const varName = targetField.includes(':') ? targetField.split(':')[1] : sourceField.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-          mappedData.custom_fields[varName] = value;
-          mappingLog[sourceField] = { target: `custom_fields.${varName}`, value: String(value), source: 'mapping' };
-        } else if (targetField in mappedData) {
+        if (targetField in mappedData && targetField !== 'custom_fields') {
+          // Standard fields: name, email, phone, company_name, value, description
           mappedData[targetField] = value;
           mappingLog[sourceField] = { target: targetField, value: String(value), source: 'mapping' };
+        } else {
+          // Custom fields or prefixed fields (custom_fields:varName)
+          const varName = targetField.startsWith('custom_fields:') 
+            ? targetField.split(':')[1] 
+            : (targetField === 'custom_fields' ? sourceField : targetField);
+          
+          // Clean variable name for safety
+          const cleanVarName = varName.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+          
+          mappedData.custom_fields[cleanVarName] = value;
+          mappingLog[sourceField] = { target: `custom_fields.${cleanVarName}`, value: String(value), source: 'mapping' };
         }
       } else {
         mappingLog[sourceField] = { target: targetField, value: null, source: 'mapping', error: 'Campo não encontrado no payload' };
