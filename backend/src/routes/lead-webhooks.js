@@ -129,15 +129,32 @@ router.post('/receive/:token', async (req, res) => {
       }
     }
 
-    // Auto-extract custom_fields from payload (nested object)
+    // Auto-extract custom_fields from payload (nested object OR prefixed root keys)
+    const autoMappedKeys = new Set(Object.keys(fieldMapping));
+
     if (payload.custom_fields && typeof payload.custom_fields === 'object') {
       for (const [cfKey, cfValue] of Object.entries(payload.custom_fields)) {
         if (cfValue !== null && cfValue !== undefined && cfValue !== '') {
-          // Only add if not already mapped via field_mapping
-          if (!mappedData.custom_fields[cfKey] && !mappedData.custom_fields[`custom_fields.${cfKey}`]) {
-            mappedData.custom_fields[cfKey] = cfValue;
-            mappingLog[`custom_fields.${cfKey}`] = { target: `custom_fields.${cfKey}`, value: String(cfValue), source: 'auto' };
+          const cleanKey = cfKey.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+          if (!mappedData.custom_fields[cleanKey]) {
+            mappedData.custom_fields[cleanKey] = cfValue;
+            mappingLog[`custom_fields.${cleanKey}`] = { target: `custom_fields.${cleanKey}`, value: String(cfValue), source: 'auto' };
           }
+        }
+      }
+    }
+
+    // Also auto-extract root keys that look like custom fields (e.g. from platforms like Facebook/Typeform)
+    for (const [key, value] of Object.entries(payload)) {
+      if (autoMappedKeys.has(key)) continue; // Already mapped
+      if (typeof value === 'object') continue; // Skip objects/arrays
+      
+      // If key starts with common prefixes or is long/specific
+      if (key.startsWith('custom_fields_') || key.startsWith('field_') || key.includes('investir') || key.includes('capital')) {
+        const cleanKey = key.replace(/^custom_fields_/, '').replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+        if (!mappedData.custom_fields[cleanKey]) {
+          mappedData.custom_fields[cleanKey] = value;
+          mappingLog[key] = { target: `custom_fields.${cleanKey}`, value: String(value), source: 'auto_detected' };
         }
       }
     }
