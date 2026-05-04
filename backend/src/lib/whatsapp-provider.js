@@ -677,6 +677,28 @@ async function sendMetaMessage(connection, phone, content, messageType, mediaUrl
       return { success: false, error: 'Token ou Phone Number ID não configurados' };
     }
 
+    // Handle local media upload for Meta
+    let mediaId = null;
+    if (mediaUrl && (mediaUrl.includes('/uploads/') || !mediaUrl.startsWith('http'))) {
+      try {
+        const filename = path.basename(mediaUrl.split('?')[0]);
+        const filePath = path.join(process.cwd(), 'uploads', filename);
+        
+        if (fs.existsSync(filePath)) {
+          const ext = path.extname(filename).toLowerCase();
+          const mimeMap = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+            '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav',
+            '.mp4': 'video/mp4', '.pdf': 'application/pdf'
+          };
+          const mimetype = mimeMap[ext] || 'application/octet-stream';
+          mediaId = await uploadMetaMedia(connection, filePath, mimetype);
+        }
+      } catch (uploadError) {
+        logWarn('meta.auto_upload_failed_falling_back_to_link', { error: uploadError.message });
+      }
+    }
+
     // Normalize phone number (remove non-digits)
     const cleanPhone = String(phone).replace(/\D/g, '');
 
@@ -694,28 +716,28 @@ async function sendMetaMessage(connection, phone, content, messageType, mediaUrl
         messaging_product: 'whatsapp',
         to: cleanPhone,
         type: 'image',
-        image: { link: mediaUrl, ...(content ? { caption: content } : {}) },
+        image: mediaId ? { id: mediaId, ...(content ? { caption: content } : {}) } : { link: mediaUrl, ...(content ? { caption: content } : {}) },
       };
     } else if (messageType === 'audio') {
       body = {
         messaging_product: 'whatsapp',
         to: cleanPhone,
         type: 'audio',
-        audio: { link: mediaUrl },
+        audio: mediaId ? { id: mediaId } : { link: mediaUrl },
       };
     } else if (messageType === 'video') {
       body = {
         messaging_product: 'whatsapp',
         to: cleanPhone,
         type: 'video',
-        video: { link: mediaUrl, ...(content ? { caption: content } : {}) },
+        video: mediaId ? { id: mediaId, ...(content ? { caption: content } : {}) } : { link: mediaUrl, ...(content ? { caption: content } : {}) },
       };
     } else if (messageType === 'document') {
       body = {
         messaging_product: 'whatsapp',
         to: cleanPhone,
         type: 'document',
-        document: { link: mediaUrl, ...(content ? { filename: content } : {}) },
+        document: mediaId ? { id: mediaId, ...(content ? { filename: content } : {}) } : { link: mediaUrl, ...(content ? { filename: content } : {}) },
       };
     } else if (messageType === 'contact') {
       // Meta Cloud API: type 'contacts' (array)
