@@ -833,7 +833,18 @@ function evaluateConditionRule(dealData, rule) {
         ? numField !== numCompare
         : fieldValue !== compareValue;
       break;
-    case 'contains': result = fieldValue.includes(compareValue); break;
+     case 'contains':
+       // If user writes "sim ou nao", check for either
+       if (compareValue.includes(' ou ')) {
+         const options = compareValue.split(' ou ').map(s => s.trim()).filter(Boolean);
+         result = options.some(opt => fieldValue.includes(opt));
+       } else if (compareValue.includes(',')) {
+         const options = compareValue.split(',').map(s => s.trim()).filter(Boolean);
+         result = options.some(opt => fieldValue.includes(opt));
+       } else {
+         result = fieldValue.includes(compareValue);
+       }
+       break;
     case 'not_contains': result = !fieldValue.includes(compareValue); break;
     case 'starts_with': result = fieldValue.startsWith(compareValue); break;
     case 'ends_with': result = fieldValue.endsWith(compareValue); break;
