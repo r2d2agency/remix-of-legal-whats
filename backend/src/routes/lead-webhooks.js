@@ -1098,13 +1098,23 @@ function buildDescription(mappedData, rawPayload, webhookName) {
   }
 
   // Add raw payload summary for unmapped fields
-  const mappedKeys = new Set(['name', 'full_name', 'nome', 'firstName', 'first_name', 'last_name',
+  const standardKeys = ['name', 'full_name', 'nome', 'firstName', 'first_name', 'last_name',
     'email', 'email_address', 'e_mail', 'phone', 'telefone', 'whatsapp', 'phone_number', 
-    'cellphone', 'celular', 'company', 'empresa', 'company_name']);
+    'cellphone', 'celular', 'company', 'empresa', 'company_name', 'description', 'notes', 'value'];
+    
+  const mappedKeys = new Set([...standardKeys, ...Object.keys(mappedData.custom_fields)]);
   
   const extraFields = Object.entries(rawPayload)
-    .filter(([key]) => !mappedKeys.has(key) && typeof rawPayload[key] !== 'object')
-    .slice(0, 10);
+    .filter(([key]) => {
+      // Skip if it was already mapped or is a known standard key
+      if (mappedKeys.has(key)) return false;
+      // Check if it's in custom_fields under a clean name
+      const cleanKey = key.replace(/^custom_fields_/, '').replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      if (mappedData.custom_fields[cleanKey] !== undefined) return false;
+      
+      return typeof rawPayload[key] !== 'object';
+    })
+    .slice(0, 15);
 
   if (extraFields.length > 0) {
     lines.push('');
