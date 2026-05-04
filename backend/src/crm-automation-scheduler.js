@@ -613,48 +613,74 @@ async function processFollowUps() {
   }
 }
 
-function getConditionFieldValue(dealData, variable) {
-  if (!variable) return undefined;
-
-  if (Object.prototype.hasOwnProperty.call(dealData, variable)) {
-    return dealData[variable];
-  }
-
-  const normalizedVariable = String(variable).trim();
-  if (!normalizedVariable) return undefined;
-
-  // Support both "custom_fields.foo" and "custom_fields:foo" prefixes
-  for (const sep of ['custom_fields.', 'custom_fields:']) {
-    if (normalizedVariable.startsWith(sep)) {
-      const rawKey = normalizedVariable.slice(sep.length);
-      if (Object.prototype.hasOwnProperty.call(dealData, rawKey)) {
-        return dealData[rawKey];
-      }
-      const cf = dealData.custom_fields || {};
-      if (Object.prototype.hasOwnProperty.call(cf, rawKey)) {
-        return cf[rawKey];
-      }
-      return undefined;
-    }
-  }
-
-  // Also try inside custom_fields directly (in case spread missed it)
-  const cf = dealData.custom_fields || {};
-  if (Object.prototype.hasOwnProperty.call(cf, normalizedVariable)) {
-    return cf[normalizedVariable];
-  }
-
-  const parts = normalizedVariable.split('.');
-  let current = dealData;
-  for (const part of parts) {
-    if (current === null || current === undefined || typeof current !== 'object') {
-      return undefined;
-    }
-    current = current[part];
-  }
-
-  return current;
-}
+ function getConditionFieldValue(dealData, variable) {
+   if (!variable) return undefined;
+ 
+   const normalizedVariable = String(variable).trim();
+   const normalizedLower = normalizedVariable.toLowerCase();
+   if (!normalizedVariable) return undefined;
+ 
+   // 1. Direct match (case sensitive first for performance)
+   if (Object.prototype.hasOwnProperty.call(dealData, normalizedVariable)) {
+     return dealData[normalizedVariable];
+   }
+ 
+   // 2. Case-insensitive match in top-level
+   for (const key of Object.keys(dealData)) {
+     if (key.toLowerCase() === normalizedLower) return dealData[key];
+   }
+ 
+   // 3. Handle prefixes "custom_fields." or "custom_fields:"
+   for (const sep of ['custom_fields.', 'custom_fields:']) {
+     if (normalizedLower.startsWith(sep)) {
+       const rawKey = normalizedVariable.slice(sep.length);
+       const rawKeyLower = rawKey.toLowerCase();
+       
+       // Check top-level again with rawKey
+       if (Object.prototype.hasOwnProperty.call(dealData, rawKey)) return dealData[rawKey];
+       for (const key of Object.keys(dealData)) {
+         if (key.toLowerCase() === rawKeyLower) return dealData[key];
+       }
+ 
+       // Check inside custom_fields
+       const cf = dealData.custom_fields || {};
+       if (Object.prototype.hasOwnProperty.call(cf, rawKey)) return cf[rawKey];
+       for (const key of Object.keys(cf)) {
+         if (key.toLowerCase() === rawKeyLower) return cf[key];
+       }
+       return undefined;
+     }
+   }
+ 
+   // 4. Case-insensitive match inside custom_fields (if not already found)
+   const cf = dealData.custom_fields || {};
+   if (Object.prototype.hasOwnProperty.call(cf, normalizedVariable)) return cf[normalizedVariable];
+   for (const key of Object.keys(cf)) {
+     if (key.toLowerCase() === normalizedLower) return cf[key];
+   }
+ 
+   // 5. Nested path access (e.g. "metadata.source")
+   const parts = normalizedVariable.split('.');
+   let current = dealData;
+   for (const part of parts) {
+     if (current === null || current === undefined || typeof current !== 'object') {
+       return undefined;
+     }
+     // Try case-sensitive then case-insensitive for the part
+     if (Object.prototype.hasOwnProperty.call(current, part)) {
+       current = current[part];
+     } else {
+       const foundKey = Object.keys(current).find(k => k.toLowerCase() === part.toLowerCase());
+       if (foundKey) {
+         current = current[foundKey];
+       } else {
+         return undefined;
+       }
+     }
+   }
+ 
+   return current;
+ }
 
 // Main execution function
 export async function executeCRMAutomations() {
