@@ -102,6 +102,31 @@
  export async function editMessage(connection, phone, messageId, newText) {
    const provider = detectProvider(connection);
  
+  if (provider === 'meta') {
+    try {
+      const response = await fetch(
+        `https://graph.facebook.com/v21.0/${connection.meta_phone_number_id}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${connection.meta_token}`,
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            status: 'edited',
+            message_id: messageId,
+            text: { body: newText },
+          }),
+         }
+      );
+      const data = await response.json();
+      return { success: response.ok, error: data?.error?.message };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
    if (provider === 'wapi') {
      const resolvedToken = await resolveWapiToken(connection);
      return wapiProvider.editMessage(connection.instance_id, resolvedToken, messageId, phone, newText);
