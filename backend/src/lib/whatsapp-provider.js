@@ -55,7 +55,7 @@
            },
            body: JSON.stringify({
              messaging_product: 'whatsapp',
-             status: 'deleted',
+            status: 'inactive',
              message_id: messageId,
            }),
          }
@@ -114,7 +114,7 @@
           },
           body: JSON.stringify({
             messaging_product: 'whatsapp',
-            status: 'edited',
+             status: 'inactive',
             message_id: messageId,
             text: { body: newText },
           }),
