@@ -878,18 +878,19 @@ function evaluateConditions(conditions, conditionLogic, dealData) {
 // Trigger automation when a deal enters a new stage
 export async function onDealStageChanged(dealId, newStageId, organizationId) {
   try {
-    // Check if new stage has automation
-    const automationConfig = await query(
-      `SELECT * FROM crm_stage_automations 
-       WHERE stage_id = $1 AND is_active = true AND execute_immediately = true`,
-      [newStageId]
-    );
-
-    if (!automationConfig.rows[0]) {
-      return; // No automation for this stage
-    }
-
-    const config = automationConfig.rows[0];
+     // Check if new stage has automation (fetch even if not execute_immediately to handle conditional routing)
+     const automationConfig = await query(
+       `SELECT * FROM crm_stage_automations 
+        WHERE stage_id = $1 AND is_active = true`,
+       [newStageId]
+     );
+ 
+     if (!automationConfig.rows[0]) {
+       return; // No automation for this stage
+     }
+ 
+     const config = automationConfig.rows[0];
+     const executeImmediately = config.execute_immediately === true;
 
     // Get deal data + custom fields for condition evaluation
     const dealResult = await query(
