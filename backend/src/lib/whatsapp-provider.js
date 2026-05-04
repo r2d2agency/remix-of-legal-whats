@@ -689,7 +689,8 @@ async function sendMetaMessage(connection, phone, content, messageType, mediaUrl
           const mimeMap = {
             '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
             '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav',
-            '.mp4': 'video/mp4', '.pdf': 'application/pdf'
+            '.mp4': 'video/mp4', '.pdf': 'application/pdf', '.webm': 'audio/webm',
+            '.m4a': 'audio/mp4', '.aac': 'audio/aac'
           };
           const mimetype = mimeMap[ext] || 'application/octet-stream';
           mediaId = await uploadMetaMedia(connection, filePath, mimetype);
