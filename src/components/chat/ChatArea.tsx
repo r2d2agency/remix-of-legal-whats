@@ -1134,7 +1134,7 @@ export function ChatArea({
         </div>
       )}
 
-      {/* Messages */}
+      {/* Messages - Added overflow-y-auto to the viewport via style for sticky positioning support */}
       <ScrollArea ref={scrollAreaRef} viewportRef={scrollContainerRef} className={cn("flex-1 chat-wallpaper min-w-0 relative", isMobile ? "p-3" : "p-4")}>
          {hasMore ? (
            <div className="flex justify-center mb-4">
