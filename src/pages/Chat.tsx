@@ -617,12 +617,14 @@ const Chat = () => {
   const handleSyncHistory = async (days: number) => {
     if (!selectedConversation) return;
     setSyncingHistory(true);
-    try {
-      const result = await syncChatHistory({
-        connectionId: selectedConversation.connection_id,
-        remoteJid: selectedConversation.remote_jid,
-        days,
-      });
+     try {
+       const connection = connections.find(c => c.id === selectedConversation.connection_id);
+       const result = await syncChatHistory({
+         connectionId: selectedConversation.connection_id,
+         remoteJid: selectedConversation.remote_jid,
+         days,
+         provider: connection?.provider,
+       });
 
       // Refresh messages and conversations
       const msgs = await getMessages(selectedConversation.id);
