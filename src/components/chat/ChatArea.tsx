@@ -435,18 +435,26 @@ export function ChatArea({
      };
    }, [conversation?.id, hasMore, loading, onLoadMore]);
  
-   // Adjust scroll position after loading more messages to prevent jumping
-   useEffect(() => {
-     if (isAdjustmentNeededRef.current && !loading && scrollContainerRef.current) {
-       const container = scrollContainerRef.current;
-       const newScrollHeight = container.scrollHeight;
-       const diff = newScrollHeight - lastScrollHeightRef.current;
-       if (diff > 0) {
-         container.scrollTop += diff;
-       }
-       isAdjustmentNeededRef.current = false;
-     }
-   }, [loading, messages.length]);
+  // Adjust scroll position after loading more messages to prevent jumping
+  useEffect(() => {
+    if (isAdjustmentNeededRef.current && !loading && scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const newScrollHeight = container.scrollHeight;
+      const diff = newScrollHeight - lastScrollHeightRef.current;
+      
+      if (diff > 0) {
+        // Using requestAnimationFrame to ensure the scroll position is updated after React's DOM update
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop = diff;
+            isAdjustmentNeededRef.current = false;
+          }
+        });
+      } else {
+        isAdjustmentNeededRef.current = false;
+      }
+    }
+  }, [loading, messages.length]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1176,13 +1184,13 @@ export function ChatArea({
               
               return (
                 <div key={msg.id} className="flex flex-col gap-4 relative">
-                  {showDateDivider && (
-                    <div className="sticky top-2 z-[20] flex items-center justify-center my-4 pointer-events-none">
-                      <div className="px-3 py-1.5 rounded-full bg-background/95 backdrop-blur-sm text-[10px] font-bold text-muted-foreground uppercase tracking-wider shadow-md pointer-events-auto border border-primary/20">
-                        {dateLabel}
-                      </div>
-                    </div>
-                  )}
+                 {showDateDivider && (
+                   <div className="sticky top-0 z-[20] flex items-center justify-center py-4 pointer-events-none">
+                     <div className="px-3 py-1.5 rounded-full bg-background/95 backdrop-blur-sm text-[10px] font-bold text-muted-foreground uppercase tracking-wider shadow-md pointer-events-auto border border-primary/20">
+                       {dateLabel}
+                     </div>
+                   </div>
+                 )}
                  <ChatMessageBubble
                    msg={msg}
                    conversation={conversation}
