@@ -198,6 +198,7 @@ export function ChatArea({
   const { getQuickReplies: fetchQuickRepliesForSlash } = useQuickReplies();
   const [showNotes, setShowNotes] = useState(false);
   const [notesCount, setNotesCount] = useState(0);
+  const [showExtras, setShowExtras] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
