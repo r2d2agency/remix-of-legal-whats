@@ -5,7 +5,7 @@ import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { NewConversationDialog } from "@/components/chat/NewConversationDialog";
 import { CRMSidePanel } from "@/components/chat/CRMSidePanel";
-import { useChat, Conversation, ChatMessage, ConversationTag, TeamMember } from "@/hooks/use-chat";
+ import { useChat, Conversation, ChatMessage, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { chatEvents } from "@/lib/chat-events";
