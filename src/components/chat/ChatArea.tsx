@@ -1172,17 +1172,17 @@ export function ChatArea({
              const prevDate = prevMsg?.timestamp ? parseISO(prevMsg.timestamp) : null;
              const showDateDivider = currentDate && (!prevDate || !isSameDay(currentDate, prevDate));
  
-             return (
-               <div key={msg.id} className="flex flex-col gap-4">
-                 {showDateDivider && (
-                   <div className="flex items-center justify-center my-4">
-                     <div className="h-px flex-1 bg-border/40" />
-                     <div className="mx-4 px-3 py-1 rounded-full bg-muted text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                       {format(currentDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
-                     </div>
-                     <div className="h-px flex-1 bg-border/40" />
-                   </div>
-                 )}
+              const dateLabel = showDateDivider && currentDate ? format(currentDate, "EEEE, d 'de' MMMM", { locale: ptBR }) : null;
+              
+              return (
+                <div key={msg.id} className="flex flex-col gap-4 relative">
+                  {showDateDivider && (
+                    <div className="sticky top-0 z-[5] flex items-center justify-center my-4 pointer-events-none">
+                      <div className="px-3 py-1 rounded-full bg-muted/90 backdrop-blur-sm text-[10px] font-medium text-muted-foreground uppercase tracking-wider shadow-sm pointer-events-auto border">
+                        {dateLabel}
+                      </div>
+                    </div>
+                  )}
                  <ChatMessageBubble
                    msg={msg}
                    conversation={conversation}
