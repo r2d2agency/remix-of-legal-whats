@@ -1168,8 +1168,8 @@ export function ChatArea({
          <div className="flex flex-col gap-4">
            {messages.map((msg, index) => {
              const prevMsg = index > 0 ? messages[index - 1] : null;
-             const currentDate = msg.created_at ? (typeof msg.created_at === 'string' ? parseISO(msg.created_at) : new Date(msg.created_at)) : null;
-             const prevDate = prevMsg?.created_at ? (typeof prevMsg.created_at === 'string' ? parseISO(prevMsg.created_at) : new Date(prevMsg.created_at)) : null;
+             const currentDate = msg.timestamp ? parseISO(msg.timestamp) : null;
+             const prevDate = prevMsg?.timestamp ? parseISO(prevMsg.timestamp) : null;
              const showDateDivider = currentDate && (!prevDate || !isSameDay(currentDate, prevDate));
  
              return (
