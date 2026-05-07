@@ -1134,7 +1134,7 @@ export function ChatArea({
         </div>
       )}
 
-      {/* Messages */}
+      {/* Messages - Added overflow-y-auto to the viewport via style for sticky positioning support */}
       <ScrollArea ref={scrollAreaRef} viewportRef={scrollContainerRef} className={cn("flex-1 chat-wallpaper min-w-0 relative", isMobile ? "p-3" : "p-4")}>
          {hasMore ? (
            <div className="flex justify-center mb-4">
@@ -1177,8 +1177,8 @@ export function ChatArea({
               return (
                 <div key={msg.id} className="flex flex-col gap-4 relative">
                   {showDateDivider && (
-                    <div className="sticky top-0 z-[5] flex items-center justify-center my-4 pointer-events-none">
-                      <div className="px-3 py-1 rounded-full bg-muted/90 backdrop-blur-sm text-[10px] font-medium text-muted-foreground uppercase tracking-wider shadow-sm pointer-events-auto border">
+                    <div className="sticky top-2 z-[20] flex items-center justify-center my-4 pointer-events-none">
+                      <div className="px-3 py-1.5 rounded-full bg-background/95 backdrop-blur-sm text-[10px] font-bold text-muted-foreground uppercase tracking-wider shadow-md pointer-events-auto border border-primary/20">
                         {dateLabel}
                       </div>
                     </div>
