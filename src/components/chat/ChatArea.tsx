@@ -105,8 +105,8 @@ import {
   CreateTagDialog,
   EditContactDialog,
 } from "./ChatDialogs";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+ import { format, isSameDay, parseISO } from "date-fns";
+ import { ptBR } from "date-fns/locale";
 import { exportConversationAsTxt, exportConversationAsPdf } from "@/lib/chat-export";
 import { Download } from "lucide-react";
 
@@ -1165,55 +1165,72 @@ export function ChatArea({
              )}
            </div>
          )}
-        <div className="space-y-4">
-          {messages.map((msg) => (
-            <ChatMessageBubble
-              key={msg.id}
-              msg={msg}
-              conversation={conversation}
-              isMobile={isMobile}
-              isSearchResult={searchResults.includes(msg.id)}
-              isCurrentResult={searchResults[currentSearchIndex] === msg.id}
-              searchQuery={searchQuery}
-              onReply={setReplyingTo}
-              onForward={onForwardMessage ? (msg) => setForwardingMessage(msg) : undefined}
-              onSendMessage={onSendMessage}
-              onEditMessage={async (messageId, content) => {
-                const ok = await editMessage(conversation.id, messageId, content);
-                if (ok) {
-                  const updatedMessages = messages.map(m => 
-                    m.id === messageId ? { ...m, content, is_edited: true } : m
-                  );
-                  onLoadMore();
-                }
-                return ok;
-              }}
-              onDeleteMessage={async (messageId) => {
-                const ok = await deleteMessageFn(conversation.id, messageId);
-                if (ok) {
-                  onLoadMore();
-                }
-                return ok;
-              }}
-              onPinMessage={async (messageId) => {
-                const ok = await pinMessage(conversation.id, messageId);
-                if (ok) {
-                  if (messageId) {
-                    const msg = messages.find(m => m.id === messageId);
-                    setPinnedMessage(msg || null);
-                  } else {
-                    setPinnedMessage(null);
-                  }
-                }
-                return ok;
-              }}
-              isPinned={conversation.pinned_message_id === msg.id}
-              highlightText={highlightText}
-              getDocumentDisplayName={getDocumentDisplayName}
-              looksLikeFilename={looksLikeFilename}
-              messageRef={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
-            />
-          ))}
+         <div className="flex flex-col gap-4">
+           {messages.map((msg, index) => {
+             const prevMsg = index > 0 ? messages[index - 1] : null;
+             const currentDate = msg.created_at ? (typeof msg.created_at === 'string' ? parseISO(msg.created_at) : new Date(msg.created_at)) : null;
+             const prevDate = prevMsg?.created_at ? (typeof prevMsg.created_at === 'string' ? parseISO(prevMsg.created_at) : new Date(prevMsg.created_at)) : null;
+             const showDateDivider = currentDate && (!prevDate || !isSameDay(currentDate, prevDate));
+ 
+             return (
+               <div key={msg.id} className="flex flex-col gap-4">
+                 {showDateDivider && (
+                   <div className="flex items-center justify-center my-4">
+                     <div className="h-px flex-1 bg-border/40" />
+                     <div className="mx-4 px-3 py-1 rounded-full bg-muted text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                       {format(currentDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
+                     </div>
+                     <div className="h-px flex-1 bg-border/40" />
+                   </div>
+                 )}
+                 <ChatMessageBubble
+                   msg={msg}
+                   conversation={conversation}
+                   isMobile={isMobile}
+                   isSearchResult={searchResults.includes(msg.id)}
+                   isCurrentResult={searchResults[currentSearchIndex] === msg.id}
+                   searchQuery={searchQuery}
+                   onReply={setReplyingTo}
+                   onForward={onForwardMessage ? (msg) => setForwardingMessage(msg) : undefined}
+                   onSendMessage={onSendMessage}
+                   onEditMessage={async (messageId, content) => {
+                     const ok = await editMessage(conversation.id, messageId, content);
+                     if (ok) {
+                       const updatedMessages = messages.map(m => 
+                         m.id === messageId ? { ...m, content, is_edited: true } : m
+                       );
+                       onLoadMore();
+                     }
+                     return ok;
+                   }}
+                   onDeleteMessage={async (messageId) => {
+                     const ok = await deleteMessageFn(conversation.id, messageId);
+                     if (ok) {
+                       onLoadMore();
+                     }
+                     return ok;
+                   }}
+                   onPinMessage={async (messageId) => {
+                     const ok = await pinMessage(conversation.id, messageId);
+                     if (ok) {
+                       if (messageId) {
+                         const msg = messages.find(m => m.id === messageId);
+                         setPinnedMessage(msg || null);
+                       } else {
+                         setPinnedMessage(null);
+                       }
+                     }
+                     return ok;
+                   }}
+                   isPinned={conversation.pinned_message_id === msg.id}
+                   highlightText={highlightText}
+                   getDocumentDisplayName={getDocumentDisplayName}
+                   looksLikeFilename={looksLikeFilename}
+                   messageRef={(el) => { if (el) messageRefs.current.set(msg.id, el); }}
+                 />
+               </div>
+             );
+           })}
           {isContactTyping && (
             <div className="flex justify-start">
               <div className="bg-muted rounded-lg p-3"><TypingIndicator contactName={conversation?.contact_name} /></div>
