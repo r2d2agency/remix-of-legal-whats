@@ -5,7 +5,7 @@ import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { NewConversationDialog } from "@/components/chat/NewConversationDialog";
 import { CRMSidePanel } from "@/components/chat/CRMSidePanel";
-import { useChat, Conversation, ChatMessage, ConversationTag, TeamMember } from "@/hooks/use-chat";
+ import { useChat, Conversation, ChatMessage, ConversationTag, TeamMember, Connection } from "@/hooks/use-chat";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { chatEvents } from "@/lib/chat-events";
@@ -63,7 +63,7 @@ const Chat = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [tags, setTags] = useState<ConversationTag[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
-  const [connections, setConnections] = useState<{ id: string; name: string; phone_number: string | null; status: string }[]>([]);
+   const [connections, setConnections] = useState<Connection[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
   
@@ -617,12 +617,14 @@ const Chat = () => {
   const handleSyncHistory = async (days: number) => {
     if (!selectedConversation) return;
     setSyncingHistory(true);
-    try {
-      const result = await syncChatHistory({
-        connectionId: selectedConversation.connection_id,
-        remoteJid: selectedConversation.remote_jid,
-        days,
-      });
+     try {
+       const connection = connections.find(c => c.id === selectedConversation.connection_id);
+       const result = await syncChatHistory({
+         connectionId: selectedConversation.connection_id,
+         remoteJid: selectedConversation.remote_jid,
+         days,
+         provider: connection?.provider,
+       });
 
       // Refresh messages and conversations
       const msgs = await getMessages(selectedConversation.id);

@@ -409,24 +409,41 @@ export const useChat = () => {
     return data;
   }, []);
 
-  // History sync
-  const syncChatHistory = useCallback(async (params: {
-    connectionId: string;
-    remoteJid: string;
-    days?: number;
-  }): Promise<{ imported: number; skipped?: number; total?: number; message?: string }> => {
-    const data = await api<{ imported: number; skipped?: number; total?: number; message?: string }>(
-      `/api/evolution/${params.connectionId}/sync-chat`,
-      {
-        method: 'POST',
-        body: {
-          remoteJid: params.remoteJid,
-          days: params.days ?? 7,
-        },
-      }
-    );
-    return data;
-  }, []);
+   // History sync (provider-aware)
+   const syncChatHistory = useCallback(async (params: {
+     connectionId: string;
+     remoteJid: string;
+     days?: number;
+     provider?: string;
+   }): Promise<{ imported: number; skipped?: number; total?: number; message?: string }> => {
+     let url = `/api/evolution/${params.connectionId}/sync-chat`;
+     let body: any = {
+       remoteJid: params.remoteJid,
+       days: params.days ?? 7,
+     };
+ 
+     if (params.provider === 'uazapi') {
+       url = `/api/uazapi/${params.connectionId}/sync-messages`;
+       body = {
+         chatId: params.remoteJid,
+         limit: (params.days ?? 7) * 50, // rough estimate of messages per day
+       };
+     } else if (params.provider === 'wapi') {
+       // W-API uses a different sync flow, but we can call sync-conversations for the whole instance
+       // or just return a message saying it's not supported per-chat yet
+       url = `/api/wapi/${params.connectionId}/sync-conversations`;
+       body = {};
+     }
+ 
+     const data = await api<{ imported: number; skipped?: number; total?: number; message?: string }>(
+       url,
+       {
+         method: 'POST',
+         body,
+       }
+     );
+     return data;
+   }, []);
 
   // Notes
   const getNotes = useCallback(async (conversationId: string): Promise<ConversationNote[]> => {

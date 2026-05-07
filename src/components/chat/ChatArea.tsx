@@ -390,23 +390,63 @@ export function ChatArea({
   }, [messages, showSearch]);
 
   // Track scroll
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    let scrollTimeout: NodeJS.Timeout;
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-      setShowScrollButton(distanceFromBottom > 300);
-      if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 150) isUserScrollingRef.current = true;
-      if (distanceFromBottom < 50) isUserScrollingRef.current = false;
-      lastScrollTopRef.current = scrollTop;
-      clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => { if (distanceFromBottom < 50) isUserScrollingRef.current = false; }, 150);
-    };
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => { container.removeEventListener('scroll', handleScroll); clearTimeout(scrollTimeout); };
-  }, [conversation?.id]);
+   // Track scroll position and handle infinite scroll
+   const lastScrollHeightRef = useRef(0);
+   const isAdjustmentNeededRef = useRef(false);
+ 
+   useEffect(() => {
+     const container = scrollContainerRef.current;
+     if (!container) return;
+     let scrollTimeout: NodeJS.Timeout;
+     
+     const handleScroll = () => {
+       const { scrollTop, scrollHeight, clientHeight } = container;
+       const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+       
+       setShowScrollButton(distanceFromBottom > 300);
+       
+       if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 150) {
+         isUserScrollingRef.current = true;
+       }
+       
+       if (distanceFromBottom < 50) {
+         isUserScrollingRef.current = false;
+       }
+ 
+       // Infinite scroll: trigger onLoadMore when reaching the top
+       if (scrollTop < 50 && hasMore && !loading && !isInitialLoadRef.current) {
+         lastScrollHeightRef.current = scrollHeight;
+         isAdjustmentNeededRef.current = true;
+         onLoadMore();
+       }
+ 
+       lastScrollTopRef.current = scrollTop;
+       
+       clearTimeout(scrollTimeout);
+       scrollTimeout = setTimeout(() => { 
+         if (distanceFromBottom < 50) isUserScrollingRef.current = false; 
+       }, 150);
+     };
+ 
+     container.addEventListener('scroll', handleScroll, { passive: true });
+     return () => { 
+       container.removeEventListener('scroll', handleScroll); 
+       clearTimeout(scrollTimeout); 
+     };
+   }, [conversation?.id, hasMore, loading, onLoadMore]);
+ 
+   // Adjust scroll position after loading more messages to prevent jumping
+   useEffect(() => {
+     if (isAdjustmentNeededRef.current && !loading && scrollContainerRef.current) {
+       const container = scrollContainerRef.current;
+       const newScrollHeight = container.scrollHeight;
+       const diff = newScrollHeight - lastScrollHeightRef.current;
+       if (diff > 0) {
+         container.scrollTop += diff;
+       }
+       isAdjustmentNeededRef.current = false;
+     }
+   }, [loading, messages.length]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1096,13 +1136,35 @@ export function ChatArea({
 
       {/* Messages */}
       <ScrollArea ref={scrollAreaRef} viewportRef={scrollContainerRef} className={cn("flex-1 chat-wallpaper min-w-0 relative", isMobile ? "p-3" : "p-4")}>
-        {hasMore && (
-          <div className="flex justify-center mb-4">
-            <Button variant="ghost" size="sm" onClick={onLoadMore} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Carregar anteriores'}
-            </Button>
-          </div>
-        )}
+         {hasMore ? (
+           <div className="flex justify-center mb-4">
+             <Button variant="ghost" size="sm" onClick={() => {
+               if (scrollContainerRef.current) {
+                 lastScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
+                 isAdjustmentNeededRef.current = true;
+               }
+               onLoadMore();
+             }} disabled={loading}>
+               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Carregar anteriores'}
+             </Button>
+           </div>
+         ) : !loading && conversation && (
+           <div className="flex flex-col items-center gap-2 mb-8 mt-4">
+             <div className="h-px w-full max-w-[200px] bg-border/50" />
+             <p className="text-xs text-muted-foreground italic">Início das mensagens locais</p>
+             {onSyncHistory && (
+               <Button 
+                 variant="outline" 
+                 size="sm" 
+                 onClick={() => setShowSyncDialog(true)}
+                 className="h-8 gap-2"
+               >
+                 <RotateCcw className="h-3.5 w-3.5" />
+                 Sincronizar histórico do WhatsApp
+               </Button>
+             )}
+           </div>
+         )}
         <div className="space-y-4">
           {messages.map((msg) => (
             <ChatMessageBubble
@@ -1424,7 +1486,18 @@ export function ChatArea({
         />
       )}
 
-      <TransferDialog open={showTransferDialog} onOpenChange={setShowTransferDialog} conversation={conversation} team={team} availableConnections={connections} onTransfer={onTransfer} />
+       <TransferDialog open={showTransferDialog} onOpenChange={setShowTransferDialog} conversation={conversation} team={team} availableConnections={connections} onTransfer={onTransfer} />
+       <SyncDialog 
+         open={showSyncDialog} 
+         onOpenChange={setShowSyncDialog} 
+         onSync={async (days) => {
+           if (onSyncHistory) {
+             await onSyncHistory(days);
+             setShowSyncDialog(false);
+           }
+         }} 
+         syncing={syncingHistory} 
+       />
       <DepartmentDialog open={showDepartmentDialog} onOpenChange={setShowDepartmentDialog} conversation={conversation} departments={departments} onSave={handleSaveDepartment} saving={savingDepartment} />
       {onDeleteConversation && <DeleteConversationDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog} onDelete={onDeleteConversation} />}
       
