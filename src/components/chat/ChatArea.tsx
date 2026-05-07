@@ -198,6 +198,7 @@ export function ChatArea({
   const { getQuickReplies: fetchQuickRepliesForSlash } = useQuickReplies();
   const [showNotes, setShowNotes] = useState(false);
   const [notesCount, setNotesCount] = useState(0);
+  const [showExtras, setShowExtras] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1043,8 +1044,10 @@ export function ChatArea({
         </div>
       </div>
 
-      {/* AI Agent Banner */}
-      {!conversation.is_group && <AIAgentBanner conversationId={conversation.id} isGroup={conversation.is_group} onSessionChange={(s) => setAiAgentActive(!!(s && !s.human_takeover))} />}
+      {/* AI Agent Banner - collapsible */}
+      {!conversation.is_group && showExtras && (
+        <AIAgentBanner conversationId={conversation.id} isGroup={conversation.is_group} onSessionChange={(s) => setAiAgentActive(!!(s && !s.human_takeover))} />
+      )}
 
       {/* Mobile Quick Actions */}
       {isMobile && (
@@ -1282,23 +1285,42 @@ export function ChatArea({
           </div>
         )}
 
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <Checkbox id="sign-messages" checked={signMessages} onCheckedChange={checked => setSignMessages(checked === true)} />
-          <Label htmlFor="sign-messages" className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1 min-w-0">
-            <PenLine className="h-3 w-3" />Assinar mensagens {user?.name && signMessages && <span className="text-primary">(*{user.name}*)</span>}
-          </Label>
+        {/* Toggle for extras (sign messages + AI suggestions + AI agent banner) */}
+        <div className="flex items-center justify-end -mt-1 mb-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+            onClick={() => setShowExtras(v => !v)}
+            title={showExtras ? "Ocultar opções" : "Mostrar opções"}
+          >
+            {showExtras ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+            {showExtras ? "Ocultar opções" : "Opções"}
+            {signMessages && !showExtras && <PenLine className="h-3 w-3 text-primary ml-1" />}
+          </Button>
         </div>
 
-        {!isMobile && messages.length > 5 && (
-          <div className="mb-3">
-            <ActionSuggestions messages={messages} conversationData={{ lastMessageAt: conversation?.last_message_at || undefined, attendanceStatus: conversation?.attendance_status, tags: conversation?.tags }}
-              onScheduleMessage={() => setShowScheduleDialog(true)}
-              onScheduleMeeting={() => { modulesEnabled.crm ? setShowDealDialog(true) : setShowScheduleDialog(true); }}
-              onOpenCRM={() => setShowDealDialog(true)}
-              onSendQuickReply={() => setShowQuickReplies(true)}
-              compact
-            />
-          </div>
+        {showExtras && (
+          <>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <Checkbox id="sign-messages" checked={signMessages} onCheckedChange={checked => setSignMessages(checked === true)} />
+              <Label htmlFor="sign-messages" className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1 min-w-0">
+                <PenLine className="h-3 w-3" />Assinar mensagens {user?.name && signMessages && <span className="text-primary">(*{user.name}*)</span>}
+              </Label>
+            </div>
+
+            {!isMobile && messages.length > 5 && (
+              <div className="mb-3">
+                <ActionSuggestions messages={messages} conversationData={{ lastMessageAt: conversation?.last_message_at || undefined, attendanceStatus: conversation?.attendance_status, tags: conversation?.tags }}
+                  onScheduleMessage={() => setShowScheduleDialog(true)}
+                  onScheduleMeeting={() => { modulesEnabled.crm ? setShowDealDialog(true) : setShowScheduleDialog(true); }}
+                  onOpenCRM={() => setShowDealDialog(true)}
+                  onSendQuickReply={() => setShowQuickReplies(true)}
+                  compact
+                />
+              </div>
+            )}
+          </>
         )}
         
         <input ref={fileInputRef} type="file" multiple className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar" onChange={handleFileSelect} />
