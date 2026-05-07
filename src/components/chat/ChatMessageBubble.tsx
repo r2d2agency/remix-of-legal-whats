@@ -18,7 +18,7 @@ import {
   Forward,
   UserPlus,
 } from "lucide-react";
-import { format } from "date-fns";
+ import { format, isBefore, subHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { resolveMediaUrl } from "@/lib/media";
@@ -442,9 +442,11 @@ export function ChatMessageBubble({
         )}>
           {msg.is_deleted && <span className="text-[10px] opacity-50 italic">🚫 apagada</span>}
           {msg.is_edited && !msg.is_deleted && <span className="text-[10px] opacity-50 italic">editada</span>}
-          <span className="text-[10px] opacity-70">
-            {format(new Date(msg.timestamp), "HH:mm", { locale: ptBR })}
-          </span>
+           <span className="text-[10px] opacity-70">
+             {isBefore(new Date(msg.timestamp), subHours(new Date(), 24))
+               ? format(new Date(msg.timestamp), "dd/MM/yy HH:mm", { locale: ptBR })
+               : format(new Date(msg.timestamp), "HH:mm", { locale: ptBR })}
+           </span>
           {msg.from_me && messageStatusIcon(msg.status)}
         </div>
 
