@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { chatEvents } from "@/lib/chat-events";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Users, Bell, RefreshCw, ChevronLeft } from "lucide-react";
+import { MessageSquare, Users, Bell, ChevronLeft } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -784,55 +784,31 @@ const Chat = () => {
           ? "h-[100dvh] w-full fixed inset-0 z-[40] rounded-none border-0 overflow-hidden" 
           : "h-[calc(100vh-80px)] overflow-hidden"
       )}>
-        {/* Tab Header - Hide on mobile when chat is open */}
-        {(!isMobile || !selectedConversation) && (
-          <div className={cn(
-            "border-b bg-muted/30 flex-shrink-0 flex items-center justify-between",
-            isMobile ? "px-3 py-2 pt-14" : "px-4 py-2"
-          )}>
-             <Tabs value={activeTab} onValueChange={(v) => {
-                setActiveTab(v as 'chats' | 'groups');
-                selectedIdRef.current = null;
-                setSelectedConversation(null);
-                setMessages([]);
-              }}>
-              <TabsList className={cn(
-                "grid grid-cols-2",
-                isMobile ? "w-[200px]" : "w-[260px]"
-              )}>
-                <TabsTrigger value="chats" className="flex items-center gap-1.5 text-xs sm:text-sm">
-                  <MessageSquare className="h-4 w-4" />
-                  <span className="hidden xs:inline">Conversas</span>
-                  <span className="xs:hidden">Chats</span>
-                </TabsTrigger>
-                <TabsTrigger value="groups" className="flex items-center gap-1.5 text-xs sm:text-sm">
-                  <Users className="h-4 w-4" />
-                  Grupos
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            
-            {/* Sync groups button - only show on groups tab */}
-            {activeTab === 'groups' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSyncAllGroups}
-                disabled={syncingGroups}
-                title="Sincronizar nomes dos grupos"
-                className="text-xs gap-1 h-8"
-              >
-                <RefreshCw className={cn("h-3.5 w-3.5", syncingGroups && "animate-spin")} />
-                {!isMobile && 'Sincronizar'}
-              </Button>
-            )}
-          </div>
-        )}
-
         {isMobile ? (
           <div className="flex flex-1 overflow-hidden min-w-0 w-full">
             {!selectedConversation && (
-              <div className="w-full h-full overflow-hidden">
+              <div className="w-full h-full overflow-hidden flex flex-col">
+                <div className="border-b bg-muted/30 flex-shrink-0 px-3 py-2 pt-14">
+                  <Tabs value={activeTab} onValueChange={(v) => {
+                    setActiveTab(v as 'chats' | 'groups');
+                    selectedIdRef.current = null;
+                    setSelectedConversation(null);
+                    setMessages([]);
+                  }}>
+                    <TabsList className="grid grid-cols-2 w-[200px]">
+                      <TabsTrigger value="chats" className="flex items-center gap-1.5 text-xs sm:text-sm">
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="hidden xs:inline">Conversas</span>
+                        <span className="xs:hidden">Chats</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="groups" className="flex items-center gap-1.5 text-xs sm:text-sm">
+                        <Users className="h-4 w-4" />
+                        Grupos
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                <div className="flex-1 overflow-hidden">
                 <ConversationList
                   conversations={conversations}
                   selectedId={selectedConversation?.id || null}
@@ -879,6 +855,7 @@ const Chat = () => {
                     } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                   }}
                 />
+                </div>
               </div>
             )}
             {selectedConversation && (
@@ -910,7 +887,29 @@ const Chat = () => {
         ) : (
           <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-w-0 w-full">
             <ResizablePanel defaultSize={28} minSize={18} maxSize={45} className="overflow-hidden">
-              <ConversationList
+              <div className="h-full flex flex-col">
+                <div className="border-b bg-muted/30 flex-shrink-0 px-4 py-2">
+                  <Tabs value={activeTab} onValueChange={(v) => {
+                    setActiveTab(v as 'chats' | 'groups');
+                    selectedIdRef.current = null;
+                    setSelectedConversation(null);
+                    setMessages([]);
+                  }}>
+                    <TabsList className="grid grid-cols-2 w-[260px]">
+                      <TabsTrigger value="chats" className="flex items-center gap-1.5 text-xs sm:text-sm">
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="hidden xs:inline">Conversas</span>
+                        <span className="xs:hidden">Chats</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="groups" className="flex items-center gap-1.5 text-xs sm:text-sm">
+                        <Users className="h-4 w-4" />
+                        Grupos
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                <ConversationList
                 conversations={conversations}
                 selectedId={selectedConversation?.id || null}
                 onSelect={handleMobileSelectConversation}
@@ -956,6 +955,8 @@ const Chat = () => {
                   } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                 }}
               />
+                </div>
+              </div>
             </ResizablePanel>
 
             <ResizableHandle withHandle />
