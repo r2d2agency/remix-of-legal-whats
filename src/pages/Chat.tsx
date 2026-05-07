@@ -887,7 +887,29 @@ const Chat = () => {
         ) : (
           <ResizablePanelGroup direction="horizontal" className="flex-1 overflow-hidden min-w-0 w-full">
             <ResizablePanel defaultSize={28} minSize={18} maxSize={45} className="overflow-hidden">
-              <ConversationList
+              <div className="h-full flex flex-col">
+                <div className="border-b bg-muted/30 flex-shrink-0 px-4 py-2">
+                  <Tabs value={activeTab} onValueChange={(v) => {
+                    setActiveTab(v as 'chats' | 'groups');
+                    selectedIdRef.current = null;
+                    setSelectedConversation(null);
+                    setMessages([]);
+                  }}>
+                    <TabsList className="grid grid-cols-2 w-[260px]">
+                      <TabsTrigger value="chats" className="flex items-center gap-1.5 text-xs sm:text-sm">
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="hidden xs:inline">Conversas</span>
+                        <span className="xs:hidden">Chats</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="groups" className="flex items-center gap-1.5 text-xs sm:text-sm">
+                        <Users className="h-4 w-4" />
+                        Grupos
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                <ConversationList
                 conversations={conversations}
                 selectedId={selectedConversation?.id || null}
                 onSelect={handleMobileSelectConversation}
@@ -933,6 +955,8 @@ const Chat = () => {
                   } catch (error: any) { toast.error('Erro ao abrir conversa'); }
                 }}
               />
+                </div>
+              </div>
             </ResizablePanel>
 
             <ResizableHandle withHandle />
