@@ -1044,8 +1044,10 @@ export function ChatArea({
         </div>
       </div>
 
-      {/* AI Agent Banner */}
-      {!conversation.is_group && <AIAgentBanner conversationId={conversation.id} isGroup={conversation.is_group} onSessionChange={(s) => setAiAgentActive(!!(s && !s.human_takeover))} />}
+      {/* AI Agent Banner - collapsible */}
+      {!conversation.is_group && showExtras && (
+        <AIAgentBanner conversationId={conversation.id} isGroup={conversation.is_group} onSessionChange={(s) => setAiAgentActive(!!(s && !s.human_takeover))} />
+      )}
 
       {/* Mobile Quick Actions */}
       {isMobile && (
