@@ -797,6 +797,7 @@ export function ConversationList({
                     selectedId === conv.id && "bg-accent"
                   )}
                   style={connColor ? { borderLeft: `3px solid ${connColor}` } : undefined}
+                  onClick={() => onSelect(conv)}
                 >
                   {/* Avatar with profile picture */}
                   <Avatar 
