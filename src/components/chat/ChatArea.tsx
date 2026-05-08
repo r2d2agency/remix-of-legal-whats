@@ -631,6 +631,8 @@ export function ChatArea({
 
   const looksLikeFilename = (value: string) => {
     const s = value.trim(); if (!s || s.length > 160) return false;
+    // Check if it's a bracketed filename like [Documento: name.pdf] or [name.pdf]
+    if (/^\[(?:Documento:\s*)?[^\]]+\.[a-z0-9]{2,6}\]$/i.test(s)) return true;
     return /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z|jpg|jpeg|png|gif|webp|mp3|ogg|wav|m4a|mp4|webm|mov)$/i.test(s);
   };
 
