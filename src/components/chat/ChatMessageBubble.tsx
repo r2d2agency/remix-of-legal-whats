@@ -140,8 +140,11 @@ export function ChatMessageBubble({
       const blobUrl = window.URL.createObjectURL(blob);
       
       const link = document.createElement('a');
+      // Sanitize fileName to prevent issues with special characters
+      const sanitizedFileName = fileName.replace(/[<>:"/\\|?*]/g, '_');
+      
       link.href = blobUrl;
-      link.download = fileName;
+      link.download = sanitizedFileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
