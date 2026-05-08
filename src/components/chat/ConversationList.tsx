@@ -797,6 +797,7 @@ export function ConversationList({
                     selectedId === conv.id && "bg-accent"
                   )}
                   style={connColor ? { borderLeft: `3px solid ${connColor}` } : undefined}
+                  onClick={() => onSelect(conv)}
                 >
                   {/* Avatar with profile picture */}
                   <Avatar 
@@ -822,8 +823,9 @@ export function ConversationList({
                     </AvatarFallback>
                   </Avatar>
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0" onClick={() => onSelect(conv)}>
+                   {/* Content - added absolute fill to cover padding areas and ensure clickability */}
+                   <div className="flex-1 min-w-0 relative z-10" onClick={() => onSelect(conv)}>
+                     <div className="absolute -inset-y-4 -inset-x-16 cursor-pointer" onClick={() => onSelect(conv)} />
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-medium truncate flex-1 min-w-0 flex items-center gap-1">
                         {conv.is_pinned && <Pin className="h-3 w-3 text-primary flex-shrink-0" />}
