@@ -41,8 +41,10 @@ import {
   StickyNote,
   Reply,
   Search,
-  ChevronUp,
-  ChevronDown,
+   ChevronUp,
+   ChevronDown,
+   ChevronRight,
+   ChevronLeft,
   Trash2,
   Square,
   CalendarClock,
@@ -224,6 +226,10 @@ export function ChatArea({
   const [showInteractiveMenuDialog, setShowInteractiveMenuDialog] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [aiAgentActive, setAiAgentActive] = useState(false);
+  const [showHeaderInfo, setShowHeaderInfo] = useState(() => {
+    const saved = localStorage.getItem('chat-show-header-info');
+    return saved === null ? true : saved === 'true';
+  });
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -340,6 +346,10 @@ export function ChatArea({
   }, [conversation?.id, getTypingStatus]);
 
   useEffect(() => { localStorage.setItem('chat-sign-messages', signMessages.toString()); }, [signMessages]);
+
+  useEffect(() => {
+    localStorage.setItem('chat-show-header-info', showHeaderInfo.toString());
+  }, [showHeaderInfo]);
 
   // Reset initial load
   useEffect(() => {
@@ -865,11 +875,27 @@ export function ChatArea({
       )}
 
       {/* Header */}
-      <div className={cn("border-b bg-card flex-shrink-0", isMobile ? "flex items-center gap-2 px-2 py-2 pt-16" : "flex items-center justify-between p-4")}>
+      <div className={cn("border-b bg-card flex-shrink-0 transition-all duration-300", 
+        isMobile ? "flex items-center gap-2 px-2 py-2 pt-16" : cn("flex items-center justify-between", showHeaderInfo ? "p-4" : "p-2"))}>
         <div className={cn("flex items-center gap-2 min-w-0 flex-1", isMobile && "overflow-hidden")}>
           {isMobile && onMobileBack && (
             <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={onMobileBack}><ArrowLeft className="h-5 w-5" /></Button>
           )}
+          
+          {!isMobile && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 flex-shrink-0 mr-1 text-muted-foreground hover:text-foreground" 
+              onClick={() => setShowHeaderInfo(!showHeaderInfo)}
+              title={showHeaderInfo ? "Recolher informações" : "Expandir informações"}
+            >
+              {showHeaderInfo ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </Button>
+          )}
+
+          {showHeaderInfo ? (
+            <>
           <Avatar className={cn(isMobile ? "h-8 w-8" : "h-10 w-10", "flex-shrink-0")}>
             {profilePictureUrl && !conversation.is_group && (
               <AvatarImage src={profilePictureUrl} alt={conversation.contact_name || 'Avatar'} className="object-cover" />
@@ -897,6 +923,19 @@ export function ChatArea({
               </button>
             )}
           </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer hover:opacity-80" onClick={() => setShowHeaderInfo(true)}>
+              <Avatar className="h-6 w-6 flex-shrink-0">
+                <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                  {conversation.is_group ? <Users className="h-3 w-3" /> : getInitials(conversation.contact_name)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="font-medium text-sm truncate">
+                {conversation.is_group ? (conversation.group_name || 'Grupo') : (conversation.contact_name || conversation.contact_phone)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Header actions */}
@@ -930,9 +969,9 @@ export function ChatArea({
           </Button>
 
 
-          {!isMobile && messages.length > 3 && <SentimentIndicator messages={messages} compact />}
+          {!isMobile && messages.length > 3 && showHeaderInfo && <SentimentIndicator messages={messages} compact />}
 
-          {!isMobile && (
+          {!isMobile && showHeaderInfo && (
             <div className="flex items-center gap-1">
               {conversation.tags.slice(0, 3).map(tag => (
                 <Badge key={tag.id} variant="outline" className="cursor-pointer text-xs" style={{ borderColor: tag.color, color: tag.color }} onClick={() => onRemoveTag(tag.id)} title="Clique para remover">
