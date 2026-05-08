@@ -635,9 +635,17 @@ export function ChatArea({
   };
 
   const getDocumentDisplayName = (msg: ChatMessage, resolvedUrl?: string | null) => {
-    // If we have an explicit original name or the content looks like a filename, use it
-    if (msg.content && looksLikeFilename(msg.content)) {
-      return msg.content.trim();
+    let content = msg.content?.trim() || '';
+
+    // Try to extract from brackets like [Documento: name.pdf] or [name.pdf]
+    // This handles common WhatsApp/Integration formats
+    const bracketMatch = content.match(/\[(?:Documento:\s*)?([^\]]+\.[a-z0-9]{2,6})\]/i);
+    if (bracketMatch && bracketMatch[1]) {
+      content = bracketMatch[1].trim();
+    }
+
+    if (content && looksLikeFilename(content)) {
+      return content;
     }
     
     // Fallback to URL parsing
