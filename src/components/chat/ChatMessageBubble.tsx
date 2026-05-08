@@ -122,6 +122,39 @@ export function ChatMessageBubble({
   messageRef,
 }: ChatMessageBubbleProps) {
   const mediaUrl = resolveMediaUrl(msg.media_url);
+
+  const handleDownload = async (e: React.MouseEvent, url: string, fileName: string) => {
+    // If it's already a blob or data URL, let the default behavior happen
+    if (url.startsWith('blob:') || url.startsWith('data:')) {
+      return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Network response was not ok');
+      
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the blob URL
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Fallback: open in new tab if fetch fails (likely CORS)
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(msg.content || '');
   const [isSaving, setIsSaving] = useState(false);
@@ -331,25 +364,14 @@ export function ChatMessageBubble({
         {msg.message_type === 'document' && mediaUrl && (() => {
           const fileName = getDocumentDisplayName(msg, mediaUrl);
           return (
-            <a 
-              href={mediaUrl} 
-              download={fileName}
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="flex items-center gap-2 text-sm underline mb-2 min-w-0"
-              onClick={(e) => {
-                // If it's a direct URL or blob, we can try to force download
-                if (mediaUrl.startsWith('blob:') || mediaUrl.startsWith('data:')) {
-                  return;
-                }
-                
-                // For remote URLs, the 'download' attribute only works if same-origin or with correct CORS
-                // As a fallback, we let target="_blank" handle it if the browser refuses the download attribute
-              }}
+            <button
+              type="button"
+              className="flex items-center gap-2 text-sm underline mb-2 min-w-0 hover:opacity-80"
+              onClick={(e) => handleDownload(e, mediaUrl, fileName)}
             >
               <FileText className="h-4 w-4" />
               <span className="truncate">{fileName}</span>
-            </a>
+            </button>
           );
         })()}
 
