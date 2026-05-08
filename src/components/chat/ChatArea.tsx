@@ -635,15 +635,44 @@ export function ChatArea({
   };
 
   const getDocumentDisplayName = (msg: ChatMessage, resolvedUrl?: string | null) => {
-    if (msg.content && looksLikeFilename(msg.content)) return msg.content.trim();
+    // If we have an explicit original name or the content looks like a filename, use it
+    if (msg.content && looksLikeFilename(msg.content)) {
+      return msg.content.trim();
+    }
+    
+    // Fallback to URL parsing
     const raw = resolvedUrl || msg.media_url || '';
     if (!raw) return 'Documento';
+    
     try {
+      // Handle data URIs or blobs that might contain metadata
+      if (raw.startsWith('data:') || raw.startsWith('blob:')) {
+        return 'Documento';
+      }
+
       const url = new URL(raw, window.location.origin);
+      
+      // Some APIs might provide the original name as a query parameter
+      const urlParams = new URLSearchParams(url.search);
+      const filenameParam = urlParams.get('filename') || urlParams.get('name') || urlParams.get('originalName');
+      if (filenameParam) return decodeURIComponent(filenameParam);
+
       const last = url.pathname.split('/').filter(Boolean).pop();
       if (!last) return 'Documento';
-      return decodeURIComponent(last) || 'Documento';
-    } catch { return String(raw).split('/').pop() || 'Documento'; }
+      
+      // Clean up common UUID-like prefixes if they seem to be prepended to the original name
+      // e.g. "uuid_filename.xlsx" -> "filename.xlsx"
+      const decoded = decodeURIComponent(last);
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[_-]/i;
+      if (uuidPattern.test(decoded)) {
+        return decoded.replace(uuidPattern, '');
+      }
+      
+      return decoded || 'Documento';
+    } catch { 
+      const lastPart = String(raw).split('/').pop();
+      return lastPart ? decodeURIComponent(lastPart) : 'Documento';
+    }
   };
 
   const handleConfirmFileUpload = async () => {

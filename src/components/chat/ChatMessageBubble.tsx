@@ -328,12 +328,30 @@ export function ChatMessageBubble({
           />
         )}
 
-        {msg.message_type === 'document' && mediaUrl && (
-          <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm underline mb-2 min-w-0">
-            <FileText className="h-4 w-4" />
-            <span className="truncate">{getDocumentDisplayName(msg, mediaUrl)}</span>
-          </a>
-        )}
+        {msg.message_type === 'document' && mediaUrl && (() => {
+          const fileName = getDocumentDisplayName(msg, mediaUrl);
+          return (
+            <a 
+              href={mediaUrl} 
+              download={fileName}
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="flex items-center gap-2 text-sm underline mb-2 min-w-0"
+              onClick={(e) => {
+                // If it's a direct URL or blob, we can try to force download
+                if (mediaUrl.startsWith('blob:') || mediaUrl.startsWith('data:')) {
+                  return;
+                }
+                
+                // For remote URLs, the 'download' attribute only works if same-origin or with correct CORS
+                // As a fallback, we let target="_blank" handle it if the browser refuses the download attribute
+              }}
+            >
+              <FileText className="h-4 w-4" />
+              <span className="truncate">{fileName}</span>
+            </a>
+          );
+        })()}
 
         {/* Contact card (vCard) */}
         {msg.message_type === 'contact' && (() => {
