@@ -436,8 +436,7 @@ export function ChatArea({
      };
    }, [conversation?.id, hasMore, loading, onLoadMore]);
  
-   // Use useLayoutEffect to adjust scroll position synchronously after DOM updates
-   // to prevent the jumpy behavior when loading more messages
+   // Adjust scroll position after loading more messages to prevent jumping to the bottom
    useEffect(() => {
      if (isAdjustmentNeededRef.current && !loading && scrollContainerRef.current) {
        const container = scrollContainerRef.current;
@@ -447,6 +446,8 @@ export function ChatArea({
        if (diff > 0) {
          container.scrollTop = diff;
        }
+       
+       // Only reset the flag after we've actually seen a change in height or loading finished
        isAdjustmentNeededRef.current = false;
      }
    }, [loading, messages.length]);
