@@ -640,11 +640,19 @@ export function ChatArea({
   const getDocumentDisplayName = (msg: ChatMessage, resolvedUrl?: string | null) => {
     let content = msg.content?.trim() || '';
 
-    // Try to extract from brackets like [Documento: name.pdf] or [name.pdf]
-    // This handles common WhatsApp/Integration formats
-    const bracketMatch = content.match(/\[(?:Documento:\s*)?([^\]]+\.[a-z0-9]{2,6})\]/i);
-    if (bracketMatch && bracketMatch[1]) {
-      content = bracketMatch[1].trim();
+    // Optimized extraction for filenames from common WhatsApp/Integration formats
+    // Patterns: [Documento: name.xlsx], [name.xlsx], or sometimes just name.xlsx in content
+    const bracketPattern = /\[(?:Documento:\s*)?([^\]]+\.[a-z0-9]{2,6})\]/i;
+    const bracketMatch = content.match(bracketPattern);
+    
+    if (bracketMatch) {
+      content = bracketMatch[1];
+    } else {
+      // If content itself looks like a filename (happens in some integrations)
+      const directFileMatch = content.match(/^([^\]\s]+\.[a-z0-9]{2,6})$/i);
+      if (directFileMatch) {
+        content = directFileMatch[1];
+      }
     }
 
     if (content && looksLikeFilename(content)) {
@@ -673,10 +681,23 @@ export function ChatArea({
       
       // Clean up common UUID-like prefixes if they seem to be prepended to the original name
       // e.g. "uuid_filename.xlsx" -> "filename.xlsx"
-      const decoded = decodeURIComponent(last);
+      let decoded = decodeURIComponent(last);
+      
+      // Handle the user's reported case: long hex strings (sha256/hex) prepended or as filename
+      // e.g. "0698a3259c9ffaa9fb64f1ba79ece7eb66d0508a0c1a5d3bc0cfd80c82c1729a.pptx"
+      // If the filename is just a long random hex string, we should use content if available
+      const isLongHexString = /^[0-9a-f]{32,64}\.[a-z0-9]{2,6}$/i.test(decoded);
+      if (isLongHexString && msg.content && looksLikeFilename(msg.content)) {
+        // Re-extract from content if URL is just a hash
+        const reMatch = msg.content.match(/\[(?:Documento:\s*)?([^\]]+\.[a-z0-9]{2,6})\]/i);
+        if (reMatch) return reMatch[1];
+        return msg.content.trim();
+      }
+
+      // Standard UUID pattern removal
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[_-]/i;
       if (uuidPattern.test(decoded)) {
-        return decoded.replace(uuidPattern, '');
+        decoded = decoded.replace(uuidPattern, '');
       }
       
       return decoded || 'Documento';
