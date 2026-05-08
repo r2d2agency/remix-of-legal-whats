@@ -212,19 +212,31 @@ const Chat = () => {
     return () => window.removeEventListener('refresh-conversations', handleRefresh);
   }, []);
 
-  // Auto-refresh messages (less frequent on mobile to save bandwidth)
-  useEffect(() => {
-    if (!selectedConversation) return;
-    const interval = setInterval(async () => {
-      try {
-        const msgs = await getMessages(selectedConversation.id);
-        setMessages(msgs);
-      } catch (error) {
-        console.error('Error refreshing messages:', error);
-      }
-    }, isMobile ? 8000 : 3000);
-    return () => clearInterval(interval);
-  }, [selectedConversation?.id, getMessages, isMobile]);
+   // Auto-refresh messages (less frequent on mobile to save bandwidth)
+   useEffect(() => {
+     if (!selectedConversation) return;
+     const interval = setInterval(async () => {
+       try {
+         const msgs = await getMessages(selectedConversation.id);
+         
+         setMessages(prev => {
+           // If we have more messages in the state than the initial fetch (due to infinite scroll),
+           // we should merge the updates instead of overwriting the whole list,
+           // which would cause the scroll to jump back to the bottom.
+           if (prev.length > msgs.length) {
+             // Simple strategy: only update the common messages at the end
+             const commonCount = msgs.length;
+             const baseMessages = prev.slice(0, prev.length - commonCount);
+             return [...baseMessages, ...msgs];
+           }
+           return msgs;
+         });
+       } catch (error) {
+         console.error('Error refreshing messages:', error);
+       }
+     }, isMobile ? 8000 : 3000);
+     return () => clearInterval(interval);
+   }, [selectedConversation?.id, getMessages, isMobile]);
 
    const loadConnections = useCallback(async () => {
      try {
