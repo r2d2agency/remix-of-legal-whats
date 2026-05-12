@@ -116,6 +116,7 @@ export interface CRMDeal {
   custom_fields?: Record<string, any>;
   source?: string;
   created_at: string;
+  automation_active?: boolean;
 }
 
 export interface CRMTask {

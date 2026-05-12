@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CRMDeal } from "@/hooks/use-crm";
 import { cn } from "@/lib/utils";
-import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake, TrendingUp, TrendingDown, Activity, FolderKanban, Webhook, MessageSquareWarning, ThumbsUp, ThumbsDown, Play } from "lucide-react";
+import { Building2, User, Clock, AlertTriangle, CheckSquare, Trophy, XCircle, Pause, Video, CalendarClock, Flame, Thermometer, Snowflake, TrendingUp, TrendingDown, Activity, FolderKanban, Webhook, MessageSquareWarning, ThumbsUp, ThumbsDown, Play, Zap } from "lucide-react";
 import { differenceInHours, parseISO } from "date-fns";
 import { analyzeDeal } from "./PredictiveAnalytics";
 
@@ -268,6 +268,23 @@ export const DealCard = forwardRef<HTMLDivElement, DealCardProps>(
         <div className="flex items-center justify-between pt-2 border-t mt-2 gap-1 flex-wrap">
           <div className="flex items-center gap-2">
             {/* Owner */}
+            {deal.automation_active && !isWon && !isLost && !isPaused && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge 
+                    variant="secondary" 
+                    className="text-[10px] px-1.5 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 flex items-center gap-0.5 animate-pulse shrink-0"
+                  >
+                    <Zap className="h-3 w-3 fill-current" />
+                    <span>Auto</span>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>Automação ativa aguardando resposta</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             {deal.owner_name && (
               <div className="flex items-center gap-1">
                 <div className={cn(
