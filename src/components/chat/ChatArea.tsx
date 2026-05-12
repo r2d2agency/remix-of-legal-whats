@@ -37,7 +37,7 @@ import {
   Plus,
   RefreshCw,
   PenLine,
-  Zap,
+  Zap as ZapIcon,
   StickyNote,
   Reply,
   Search,
@@ -905,9 +905,21 @@ export function ChatArea({
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <h3 className={cn("font-semibold truncate", isMobile && "text-sm")}>
-              {conversation.is_group ? (conversation.group_name || 'Grupo sem nome') : (conversation.contact_name || conversation.contact_phone || 'Desconhecido')}
-            </h3>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h3 className={cn("font-semibold truncate", isMobile && "text-sm")}>
+                {conversation.is_group ? (conversation.group_name || 'Grupo sem nome') : (conversation.contact_name || conversation.contact_phone || 'Desconhecido')}
+              </h3>
+              {conversation.automation_active && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ZapIcon className="h-3.5 w-3.5 text-purple-500 fill-current animate-pulse flex-shrink-0" />
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p>Automação ativa aguardando resposta</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             {isMobile ? (
               <p className="text-[11px] text-muted-foreground truncate">{conversation.is_group ? 'Grupo' : conversation.contact_phone}</p>
             ) : conversation.is_group ? (

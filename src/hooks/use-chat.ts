@@ -36,6 +36,7 @@ export interface Conversation {
   department_id: string | null;
   department_name: string | null;
   created_at: string;
+  automation_active?: boolean;
 }
 
 export interface Connection {
