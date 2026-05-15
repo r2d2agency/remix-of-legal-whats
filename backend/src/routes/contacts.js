@@ -271,7 +271,7 @@ router.post('/lists/:listId/contacts', async (req, res) => {
     let params = [listId, req.userId];
 
     if (org) {
-      whereClause = `id = $1 AND (user_id = $2 OR connection_id IN (
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $3
       ))`;
       params = [listId, req.userId, org.organization_id];
@@ -315,7 +315,7 @@ router.post('/lists/:listId/import', async (req, res) => {
     let params = [listId, req.userId];
 
     if (org) {
-      whereClause = `id = $1 AND (user_id = $2 OR connection_id IN (
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $3
       ))`;
       params = [listId, req.userId, org.organization_id];
@@ -540,7 +540,7 @@ router.delete('/:id', async (req, res) => {
 
     if (org) {
       params.push(org.organization_id);
-      subquery = `SELECT id FROM contact_lists WHERE user_id = $2 OR connection_id IN (
+      subquery = `SELECT id FROM contact_lists WHERE user_id = $2 OR organization_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $3
       )`;
     }
@@ -619,8 +619,8 @@ router.post('/lists/from-tag', async (req, res) => {
 
     // Create the list
     const listResult = await query(
-      'INSERT INTO contact_lists (user_id, name, connection_id) VALUES ($1, $2, $3) RETURNING *',
-      [req.userId, listName, connection_id || null]
+      'INSERT INTO contact_lists (user_id, name, connection_id, organization_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [req.userId, listName, connection_id || null, org.organization_id]
     );
 
     const listId = listResult.rows[0].id;
