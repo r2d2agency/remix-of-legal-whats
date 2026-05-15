@@ -8,6 +8,7 @@ export interface ContactList {
   contact_count: number;
   created_at: string;
   updated_at: string;
+  organization_id?: string | null;
 }
 
 export interface Contact {
