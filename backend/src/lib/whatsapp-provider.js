@@ -548,6 +548,17 @@ export async function sendMessage(connection, phone, content, messageType, media
 
   // Evolution API
   try {
+    if (!connection.api_url) {
+      logWarn('whatsapp.send_message_evolution_missing_url', {
+        connection_id: connection.id,
+        instance_name: connection.instance_name
+      });
+      return { 
+        success: false, 
+        error: 'URL da API não configurada para esta conexão. Verifique as configurações da conexão.' 
+      };
+    }
+
     let endpoint;
     let body;
 
