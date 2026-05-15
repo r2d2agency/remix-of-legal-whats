@@ -82,8 +82,8 @@ router.get('/lists', async (req, res) => {
     let params = [req.userId];
 
     if (org) {
-      // Get lists owned by user OR linked to organization's connections
-      whereClause = `(cl.user_id = $1 OR cl.connection_id IN (
+      // Get lists owned by user OR shared with organization OR linked to organization's connections
+      whereClause = `(cl.user_id = $1 OR cl.organization_id = $2 OR cl.connection_id IN (
         SELECT id FROM connections WHERE organization_id = $2
       ))`;
       params = [req.userId, org.organization_id];
@@ -147,9 +147,12 @@ router.post('/lists', async (req, res) => {
       }
     }
 
+    const org = await getUserOrganization(req.userId);
+    const { is_public } = req.body;
+
     const result = await query(
-      'INSERT INTO contact_lists (user_id, name, connection_id) VALUES ($1, $2, $3) RETURNING *',
-      [req.userId, name, connection_id || null]
+      'INSERT INTO contact_lists (user_id, name, connection_id, organization_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [req.userId, name, connection_id || null, (is_public && org) ? org.organization_id : null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -167,7 +170,7 @@ async function checkListAccess(listId, userId) {
   let params = [listId, userId];
 
   if (org) {
-    whereClause = `id = $1 AND (user_id = $2 OR connection_id IN (
+    whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
       SELECT id FROM connections WHERE organization_id = $3
     ))`;
     params = [listId, userId, org.organization_id];
@@ -224,7 +227,7 @@ router.get('/lists/:listId/contacts', async (req, res) => {
     let params = [listId, req.userId];
 
     if (org) {
-      whereClause = `id = $1 AND (user_id = $2 OR connection_id IN (
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $3
       ))`;
       params = [listId, req.userId, org.organization_id];
