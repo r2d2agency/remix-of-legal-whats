@@ -216,6 +216,36 @@ router.delete('/lists/:id', async (req, res) => {
   }
 });
 
+router.patch('/lists/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, is_public } = req.body;
+    const org = await getUserOrganization(req.userId);
+    const list = await query('SELECT * FROM contact_lists WHERE id = $1', [id]);
+    if (list.rows.length === 0) return res.status(404).json({ error: 'Lista não encontrada' });
+    const isOwner = list.rows[0].user_id === req.userId;
+    const isOrgAdmin = org && ['owner', 'admin', 'manager'].includes(org.role);
+    if (!isOwner && !isOrgAdmin) return res.status(403).json({ error: 'Sem permissão' });
+    const sets = [];
+    const params = [id];
+    let idx = 2;
+    if (name) { sets.push(`name = $${idx++}`); params.push(name); }
+    if (typeof is_public === 'boolean') {
+      sets.push(`organization_id = $${idx++}`);
+      params.push(is_public && org ? org.organization_id : null);
+    }
+    if (sets.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
+    const result = await query(
+      `UPDATE contact_lists SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $1 RETURNING *`,
+      params
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update list error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar lista' });
+  }
+});
+
 // List contacts from a list
 router.get('/lists/:listId/contacts', async (req, res) => {
   try {
