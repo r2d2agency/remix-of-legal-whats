@@ -666,14 +666,15 @@ router.post('/conversation/:conversationId/start', async (req, res) => {
       console.log('flow_sessions table may not exist, skipping session creation:', sessionError.message);
     }
 
-    // Execute the flow starting from the start node
-    const execResult = await executeFlow(flow_id, conversationId, 'start');
-    
+    // Execute the flow starting from the start node.
+    // The flow executor handles variable initialization internally.
+    const execResult = await executeFlow(flow_id, conversationId, 'start', {});
+
     if (!execResult.success) {
       console.error('Flow execution error:', execResult.error);
       return res.status(500).json({ 
         error: `Erro ao executar fluxo: ${execResult.error || 'Erro desconhecido'}`,
-        execution: execResult
+        execution: execResult 
       });
     }
 
