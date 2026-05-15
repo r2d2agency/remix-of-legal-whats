@@ -107,6 +107,7 @@ import {
   CreateTagDialog,
   EditContactDialog,
 } from "./ChatDialogs";
+ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
  import { format, isSameDay, parseISO } from "date-fns";
  import { ptBR } from "date-fns/locale";
 import { exportConversationAsTxt, exportConversationAsPdf } from "@/lib/chat-export";
@@ -1531,7 +1532,7 @@ export function ChatArea({
                   <LayoutList className="h-4 w-4" />
                 </Button>
               )}
-              <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setShowStartFlowDialog(true)} title="Iniciar fluxo"><Zap className="h-4 w-4 text-primary" /></Button>
+               <Button variant="ghost" size="icon" className="h-9 w-9 flex-shrink-0" onClick={() => setShowStartFlowDialog(true)} title="Iniciar fluxo"><ZapIcon className="h-4 w-4 text-primary" /></Button>
       {conversation && (
         <SendInteractiveMenuDialog
           open={showInteractiveMenuDialog}
