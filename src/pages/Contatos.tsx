@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Upload,
   Search,
@@ -42,6 +43,7 @@ import {
   Phone,
   UserPlus,
   RefreshCw,
+  Share2,
 } from "lucide-react";
 import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
 import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
@@ -50,6 +52,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface SyncConnection {
   id: string;
@@ -82,6 +85,7 @@ const Contatos = () => {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
+  const [newListIsPublic, setNewListIsPublic] = useState(false);
   const [newContactName, setNewContactName] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
   const [newContactValidated, setNewContactValidated] = useState<boolean | null>(null);
@@ -208,9 +212,10 @@ const Contatos = () => {
       return;
     }
     try {
-      await createList(newListName);
+      await createList(newListName, newListIsPublic);
       toast.success("Lista criada com sucesso!");
       setNewListName("");
+      setNewListIsPublic(false);
       setIsCreateListOpen(false);
       loadLists();
     } catch (err) {
@@ -420,6 +425,19 @@ const Contatos = () => {
     }
   };
 
+  const handleToggleShareList = async (listId: string, isShared: boolean) => {
+    try {
+      await api(`/api/contacts/lists/${listId}`, {
+        method: 'PATCH',
+        body: { is_public: isShared },
+      });
+      toast.success(isShared ? "Lista compartilhada com a equipe" : "Lista privada");
+      loadLists();
+    } catch (err) {
+      toast.error("Erro ao atualizar compartilhamento");
+    }
+  };
+
   const handleSyncConnectionContacts = async () => {
     if (!selectedSyncConnectionId) {
       toast.error('Selecione uma conexão para sincronizar');
@@ -498,6 +516,19 @@ const Contatos = () => {
                     placeholder="Ex: Clientes Janeiro"
                     value={newListName}
                     onChange={(e) => setNewListName(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="listPublic">Compartilhar com a equipe</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Permitir que outros usuários da organização vejam esta lista
+                    </p>
+                  </div>
+                  <Switch
+                    id="listPublic"
+                    checked={newListIsPublic}
+                    onCheckedChange={setNewListIsPublic}
                   />
                 </div>
               </div>
@@ -700,9 +731,23 @@ const Contatos = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary">
-                      {format(new Date(list.created_at), "dd/MM/yy", { locale: ptBR })}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="secondary">
+                        {format(new Date(list.created_at), "dd/MM/yy", { locale: ptBR })}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn("h-8 w-8", list.organization_id ? "text-primary" : "text-muted-foreground")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleShareList(list.id, !list.organization_id);
+                        }}
+                        title={list.organization_id ? "Lista compartilhada (clique para tornar privada)" : "Lista privada (clique para compartilhar)"}
+                      >
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"

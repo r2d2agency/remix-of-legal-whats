@@ -327,6 +327,13 @@ EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
 
+-- Add organization_id column to contact_lists for sharing
+DO $$ BEGIN
+    ALTER TABLE contact_lists ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
 -- Contacts
 CREATE TABLE IF NOT EXISTS contacts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
