@@ -40,13 +40,13 @@ export const useContacts = () => {
     }
   }, []);
 
-  const createList = useCallback(async (name: string): Promise<ContactList> => {
+  const createList = useCallback(async (name: string, isPublic?: boolean): Promise<ContactList> => {
     setLoading(true);
     setError(null);
     try {
       const data = await api<ContactList>('/api/contacts/lists', {
         method: 'POST',
-        body: { name },
+        body: { name, is_public: isPublic },
       });
       return data;
     } catch (err) {
