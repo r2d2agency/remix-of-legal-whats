@@ -43,6 +43,7 @@ import {
   Phone,
   UserPlus,
   RefreshCw,
+  Share2,
 } from "lucide-react";
 import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
 import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
