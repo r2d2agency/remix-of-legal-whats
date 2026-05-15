@@ -107,6 +107,7 @@ import {
   CreateTagDialog,
   EditContactDialog,
 } from "./ChatDialogs";
+ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
  import { format, isSameDay, parseISO } from "date-fns";
  import { ptBR } from "date-fns/locale";
 import { exportConversationAsTxt, exportConversationAsPdf } from "@/lib/chat-export";
