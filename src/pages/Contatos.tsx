@@ -82,6 +82,7 @@ const Contatos = () => {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
+  const [newListIsPublic, setNewListIsPublic] = useState(false);
   const [newContactName, setNewContactName] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
   const [newContactValidated, setNewContactValidated] = useState<boolean | null>(null);
@@ -208,9 +209,10 @@ const Contatos = () => {
       return;
     }
     try {
-      await createList(newListName);
+      await createList(newListName, newListIsPublic);
       toast.success("Lista criada com sucesso!");
       setNewListName("");
+      setNewListIsPublic(false);
       setIsCreateListOpen(false);
       loadLists();
     } catch (err) {
@@ -498,6 +500,19 @@ const Contatos = () => {
                     placeholder="Ex: Clientes Janeiro"
                     value={newListName}
                     onChange={(e) => setNewListName(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="listPublic">Compartilhar com a equipe</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Permitir que outros usuários da organização vejam esta lista
+                    </p>
+                  </div>
+                  <Switch
+                    id="listPublic"
+                    checked={newListIsPublic}
+                    onCheckedChange={setNewListIsPublic}
                   />
                 </div>
               </div>
