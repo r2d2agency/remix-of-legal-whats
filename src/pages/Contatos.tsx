@@ -424,6 +424,19 @@ const Contatos = () => {
     }
   };
 
+  const handleToggleShareList = async (listId: string, isShared: boolean) => {
+    try {
+      await api(`/api/contacts/lists/${listId}`, {
+        method: 'PATCH',
+        body: { is_public: isShared },
+      });
+      toast.success(isShared ? "Lista compartilhada com a equipe" : "Lista privada");
+      loadLists();
+    } catch (err) {
+      toast.error("Erro ao atualizar compartilhamento");
+    }
+  };
+
   const handleSyncConnectionContacts = async () => {
     if (!selectedSyncConnectionId) {
       toast.error('Selecione uma conexão para sincronizar');
@@ -717,9 +730,23 @@ const Contatos = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary">
-                      {format(new Date(list.created_at), "dd/MM/yy", { locale: ptBR })}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="secondary">
+                        {format(new Date(list.created_at), "dd/MM/yy", { locale: ptBR })}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn("h-8 w-8", list.organization_id ? "text-primary" : "text-muted-foreground")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleShareList(list.id, !list.organization_id);
+                        }}
+                        title={list.organization_id ? "Lista compartilhada (clique para tornar privada)" : "Lista privada (clique para compartilhar)"}
+                      >
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
