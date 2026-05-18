@@ -592,10 +592,11 @@ async function persistIncomingMessage(connection, payload) {
            unread_count = unread_count + 1,
            contact_name = COALESCE($2, contact_name),
            group_name = CASE WHEN COALESCE(is_group, false) = true THEN COALESCE($3, group_name) ELSE group_name END,
-           attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [conversationId, message.senderName, message.groupName]
+            attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
+            connection_id = COALESCE($4, connection_id),
+            updated_at = NOW()
+        WHERE id = $1`,
+       [conversationId, message.senderName, message.groupName, connection.id]
     );
   }
 

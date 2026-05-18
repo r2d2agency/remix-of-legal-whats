@@ -993,7 +993,7 @@ export async function continueFlowWithInput(conversationId, userInput) {
       
       if (matchedOption) {
         const optionIndex = options.indexOf(matchedOption);
-        nextHandle = `option_${optionIndex}`;
+       nextHandle = `opt_${optionIndex}`;
         
         // Store selected option in variable if configured
         const varName = content.variable_name || 'opcao';
@@ -1006,6 +1006,8 @@ export async function continueFlowWithInput(conversationId, userInput) {
         console.log('Flow executor: No menu option matched, using default handle');
       }
     }
+
+    console.log(`Flow executor: Continuing flow for conversation ${conversationId}. Node: ${currentNodeId} (${currentNode.node_type}), nextHandle: ${nextHandle}`);
 
     // Get all edges AND nodes to find the next node with proper ordering
     const [edgesResult, nodesResult] = await Promise.all([
@@ -1038,9 +1040,19 @@ export async function continueFlowWithInput(conversationId, userInput) {
     });
 
     // Find the next edge based on handle (for menu) or just take the first one (for input)
-    const nextEdge = nextHandle 
-      ? edges.find(e => e.source_handle === nextHandle) || edges.find(e => e.source_handle === 'default') || edges[0]
-      : edges[0];
+    let nextEdge = null;
+    if (nextHandle) {
+      nextEdge = edges.find(e => e.source_handle === nextHandle);
+      if (!nextEdge && nextHandle === 'replied') {
+        // Fallback for case sensitivity or slight variations
+        nextEdge = edges.find(e => e.source_handle?.toLowerCase() === 'replied');
+      }
+      if (!nextEdge) {
+        nextEdge = edges.find(e => e.source_handle === 'default') || edges[0];
+      }
+    } else {
+      nextEdge = edges[0];
+    }
 
     const nextNodeId = nextEdge?.target_node_id;
 
