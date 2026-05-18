@@ -352,9 +352,13 @@ export function ChatArea({
 
   useEffect(() => { localStorage.setItem('chat-sign-messages', signMessages.toString()); }, [signMessages]);
 
-  useEffect(() => {
-    localStorage.setItem('chat-show-header-info', showHeaderInfo.toString());
-  }, [showHeaderInfo]);
+   useEffect(() => {
+     localStorage.setItem('chat-show-header-info', showHeaderInfo.toString());
+   }, [showHeaderInfo]);
+ 
+   useEffect(() => {
+     localStorage.setItem('chat-history-days', historyDays.toString());
+   }, [historyDays]);
 
   // Reset initial load
   useEffect(() => {
