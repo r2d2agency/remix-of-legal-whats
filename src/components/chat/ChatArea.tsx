@@ -231,7 +231,11 @@ export function ChatArea({
     const saved = localStorage.getItem('chat-show-header-info');
     return saved === null ? true : saved === 'true';
   });
-  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
+   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
+   const [historyDays, setHistoryDays] = useState(() => {
+     const saved = localStorage.getItem('chat-history-days');
+     return saved ? parseInt(saved) : 30;
+   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
