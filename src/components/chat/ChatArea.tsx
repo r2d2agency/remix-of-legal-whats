@@ -918,16 +918,30 @@ export function ChatArea({
               <h3 className={cn("font-semibold truncate", isMobile && "text-sm")}>
                 {conversation.is_group ? (conversation.group_name || 'Grupo sem nome') : (conversation.contact_name || conversation.contact_phone || 'Desconhecido')}
               </h3>
-              {conversation.automation_active && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <ZapIcon className="h-3.5 w-3.5 text-purple-500 fill-current animate-pulse flex-shrink-0" />
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Automação ativa aguardando resposta</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
+               {(conversation.automation_active || (conversation as any).active_flow) && (
+                 <Tooltip>
+                   <TooltipTrigger asChild>
+                     <ZapIcon className={cn("h-3.5 w-3.5 flex-shrink-0 fill-current", (conversation as any).active_flow ? "text-blue-500" : "text-purple-500 animate-pulse")} />
+                   </TooltipTrigger>
+                   <TooltipContent side="bottom" className="max-w-[300px]">
+                     {(conversation as any).active_flow ? (
+                       <div className="space-y-1 py-1">
+                         <p className="font-semibold text-xs flex items-center gap-1">
+                           <ZapIcon className="h-3 w-3" /> Fluxo Ativo: {(conversation as any).active_flow.flow_name}
+                         </p>
+                         <p className="text-xs opacity-90 italic">Etapa atual: {(conversation as any).active_flow.node_name || 'Início'}</p>
+                         {(conversation as any).active_flow.wait_reply_expires_at && (
+                           <div className="pt-1 mt-1 border-t border-border/50 text-[10px] text-blue-400 font-medium">
+                             Aguardando resposta do contato...
+                           </div>
+                         )}
+                       </div>
+                     ) : (
+                       <p>Automação ativa aguardando resposta</p>
+                     )}
+                   </TooltipContent>
+                 </Tooltip>
+               )}
             </div>
             {isMobile ? (
               <p className="text-[11px] text-muted-foreground truncate">{conversation.is_group ? 'Grupo' : conversation.contact_phone}</p>
