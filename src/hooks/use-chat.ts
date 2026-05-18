@@ -648,6 +648,16 @@ export const useChat = () => {
     }
   }, []);
 
+   const cancelActiveFlow = useCallback(async (conversationId: string): Promise<boolean> => {
+     try {
+       await api(`/api/flows/conversation/${conversationId}/cancel`, { method: 'POST' });
+       return true;
+     } catch (err: any) {
+       console.error('Erro ao cancelar fluxo:', err);
+       return false;
+     }
+   }, []);
+ 
   return {
     loading,
     error,
@@ -663,6 +673,7 @@ export const useChat = () => {
     releaseConversation,
     finishConversation,
     reopenConversation,
+     cancelActiveFlow,
     // Connections
     getConnections,
     // Stats
