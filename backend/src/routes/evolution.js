@@ -1746,14 +1746,15 @@ async function handleMessageUpsert(connection, data) {
              SET last_message_at = NOW(), 
                  unread_count = unread_count + 1,
                  contact_name = COALESCE(NULLIF($2, ''), contact_name),
+                 connection_id = COALESCE($3, connection_id),
                  updated_at = NOW()
              WHERE id = $1`,
-            [conversationId, pushName]
+            [conversationId, pushName, connection.id]
           );
         } else {
           await query(
-            `UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
-            [conversationId]
+            `UPDATE conversations SET connection_id = $2, last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
+            [conversationId, connection.id]
           );
         }
       }
