@@ -67,7 +67,8 @@ const Chat = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
   
-  const [loadingMessages, setLoadingMessages] = useState(false);
+   const [loadingMessages, setLoadingMessages] = useState(false);
+   const [historyDays, setHistoryDays] = useState(30); // Default to 30 days
   const [sendingMessage, setSendingMessage] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
@@ -205,12 +206,21 @@ const Chat = () => {
     return unsubscribe;
   }, [selectedConversation, getMessages]);
 
-  // Listen for refresh-conversations event
-  useEffect(() => {
-    const handleRefresh = () => { loadConversationsRef.current(); };
-    window.addEventListener('refresh-conversations', handleRefresh);
-    return () => window.removeEventListener('refresh-conversations', handleRefresh);
-  }, []);
+   // Listen for refresh-conversations event
+   useEffect(() => {
+     const handleRefresh = () => { loadConversationsRef.current(); };
+     const handleRefreshHistory = (e: any) => {
+       if (e.detail?.days) {
+         setHistoryDays(e.detail.days);
+       }
+     };
+     window.addEventListener('refresh-conversations', handleRefresh);
+     window.addEventListener('refresh-history-days', handleRefreshHistory);
+     return () => {
+       window.removeEventListener('refresh-conversations', handleRefresh);
+       window.removeEventListener('refresh-history-days', handleRefreshHistory);
+     };
+   }, []);
 
    // Auto-refresh messages (less frequent on mobile to save bandwidth)
    useEffect(() => {
@@ -377,7 +387,7 @@ const Chat = () => {
         return; // User switched to another conversation
       }
       
-      const msgs = await getMessages(conversation.id);
+       const msgs = await getMessages(conversation.id, { days: historyDays });
       
       // Verify again after async call
       if (selectedIdRef.current !== conversation.id) {
@@ -603,7 +613,7 @@ const Chat = () => {
       loadConversations();
       
       // Reload messages to show transfer system message
-      const msgs = await getMessages(selectedConversation.id);
+       const msgs = await getMessages(selectedConversation.id, { days: historyDays });
       setMessages(msgs);
     } catch (error) {
       toast.error('Erro ao transferir conversa');

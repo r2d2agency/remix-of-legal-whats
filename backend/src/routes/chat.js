@@ -1680,7 +1680,7 @@ router.post('/conversations/cleanup-empty', authenticate, async (req, res) => {
 router.get('/conversations/:id/messages', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const { limit = 50, before } = req.query;
+     const { limit = 50, before, days } = req.query;
     const connectionIds = await getUserConnections(req.userId);
 
     // Check access
@@ -1711,11 +1711,16 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
     const params = [id];
     let paramIndex = 2;
 
-    if (before) {
-      sql += ` AND m.timestamp < $${paramIndex}`;
-      params.push(before);
-      paramIndex++;
-    }
+     if (before) {
+       sql += ` AND m.timestamp < $${paramIndex}`;
+       params.push(before);
+       paramIndex++;
+     } else if (days) {
+       // If days is provided, we filter messages from the last N days
+       sql += ` AND m.timestamp >= NOW() - INTERVAL '$${paramIndex} days'`;
+       params.push(parseInt(days));
+       paramIndex++;
+     }
 
     sql += ` ORDER BY m.timestamp DESC LIMIT $${paramIndex}`;
     params.push(parseInt(limit));
