@@ -592,10 +592,11 @@ async function persistIncomingMessage(connection, payload) {
            unread_count = unread_count + 1,
            contact_name = COALESCE($2, contact_name),
            group_name = CASE WHEN COALESCE(is_group, false) = true THEN COALESCE($3, group_name) ELSE group_name END,
-           attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [conversationId, message.senderName, message.groupName]
+            attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
+            connection_id = COALESCE($4, connection_id),
+            updated_at = NOW()
+        WHERE id = $1`,
+       [conversationId, message.senderName, message.groupName, connection.id]
     );
   }
 
@@ -780,7 +781,10 @@ async function handleWebhook(req, res, routeMeta = {}) {
       if (eventType === 'message_received' && persistence && !persistence.skipped && persistence.conversationId) {
         const message = extractMessageData(payload);
         if (!message.fromMe && message.content && typeof message.content === 'string') {
-          const cont = await continueActiveFlow(persistence.conversationId, message.content);
+           console.log(`[UAZAPI Webhook] Attempting to continue flow for conversation ${persistence.conversationId}`);
+           const cont = await continueActiveFlow(persistence.conversationId, message.content);
+           console.log(`[UAZAPI Webhook] Flow continuation result: ${cont.continued ? 'Success' : 'Not continued'}`);
+           
           if (!cont.continued) {
             await checkAndTriggerFlow(connection, persistence.conversationId, message.content);
           }
