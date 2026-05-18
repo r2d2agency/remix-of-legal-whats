@@ -1711,11 +1711,11 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
     const params = [id];
     let paramIndex = 2;
 
-     if (before) {
-       sql += ` AND m.timestamp < $${paramIndex}`;
-       params.push(before);
-       paramIndex++;
-      } else if (days) {
+      if (before) {
+        sql += ` AND m.timestamp < $${paramIndex}`;
+        params.push(before);
+        paramIndex++;
+      } else if (days && parseInt(days) > 0) {
         // If days is provided, we filter messages from the last N days
         sql += ` AND m.timestamp >= NOW() - ($${paramIndex} || ' days')::interval`;
         params.push(parseInt(days));

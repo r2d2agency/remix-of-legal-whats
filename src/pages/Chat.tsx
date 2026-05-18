@@ -501,6 +501,8 @@ const Chat = () => {
     setLoadingMessages(true);
     try {
       const oldestMessage = messages[0];
+      // When loading older messages, we should probably ignore the days filter
+      // or ensure the backend doesn't combine before + days in a way that returns nothing
       const olderMsgs = await getMessages(selectedConversation.id, {
         before: oldestMessage.timestamp,
         limit: 50,
