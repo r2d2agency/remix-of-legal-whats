@@ -1093,7 +1093,11 @@ async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables
     
     // Get conversation and connection info
     const convResult = await query(
-      `SELECT c.*, conn.api_url, conn.api_key, conn.instance_name, conn.instance_id, conn.wapi_token, conn.provider
+      `SELECT c.*, 
+              conn.api_url, conn.api_key, conn.instance_name, conn.instance_id,
+              conn.wapi_token, conn.provider,
+              conn.uazapi_url, conn.uazapi_token,
+              conn.meta_token, conn.meta_phone_number_id, conn.meta_waba_id
        FROM conversations c
        JOIN connections conn ON conn.id = c.connection_id
        WHERE c.id = $1`,
@@ -1113,6 +1117,11 @@ async function resumeFlowFromNode(flowId, conversationId, startNodeId, variables
       instance_id: conversation.instance_id,
       wapi_token: conversation.wapi_token,
       provider: conversation.provider,
+      uazapi_url: conversation.uazapi_url,
+      uazapi_token: conversation.uazapi_token,
+      meta_token: conversation.meta_token,
+      meta_phone_number_id: conversation.meta_phone_number_id,
+      meta_waba_id: conversation.meta_waba_id,
     };
 
     // Get all nodes and edges
