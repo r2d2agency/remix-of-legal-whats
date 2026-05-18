@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import * as uazapiProvider from '../lib/uazapi-provider.js';
+import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -647,6 +648,74 @@ async function persistIncomingMessage(connection, payload) {
 }
 
 /**
+ * Check active flow session and continue with user input.
+ * Crucial para nó "Aguardar Resposta" — quando o usuário responde,
+ * o fluxo segue imediatamente pelo handle "replied" (sem esperar timeout).
+ */
+async function continueActiveFlow(conversationId, userInput) {
+  try {
+    const sessionResult = await query(
+      `SELECT id, flow_id, current_node_id FROM flow_sessions
+       WHERE conversation_id = $1 AND is_active = true LIMIT 1`,
+      [conversationId]
+    );
+    if (sessionResult.rows.length === 0) return { continued: false };
+    console.log('[UAZAPI Flow Continue] Active session, node:', sessionResult.rows[0].current_node_id);
+    const result = await continueFlowWithInput(conversationId, userInput);
+    return { continued: !!result?.success, result };
+  } catch (error) {
+    console.error('[UAZAPI Flow Continue] Error:', error);
+    return { continued: false, error: error.message };
+  }
+}
+
+/**
+ * Verifica palavras-chave e dispara fluxo, se não houver sessão ativa.
+ */
+async function checkAndTriggerFlow(connection, conversationId, messageContent) {
+  try {
+    if (!messageContent || typeof messageContent !== 'string') return false;
+    const messageLower = messageContent.trim().toLowerCase();
+    if (!messageLower) return false;
+
+    const flowsResult = await query(
+      `SELECT f.id, f.name, f.trigger_keywords, f.trigger_match_mode
+       FROM flows f
+       WHERE f.is_active = true
+         AND f.trigger_enabled = true
+         AND f.trigger_keywords IS NOT NULL
+         AND array_length(f.trigger_keywords, 1) > 0
+         AND (f.connection_ids IS NULL OR f.connection_ids = '{}' OR $1 = ANY(f.connection_ids))
+       ORDER BY f.created_at`,
+      [connection.id]
+    );
+    if (flowsResult.rows.length === 0) return false;
+
+    for (const flow of flowsResult.rows) {
+      const keywords = (flow.trigger_keywords || []).map(k => String(k).toLowerCase().trim());
+      const matchMode = flow.trigger_match_mode || 'exact';
+      let matched = false;
+      for (const keyword of keywords) {
+        if (!keyword) continue;
+        if (matchMode === 'contains') matched = messageLower.includes(keyword);
+        else if (matchMode === 'starts_with') matched = messageLower.startsWith(keyword);
+        else matched = messageLower === keyword;
+        if (matched) break;
+      }
+      if (matched) {
+        console.log('[UAZAPI Flow Trigger] Iniciando fluxo:', flow.name);
+        await executeFlow(flow.id, conversationId, 'start');
+        return true;
+      }
+    }
+    return false;
+  } catch (error) {
+    console.error('[UAZAPI Flow Trigger] Error:', error);
+    return false;
+  }
+}
+
+/**
  * Webhook handler
  * Configurar em UAZAPI: POST {SUA_URL}/api/uazapi/webhook
  */
@@ -704,6 +773,21 @@ async function handleWebhook(req, res, routeMeta = {}) {
     let persistence = null;
     if (eventType === 'message_received' || eventType === 'message_sent') {
       persistence = await persistIncomingMessage(connection, payload);
+    }
+
+    // Trigger/continue flows for incoming user messages (not echoes from us)
+    try {
+      if (eventType === 'message_received' && persistence && !persistence.skipped && persistence.conversationId) {
+        const message = extractMessageData(payload);
+        if (!message.fromMe && message.content && typeof message.content === 'string') {
+          const cont = await continueActiveFlow(persistence.conversationId, message.content);
+          if (!cont.continued) {
+            await checkAndTriggerFlow(connection, persistence.conversationId, message.content);
+          }
+        }
+      }
+    } catch (flowErr) {
+      console.error('[UAZAPI Webhook] Flow handling error:', flowErr);
     }
 
     res.status(200).json({ received: true, processed: eventType, persistence });
