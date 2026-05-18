@@ -464,7 +464,19 @@ router.get('/conversations/unread', authenticate, async (req, res) => {
         conv.connection_id,
         conn.name as connection_name,
         (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message,
-        (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type
+           (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type,
+           (SELECT json_build_object(
+              'flow_name', f.name,
+              'node_name', fn.name,
+              'started_at', fs.started_at,
+              'wait_reply_expires_at', fs.wait_reply_expires_at
+            )
+            FROM flow_sessions fs
+            JOIN flows f ON f.id = fs.flow_id
+            LEFT JOIN flow_nodes fn ON fn.flow_id = fs.flow_id AND fn.node_id = fs.current_node_id
+            WHERE fs.conversation_id = conv.id AND fs.is_active = true
+            LIMIT 1
+           ) as active_flow
       FROM conversations conv
       JOIN connections conn ON conn.id = conv.connection_id
       WHERE conv.connection_id = ANY($1)
@@ -542,7 +554,19 @@ router.get('/conversations', authenticate, async (req, res) => {
             ), '[]'::json
           ) as tags,
           (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message,
-          (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type
+         (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type,
+         (SELECT json_build_object(
+            'flow_name', f.name,
+            'node_name', fn.name,
+            'started_at', fs.started_at,
+            'wait_reply_expires_at', fs.wait_reply_expires_at
+          )
+          FROM flow_sessions fs
+          JOIN flows f ON f.id = fs.flow_id
+          LEFT JOIN flow_nodes fn ON fn.flow_id = fs.flow_id AND fn.node_id = fs.current_node_id
+          WHERE fs.conversation_id = conv.id AND fs.is_active = true
+          LIMIT 1
+         ) as active_flow
         FROM conversations conv
         JOIN connections conn ON conn.id = conv.connection_id
         LEFT JOIN users u ON u.id = conv.assigned_to
