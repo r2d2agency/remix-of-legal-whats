@@ -345,18 +345,20 @@ export const useChat = () => {
   }, []);
 
   // Messages
-  const getMessages = useCallback(async (conversationId: string, options?: {
-    limit?: number;
-    before?: string;
-  }): Promise<ChatMessage[]> => {
-    const params = new URLSearchParams();
-    if (options?.limit) params.append('limit', String(options.limit));
-    if (options?.before) params.append('before', options.before);
-    
-    const url = `/api/chat/conversations/${conversationId}/messages${params.toString() ? `?${params}` : ''}`;
-    const data = await api<ChatMessage[]>(url);
-    return data;
-  }, []);
+   const getMessages = useCallback(async (conversationId: string, options?: {
+     limit?: number;
+     before?: string;
+     days?: number;
+   }): Promise<ChatMessage[]> => {
+     const params = new URLSearchParams();
+     if (options?.limit) params.append('limit', String(options.limit));
+     if (options?.before) params.append('before', options.before);
+     if (options?.days) params.append('days', String(options.days));
+     
+     const url = `/api/chat/conversations/${conversationId}/messages${params.toString() ? `?${params}` : ''}`;
+     const data = await api<ChatMessage[]>(url);
+     return data;
+   }, []);
 
   const sendMessage = useCallback(async (conversationId: string, message: {
     content?: string;
