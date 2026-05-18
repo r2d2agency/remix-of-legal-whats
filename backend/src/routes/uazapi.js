@@ -781,7 +781,10 @@ async function handleWebhook(req, res, routeMeta = {}) {
       if (eventType === 'message_received' && persistence && !persistence.skipped && persistence.conversationId) {
         const message = extractMessageData(payload);
         if (!message.fromMe && message.content && typeof message.content === 'string') {
-          const cont = await continueActiveFlow(persistence.conversationId, message.content);
+           console.log(`[UAZAPI Webhook] Attempting to continue flow for conversation ${persistence.conversationId}`);
+           const cont = await continueActiveFlow(persistence.conversationId, message.content);
+           console.log(`[UAZAPI Webhook] Flow continuation result: ${cont.continued ? 'Success' : 'Not continued'}`);
+           
           if (!cont.continued) {
             await checkAndTriggerFlow(connection, persistence.conversationId, message.content);
           }
