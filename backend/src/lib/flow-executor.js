@@ -373,49 +373,7 @@ export async function executeFlow(flowId, conversationId, startNodeId = 'start',
       return { success: false, error: 'Fluxo não processou nenhum nó executável' };
     }
 
-       if (outgoingEdges.length === 0) {
-         // Mark session as complete
-         await completeFlowSession(conversationId);
-         console.log(`Flow executor: Flow complete. Processed ${processedNodes} nodes`);
-         return { success: true, nodesProcessed: processedNodes };
-       }
- 
-       const nextEdge = result.nextHandle 
-         ? outgoingEdges.find(e => e.source_handle === result.nextHandle) || outgoingEdges[0]
-         : outgoingEdges[0];
- 
-       const previousNodeId = currentNodeId;
-       currentNodeId = nextEdge?.target_node_id;
-       
-       addExecutionLog(conversationId, {
-         type: 'transition',
-         flowId,
-         fromNodeId: previousNodeId,
-         toNodeId: currentNodeId,
-         step: processedNodes,
-         message: `Transição: ${previousNodeId} → ${currentNodeId}`,
-         handle: result.nextHandle || 'default',
-       });
-       
-       console.log(`Flow executor: Moving to next node: ${currentNodeId}`);
-     }
- 
-     if (processedNodes >= maxNodes && currentNodeId) {
-       addExecutionLog(conversationId, {
-         type: 'error',
-         flowId,
-         nodeId: currentNodeId,
-         step: processedNodes,
-         message: `Execução interrompida: limite de ${maxNodes} nós atingido`,
-       });
-       return { success: false, error: `Execução interrompida: limite de ${maxNodes} nós atingido` };
-     }
- 
-     if (processedNodes === 0) {
-       return { success: false, error: 'Fluxo não processou nenhum nó executável' };
-     }
- 
-     return { success: true, nodesProcessed: processedNodes };
+    return { success: true, nodesProcessed: processedNodes };
   } catch (error) {
     console.error('Flow executor error:', error);
     return { success: false, error: error.message };
