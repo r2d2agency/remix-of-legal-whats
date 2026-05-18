@@ -252,7 +252,7 @@ export function ChatArea({
   const [uploadStatus, setUploadStatus] = useState<{ active: boolean; current: number; total: number; fileName: string } | null>(null);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
-  const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, editMessage, deleteMessage: deleteMessageFn, pinMessage } = useChat();
+   const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, editMessage, deleteMessage: deleteMessageFn, pinMessage, cancelActiveFlow } = useChat();
   const [pinnedMessage, setPinnedMessage] = useState<ChatMessage | null>(null);
   
   const finishWithSummary = useFinishWithSummary();
@@ -930,11 +930,32 @@ export function ChatArea({
                            <ZapIcon className="h-3 w-3" /> Fluxo Ativo: {(conversation as any).active_flow.flow_name}
                          </p>
                          <p className="text-xs opacity-90 italic">Etapa atual: {(conversation as any).active_flow.node_name || 'Início'}</p>
-                         {(conversation as any).active_flow.wait_reply_expires_at && (
-                           <div className="pt-1 mt-1 border-t border-border/50 text-[10px] text-blue-400 font-medium">
-                             Aguardando resposta do contato...
-                           </div>
-                         )}
+                         <div className="flex flex-col gap-1.5 pt-1 mt-1 border-t border-border/50">
+                           {(conversation as any).active_flow.wait_reply_expires_at && (
+                             <p className="text-[10px] text-blue-400 font-medium flex items-center gap-1">
+                               <Clock className="h-2.5 w-2.5" /> Aguardando resposta...
+                             </p>
+                           )}
+                           <Button 
+                             variant="destructive" 
+                             size="sm" 
+                             className="h-6 text-[10px] w-full"
+                             onClick={async (e) => {
+                               e.stopPropagation();
+                               if (window.confirm("Deseja realmente cancelar este fluxo ativo?")) {
+                                 const ok = await cancelActiveFlow(conversation.id);
+                                 if (ok) {
+                                   toast.success("Fluxo cancelado com sucesso");
+                                   onLoadMore(); // Force refresh to update status
+                                 } else {
+                                   toast.error("Falha ao cancelar fluxo");
+                                 }
+                               }
+                             }}
+                           >
+                             Cancelar Fluxo
+                           </Button>
+                         </div>
                        </div>
                      ) : (
                        <p>Automação ativa aguardando resposta</p>
