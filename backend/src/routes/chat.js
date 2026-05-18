@@ -1715,12 +1715,12 @@ router.get('/conversations/:id/messages', authenticate, async (req, res) => {
        sql += ` AND m.timestamp < $${paramIndex}`;
        params.push(before);
        paramIndex++;
-     } else if (days) {
-       // If days is provided, we filter messages from the last N days
-       sql += ` AND m.timestamp >= NOW() - INTERVAL '$${paramIndex} days'`;
-       params.push(parseInt(days));
-       paramIndex++;
-     }
+      } else if (days) {
+        // If days is provided, we filter messages from the last N days
+        sql += ` AND m.timestamp >= NOW() - ($${paramIndex} || ' days')::interval`;
+        params.push(parseInt(days));
+        paramIndex++;
+      }
 
     sql += ` ORDER BY m.timestamp DESC LIMIT $${paramIndex}`;
     params.push(parseInt(limit));
