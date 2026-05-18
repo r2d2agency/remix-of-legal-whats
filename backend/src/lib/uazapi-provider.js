@@ -388,7 +388,22 @@ export async function downloadMedia(baseUrl, token, messageId) {
   return { success: false, error: 'Falha ao baixar mídia da UAZAPI' };
 }
 
-export async function sendText(baseUrl, token, phone, message) {
+ export async function sendText(baseUrl, token, phone, message, messageId = null) {
+   // Se messageId for fornecido, tenta editar a mensagem
+   if (messageId) {
+     const r = await uazapiFetch(baseUrl, '/message/editMessage', {
+       method: 'POST',
+       token,
+       body: {
+         number: normalizePhone(phone),
+         text: message,
+         messageId: messageId,
+       },
+     });
+     if (r.ok) return { success: true, messageId };
+     // Fallback para send normal se edit falhar ou não existir endpoint (depende da versão da API)
+   }
+
   const r = await uazapiFetch(baseUrl, '/send/text', {
     method: 'POST',
     token,
@@ -776,9 +791,9 @@ export async function sendContact(baseUrl, token, phone, contactName, contactPho
 /**
  * Sender unificado (compatível com whatsapp-provider.js)
  */
-export async function sendMessage(baseUrl, token, phone, content, messageType, mediaUrl, filename = null) {
+ export async function sendMessage(baseUrl, token, phone, content, messageType, mediaUrl, filename = null, messageId = null) {
   if (messageType === 'text' || !messageType) {
-    return sendText(baseUrl, token, phone, content);
+   return sendText(baseUrl, token, phone, content, messageId);
   }
   if (messageType === 'contact') {
     try {
