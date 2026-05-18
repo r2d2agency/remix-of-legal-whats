@@ -72,7 +72,28 @@
      return wapiProvider.deleteMessage(connection.instance_id, resolvedToken, messageId, phone);
    }
  
-   if (provider === 'evolution') {
+    if (provider === 'uazapi') {
+      try {
+        const response = await fetch(`${connection.uazapi_url}/message/editMessage`, {
+          method: 'POST',
+          headers: {
+            token: connection.uazapi_token,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            number: phone.replace(/\D/g, ''),
+            text: newText,
+            messageId: messageId,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        return { success: response.ok, error: data?.error || data?.message };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    }
+
+    if (provider === 'evolution') {
      try {
        const isGroup = phone.includes('@g.us');
        const remoteJid = isGroup ? phone : `${phone.replace(/\D/g, '')}@s.whatsapp.net`;
