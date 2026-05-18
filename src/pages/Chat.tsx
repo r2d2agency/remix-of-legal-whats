@@ -68,7 +68,10 @@ const Chat = () => {
   const [userRole, setUserRole] = useState<string>('');
   
    const [loadingMessages, setLoadingMessages] = useState(false);
-   const [historyDays, setHistoryDays] = useState(30); // Default to 30 days
+   const [historyDays, setHistoryDays] = useState(() => {
+     const saved = localStorage.getItem('chat-history-days');
+     return saved ? parseInt(saved) : 30;
+   });
   const [sendingMessage, setSendingMessage] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
@@ -498,6 +501,8 @@ const Chat = () => {
     setLoadingMessages(true);
     try {
       const oldestMessage = messages[0];
+      // When loading older messages, we should probably ignore the days filter
+      // or ensure the backend doesn't combine before + days in a way that returns nothing
       const olderMsgs = await getMessages(selectedConversation.id, {
         before: oldestMessage.timestamp,
         limit: 50,
