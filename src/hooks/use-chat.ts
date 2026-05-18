@@ -8,6 +8,13 @@ export interface ConversationTag {
   color: string;
 }
 
+ export interface ActiveFlowInfo {
+   flow_name: string;
+   node_name: string | null;
+   started_at: string;
+   wait_reply_expires_at: string | null;
+ }
+ 
 export interface Conversation {
   id: string;
   connection_id: string;
@@ -37,6 +44,7 @@ export interface Conversation {
   department_name: string | null;
   created_at: string;
   automation_active?: boolean;
+   active_flow?: ActiveFlowInfo | null;
 }
 
 export interface Connection {
