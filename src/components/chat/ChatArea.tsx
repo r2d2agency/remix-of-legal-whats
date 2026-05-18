@@ -934,7 +934,7 @@ export function ChatArea({
                          <div className="flex flex-col gap-1.5 pt-1 mt-1 border-t border-border/50">
                            {(conversation as any).active_flow.wait_reply_expires_at && (
                              <p className="text-[10px] text-blue-400 font-medium flex items-center gap-1">
-                               <ClockIcon className="h-2.5 w-2.5" /> Aguardando resposta...
+                               <Clock className="h-2.5 w-2.5" /> Aguardando resposta...
                              </p>
                            )}
                            <Button 
