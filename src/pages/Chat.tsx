@@ -67,7 +67,8 @@ const Chat = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
   
-  const [loadingMessages, setLoadingMessages] = useState(false);
+   const [loadingMessages, setLoadingMessages] = useState(false);
+   const [historyDays, setHistoryDays] = useState(30); // Default to 30 days
   const [sendingMessage, setSendingMessage] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
@@ -377,7 +378,7 @@ const Chat = () => {
         return; // User switched to another conversation
       }
       
-      const msgs = await getMessages(conversation.id);
+       const msgs = await getMessages(conversation.id, { days: historyDays });
       
       // Verify again after async call
       if (selectedIdRef.current !== conversation.id) {
@@ -603,7 +604,7 @@ const Chat = () => {
       loadConversations();
       
       // Reload messages to show transfer system message
-      const msgs = await getMessages(selectedConversation.id);
+       const msgs = await getMessages(selectedConversation.id, { days: historyDays });
       setMessages(msgs);
     } catch (error) {
       toast.error('Erro ao transferir conversa');
