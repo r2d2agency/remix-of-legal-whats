@@ -68,7 +68,10 @@ const Chat = () => {
   const [userRole, setUserRole] = useState<string>('');
   
    const [loadingMessages, setLoadingMessages] = useState(false);
-   const [historyDays, setHistoryDays] = useState(30); // Default to 30 days
+   const [historyDays, setHistoryDays] = useState(() => {
+     const saved = localStorage.getItem('chat-history-days');
+     return saved ? parseInt(saved) : 30;
+   });
   const [sendingMessage, setSendingMessage] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);

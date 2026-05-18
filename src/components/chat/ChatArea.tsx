@@ -1097,7 +1097,7 @@ export function ChatArea({
                 </>
               )}
               
-              <DropdownMenuLabel className="text-[10px] uppercase font-bold opacity-50 px-2 py-1">Histórico Local</DropdownMenuLabel>
+               <DropdownMenuLabel className="text-[10px] uppercase font-bold opacity-50 px-2 py-1">Histórico Local (App)</DropdownMenuLabel>
               {[7, 15, 30, 60, 90, 180, 365].map(d => (
                 <DropdownMenuItem key={d} onClick={() => {
                   setHistoryDays(d);
