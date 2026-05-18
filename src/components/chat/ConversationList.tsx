@@ -832,16 +832,28 @@ export function ConversationList({
                       <span className="font-medium truncate flex-1 min-w-0 flex items-center gap-1">
                         {conv.is_pinned && <Pin className="h-3 w-3 text-primary flex-shrink-0" />}
                         {conv.is_favorite && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />}
-                        {conv.automation_active && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Zap className="h-3 w-3 text-purple-500 fill-current animate-pulse flex-shrink-0" />
-                            </TooltipTrigger>
-                            <TooltipContent side="right">
-                              <p>Automação ativa aguardando resposta</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
+                         {(conv.automation_active || conv.active_flow) && (
+                           <Tooltip>
+                             <TooltipTrigger asChild>
+                               <Zap className={cn("h-3 w-3 flex-shrink-0 fill-current", conv.active_flow ? "text-blue-500" : "text-purple-500 animate-pulse")} />
+                             </TooltipTrigger>
+                             <TooltipContent side="right" className="max-w-[250px]">
+                               {conv.active_flow ? (
+                                 <div className="space-y-1">
+                                   <p className="font-semibold text-xs flex items-center gap-1">
+                                     <Zap className="h-3 w-3" /> Fluxo: {conv.active_flow.flow_name}
+                                   </p>
+                                   <p className="text-[10px] opacity-90">Etapa: {conv.active_flow.node_name || 'Início'}</p>
+                                   {conv.active_flow.wait_reply_expires_at && (
+                                     <p className="text-[10px] text-blue-400 font-medium">Aguardando resposta do contato</p>
+                                   )}
+                                 </div>
+                               ) : (
+                                 <p>Automação ativa aguardando resposta</p>
+                               )}
+                             </TooltipContent>
+                           </Tooltip>
+                         )}
                         {conv.is_group 
                           ? (conv.group_name || 'Grupo sem nome')
                           : (conv.contact_name || conv.contact_phone || 'Desconhecido')}
