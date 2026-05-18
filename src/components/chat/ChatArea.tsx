@@ -1093,24 +1093,24 @@ export function ChatArea({
                   {!isViewOnly && onReopenConversation && conversation.attendance_status === 'finished' && (
                     <DropdownMenuItem onClick={onReopenConversation} className="text-blue-600"><RotateCcw className="h-4 w-4 mr-2" />Reabrir conversa</DropdownMenuItem>
                   )}
-                  
-                   <DropdownMenuSeparator />
-                   <DropdownMenuLabel className="text-[10px] uppercase font-bold opacity-50 px-2 py-1">Histórico Local</DropdownMenuLabel>
-                   {[7, 15, 30, 60, 90, 180, 365].map(d => (
-                     <DropdownMenuItem key={d} onClick={() => {
-                       setHistoryDays(d);
-                       toast.success(`Exibindo mensagens dos últimos ${d} dias`);
-                       window.dispatchEvent(new CustomEvent('refresh-history-days', { detail: { days: d } }));
-                     }}>
-                       <div className="flex items-center justify-between w-full text-xs">
-                         <span>{d} dias</span>
-                         {historyDays === d && <Check className="h-3 w-3" />}
-                       </div>
-                     </DropdownMenuItem>
-                   ))}
-                   <DropdownMenuSeparator />
-                 </>
-               )}
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              
+              <DropdownMenuLabel className="text-[10px] uppercase font-bold opacity-50 px-2 py-1">Histórico Local</DropdownMenuLabel>
+              {[7, 15, 30, 60, 90, 180, 365].map(d => (
+                <DropdownMenuItem key={d} onClick={() => {
+                  setHistoryDays(d);
+                  toast.success(`Exibindo mensagens dos últimos ${d} dias`);
+                  window.dispatchEvent(new CustomEvent('refresh-history-days', { detail: { days: d } }));
+                }}>
+                  <div className="flex items-center justify-between w-full text-xs">
+                    <span>{d} dias</span>
+                    {historyDays === d && <Check className="h-3 w-3" />}
+                  </div>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
               {!conversation.is_group && !isViewOnly && <DropdownMenuItem onClick={() => setShowCallDialog(true)}><Phone className="h-4 w-4 mr-2" />Chamada de voz</DropdownMenuItem>}
               <DropdownMenuItem onClick={() => setShowNotes(!showNotes)}>
                 <StickyNote className="h-4 w-4 mr-2" />Anotações internas
