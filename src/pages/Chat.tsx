@@ -206,12 +206,21 @@ const Chat = () => {
     return unsubscribe;
   }, [selectedConversation, getMessages]);
 
-  // Listen for refresh-conversations event
-  useEffect(() => {
-    const handleRefresh = () => { loadConversationsRef.current(); };
-    window.addEventListener('refresh-conversations', handleRefresh);
-    return () => window.removeEventListener('refresh-conversations', handleRefresh);
-  }, []);
+   // Listen for refresh-conversations event
+   useEffect(() => {
+     const handleRefresh = () => { loadConversationsRef.current(); };
+     const handleRefreshHistory = (e: any) => {
+       if (e.detail?.days) {
+         setHistoryDays(e.detail.days);
+       }
+     };
+     window.addEventListener('refresh-conversations', handleRefresh);
+     window.addEventListener('refresh-history-days', handleRefreshHistory);
+     return () => {
+       window.removeEventListener('refresh-conversations', handleRefresh);
+       window.removeEventListener('refresh-history-days', handleRefreshHistory);
+     };
+   }, []);
 
    // Auto-refresh messages (less frequent on mobile to save bandwidth)
    useEffect(() => {
