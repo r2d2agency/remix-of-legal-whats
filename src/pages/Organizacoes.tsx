@@ -2104,6 +2104,86 @@ export default function Organizacoes() {
           </DialogContent>
         </Dialog>
       </div>
+      {/* Access Group Dialog */}
+      <Dialog open={accessGroupDialogOpen} onOpenChange={setAccessGroupDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingAccessGroup ? 'Editar Grupo de Acesso' : 'Novo Grupo de Acesso'}</DialogTitle>
+            <DialogDescription>
+              Gerencie membros e conexões deste grupo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-2">
+              <Label>Nome do Grupo *</Label>
+              <Input
+                placeholder="Ex: Comercial Sul"
+                value={accessGroupName}
+                onChange={(e) => setAccessGroupName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Input
+                placeholder="Breve descrição do grupo"
+                value={accessGroupDescription}
+                onChange={(e) => setAccessGroupDescription(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Usuários do Grupo</Label>
+              <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
+                {members.map((member) => (
+                  <div key={member.user_id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`ag-user-${member.user_id}`}
+                      checked={accessGroupUserIds.includes(member.user_id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) setAccessGroupUserIds(prev => [...prev, member.user_id]);
+                        else setAccessGroupUserIds(prev => prev.filter(id => id !== member.user_id));
+                      }}
+                    />
+                    <label htmlFor={`ag-user-${member.user_id}`} className="text-sm cursor-pointer">
+                      {member.name} ({member.email})
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Conexões do Grupo</Label>
+              <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
+                {connections.map((conn) => (
+                  <div key={conn.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`ag-conn-${conn.id}`}
+                      checked={accessGroupConnectionIds.includes(conn.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) setAccessGroupConnectionIds(prev => [...prev, conn.id]);
+                        else setAccessGroupConnectionIds(prev => prev.filter(id => id !== conn.id));
+                      }}
+                    />
+                    <label htmlFor={`ag-conn-${conn.id}`} className="text-sm cursor-pointer">
+                      {conn.name}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAccessGroupDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveAccessGroup} disabled={savingAccessGroup}>
+              {savingAccessGroup && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingAccessGroup ? 'Salvar Alterações' : 'Criar Grupo'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
