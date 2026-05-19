@@ -908,7 +908,7 @@ export function ConversationList({
                           {tag.name}
                         </Badge>
                       ))}
-                      {conv.tags.length > 2 && (
+                      {(Array.isArray(conv.tags) ? conv.tags : []).length > 2 && (
                         <span className="text-[10px] text-muted-foreground">
                           +{conv.tags.length - 2}
                         </span>

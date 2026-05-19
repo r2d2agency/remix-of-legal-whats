@@ -1040,7 +1040,7 @@ export function ChatArea({
 
           {!isMobile && onOpenCRM && (
             <>
-              {!conversation.is_group && openDeals.length > 0 ? (
+              {!conversation.is_group && Array.isArray(openDeals) && openDeals.length > 0 ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="text-primary border-primary/30 hover:bg-primary/10 relative h-8" title={`${openDeals.length} negociação(ões) aberta(s)`}>
@@ -1081,7 +1081,7 @@ export function ChatArea({
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><Tag className="h-4 w-4" /></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="z-[80]">
-                {tags.filter(t => !conversation.tags.some(ct => ct.id === t.id)).map(tag => (
+                {tags.filter(t => !(Array.isArray(conversation.tags) ? conversation.tags : []).some(ct => ct.id === t.id)).map(tag => (
                   <DropdownMenuItem key={tag.id} onClick={() => onAddTag(tag.id)}>
                     <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: tag.color }} />{tag.name}
                   </DropdownMenuItem>
@@ -1236,16 +1236,16 @@ export function ChatArea({
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-7 text-xs gap-1 flex-shrink-0">
                 <Tag className="h-3 w-3" />Tags
-                {conversation.tags.length > 0 && <Badge variant="secondary" className="h-4 px-1 text-[9px] ml-0.5">{conversation.tags.length}</Badge>}
+                {(Array.isArray(conversation.tags) ? conversation.tags : []).length > 0 && <Badge variant="secondary" className="h-4 px-1 text-[9px] ml-0.5">{conversation.tags.length}</Badge>}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="z-[80] max-h-60 overflow-y-auto">
-              {tags.filter(t => !conversation.tags.some(ct => ct.id === t.id)).map(tag => (
+              {tags.filter(t => !(Array.isArray(conversation.tags) ? conversation.tags : []).some(ct => ct.id === t.id)).map(tag => (
                 <DropdownMenuItem key={tag.id} onClick={() => onAddTag(tag.id)}>
                   <div className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: tag.color }} />{tag.name}
                 </DropdownMenuItem>
               ))}
-              {conversation.tags.length > 0 && (
+              {(Array.isArray(conversation.tags) ? conversation.tags : []).length > 0 && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel className="text-[10px] text-muted-foreground">Remover tag</DropdownMenuLabel>
