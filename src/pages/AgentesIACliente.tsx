@@ -1304,10 +1304,18 @@ export default function AgentesIACliente() {
 }
 
 function AppBarberActivationSection({ activationId, credentials }: { activationId: string; credentials: { appbarber_api_key: string; appbarber_establishment_code: string } }) {
-  const { getAppBarberServices, syncAppBarberServices, getAppBarberProfessionals, syncAppBarberProfessionals } = useAIAgents();
+  const { 
+    getAppBarberServices, 
+    syncAppBarberServices, 
+    saveAppBarberService,
+    getAppBarberProfessionals, 
+    syncAppBarberProfessionals,
+    saveAppBarberProfessional
+  } = useAIAgents();
   const [services, setServices] = useState<any[]>([]);
   const [professionals, setProfessionals] = useState<any[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const [s, p] = await Promise.all([
@@ -1340,27 +1348,133 @@ function AppBarberActivationSection({ activationId, credentials }: { activationI
     finally { setSyncing(false); }
   };
 
+  const handleToggleService = async (service: any) => {
+    setToggling(`service-${service.id}`);
+    try {
+      await saveAppBarberService(activationId, {
+        ...service,
+        is_active: !service.is_active
+      });
+      loadData();
+    } catch (err: any) { toast.error(err.message); }
+    finally { setToggling(null); }
+  };
+
+  const handleToggleProfessional = async (prof: any) => {
+    setToggling(`prof-${prof.id}`);
+    try {
+      await saveAppBarberProfessional(activationId, {
+        ...prof,
+        is_active: !prof.is_active
+      });
+      loadData();
+    } catch (err: any) { toast.error(err.message); }
+    finally { setToggling(null); }
+  };
+
   return (
-    <div className="space-y-4 border-t pt-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Package className="h-4 w-4 text-primary" />
-          <h4 className="font-medium text-sm">Serviços ({services.length})</h4>
+    <div className="space-y-6 border-t pt-4">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-primary" />
+            <h4 className="font-medium text-sm">Serviços e Produtos Local ({services.length})</h4>
+          </div>
+          <Button size="sm" variant="outline" onClick={handleSyncServices} disabled={syncing}>
+            <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar
+          </Button>
         </div>
-        <Button size="sm" variant="outline" onClick={handleSyncServices} disabled={syncing}>
-          <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar
-        </Button>
+
+        <div className="border rounded-md overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="text-xs">Código</TableHead>
+                <TableHead className="text-xs">Descrição</TableHead>
+                <TableHead className="text-xs">Valor</TableHead>
+                <TableHead className="text-xs text-right">Ativo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {services.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-4">
+                    Nenhum serviço sincronizado.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                services.map(s => (
+                  <TableRow key={s.id} className="text-xs">
+                    <TableCell className="font-mono">{s.service_code}</TableCell>
+                    <TableCell className="font-medium">{s.service_description}</TableCell>
+                    <TableCell>R$ {parseFloat(s.service_value || 0).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      <Switch 
+                        checked={s.is_active} 
+                        disabled={toggling === `service-${s.id}`}
+                        onCheckedChange={() => handleToggleService(s)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-primary" />
-          <h4 className="font-medium text-sm">Profissionais ({professionals.length})</h4>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            <h4 className="font-medium text-sm">Profissionais ({professionals.length})</h4>
+          </div>
+          <Button size="sm" variant="outline" onClick={handleSyncProfessionals} disabled={syncing}>
+            <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar
+          </Button>
         </div>
-        <Button size="sm" variant="outline" onClick={handleSyncProfessionals} disabled={syncing}>
-          <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar
-        </Button>
+
+        <div className="border rounded-md overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="text-xs">Código</TableHead>
+                <TableHead className="text-xs">Nome</TableHead>
+                <TableHead className="text-xs">Apelido</TableHead>
+                <TableHead className="text-xs text-right">Ativo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {professionals.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-4">
+                    Nenhum profissional sincronizado.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                professionals.map(p => (
+                  <TableRow key={p.id} className="text-xs">
+                    <TableCell className="font-mono">{p.employee_code}</TableCell>
+                    <TableCell className="font-medium">{p.employee_name}</TableCell>
+                    <TableCell>{p.employee_nickname || '-'}</TableCell>
+                    <TableCell className="text-right">
+                      <Switch 
+                        checked={p.is_active} 
+                        disabled={toggling === `prof-${p.id}`}
+                        onCheckedChange={() => handleToggleProfessional(p)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
+      
+      <p className="text-[10px] text-muted-foreground italic">
+        * A IA usará apenas os itens marcados como ativos para responder clientes e realizar agendamentos.
+      </p>
     </div>
   );
 }
