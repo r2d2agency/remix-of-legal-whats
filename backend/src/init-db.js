@@ -3662,7 +3662,32 @@ const migrationSteps = [
     ALTER TABLE flow_sessions ADD COLUMN IF NOT EXISTS wait_reply_variable TEXT DEFAULT NULL;
     CREATE INDEX IF NOT EXISTS idx_flow_sessions_wait_reply ON flow_sessions (wait_reply_expires_at) WHERE is_active = true AND wait_reply_expires_at IS NOT NULL;
   `, critical: false },
+  { name: 'Access Groups', sql: `
+    CREATE TABLE IF NOT EXISTS access_groups (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS access_group_members (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        access_group_id UUID REFERENCES access_groups(id) ON DELETE CASCADE NOT NULL,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE (access_group_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS access_group_connections (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        access_group_id UUID REFERENCES access_groups(id) ON DELETE CASCADE NOT NULL,
+        connection_id UUID REFERENCES connections(id) ON DELETE CASCADE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE (access_group_id, connection_id)
+    );
+  `, critical: false },
 ];
+
 
 export async function initDatabase() {
   console.log('🔄 Initializing database in steps...');
