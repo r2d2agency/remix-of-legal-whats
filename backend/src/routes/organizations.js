@@ -529,6 +529,14 @@ router.patch('/:id/members/:userId', async (req, res) => {
       );
     }
 
+    // Update permission template if provided
+    if (permission_template_id !== undefined) {
+      await query(
+        `UPDATE organization_members SET permission_template_id = $1 WHERE organization_id = $2 AND user_id = $3`,
+        [permission_template_id || null, id, userId]
+      );
+    }
+
     // Update is_active if provided (can't deactivate owner)
     if (is_active !== undefined && targetCheck.rows[0]?.role !== 'owner') {
       try {
