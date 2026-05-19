@@ -304,10 +304,35 @@ CREATE TABLE IF NOT EXISTS connection_members (
 ALTER TABLE connection_members ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_connection_members_user_default
   ON connection_members(user_id) WHERE is_default = true;
-`;
 
-// ============================================
-// STEP 6: CONTACTS & MESSAGES (depends on users, connections)
+-- Access Groups
+CREATE TABLE IF NOT EXISTS access_groups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Access Group Members
+CREATE TABLE IF NOT EXISTS access_group_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    access_group_id UUID REFERENCES access_groups(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (access_group_id, user_id)
+);
+
+-- Access Group Connections (Which connections this group can see)
+CREATE TABLE IF NOT EXISTS access_group_connections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    access_group_id UUID REFERENCES access_groups(id) ON DELETE CASCADE NOT NULL,
+    connection_id UUID REFERENCES connections(id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (access_group_id, connection_id)
+);
+
 // ============================================
 const step6ContactsMessages = `
 -- Contact Lists
