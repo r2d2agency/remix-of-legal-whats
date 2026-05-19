@@ -697,7 +697,7 @@ export function ConversationList({
            </Select>
 
           {/* Department filter - show if there are any departments */}
-          {allDepartments.length > 0 && (
+          {Array.isArray(allDepartments) && allDepartments.length > 0 && (
             <Select
               value={filters.department}
               onValueChange={(v) => onFiltersChange({ ...filters, department: v })}
@@ -708,7 +708,7 @@ export function ConversationList({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                {myDepartments.length > 0 && (
+                {Array.isArray(myDepartments) && myDepartments.length > 0 && (
                   <SelectItem value="my">Meus deptos</SelectItem>
                 )}
                 {Array.isArray(allDepartments) && allDepartments.map(dept => (

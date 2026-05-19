@@ -1098,7 +1098,7 @@ export function ChatArea({
               <DropdownMenuContent align="end" className="z-[80]">
                 <DropdownMenuItem onClick={() => onAssign(null)}><X className="h-4 w-4 mr-2" />Remover atendente</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {team.map(member => (
+                {(Array.isArray(team) ? team : []).map(member => (
                   <DropdownMenuItem key={member.id} onClick={() => onAssign(member.id)}>
                     {member.name}{conversation.assigned_to === member.id && <Check className="h-4 w-4 ml-auto" />}
                   </DropdownMenuItem>
@@ -1140,7 +1140,7 @@ export function ChatArea({
                  { label: '30 dias', value: 30 },
                  { label: '90 dias', value: 90 },
                  { label: '365 dias', value: 365 }
-               ].map(opt => (
+               ].filter(Boolean).map(opt => (
                  <DropdownMenuItem key={opt.value} onClick={() => {
                    setHistoryDays(opt.value);
                    toast.success(opt.value === 0 ? "Exibindo todo o histórico disponível" : `Exibindo mensagens dos últimos ${opt.value} dias`);
