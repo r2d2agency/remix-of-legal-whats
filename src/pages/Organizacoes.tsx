@@ -312,6 +312,73 @@ export default function Organizacoes() {
     setLoadingTemplates(false);
   };
 
+  const loadAccessGroups = async (orgId: string) => {
+    setLoadingAccessGroups(true);
+    try {
+      const groups = await api<any[]>(`/api/organizations/${orgId}/access-groups`);
+      setAccessGroups(groups);
+    } catch {
+      setAccessGroups([]);
+    }
+    setLoadingAccessGroups(false);
+  };
+
+  const handleSaveAccessGroup = async () => {
+    if (!selectedOrg || !accessGroupName.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+    setSavingAccessGroup(true);
+    try {
+      const data = { 
+        name: accessGroupName, 
+        description: accessGroupDescription, 
+        user_ids: accessGroupUserIds, 
+        connection_ids: accessGroupConnectionIds 
+      };
+      if (editingAccessGroup) {
+        await api(`/api/organizations/${selectedOrg.id}/access-groups/${editingAccessGroup.id}`, { method: 'PATCH', body: data });
+        toast.success('Grupo de acesso atualizado!');
+      } else {
+        await api(`/api/organizations/${selectedOrg.id}/access-groups`, { method: 'POST', body: data });
+        toast.success('Grupo de acesso criado!');
+      }
+      setAccessGroupDialogOpen(false);
+      loadAccessGroups(selectedOrg.id);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao salvar grupo de acesso');
+    }
+    setSavingAccessGroup(false);
+  };
+
+  const handleDeleteAccessGroup = async (groupId: string) => {
+    if (!selectedOrg) return;
+    try {
+      await api(`/api/organizations/${selectedOrg.id}/access-groups/${groupId}`, { method: 'DELETE' });
+      toast.success('Grupo de acesso excluído!');
+      loadAccessGroups(selectedOrg.id);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao excluir grupo de acesso');
+    }
+  };
+
+  const openAccessGroupDialog = (group?: any) => {
+    if (group) {
+      setEditingAccessGroup(group);
+      setAccessGroupName(group.name);
+      setAccessGroupDescription(group.description || '');
+      setAccessGroupUserIds(group.user_ids || []);
+      setAccessGroupConnectionIds(group.connection_ids || []);
+    } else {
+      setEditingAccessGroup(null);
+      setAccessGroupName('');
+      setAccessGroupDescription('');
+      setAccessGroupUserIds([]);
+      setAccessGroupConnectionIds([]);
+    }
+    setAccessGroupDialogOpen(true);
+  };
+
   const openTemplateDialog = (template?: PermissionTemplate) => {
     if (template) {
       setEditingTemplate(template);
@@ -328,6 +395,7 @@ export default function Organizacoes() {
     }
     setTemplateDialogOpen(true);
   };
+
 
   const handleSaveTemplate = async () => {
     if (!selectedOrg || !templateName.trim()) {
