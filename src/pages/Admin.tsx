@@ -2595,6 +2595,7 @@ export default function Admin() {
                     <TableHead>Nome</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Permissão</TableHead>
+                    <TableHead>Template de Páginas</TableHead>
                     <TableHead className="w-[100px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2608,13 +2609,43 @@ export default function Admin() {
                           value={member.role}
                           onValueChange={(value) => handleUpdateRole(member.id, value)}
                         >
-                          <SelectTrigger className="w-[140px]">
+                          <SelectTrigger className="w-[130px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="owner">Proprietário</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                             <SelectItem value="agent">Agente</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={member.permission_template_id || 'none'}
+                          onValueChange={async (value) => {
+                            if (!selectedOrg) return;
+                            const success = await updateMemberRole(selectedOrg.id, member.id, { 
+                              permission_template_id: value === 'none' ? null : value 
+                            });
+                            if (success) {
+                              toast.success('Template de permissões atualizado!');
+                              await reloadMembers();
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Sem template" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Nenhum (Padrão Role)</SelectItem>
+                            {templates.map(tpl => (
+                              <SelectItem key={tpl.id} value={tpl.id}>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tpl.color }} />
+                                  {tpl.name}
+                                </div>
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </TableCell>
