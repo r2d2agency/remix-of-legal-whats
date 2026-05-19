@@ -588,16 +588,17 @@ router.get('/conversations', authenticate, async (req, res) => {
       }
     }
 
-    
-    if (connectionIds.length === 0) {
-      return res.json([]);
+    // Apply standard filters
+    if (attendance_status) {
+      if (attendance_status === 'attending') {
+        filter += ` AND (conv.attendance_status = 'attending' OR conv.attendance_status IS NULL)`;
+      } else {
+        filter += ` AND conv.attendance_status = $${paramIndex}`;
+        params.push(attendance_status);
+        paramIndex++;
+      }
     }
 
-    const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department, favorite, limit, offset } = req.query;
-
-    // Get user's role and department membership
-    const userOrg = await getUserOrganization(req.userId);
-    const isAdminOrSupervisor = userOrg && ['owner', 'admin'].includes(userOrg.role);
     
     const userDeptsResult = await query(
       `SELECT department_id, role FROM department_members WHERE user_id = $1`,
