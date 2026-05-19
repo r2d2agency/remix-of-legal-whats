@@ -948,7 +948,18 @@ export function GlobalAgentsTab() {
                        onChange={e => setFormData({...formData, appbarber_establishment_code: e.target.value})} 
                        placeholder="12345" 
                      />
-                   </div>
+                    {editingAgent && (
+                      <div className="mt-4">
+                        <AppBarberActivationSection 
+                          agentId={editingAgent.id} 
+                          credentials={{ 
+                            appbarber_api_key: formData.appbarber_api_key, 
+                            appbarber_establishment_code: formData.appbarber_establishment_code 
+                          }} 
+                        />
+                      </div>
+                    )}
+                  </div>
                  </div>
                </TabsContent>
             </div>
