@@ -294,7 +294,7 @@ const Chat = () => {
       filterParams.offset = offset;
 
       const data = await getConversations(filterParams);
-      setHasMoreConversations(data.length === limit);
+      setHasMoreConversations(Array.isArray(data) && data.length === limit);
 
       const sticky = stickyConversationRef.current;
 
