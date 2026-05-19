@@ -2586,7 +2586,12 @@ router.post('/:agentId/appbarber-services/sync', authenticate, async (req, res) 
         status: error.status,
         estCode,
       });
-      return res.status(400).json({ error: `Erro AppBarber: ${error.message || 'falha ao consultar serviços'}` });
+      return res.status(400).json({ 
+        error: `Erro AppBarber: ${error.message || 'falha ao consultar serviços'}`,
+        details: error.rawPreview || error.message,
+        code: error.code
+      });
+
     }
   } catch (error) {
     logError('appbarber_services.sync_error', error);
