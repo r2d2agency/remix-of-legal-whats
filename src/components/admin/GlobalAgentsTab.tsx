@@ -13,7 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { API_URL, getAuthToken } from '@/lib/api';
 import { toast } from 'sonner';
- import { Bot, Plus, Trash2, Loader2, Pencil, Building2, X, Brain, MessageSquare, Send, Sparkles, FileText, BookOpen, Shield, Clock, Headphones, Target, Upload, BarChart3, Mic, Image, Eye, Users, Zap, ArrowRightLeft, Scissors } from 'lucide-react';
+ import { Bot, Plus, Trash2, Loader2, Pencil, Building2, X, Brain, MessageSquare, Send, Sparkles, FileText, BookOpen, Shield, Clock, Headphones, Target, Upload, BarChart3, Mic, Image, Eye, Users, Zap, ArrowRightLeft, Scissors, RefreshCw, Package } from 'lucide-react';
+import { useAIAgents } from '@/hooks/use-ai-agents';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 
@@ -947,7 +948,18 @@ export function GlobalAgentsTab() {
                        onChange={e => setFormData({...formData, appbarber_establishment_code: e.target.value})} 
                        placeholder="12345" 
                      />
-                   </div>
+                    {editingAgent && (
+                      <div className="mt-4">
+                        <AppBarberActivationSection 
+                          agentId={editingAgent.id} 
+                          credentials={{ 
+                            appbarber_api_key: formData.appbarber_api_key, 
+                            appbarber_establishment_code: formData.appbarber_establishment_code 
+                          }} 
+                        />
+                      </div>
+                    )}
+                  </div>
                  </div>
                </TabsContent>
             </div>
@@ -1280,5 +1292,185 @@ export function GlobalAgentsTab() {
         </DialogContent>
       </Dialog>
     </TabsContent>
+  );
+}
+
+function AppBarberActivationSection({ agentId, credentials }: { agentId: string; credentials: { appbarber_api_key: string; appbarber_establishment_code: string } }) {
+  const { 
+    getAppBarberServices, 
+    syncAppBarberServices, 
+    saveAppBarberService,
+    getAppBarberProfessionals, 
+    syncAppBarberProfessionals,
+    saveAppBarberProfessional
+  } = useAIAgents();
+  const [services, setServices] = useState<any[]>([]);
+  const [professionals, setProfessionals] = useState<any[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    const [s, p] = await Promise.all([
+      getAppBarberServices(agentId),
+      getAppBarberProfessionals(agentId)
+    ]);
+    setServices(s || []);
+    setProfessionals(p || []);
+  }, [agentId, getAppBarberServices, getAppBarberProfessionals]);
+
+  useEffect(() => { 
+    if (agentId) loadData(); 
+  }, [agentId, loadData]);
+
+  const handleSyncServices = async () => {
+    if (!credentials.appbarber_api_key || !credentials.appbarber_establishment_code) {
+      toast.error('Configure as credenciais primeiro e salve o agente.');
+      return;
+    }
+    setSyncing(true);
+    try {
+      await syncAppBarberServices(agentId, credentials);
+      toast.success('Serviços sincronizados');
+      loadData();
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSyncing(false); }
+  };
+
+  const handleSyncProfessionals = async () => {
+    if (!credentials.appbarber_api_key || !credentials.appbarber_establishment_code) {
+      toast.error('Configure as credenciais primeiro e salve o agente.');
+      return;
+    }
+    setSyncing(true);
+    try {
+      await syncAppBarberProfessionals(agentId, credentials);
+      toast.success('Profissionais sincronizados');
+      loadData();
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSyncing(false); }
+  };
+
+  const handleToggleService = async (service: any) => {
+    setToggling(`service-${service.id}`);
+    try {
+      await saveAppBarberService(agentId, {
+        ...service,
+        is_active: !service.is_active
+      });
+      loadData();
+    } catch (err: any) { toast.error(err.message); }
+    finally { setToggling(null); }
+  };
+
+  const handleToggleProfessional = async (prof: any) => {
+    setToggling(`prof-${prof.id}`);
+    try {
+      await saveAppBarberProfessional(agentId, {
+        ...prof,
+        is_active: !prof.is_active
+      });
+      loadData();
+    } catch (err: any) { toast.error(err.message); }
+    finally { setToggling(null); }
+  };
+
+  return (
+    <div className="space-y-6 border-t pt-4">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-primary" />
+            <h4 className="font-medium text-sm text-foreground">Serviços Local ({services.length})</h4>
+          </div>
+          <Button size="sm" variant="outline" onClick={handleSyncServices} disabled={syncing}>
+            <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar
+          </Button>
+        </div>
+
+        <div className="border rounded-md overflow-hidden bg-background">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="text-[10px] uppercase font-bold h-8">Cód</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold h-8">Descrição</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold h-8 text-right">Ativo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {services.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-[11px] text-muted-foreground py-4">
+                    Nenhum serviço.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                services.map(s => (
+                  <TableRow key={s.id} className="h-8">
+                    <TableCell className="py-1 font-mono text-[11px]">{s.service_code}</TableCell>
+                    <TableCell className="py-1 text-[11px] truncate max-w-[120px]">{s.service_description}</TableCell>
+                    <TableCell className="py-1 text-right">
+                      <Switch 
+                        checked={s.is_active} 
+                        className="scale-75"
+                        disabled={toggling === `service-${s.id}`}
+                        onCheckedChange={() => handleToggleService(s)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            <h4 className="font-medium text-sm text-foreground">Profissionais ({professionals.length})</h4>
+          </div>
+          <Button size="sm" variant="outline" onClick={handleSyncProfessionals} disabled={syncing}>
+            <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar
+          </Button>
+        </div>
+
+        <div className="border rounded-md overflow-hidden bg-background">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="text-[10px] uppercase font-bold h-8">Cód</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold h-8">Nome</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold h-8 text-right">Ativo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {professionals.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-[11px] text-muted-foreground py-4">
+                    Nenhum profissional.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                professionals.map(p => (
+                  <TableRow key={p.id} className="h-8">
+                    <TableCell className="py-1 font-mono text-[11px]">{p.employee_code}</TableCell>
+                    <TableCell className="py-1 text-[11px] truncate max-w-[120px]">{p.employee_name}</TableCell>
+                    <TableCell className="py-1 text-right">
+                      <Switch 
+                        checked={p.is_active} 
+                        className="scale-75"
+                        disabled={toggling === `prof-${p.id}`}
+                        onCheckedChange={() => handleToggleProfessional(p)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </div>
   );
 }
