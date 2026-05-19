@@ -1530,13 +1530,14 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
     let resultText;
     switch (toolName) {
       case 'appbarber_professionals': {
-        const result = await query(
-          `SELECT employee_code, employee_name, employee_nickname
-           FROM appbarber_professionals
-           WHERE agent_id = $1 AND is_active = true
-           ORDER BY employee_name`,
-          [agent.id]
-        );
+       const filterCol = agent._isGlobalAgent ? 'global_agent_id' : 'agent_id';
+       const result = await query(
+         `SELECT employee_code, employee_name, employee_nickname
+          FROM appbarber_professionals
+          WHERE ${filterCol} = $1 AND is_active = true
+          ORDER BY employee_name`,
+         [agent.id]
+       );
         if (result.rows.length === 0) {
           resultText = 'Nenhum profissional cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os profissionais do AppBarber.';
         } else {
@@ -1548,13 +1549,14 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
       }
 
       case 'appbarber_payment_types': {
-        const result = await query(
-          `SELECT payment_code, payment_description
-           FROM appbarber_payment_types
-           WHERE agent_id = $1 AND is_active = true
-           ORDER BY payment_description`,
-          [agent.id]
-        );
+       const filterCol = agent._isGlobalAgent ? 'global_agent_id' : 'agent_id';
+       const result = await query(
+         `SELECT payment_code, payment_description
+          FROM appbarber_payment_types
+          WHERE ${filterCol} = $1 AND is_active = true
+          ORDER BY payment_description`,
+         [agent.id]
+       );
         if (result.rows.length === 0) {
           resultText = 'Nenhum tipo de pagamento cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os tipos de pagamento do AppBarber.';
         } else {
@@ -1566,14 +1568,15 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
       }
 
       case 'appbarber_services': {
-        // Query from local cached services table (no API cost)
-        const result = await query(
-          `SELECT service_code, service_description, service_value, service_interval 
-           FROM appbarber_services 
-           WHERE agent_id = $1 AND is_active = true 
-           ORDER BY service_description`,
-          [agent.id]
-        );
+       // Query from local cached services table (no API cost)
+       const filterCol = agent._isGlobalAgent ? 'global_agent_id' : 'agent_id';
+       const result = await query(
+         `SELECT service_code, service_description, service_value, service_interval 
+          FROM appbarber_services 
+          WHERE ${filterCol} = $1 AND is_active = true 
+          ORDER BY service_description`,
+         [agent.id]
+       );
         if (result.rows.length === 0) {
           resultText = 'Nenhum serviço cadastrado. Peça ao administrador para sincronizar os serviços do AppBarber.';
         } else {
