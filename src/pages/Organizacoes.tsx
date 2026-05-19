@@ -917,10 +917,14 @@ export default function Organizacoes() {
 
                 {/* Tabs for Members and Settings */}
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="members" className="flex items-center gap-2">
                       <Users className="h-4 w-4" />
                       Membros
+                    </TabsTrigger>
+                    <TabsTrigger value="access-groups" className="flex items-center gap-2">
+                      <UsersRound className="h-4 w-4" />
+                      Grupos de Acesso
                     </TabsTrigger>
                     <TabsTrigger value="permissions" className="flex items-center gap-2">
                       <Lock className="h-4 w-4" />
@@ -931,6 +935,7 @@ export default function Organizacoes() {
                       Configurações
                     </TabsTrigger>
                   </TabsList>
+
 
                   {/* Members Tab */}
                   <TabsContent value="members">
