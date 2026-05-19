@@ -43,15 +43,17 @@ async function getUserConnections(userId) {
     [userId]
   );
   
+  let connIds = [];
   if (accessGroupsResult.rows.length > 0) {
     const groupIds = accessGroupsResult.rows.map(r => r.access_group_id);
     const groupConnsResult = await query(
       `SELECT DISTINCT connection_id FROM access_group_connections WHERE access_group_id = ANY($1)`,
       [groupIds]
     );
-    return groupConnsResult.rows.map(r => r.connection_id);
+    connIds = groupConnsResult.rows.map(r => r.connection_id);
   }
 
+  // Also include connections assigned directly via connection_members
   const specificResult = await query(
     `SELECT DISTINCT cm.connection_id as id
      FROM connection_members cm
@@ -59,7 +61,10 @@ async function getUserConnections(userId) {
     [userId]
   );
   
-  return specificResult.rows.map(r => r.id);
+  const directConnIds = specificResult.rows.map(r => r.id);
+  
+  // Return unique IDs from both sources
+  return [...new Set([...connIds, ...directConnIds])];
 }
 
 
@@ -574,12 +579,14 @@ router.get('/conversations', authenticate, async (req, res) => {
           conv.assigned_to = $${paramIndex}
           OR conv.assigned_to IS NULL
           OR conv.assigned_to IN (
-            SELECT user_id FROM access_group_members WHERE access_group_id = ANY($${paramIndex + 1})
+            SELECT user_id FROM access_group_members 
+            WHERE access_group_id IN (
+              SELECT access_group_id FROM access_group_members WHERE user_id = $${paramIndex}
+            )
           )
         )`;
         params.push(req.userId);
-        params.push(accessGroupIds);
-        paramIndex += 2;
+        paramIndex++;
       } else {
         // Standard logic: only own or unassigned waiting
         filter += ` AND (conv.assigned_to = $${paramIndex} OR (conv.assigned_to IS NULL AND conv.attendance_status = 'waiting'))`;
