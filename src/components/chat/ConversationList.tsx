@@ -171,11 +171,11 @@ const getMessagePreview = (message: string | null, type: string | null) => {
 };
 
 export function ConversationList({
-  conversations,
+  conversations = [],
   selectedId,
   onSelect,
-  tags,
-  team,
+  tags = [],
+  team = [],
   loading,
   onRefresh,
   filters,
@@ -657,7 +657,7 @@ export function ConversationList({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas</SelectItem>
-              {tags.map(tag => (
+              {Array.isArray(tags) && tags.map(tag => (
                 <SelectItem key={tag.id} value={tag.id}>
                   <div className="flex items-center gap-2">
                     <div 
@@ -711,7 +711,7 @@ export function ConversationList({
                 {myDepartments.length > 0 && (
                   <SelectItem value="my">Meus deptos</SelectItem>
                 )}
-                {allDepartments.map(dept => (
+                {Array.isArray(allDepartments) && allDepartments.map(dept => (
                   <SelectItem key={dept.id} value={dept.id}>
                     <div className="flex items-center gap-2">
                       <div 
@@ -785,7 +785,7 @@ export function ConversationList({
           </div>
         ) : (
           <div className="divide-y">
-            {conversations.map((conv) => {
+            {Array.isArray(conversations) && conversations.map((conv) => {
               // Use the actual conversation status, not the filter
               const isWaiting = conv.attendance_status === 'waiting';
               const isAttending = conv.attendance_status === 'attending';
