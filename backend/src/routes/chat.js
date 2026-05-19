@@ -43,15 +43,17 @@ async function getUserConnections(userId) {
     [userId]
   );
   
+  let connIds = [];
   if (accessGroupsResult.rows.length > 0) {
     const groupIds = accessGroupsResult.rows.map(r => r.access_group_id);
     const groupConnsResult = await query(
       `SELECT DISTINCT connection_id FROM access_group_connections WHERE access_group_id = ANY($1)`,
       [groupIds]
     );
-    return groupConnsResult.rows.map(r => r.connection_id);
+    connIds = groupConnsResult.rows.map(r => r.connection_id);
   }
 
+  // Also include connections assigned directly via connection_members
   const specificResult = await query(
     `SELECT DISTINCT cm.connection_id as id
      FROM connection_members cm
@@ -59,7 +61,10 @@ async function getUserConnections(userId) {
     [userId]
   );
   
-  return specificResult.rows.map(r => r.id);
+  const directConnIds = specificResult.rows.map(r => r.id);
+  
+  // Return unique IDs from both sources
+  return [...new Set([...connIds, ...directConnIds])];
 }
 
 
