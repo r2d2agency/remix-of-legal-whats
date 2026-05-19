@@ -843,8 +843,10 @@ const oldListConversationsEnd = true;
   }
 });
 
+*/
 // Sync group names - fetch from provider for groups with missing names
 router.post('/sync-group-names', authenticate, async (req, res) => {
+
   try {
     const connectionIds = await getUserConnections(req.userId);
     if (connectionIds.length === 0) return res.json({ updated: 0 });
