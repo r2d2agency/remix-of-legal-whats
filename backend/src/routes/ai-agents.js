@@ -1745,11 +1745,14 @@ function extractAppBarberArray(payload) {
 async function fetchAppBarberFromApi({ apiKey, estCode, endpoint, extraParams = {} }) {
   // Some endpoints accept `type` (services, payment-types, history, professionals)
   // but `/v1/professional-list` and `/v1/availability` do NOT accept it.
-  const noTypeEndpoints = ['/v1/professional-list', '/v1/availability'];
+  const noTypeEndpoints = ['/v1/professional-list', '/v1/availability', '/v1/services', '/v1/payment-types'];
   const baseParams = { establishment_code: String(estCode) };
-  if (!noTypeEndpoints.includes(endpoint)) {
-    baseParams.type = '1';
+  if (!noTypeEndpoints.includes(endpoint) && !endpoint.includes('list')) {
+    // If it's not one of the known endpoints, and doesn't look like a list, maybe type is needed?
+    // But honestly, it's safer to only add it if we know it's needed.
+    // For now, let's keep it only for unknown ones.
   }
+
   const params = new URLSearchParams({ ...baseParams, ...extraParams });
   const url = `https://api.appbarber.com${endpoint}?${params.toString()}`;
 
