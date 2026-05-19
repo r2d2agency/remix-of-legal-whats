@@ -690,7 +690,7 @@ export default function Admin() {
   const handleUpdateRole = async (memberId: string, newRole: string) => {
     if (!selectedOrg) return;
     
-    const success = await updateMemberRole(selectedOrg.id, memberId, newRole);
+    const success = await updateMemberRole(selectedOrg.id, memberId, { role: newRole });
     if (success) {
       toast.success('Permissão atualizada!');
       await reloadMembers();
