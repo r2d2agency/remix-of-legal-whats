@@ -518,6 +518,81 @@ router.get('/conversations', authenticate, async (req, res) => {
       return res.json([]);
     }
 
+    const { 
+      attendance_status, 
+      assigned_to, 
+      department_id, 
+      search, 
+      limit = 50, 
+      offset = 0,
+      is_group,
+      connection_id: filterConnectionId,
+      show_archived = 'false'
+    } = req.query;
+
+    const userOrg = await getUserOrganization(req.userId);
+    const isAdminOrSupervisor = userOrg && ['owner', 'admin'].includes(userOrg.role);
+
+    // Check shared conversations (groups or org-level)
+    let sharedConversations = false;
+    let accessGroupIds = [];
+    if (userOrg) {
+      try {
+        const orgResult = await query(
+          `SELECT modules_enabled FROM organizations WHERE id = $1`,
+          [userOrg.organization_id]
+        );
+        if (orgResult.rows[0]?.modules_enabled?.shared_conversations) {
+          sharedConversations = true;
+        }
+        
+        // Find access groups for this user
+        const agResult = await query(
+          `SELECT access_group_id FROM access_group_members WHERE user_id = $1`,
+          [req.userId]
+        );
+        accessGroupIds = agResult.rows.map(r => r.access_group_id);
+      } catch {}
+    }
+
+    let filter = `conv.connection_id = ANY($1)`;
+    const params = [connectionIds];
+    let paramIndex = 2;
+
+    // Filter by connection if provided
+    if (filterConnectionId && connectionIds.includes(filterConnectionId)) {
+      filter += ` AND conv.connection_id = $${paramIndex}`;
+      params.push(filterConnectionId);
+      paramIndex++;
+    }
+
+    // Visibility logic
+    if (!isAdminOrSupervisor && !sharedConversations) {
+      // If user is in access groups, they see conversations from all users in those same groups
+      if (accessGroupIds.length > 0) {
+        filter += ` AND (
+          conv.assigned_to = $${paramIndex}
+          OR conv.assigned_to IS NULL
+          OR conv.assigned_to IN (
+            SELECT user_id FROM access_group_members WHERE access_group_id = ANY($${paramIndex + 1})
+          )
+        )`;
+        params.push(req.userId);
+        params.push(accessGroupIds);
+        paramIndex += 2;
+      } else {
+        // Standard logic: only own or unassigned waiting
+        filter += ` AND (conv.assigned_to = $${paramIndex} OR (conv.assigned_to IS NULL AND conv.attendance_status = 'waiting'))`;
+        params.push(req.userId);
+        paramIndex++;
+      }
+    }
+
+    
+    if (connectionIds.length === 0) {
+      return res.json([]);
+    }
+
     const { search, tag, assigned, archived, connection, includeEmpty, is_group, attendance_status, department, favorite, limit, offset } = req.query;
 
     // Get user's role and department membership
