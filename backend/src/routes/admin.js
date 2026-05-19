@@ -1220,13 +1220,13 @@ router.post('/organizations/:id/users', requireSuperadmin, async (req, res) => {
 router.patch('/organizations/:orgId/members/:memberId', requireSuperadmin, async (req, res) => {
   try {
     const { orgId, memberId } = req.params;
-    const { role } = req.body;
+    const { role, permission_template_id } = req.body;
 
-    if (!['owner', 'admin', 'agent'].includes(role)) {
+    if (role && !['owner', 'admin', 'agent'].includes(role)) {
       return res.status(400).json({ error: 'Role inválido' });
     }
 
-    // Get current member role
+    // Get current member info
     const currentMember = await query(
       `SELECT role FROM organization_members WHERE id = $1 AND organization_id = $2`,
       [memberId, orgId]
@@ -1237,7 +1237,7 @@ router.patch('/organizations/:orgId/members/:memberId', requireSuperadmin, async
     }
 
     const currentRole = currentMember.rows[0].role;
-    const isPromotingToSupervisor = !['owner', 'admin'].includes(currentRole) && ['owner', 'admin'].includes(role);
+    const isPromotingToSupervisor = role && !['owner', 'admin'].includes(currentRole) && ['owner', 'admin'].includes(role);
 
     // Check supervisor limit if promoting to supervisor role
     if (isPromotingToSupervisor) {
@@ -1268,14 +1268,30 @@ router.patch('/organizations/:orgId/members/:memberId', requireSuperadmin, async
       }
     }
 
+    const updates = [];
+    const values = [];
+    let idx = 1;
+
+    if (role !== undefined) {
+      updates.push(`role = $${idx++}`);
+      values.push(role);
+    }
+    if (permission_template_id !== undefined) {
+      updates.push(`permission_template_id = $${idx++}`);
+      values.push(permission_template_id || null);
+    }
+
+    if (updates.length === 0) return res.status(400).json({ error: 'Nada para atualizar' });
+
+    values.push(memberId, orgId);
     const result = await query(
-      `UPDATE organization_members SET role = $1 WHERE id = $2 AND organization_id = $3 RETURNING *`,
-      [role, memberId, orgId]
+      `UPDATE organization_members SET ${updates.join(', ')} WHERE id = $${idx++} AND organization_id = $${idx++} RETURNING *`,
+      values
     );
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Update member role error:', error);
+    console.error('Update member role/template error:', error);
     res.status(500).json({ error: 'Erro ao atualizar membro' });
   }
 });
