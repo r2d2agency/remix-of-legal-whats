@@ -110,6 +110,7 @@ export default function Admin() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
   
   // W-API token
   const [wapiToken, setWapiToken] = useState('');
