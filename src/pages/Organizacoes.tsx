@@ -174,6 +174,17 @@ export default function Organizacoes() {
   // Edit member template
   const [editMemberTemplateId, setEditMemberTemplateId] = useState<string>('');
 
+  // Access Groups
+  const [accessGroups, setAccessGroups] = useState<any[]>([]);
+  const [loadingAccessGroups, setLoadingAccessGroups] = useState(false);
+  const [accessGroupDialogOpen, setAccessGroupDialogOpen] = useState(false);
+  const [editingAccessGroup, setEditingAccessGroup] = useState<any | null>(null);
+  const [accessGroupName, setAccessGroupName] = useState('');
+  const [accessGroupDescription, setAccessGroupDescription] = useState('');
+  const [accessGroupUserIds, setAccessGroupUserIds] = useState<string[]>([]);
+  const [accessGroupConnectionIds, setAccessGroupConnectionIds] = useState<string[]>([]);
+  const [savingAccessGroup, setSavingAccessGroup] = useState(false);
+
   const { 
     loading, 
     error,
@@ -188,6 +199,7 @@ export default function Organizacoes() {
     removeMember,
     updateMemberPassword 
   } = useOrganizations();
+
 
   const { checkSuperadmin } = useSuperadmin();
 
