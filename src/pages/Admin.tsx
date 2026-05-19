@@ -660,6 +660,7 @@ export default function Admin() {
     setOrgMembers(result.members);
     setOrgLimits(result.limits);
     setLoadingMembers(false);
+    loadOrgTemplates(org.id);
   };
 
   const reloadMembers = async () => {
