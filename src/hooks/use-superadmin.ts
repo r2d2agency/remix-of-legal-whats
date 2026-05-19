@@ -70,6 +70,7 @@ interface OrgMember {
   email: string;
   name: string;
   role: string;
+  permission_template_id?: string | null;
   created_at: string;
 }
 
@@ -525,7 +526,7 @@ export function useSuperadmin() {
     }
   }, []);
 
-  const updateMemberRole = useCallback(async (orgId: string, memberId: string, role: string): Promise<boolean> => {
+  const updateMemberRole = useCallback(async (orgId: string, memberId: string, data: { role?: string; permission_template_id?: string | null }): Promise<boolean> => {
     setLoading(true);
     setError(null);
     
@@ -533,7 +534,7 @@ export function useSuperadmin() {
       const response = await fetch(`${API_URL}/api/admin/organizations/${orgId}/members/${memberId}`, {
         method: 'PATCH',
         headers: getHeaders(),
-        body: JSON.stringify({ role })
+        body: JSON.stringify(data)
       });
       
       if (!response.ok) {

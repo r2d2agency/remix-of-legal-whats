@@ -99,6 +99,7 @@ interface OrgMember {
   email: string;
   name: string;
   role: string;
+  permission_template_id?: string | null;
   created_at: string;
 }
 
@@ -109,6 +110,7 @@ export default function Admin() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
   
   // W-API token
   const [wapiToken, setWapiToken] = useState('');
@@ -360,6 +362,15 @@ export default function Admin() {
     setPlans(plansData);
     setLoading(false);
     loadWapiToken();
+  };
+
+  const loadOrgTemplates = async (orgId: string) => {
+    try {
+      const tpls = await api<any[]>(`/api/organizations/${orgId}/permission-templates`);
+      setTemplates(tpls);
+    } catch {
+      setTemplates([]);
+    }
   };
 
   // Reload users with search/filter
@@ -649,6 +660,7 @@ export default function Admin() {
     setOrgMembers(result.members);
     setOrgLimits(result.limits);
     setLoadingMembers(false);
+    loadOrgTemplates(org.id);
   };
 
   const reloadMembers = async () => {
@@ -689,7 +701,7 @@ export default function Admin() {
   const handleUpdateRole = async (memberId: string, newRole: string) => {
     if (!selectedOrg) return;
     
-    const success = await updateMemberRole(selectedOrg.id, memberId, newRole);
+    const success = await updateMemberRole(selectedOrg.id, memberId, { role: newRole });
     if (success) {
       toast.success('Permissão atualizada!');
       await reloadMembers();
@@ -2594,6 +2606,7 @@ export default function Admin() {
                     <TableHead>Nome</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Permissão</TableHead>
+                    <TableHead>Template de Páginas</TableHead>
                     <TableHead className="w-[100px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2607,13 +2620,43 @@ export default function Admin() {
                           value={member.role}
                           onValueChange={(value) => handleUpdateRole(member.id, value)}
                         >
-                          <SelectTrigger className="w-[140px]">
+                          <SelectTrigger className="w-[130px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="owner">Proprietário</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                             <SelectItem value="agent">Agente</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={member.permission_template_id || 'none'}
+                          onValueChange={async (value) => {
+                            if (!selectedOrg) return;
+                            const success = await updateMemberRole(selectedOrg.id, member.id, { 
+                              permission_template_id: value === 'none' ? null : value 
+                            });
+                            if (success) {
+                              toast.success('Template de permissões atualizado!');
+                              await reloadMembers();
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Sem template" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Nenhum (Padrão Role)</SelectItem>
+                            {templates.map(tpl => (
+                              <SelectItem key={tpl.id} value={tpl.id}>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tpl.color }} />
+                                  {tpl.name}
+                                </div>
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </TableCell>

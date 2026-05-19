@@ -498,7 +498,7 @@ router.post('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
 router.patch('/:id/members/:userId', async (req, res) => {
   try {
     const { id, userId } = req.params;
-    const { role, connection_ids, department_ids, is_active } = req.body;
+    const { role, connection_ids, department_ids, is_active, permission_template_id } = req.body;
 
     // Check if user is admin/owner
     const memberCheck = await query(
@@ -526,6 +526,14 @@ router.patch('/:id/members/:userId', async (req, res) => {
       await query(
         `UPDATE organization_members SET role = $1 WHERE organization_id = $2 AND user_id = $3`,
         [role, id, userId]
+      );
+    }
+
+    // Update permission template if provided
+    if (permission_template_id !== undefined) {
+      await query(
+        `UPDATE organization_members SET permission_template_id = $1 WHERE organization_id = $2 AND user_id = $3`,
+        [permission_template_id || null, id, userId]
       );
     }
 
