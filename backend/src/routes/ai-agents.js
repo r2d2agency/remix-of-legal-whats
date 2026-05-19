@@ -2111,7 +2111,7 @@ router.post('/:id/test', authenticate, async (req, res) => {
  
      // Add explicit rules for AppBarber integration to prevent hallucinations
      if (agent.capabilities.includes('appbarber')) {
-       systemPrompt += `\n\nREGRAS CRÍTICAS DE DADOS (AppBarber):\n1. NUNCA invente nomes de profissionais ou preços.\n2. Para saber quem trabalha no local, use SEMPRE a ferramenta 'appbarber_professionals'.\n3. Para saber preços e serviços, use 'appbarber_services'.\n4. Se o usuário perguntar por alguém ou algo que não retornou nas ferramentas, diga que não encontrou esse registro no sistema.`;
+       systemPrompt += `\n\nREGRAS CRÍTICAS DE DADOS (AppBarber):\n1. NUNCA invente nomes de profissionais ou preços.\n2. Para saber quem trabalha no local, use SEMPRE a ferramenta 'appbarber_professionals'. Esta ferramenta retorna apenas profissionais ativos.\n3. Para saber preços e serviços, use 'appbarber_services'. Esta ferramenta retorna apenas serviços e produtos ativos.\n4. Se o usuário perguntar por alguém ou algo que não retornou nas ferramentas, diga que não encontrou esse registro ou que o item não está disponível no momento.`;
      }
 
     // Build messages
