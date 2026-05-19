@@ -332,10 +332,10 @@ CREATE TABLE IF NOT EXISTS access_group_connections (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (access_group_id, connection_id)
 );
-\`;
+`;
 
 // ============================================
-const step6ContactsMessages = \`
+const step6ContactsMessages = `
 /* -- Contact Lists */
 CREATE TABLE IF NOT EXISTS contact_lists (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
