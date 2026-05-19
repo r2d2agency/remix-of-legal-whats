@@ -236,9 +236,9 @@ const Chat = () => {
            // If we have more messages in the state than the initial fetch (due to infinite scroll),
            // we should merge the updates instead of overwriting the whole list,
            // which would cause the scroll to jump back to the bottom.
-           if (prev.length > msgs.length) {
-             // Simple strategy: only update the common messages at the end
-             const commonCount = msgs.length;
+            if (Array.isArray(msgs) && prev.length > msgs.length) {
+              // Simple strategy: only update the common messages at the end
+              const commonCount = msgs.length;
              const baseMessages = prev.slice(0, prev.length - commonCount);
              return [...baseMessages, ...msgs];
            }
