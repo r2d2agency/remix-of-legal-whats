@@ -1030,7 +1030,7 @@ export function ChatArea({
 
           {!isMobile && showHeaderInfo && (
             <div className="flex items-center gap-1">
-              {conversation.tags.slice(0, 3).map(tag => (
+              {(Array.isArray(conversation.tags) ? conversation.tags : []).slice(0, 3).map(tag => (
                 <Badge key={tag.id} variant="outline" className="cursor-pointer text-xs" style={{ borderColor: tag.color, color: tag.color }} onClick={() => onRemoveTag(tag.id)} title="Clique para remover">
                   {tag.name}<X className="h-3 w-3 ml-1" />
                 </Badge>

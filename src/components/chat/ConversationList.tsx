@@ -898,7 +898,7 @@ export function ConversationList({
                       })()}
                       
                       {/* Tags */}
-                      {conv.tags.slice(0, 2).map(tag => (
+                      {(Array.isArray(conv.tags) ? conv.tags : []).slice(0, 2).map(tag => (
                         <Badge
                           key={tag.id}
                           variant="outline"
