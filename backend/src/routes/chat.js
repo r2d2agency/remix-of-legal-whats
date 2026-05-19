@@ -598,36 +598,50 @@ router.get('/conversations', authenticate, async (req, res) => {
         paramIndex++;
       }
     }
+    if (is_group === 'true') {
+      filter += ` AND COALESCE(conv.is_group, false) = true`;
+    } else if (is_group === 'false') {
+      filter += ` AND COALESCE(conv.is_group, false) = false`;
+    }
 
-    
-    const userDeptsResult = await query(
-      `SELECT department_id, role FROM department_members WHERE user_id = $1`,
-      [req.userId]
+    if (show_archived === 'true') {
+      filter += ` AND conv.is_archived = true`;
+    } else {
+      filter += ` AND conv.is_archived = false`;
+    }
+
+    if (search) {
+      filter += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex} OR conv.group_name ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    // Execute the final query
+    const result = await query(
+      `SELECT conv.*, conn.name as connection_name, u.name as assigned_name,
+        (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message,
+        (SELECT timestamp FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_at
+       FROM conversations conv
+       JOIN connections conn ON conn.id = conv.connection_id
+       LEFT JOIN users u ON u.id = conv.assigned_to
+       WHERE ${filter}
+       ORDER BY conv.last_message_at DESC NULLS LAST
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, parseInt(limit), parseInt(offset)]
     );
-    const userDepartmentIds = userDeptsResult.rows.map(r => r.department_id);
-    const isSupervisorInAnyDept = userDeptsResult.rows.some(r => r.role === 'supervisor');
 
-    // Determine which department(s) to filter by
-    let filterDepartmentIds = null;
-    if (department === 'my') {
-      filterDepartmentIds = userDepartmentIds;
-    } else if (department && department !== 'all') {
-      filterDepartmentIds = [department];
-    }
+    res.json(result.rows);
+  } catch (error) {
+    console.error('List conversations error:', error);
+    res.status(500).json({ error: 'Erro ao listar conversas' });
+  }
+});
 
-    // Check if org has shared_conversations enabled (must be outside buildQuery which is sync)
-    let sharedConversations = false;
-    if (userOrg) {
-      try {
-        const orgResult = await query(
-          `SELECT modules_enabled FROM organizations WHERE id = $1`,
-          [userOrg.organization_id]
-        );
-        if (orgResult.rows[0]?.modules_enabled?.shared_conversations) {
-          sharedConversations = true;
-        }
-      } catch {}
-    }
+// Skip the rest of the existing list conversations implementation by jumping ahead
+const oldListConversationsEnd = true;
+
+/*
+
 
     const buildQuery = (supportsAttendance = true, supportsDepartment = true) => {
       let sql = `
