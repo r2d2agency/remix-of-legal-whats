@@ -70,6 +70,7 @@ interface OrgMember {
   email: string;
   name: string;
   role: string;
+  permission_template_id?: string | null;
   created_at: string;
 }
 
