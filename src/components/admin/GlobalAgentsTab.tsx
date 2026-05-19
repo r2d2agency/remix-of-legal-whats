@@ -227,8 +227,9 @@ const ALL_CAPABILITIES = [
   { id: 'generate_content', label: 'Gerar conteúdo', icon: FileText },
   { id: 'summarize_history', label: 'Resumir histórico', icon: BookOpen },
   { id: 'transcribe_audio', label: 'Ouvir áudios', icon: Headphones },
-  { id: 'analyze_images', label: 'Analisar imagens', icon: Brain },
-  { id: 'read_files', label: 'Ler arquivos', icon: FileText },
+   { id: 'analyze_images', label: 'Analisar imagens', icon: Brain },
+   { id: 'read_files', label: 'Ler arquivos', icon: FileText },
+   { id: 'appbarber', label: 'AppBarber (Agendamento)', icon: Scissors },
 ];
 
 const headers = () => ({
