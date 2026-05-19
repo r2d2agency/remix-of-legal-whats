@@ -39,8 +39,10 @@ export interface GlobalAgentForClient {
   greeting_message?: string;
   ai_provider?: string;
   ai_model?: string;
-  capabilities?: string[];
-  has_knowledge_base?: boolean;
+   capabilities?: string[];
+   has_knowledge_base?: boolean;
+   appbarber_api_key?: string;
+   appbarber_establishment_code?: string;
   activations: GlobalAgentActivation[];
 }
 
