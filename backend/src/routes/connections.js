@@ -72,12 +72,29 @@ router.get('/', async (req, res) => {
         [org.organization_id]
       );
     } else {
-      // Default: only connections assigned via connection_members
-      const specificResult = await query(
-        `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
+      // Check if user is in any access group
+      const accessGroupsResult = await query(
+        `SELECT access_group_id FROM access_group_members WHERE user_id = $1`,
         [req.userId]
       );
-      const connIds = specificResult.rows.map(r => r.connection_id);
+      
+      let connIds = [];
+      
+      if (accessGroupsResult.rows.length > 0) {
+        const groupIds = accessGroupsResult.rows.map(r => r.access_group_id);
+        const groupConnsResult = await query(
+          `SELECT DISTINCT connection_id FROM access_group_connections WHERE access_group_id = ANY($1)`,
+          [groupIds]
+        );
+        connIds = groupConnsResult.rows.map(r => r.connection_id);
+      } else {
+        // Fallback: only connections assigned via connection_members
+        const specificResult = await query(
+          `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
+          [req.userId]
+        );
+        connIds = specificResult.rows.map(r => r.connection_id);
+      }
 
       if (connIds.length === 0) {
         return res.json([]);
@@ -88,6 +105,7 @@ router.get('/', async (req, res) => {
         [connIds]
       );
     }
+
     
     res.json(result.rows);
   } catch (error) {

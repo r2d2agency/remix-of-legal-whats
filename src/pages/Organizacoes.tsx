@@ -174,6 +174,17 @@ export default function Organizacoes() {
   // Edit member template
   const [editMemberTemplateId, setEditMemberTemplateId] = useState<string>('');
 
+  // Access Groups
+  const [accessGroups, setAccessGroups] = useState<any[]>([]);
+  const [loadingAccessGroups, setLoadingAccessGroups] = useState(false);
+  const [accessGroupDialogOpen, setAccessGroupDialogOpen] = useState(false);
+  const [editingAccessGroup, setEditingAccessGroup] = useState<any | null>(null);
+  const [accessGroupName, setAccessGroupName] = useState('');
+  const [accessGroupDescription, setAccessGroupDescription] = useState('');
+  const [accessGroupUserIds, setAccessGroupUserIds] = useState<string[]>([]);
+  const [accessGroupConnectionIds, setAccessGroupConnectionIds] = useState<string[]>([]);
+  const [savingAccessGroup, setSavingAccessGroup] = useState(false);
+
   const { 
     loading, 
     error,
@@ -189,6 +200,7 @@ export default function Organizacoes() {
     updateMemberPassword 
   } = useOrganizations();
 
+
   const { checkSuperadmin } = useSuperadmin();
 
   useEffect(() => {
@@ -203,8 +215,10 @@ export default function Organizacoes() {
       loadDepartments(selectedOrg.id);
       loadModules(selectedOrg.id);
       loadTemplates(selectedOrg.id);
+      loadAccessGroups(selectedOrg.id);
     }
   }, [selectedOrg]);
+
 
   const loadOrganizations = async () => {
     setLoadingOrgs(true);
@@ -298,6 +312,73 @@ export default function Organizacoes() {
     setLoadingTemplates(false);
   };
 
+  const loadAccessGroups = async (orgId: string) => {
+    setLoadingAccessGroups(true);
+    try {
+      const groups = await api<any[]>(`/api/organizations/${orgId}/access-groups`);
+      setAccessGroups(groups);
+    } catch {
+      setAccessGroups([]);
+    }
+    setLoadingAccessGroups(false);
+  };
+
+  const handleSaveAccessGroup = async () => {
+    if (!selectedOrg || !accessGroupName.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+    setSavingAccessGroup(true);
+    try {
+      const data = { 
+        name: accessGroupName, 
+        description: accessGroupDescription, 
+        user_ids: accessGroupUserIds, 
+        connection_ids: accessGroupConnectionIds 
+      };
+      if (editingAccessGroup) {
+        await api(`/api/organizations/${selectedOrg.id}/access-groups/${editingAccessGroup.id}`, { method: 'PATCH', body: data });
+        toast.success('Grupo de acesso atualizado!');
+      } else {
+        await api(`/api/organizations/${selectedOrg.id}/access-groups`, { method: 'POST', body: data });
+        toast.success('Grupo de acesso criado!');
+      }
+      setAccessGroupDialogOpen(false);
+      loadAccessGroups(selectedOrg.id);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao salvar grupo de acesso');
+    }
+    setSavingAccessGroup(false);
+  };
+
+  const handleDeleteAccessGroup = async (groupId: string) => {
+    if (!selectedOrg) return;
+    try {
+      await api(`/api/organizations/${selectedOrg.id}/access-groups/${groupId}`, { method: 'DELETE' });
+      toast.success('Grupo de acesso excluído!');
+      loadAccessGroups(selectedOrg.id);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao excluir grupo de acesso');
+    }
+  };
+
+  const openAccessGroupDialog = (group?: any) => {
+    if (group) {
+      setEditingAccessGroup(group);
+      setAccessGroupName(group.name);
+      setAccessGroupDescription(group.description || '');
+      setAccessGroupUserIds(group.user_ids || []);
+      setAccessGroupConnectionIds(group.connection_ids || []);
+    } else {
+      setEditingAccessGroup(null);
+      setAccessGroupName('');
+      setAccessGroupDescription('');
+      setAccessGroupUserIds([]);
+      setAccessGroupConnectionIds([]);
+    }
+    setAccessGroupDialogOpen(true);
+  };
+
   const openTemplateDialog = (template?: PermissionTemplate) => {
     if (template) {
       setEditingTemplate(template);
@@ -314,6 +395,7 @@ export default function Organizacoes() {
     }
     setTemplateDialogOpen(true);
   };
+
 
   const handleSaveTemplate = async () => {
     if (!selectedOrg || !templateName.trim()) {
@@ -835,10 +917,14 @@ export default function Organizacoes() {
 
                 {/* Tabs for Members and Settings */}
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="members" className="flex items-center gap-2">
                       <Users className="h-4 w-4" />
                       Membros
+                    </TabsTrigger>
+                    <TabsTrigger value="access-groups" className="flex items-center gap-2">
+                      <UsersRound className="h-4 w-4" />
+                      Grupos de Acesso
                     </TabsTrigger>
                     <TabsTrigger value="permissions" className="flex items-center gap-2">
                       <Lock className="h-4 w-4" />
@@ -850,8 +936,126 @@ export default function Organizacoes() {
                     </TabsTrigger>
                   </TabsList>
 
+
+                  {/* Access Groups Tab */}
+                  <TabsContent value="access-groups">
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              <UsersRound className="h-5 w-5" />
+                              Grupos de Acesso
+                            </CardTitle>
+                            <CardDescription>
+                              Defina quais usuários podem ver quais conexões e as conversas uns dos outros.
+                            </CardDescription>
+                          </div>
+                          {canManageOrg && (
+                            <Button size="sm" onClick={() => openAccessGroupDialog()}>
+                              <Plus className="h-4 w-4 mr-2" />
+                              Novo Grupo
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {loadingAccessGroups ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Nome</TableHead>
+                                <TableHead>Usuários</TableHead>
+                                <TableHead>Conexões</TableHead>
+                                <TableHead>Ações</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {accessGroups.map((group) => (
+                                <TableRow key={group.id}>
+                                  <TableCell className="font-medium">
+                                    <div>{group.name}</div>
+                                    <div className="text-xs text-muted-foreground">{group.description}</div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex -space-x-2">
+                                      {(group.user_ids || []).map((uid: string) => {
+                                        const member = members.find(m => m.user_id === uid);
+                                        return member ? (
+                                          <div key={uid} className="h-8 w-8 rounded-full border bg-muted flex items-center justify-center text-[10px]" title={member.name}>
+                                            {member.name.charAt(0)}
+                                          </div>
+                                        ) : null;
+                                      })}
+                                      {(!group.user_ids || group.user_ids.length === 0) && <span className="text-xs text-muted-foreground">Nenhum usuário</span>}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-wrap gap-1">
+                                      {(group.connection_ids || []).map((cid: string) => {
+                                        const conn = connections.find(c => c.id === cid);
+                                        return conn ? (
+                                          <Badge key={cid} variant="secondary" className="text-[10px]">
+                                            {conn.name}
+                                          </Badge>
+                                        ) : null;
+                                      })}
+                                      {(!group.connection_ids || group.connection_ids.length === 0) && <span className="text-xs text-muted-foreground">Nenhuma conexão</span>}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    {canManageOrg && (
+                                      <div className="flex items-center gap-1">
+                                        <Button size="icon" variant="ghost" onClick={() => openAccessGroupDialog(group)}>
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button size="icon" variant="ghost" className="text-destructive">
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Excluir grupo de acesso?</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                Esta ação não pode ser desfeita.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                              <AlertDialogAction onClick={() => handleDeleteAccessGroup(group.id)} className="bg-destructive text-destructive-foreground">
+                                                Excluir
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {accessGroups.length === 0 && (
+                                <TableRow>
+                                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                                    Nenhum grupo de acesso criado.
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
                   {/* Members Tab */}
                   <TabsContent value="members">
+
                     <Card>
                       <CardHeader>
                         <div className="flex items-center justify-between">
@@ -1900,6 +2104,86 @@ export default function Organizacoes() {
           </DialogContent>
         </Dialog>
       </div>
+      {/* Access Group Dialog */}
+      <Dialog open={accessGroupDialogOpen} onOpenChange={setAccessGroupDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingAccessGroup ? 'Editar Grupo de Acesso' : 'Novo Grupo de Acesso'}</DialogTitle>
+            <DialogDescription>
+              Gerencie membros e conexões deste grupo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-2">
+              <Label>Nome do Grupo *</Label>
+              <Input
+                placeholder="Ex: Comercial Sul"
+                value={accessGroupName}
+                onChange={(e) => setAccessGroupName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Input
+                placeholder="Breve descrição do grupo"
+                value={accessGroupDescription}
+                onChange={(e) => setAccessGroupDescription(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Usuários do Grupo</Label>
+              <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
+                {members.map((member) => (
+                  <div key={member.user_id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`ag-user-${member.user_id}`}
+                      checked={accessGroupUserIds.includes(member.user_id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) setAccessGroupUserIds(prev => [...prev, member.user_id]);
+                        else setAccessGroupUserIds(prev => prev.filter(id => id !== member.user_id));
+                      }}
+                    />
+                    <label htmlFor={`ag-user-${member.user_id}`} className="text-sm cursor-pointer">
+                      {member.name} ({member.email})
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Conexões do Grupo</Label>
+              <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
+                {connections.map((conn) => (
+                  <div key={conn.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`ag-conn-${conn.id}`}
+                      checked={accessGroupConnectionIds.includes(conn.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) setAccessGroupConnectionIds(prev => [...prev, conn.id]);
+                        else setAccessGroupConnectionIds(prev => prev.filter(id => id !== conn.id));
+                      }}
+                    />
+                    <label htmlFor={`ag-conn-${conn.id}`} className="text-sm cursor-pointer">
+                      {conn.name}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAccessGroupDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveAccessGroup} disabled={savingAccessGroup}>
+              {savingAccessGroup && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingAccessGroup ? 'Salvar Alterações' : 'Criar Grupo'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
