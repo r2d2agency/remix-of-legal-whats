@@ -335,7 +335,7 @@ CREATE TABLE IF NOT EXISTS access_group_connections (
 
 // ============================================
 const step6ContactsMessages = `
--- Contact Lists
+/* -- Contact Lists */
 CREATE TABLE IF NOT EXISTS contact_lists (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
