@@ -579,12 +579,14 @@ router.get('/conversations', authenticate, async (req, res) => {
           conv.assigned_to = $${paramIndex}
           OR conv.assigned_to IS NULL
           OR conv.assigned_to IN (
-            SELECT user_id FROM access_group_members WHERE access_group_id = ANY($${paramIndex + 1})
+            SELECT user_id FROM access_group_members 
+            WHERE access_group_id IN (
+              SELECT access_group_id FROM access_group_members WHERE user_id = $${paramIndex}
+            )
           )
         )`;
         params.push(req.userId);
-        params.push(accessGroupIds);
-        paramIndex += 2;
+        paramIndex++;
       } else {
         // Standard logic: only own or unassigned waiting
         filter += ` AND (conv.assigned_to = $${paramIndex} OR (conv.assigned_to IS NULL AND conv.attendance_status = 'waiting'))`;
