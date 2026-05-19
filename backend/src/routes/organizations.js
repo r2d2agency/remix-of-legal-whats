@@ -1170,4 +1170,131 @@ router.patch('/:id([0-9a-fA-F-]{36})/members/:userId([0-9a-fA-F-]{36})/template'
   }
 });
 
+
+// ========================================
+// Access Groups Endpoints
+// ========================================
+
+// List access groups for an organization
+router.get('/:id([0-9a-fA-F-]{36})/access-groups', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Acesso negado' });
+
+    const result = await query(
+      `SELECT ag.*, 
+        (SELECT json_agg(u.id) FROM access_group_members agm JOIN users u ON u.id = agm.user_id WHERE agm.access_group_id = ag.id) as user_ids,
+        (SELECT json_agg(c.id) FROM access_group_connections agc JOIN connections c ON c.id = agc.connection_id WHERE agc.access_group_id = ag.id) as connection_ids
+       FROM access_groups ag
+       WHERE ag.organization_id = $1
+       ORDER BY ag.created_at DESC`,
+      [id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('List access groups error:', error);
+    res.status(500).json({ error: 'Erro ao listar grupos de acesso' });
+  }
+});
+
+// Create access group
+router.post('/:id([0-9a-fA-F-]{36})/access-groups', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, user_ids, connection_ids } = req.body;
+
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins podem criar grupos de acesso' });
+
+    const result = await query(
+      `INSERT INTO access_groups (organization_id, name, description) VALUES ($1, $2, $3) RETURNING *`,
+      [id, name, description]
+    );
+    const group = result.rows[0];
+
+    if (user_ids && Array.isArray(user_ids)) {
+      for (const userId of user_ids) {
+        await query(`INSERT INTO access_group_members (access_group_id, user_id) VALUES ($1, $2)`, [group.id, userId]);
+      }
+    }
+
+    if (connection_ids && Array.isArray(connection_ids)) {
+      for (const connId of connection_ids) {
+        await query(`INSERT INTO access_group_connections (access_group_id, connection_id) VALUES ($1, $2)`, [group.id, connId]);
+      }
+    }
+
+    res.status(201).json(group);
+  } catch (error) {
+    console.error('Create access group error:', error);
+    res.status(500).json({ error: 'Erro ao criar grupo de acesso' });
+  }
+});
+
+// Update access group
+router.patch('/:id([0-9a-fA-F-]{36})/access-groups/:groupId', async (req, res) => {
+  try {
+    const { id, groupId } = req.params;
+    const { name, description, user_ids, connection_ids } = req.body;
+
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins podem editar grupos de acesso' });
+
+    await query(
+      `UPDATE access_groups SET name = COALESCE($1, name), description = COALESCE($2, description), updated_at = NOW() 
+       WHERE id = $3 AND organization_id = $4`,
+      [name, description, groupId, id]
+    );
+
+    if (user_ids !== undefined && Array.isArray(user_ids)) {
+      await query(`DELETE FROM access_group_members WHERE access_group_id = $1`, [groupId]);
+      for (const userId of user_ids) {
+        await query(`INSERT INTO access_group_members (access_group_id, user_id) VALUES ($1, $2)`, [groupId, userId]);
+      }
+    }
+
+    if (connection_ids !== undefined && Array.isArray(connection_ids)) {
+      await query(`DELETE FROM access_group_connections WHERE access_group_id = $1`, [groupId]);
+      for (const connId of connection_ids) {
+        await query(`INSERT INTO access_group_connections (access_group_id, connection_id) VALUES ($1, $2)`, [groupId, connId]);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update access group error:', error);
+    res.status(500).json({ error: 'Erro ao atualizar grupo de acesso' });
+  }
+});
+
+// Delete access group
+router.delete('/:id([0-9a-fA-F-]{36})/access-groups/:groupId', async (req, res) => {
+  try {
+    const { id, groupId } = req.params;
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')`,
+      [id, req.userId]
+    );
+    if (memberCheck.rows.length === 0) return res.status(403).json({ error: 'Apenas admins podem excluir grupos de acesso' });
+
+    await query(`DELETE FROM access_groups WHERE id = $1 AND organization_id = $2`, [groupId, id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete access group error:', error);
+    res.status(500).json({ error: 'Erro ao excluir grupo de acesso' });
+  }
+});
+
 export default router;
+
