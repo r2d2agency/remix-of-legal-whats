@@ -1703,7 +1703,9 @@ async function fetchAppBarberServicesFromApi({ apiKey, estCode, professionalCode
     error.code = isAppBarberCloudflareBlock(response, rawText)
       ? 'APPBARBER_CLOUDFLARE_BLOCK'
       : 'APPBARBER_API_ERROR';
+    error.rawPreview = (rawText || '').slice(0, 300);
     throw error;
+
   }
 
   return extractAppBarberServices(payload);
