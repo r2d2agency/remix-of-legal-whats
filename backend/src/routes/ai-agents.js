@@ -1959,13 +1959,35 @@ async function executeAppBarberTool(toolName, args, agent) {
         });
         if (!availabilityResult.resp.ok) return `Erro AppBarber: ${getAppBarberErrorMessage(availabilityResult.resp, availabilityResult.payload, availabilityResult.rawText)}`;
         if (!hasSlots(list)) return `Nenhum horário disponível para ${args.start_date}.`;
-        const formatted = list.map(p => {
+
+        // Filter professionals based on local active status
+        const activeProfessionalsResult = await query(
+          `SELECT employee_code FROM appbarber_professionals WHERE agent_id = $1 AND is_active = true`,
+          [agent.id]
+        );
+        const activeCodes = new Set(activeProfessionalsResult.rows.map(p => p.employee_code));
+
+        const filteredList = list.filter(p => activeCodes.has(p.employee_code));
+        
+        if (filteredList.length === 0) {
+          return `Nenhum dos profissionais disponíveis para ${args.start_date} está ativo no sistema no momento.`;
+        }
+
+        const formatted = filteredList.map(p => {
           const slots = (p.available || []).map(s => s.scheduling_time?.substring(0, 5)).filter(Boolean).join(', ');
           return `👤 ${p.employee_name || p.employee_nickname} (código: ${p.employee_code}): ${slots || 'Sem horários'}`;
         }).join('\n');
         return fallbackUsed ? `ℹ️ Disponibilidade geral do dia (sem filtro de serviço):\n${formatted}` : formatted;
       }
       case 'appbarber_appointment': {
+        // Validate service and professional are active locally before creating appointment
+        const [serviceCheck, profCheck] = await Promise.all([
+          query(`SELECT id FROM appbarber_services WHERE agent_id = $1 AND service_code = $2 AND is_active = true`, [agent.id, args.service_code]),
+          query(`SELECT id FROM appbarber_professionals WHERE agent_id = $1 AND employee_code = $2 AND is_active = true`, [agent.id, args.professional_code])
+        ]);
+
+        if (serviceCheck.rows.length === 0) return `O serviço com código ${args.service_code} não está disponível para agendamento no momento.`;
+        if (profCheck.rows.length === 0) return `O profissional com código ${args.professional_code} não está disponível para agendamento no momento.`;
         const body = {
           customer_phone: args.customer_phone, customer_name: args.customer_name,
           establishment_code: parseInt(estCode), start_date: args.start_date,
