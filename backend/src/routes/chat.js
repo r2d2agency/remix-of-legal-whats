@@ -24,7 +24,7 @@ function isViewOnlyRole(role) {
 }
 
 // Get user's connections based on their access rights.
-// Admin/owner/manager can access all org connections; others only assigned ones.
+// Admin/owner/manager can access all org connections; others only assigned ones via members or groups.
 async function getUserConnections(userId) {
   const userOrg = await getUserOrganization(userId);
 
@@ -37,6 +37,21 @@ async function getUserConnections(userId) {
     return orgResult.rows.map(r => r.id);
   }
 
+  // Check access groups
+  const accessGroupsResult = await query(
+    `SELECT access_group_id FROM access_group_members WHERE user_id = $1`,
+    [userId]
+  );
+  
+  if (accessGroupsResult.rows.length > 0) {
+    const groupIds = accessGroupsResult.rows.map(r => r.access_group_id);
+    const groupConnsResult = await query(
+      `SELECT DISTINCT connection_id FROM access_group_connections WHERE access_group_id = ANY($1)`,
+      [groupIds]
+    );
+    return groupConnsResult.rows.map(r => r.connection_id);
+  }
+
   const specificResult = await query(
     `SELECT DISTINCT cm.connection_id as id
      FROM connection_members cm
@@ -46,6 +61,7 @@ async function getUserConnections(userId) {
   
   return specificResult.rows.map(r => r.id);
 }
+
 
 async function hasColumn(tableName, columnName) {
   const result = await query(
