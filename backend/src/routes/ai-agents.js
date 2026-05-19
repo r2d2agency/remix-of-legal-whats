@@ -1681,8 +1681,8 @@ async function readAppBarberResponse(response) {
 async function fetchAppBarberServicesFromApi({ apiKey, estCode, professionalCode, serviceCode }) {
   const params = new URLSearchParams({
     establishment_code: String(estCode),
-    type: '1',
   });
+
 
   if (professionalCode) params.set('professional_code', String(professionalCode));
   if (serviceCode) params.set('service_code', String(serviceCode));
