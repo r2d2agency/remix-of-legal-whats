@@ -17,7 +17,7 @@ import { useGlobalAgents, GlobalAgentForClient, GlobalAgentActivation, ScheduleW
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Bot, Clock, Plug, Plus, Trash2, Settings, Loader2, Calendar, Key, MessageSquare, Send, Mic, Image, Brain, Sparkles, FileText, User } from 'lucide-react';
+ import { Bot, Clock, Plug, Plus, Trash2, Settings, Loader2, Calendar, Key, MessageSquare, Send, Mic, Image, Brain, Sparkles, FileText, User, Scissors, RefreshCw, Package, Users, CreditCard, Save } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Dom' },
@@ -125,7 +125,9 @@ type ActivationSettings = {
   customName: string;
   voiceTone: string;
   voiceGender: 'female' | 'male';
-  selectedModel: string;
+   selectedModel: string;
+   appbarberApiKey: string;
+   appbarberEstablishmentCode: string;
 };
 
 const extractActivationSettings = (activation?: GlobalAgentActivation | null): ActivationSettings => {
@@ -148,7 +150,9 @@ const extractActivationSettings = (activation?: GlobalAgentActivation | null): A
     customName: normalizedFields._custom_name || '',
     voiceTone: TONE_OPTIONS.some((option) => option.value === tone) ? tone : 'professional',
     voiceGender: gender === 'male' ? 'male' : 'female',
-    selectedModel: normalizedFields._selected_model || '',
+     selectedModel: normalizedFields._selected_model || '',
+     appbarberApiKey: normalizedFields._appbarber_api_key || '',
+     appbarberEstablishmentCode: normalizedFields._appbarber_establishment_code || '',
   };
 };
 
@@ -172,7 +176,9 @@ export default function AgentesIACliente() {
   const [customName, setCustomName] = useState('');
   const [voiceTone, setVoiceTone] = useState('professional');
   const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female');
-  const [selectedModel, setSelectedModel] = useState('');
+   const [selectedModel, setSelectedModel] = useState('');
+   const [appbarberApiKey, setAppbarberApiKey] = useState('');
+   const [appbarberEstablishmentCode, setAppbarberEstablishmentCode] = useState('');
   const [saving, setSaving] = useState(false);
   const [showTestSettings, setShowTestSettings] = useState(false);
   // Test chat state
@@ -253,8 +259,10 @@ export default function AgentesIACliente() {
     setClientAiApiKey(activation?.client_ai_api_key ? '***' : '');
     setCustomName(settings.customName);
     setVoiceTone(settings.voiceTone);
-    setVoiceGender(settings.voiceGender);
-    setSelectedModel(settings.selectedModel || agent.ai_model || '');
+     setVoiceGender(settings.voiceGender);
+     setSelectedModel(settings.selectedModel || agent.ai_model || '');
+     setAppbarberApiKey(settings.appbarberApiKey || agent.appbarber_api_key || '');
+     setAppbarberEstablishmentCode(settings.appbarberEstablishmentCode || agent.appbarber_establishment_code || '');
     // Reset test messages for inline test tab
     setTestMessages([{
       id: 'welcome',
@@ -303,8 +311,10 @@ export default function AgentesIACliente() {
       const normalizedSelectedModel = selectedModel?.trim();
       const customFieldPayload: Record<string, string> = {
         ...customFieldValues,
-        _voice_tone: voiceTone,
-        _voice_gender: voiceGender,
+         _voice_tone: voiceTone,
+         _voice_gender: voiceGender,
+         _appbarber_api_key: appbarberApiKey,
+         _appbarber_establishment_code: appbarberEstablishmentCode,
       };
 
       if (normalizedCustomName) customFieldPayload._custom_name = normalizedCustomName;
@@ -812,11 +822,65 @@ export default function AgentesIACliente() {
                   <Key className="h-3.5 w-3.5" />
                   API Key
                 </TabsTrigger>
-                <TabsTrigger value="test" className="gap-1 text-xs">
-                  <MessageSquare className="h-3.5 w-3.5" />
-                  Testar
-                </TabsTrigger>
+                 <TabsTrigger value="test" className="gap-1 text-xs">
+                   <MessageSquare className="h-3.5 w-3.5" />
+                   Testar
+                 </TabsTrigger>
+                 {selectedAgent?.capabilities?.includes('appbarber') && (
+                   <TabsTrigger value="appbarber" className="gap-1 text-xs">
+                     <Scissors className="h-3.5 w-3.5" />
+                     AppBarber
+                   </TabsTrigger>
+                 )}
               </TabsList>
+                 {/* AppBarber Tab */}
+                 <TabsContent value="appbarber" className="m-0 space-y-4">
+                   <div className="space-y-4">
+                     <div className="flex items-center gap-2">
+                       <Scissors className="h-4 w-4 text-primary" />
+                       <h4 className="font-medium text-sm">Integração AppBarber</h4>
+                     </div>
+                     <p className="text-xs text-muted-foreground">
+                       Configure suas credenciais do AppBarber para habilitar agendamentos automáticos.
+                     </p>
+ 
+                     <div className="space-y-3">
+                       <div className="space-y-1.5">
+                         <Label className="text-xs font-medium">API Key</Label>
+                         <Input
+                           type="password"
+                           placeholder="Sua API Key do AppBarber"
+                           value={appbarberApiKey}
+                           onChange={(e) => setAppbarberApiKey(e.target.value)}
+                           className="text-sm"
+                         />
+                       </div>
+                       <div className="space-y-1.5">
+                         <Label className="text-xs font-medium">Código do Estabelecimento</Label>
+                         <Input
+                           placeholder="Código do seu estabelecimento"
+                           value={appbarberEstablishmentCode}
+                           onChange={(e) => setAppbarberEstablishmentCode(e.target.value)}
+                           className="text-sm"
+                         />
+                       </div>
+                     </div>
+ 
+                      {selectedActivation ? (
+                        <AppBarberActivationSection 
+                          activationId={selectedActivation.id} 
+                          credentials={{
+                            appbarber_api_key: appbarberApiKey,
+                            appbarber_establishment_code: appbarberEstablishmentCode
+                          }}
+                        />
+                      ) : (
+                        <p className="text-xs text-amber-500 bg-amber-50 p-2 rounded border border-amber-200">
+                          ⚠️ Ative o agente primeiro para gerenciar serviços e profissionais.
+                        </p>
+                      )}
+                   </div>
+                 </TabsContent>
 
               <div className="flex-1 overflow-y-auto mt-4 space-y-4">
                 {/* Connection Tab */}
@@ -1027,18 +1091,80 @@ export default function AgentesIACliente() {
                   </div>
                   {renderTestChat()}
                 </TabsContent>
-              </div>
-            </Tabs>
-
-            <DialogFooter className="shrink-0 pt-4 border-t">
-              <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {selectedActivation ? 'Salvar' : 'Ativar Agente'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+             </div>
+           </Tabs>
+ 
+           <DialogFooter className="shrink-0 pt-4 border-t">
+             <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>Cancelar</Button>
+             <Button onClick={handleSave} disabled={saving}>
+               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+               {selectedActivation ? 'Salvar' : 'Ativar Agente'}
+             </Button>
+           </DialogFooter>
+         </DialogContent>
+       </Dialog>
+ 
+ function AppBarberActivationSection({ activationId, credentials }: { activationId: string; credentials: { appbarber_api_key: string; appbarber_establishment_code: string } }) {
+   const { getAppBarberServices, syncAppBarberServices, getAppBarberProfessionals, syncAppBarberProfessionals } = useAIAgents();
+   const [services, setServices] = useState<any[]>([]);
+   const [professionals, setProfessionals] = useState<any[]>([]);
+   const [syncing, setSyncing] = useState(false);
+   
+   const loadData = useCallback(async () => {
+     const [s, p] = await Promise.all([
+       getAppBarberServices(activationId),
+       getAppBarberProfessionals(activationId)
+     ]);
+     setServices(s);
+     setProfessionals(p);
+   }, [activationId, getAppBarberServices, getAppBarberProfessionals]);
+ 
+   useEffect(() => { loadData(); }, [loadData]);
+ 
+   const handleSyncServices = async () => {
+     setSyncing(true);
+     try {
+       await syncAppBarberServices(activationId, credentials);
+       toast.success('Serviços sincronizados');
+       loadData();
+     } catch (err: any) { toast.error(err.message); }
+     finally { setSyncing(false); }
+   };
+ 
+   const handleSyncProfessionals = async () => {
+     setSyncing(true);
+     try {
+       await syncAppBarberProfessionals(activationId, credentials);
+       toast.success('Profissionais sincronizados');
+       loadData();
+     } catch (err: any) { toast.error(err.message); }
+     finally { setSyncing(false); }
+   };
+ 
+   return (
+     <div className="space-y-4 border-t pt-4">
+       <div className="flex items-center justify-between">
+         <div className="flex items-center gap-2">
+           <Package className="h-4 w-4 text-primary" />
+           <h4 className="font-medium text-sm">Serviços ({services.length})</h4>
+         </div>
+         <Button size="sm" variant="outline" onClick={handleSyncServices} disabled={syncing}>
+           <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar
+         </Button>
+       </div>
+ 
+       <div className="flex items-center justify-between">
+         <div className="flex items-center gap-2">
+           <Users className="h-4 w-4 text-primary" />
+           <h4 className="font-medium text-sm">Profissionais ({professionals.length})</h4>
+         </div>
+         <Button size="sm" variant="outline" onClick={handleSyncProfessionals} disabled={syncing}>
+           <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar
+         </Button>
+       </div>
+     </div>
+   );
+ }
 
         {/* Standalone Test Chat Dialog - Clean chat-first interface */}
         <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>

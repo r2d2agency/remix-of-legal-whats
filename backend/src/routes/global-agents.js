@@ -82,7 +82,8 @@ router.post('/admin', requireSuperadmin, async (req, res) => {
       name, description, avatar_url, ai_provider, ai_model, ai_api_key,
       system_prompt, temperature, max_tokens, context_window,
       custom_fields, capabilities, handoff_message, handoff_keywords,
-      greeting_message, fallback_message, has_knowledge_base
+       greeting_message, fallback_message, has_knowledge_base,
+       appbarber_api_key, appbarber_establishment_code
     } = req.body;
 
     if (!name) return res.status(400).json({ error: 'Nome é obrigatório' });
@@ -92,8 +93,9 @@ router.post('/admin', requireSuperadmin, async (req, res) => {
         name, description, avatar_url, ai_provider, ai_model, ai_api_key,
         system_prompt, temperature, max_tokens, context_window,
         custom_fields, capabilities, handoff_message, handoff_keywords,
-        greeting_message, fallback_message, has_knowledge_base, created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+        greeting_message, fallback_message, has_knowledge_base,
+        appbarber_api_key, appbarber_establishment_code, created_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
       RETURNING *
     `, [
       name, description || null, avatar_url || null,
@@ -107,6 +109,8 @@ router.post('/admin', requireSuperadmin, async (req, res) => {
       greeting_message || null,
       fallback_message || 'Desculpe, não consegui entender.',
       has_knowledge_base || false,
+      appbarber_api_key || null,
+      appbarber_establishment_code || null,
       req.userId
     ]);
 
@@ -124,7 +128,8 @@ router.patch('/admin/:id', requireSuperadmin, async (req, res) => {
       'name', 'description', 'avatar_url', 'ai_provider', 'ai_model', 'ai_api_key',
       'system_prompt', 'temperature', 'max_tokens', 'context_window',
       'custom_fields', 'capabilities', 'handoff_message', 'handoff_keywords',
-      'greeting_message', 'fallback_message', 'has_knowledge_base', 'is_active'
+      'greeting_message', 'fallback_message', 'has_knowledge_base', 'is_active',
+      'appbarber_api_key', 'appbarber_establishment_code'
     ];
 
     const updates = [];
@@ -492,9 +497,9 @@ router.get('/available', async (req, res) => {
     if (!org) return res.json([]);
 
     const result = await query(`
-      SELECT ga.id, ga.name, ga.description, ga.avatar_url, ga.custom_fields, ga.is_active,
-        ga.system_prompt, ga.greeting_message, ga.ai_provider, ga.ai_model, ga.capabilities,
-        ga.has_knowledge_base,
+       SELECT ga.id, ga.name, ga.description, ga.avatar_url, ga.custom_fields, ga.is_active,
+         ga.system_prompt, ga.greeting_message, ga.ai_provider, ga.ai_model, ga.capabilities,
+         ga.has_knowledge_base, ga.appbarber_api_key, ga.appbarber_establishment_code,
         act.id as activation_id, act.is_active as activation_active, 
         act.schedule_mode, act.schedule_windows, act.custom_field_values,
         act.prompt_additions, act.connection_id, act.client_ai_api_key
@@ -518,8 +523,10 @@ router.get('/available', async (req, res) => {
           greeting_message: row.greeting_message,
           ai_provider: row.ai_provider,
           ai_model: row.ai_model,
-          capabilities: row.capabilities,
-          has_knowledge_base: row.has_knowledge_base,
+           capabilities: row.capabilities,
+           has_knowledge_base: row.has_knowledge_base,
+           appbarber_api_key: row.appbarber_api_key,
+           appbarber_establishment_code: row.appbarber_establishment_code,
           activations: []
         });
       }
