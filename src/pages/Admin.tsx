@@ -364,6 +364,15 @@ export default function Admin() {
     loadWapiToken();
   };
 
+  const loadOrgTemplates = async (orgId: string) => {
+    try {
+      const tpls = await api<any[]>(`/api/organizations/${orgId}/permission-templates`);
+      setTemplates(tpls);
+    } catch {
+      setTemplates([]);
+    }
+  };
+
   // Reload users with search/filter
   const reloadUsers = async () => {
     setSearchingUsers(true);
