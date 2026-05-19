@@ -35,8 +35,10 @@ interface GlobalAgent {
   handoff_keywords: string[];
   greeting_message?: string;
   fallback_message?: string;
-  is_active: boolean;
-  has_knowledge_base: boolean;
+   is_active: boolean;
+   has_knowledge_base: boolean;
+   appbarber_api_key?: string;
+   appbarber_establishment_code?: string;
   org_count?: number;
   active_count?: number;
   created_at: string;
@@ -286,8 +288,10 @@ export function GlobalAgentsTab() {
     handoff_message: 'Vou transferir você para um atendente humano. Aguarde um momento.',
     handoff_keywords: 'humano,atendente,pessoa',
     fallback_message: 'Desculpe, não consegui entender. Pode reformular sua pergunta?',
-    is_active: true,
-    has_knowledge_base: false,
+     is_active: true,
+     has_knowledge_base: false,
+     appbarber_api_key: '',
+     appbarber_establishment_code: '',
   });
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [selectedCapabilities, setSelectedCapabilities] = useState<string[]>(['respond_messages']);
@@ -318,9 +322,11 @@ export function GlobalAgentsTab() {
       greeting_message: agent.greeting_message || '',
       handoff_message: agent.handoff_message,
       handoff_keywords: Array.isArray(agent.handoff_keywords) ? agent.handoff_keywords.join(',') : '',
-      fallback_message: agent.fallback_message || 'Desculpe, não consegui entender.',
-      is_active: agent.is_active,
-      has_knowledge_base: agent.has_knowledge_base || false,
+       fallback_message: agent.fallback_message || 'Desculpe, não consegui entender.',
+       is_active: agent.is_active,
+       has_knowledge_base: agent.has_knowledge_base || false,
+       appbarber_api_key: agent.appbarber_api_key || '',
+       appbarber_establishment_code: agent.appbarber_establishment_code || '',
     });
     setCustomFields(agent.custom_fields || []);
     setSelectedCapabilities(caps);
@@ -344,9 +350,11 @@ export function GlobalAgentsTab() {
       greeting_message: template.config.greeting_message,
       handoff_message: template.config.handoff_message,
       handoff_keywords: 'humano,atendente,pessoa',
-      fallback_message: 'Desculpe, não consegui entender. Pode reformular?',
-      is_active: true,
-      has_knowledge_base: false,
+       fallback_message: 'Desculpe, não consegui entender. Pode reformular?',
+       is_active: true,
+       has_knowledge_base: false,
+       appbarber_api_key: '',
+       appbarber_establishment_code: '',
     });
     setCustomFields(template.config.custom_fields as CustomField[]);
     setSelectedCapabilities(template.config.capabilities);
@@ -751,13 +759,14 @@ export function GlobalAgentsTab() {
             <DialogTitle>{editingAgent ? 'Editar' : 'Criar'} Agente Global</DialogTitle>
           </DialogHeader>
           <Tabs defaultValue="basic" className="flex-1 overflow-hidden flex flex-col">
-            <TabsList className="grid grid-cols-5 shrink-0">
-              <TabsTrigger value="basic">Básico</TabsTrigger>
-              <TabsTrigger value="ai">IA</TabsTrigger>
-              <TabsTrigger value="capabilities">Ações</TabsTrigger>
-              <TabsTrigger value="fields">Campos</TabsTrigger>
-              <TabsTrigger value="messages">Mensagens</TabsTrigger>
-            </TabsList>
+             <TabsList className="grid grid-cols-6 shrink-0">
+               <TabsTrigger value="basic">Básico</TabsTrigger>
+               <TabsTrigger value="ai">IA</TabsTrigger>
+               <TabsTrigger value="capabilities">Ações</TabsTrigger>
+               <TabsTrigger value="fields">Campos</TabsTrigger>
+               <TabsTrigger value="integrations">Integração</TabsTrigger>
+               <TabsTrigger value="messages">Mensagens</TabsTrigger>
+             </TabsList>
             <div className="flex-1 overflow-y-auto mt-4 space-y-4">
               <TabsContent value="basic" className="m-0 space-y-4">
                 <div className="space-y-2">
@@ -907,11 +916,40 @@ export function GlobalAgentsTab() {
                   <Label>Mensagem de handoff (transferência)</Label>
                   <Textarea rows={3} value={formData.handoff_message} onChange={e => setFormData({...formData, handoff_message: e.target.value})} />
                 </div>
-                <div className="space-y-2">
-                  <Label>Palavras-chave de handoff (separadas por vírgula)</Label>
-                  <Input value={formData.handoff_keywords} onChange={e => setFormData({...formData, handoff_keywords: e.target.value})} />
-                </div>
-              </TabsContent>
+                 <div className="space-y-2">
+                   <Label>Palavras-chave de handoff (separadas por vírgula)</Label>
+                   <Input value={formData.handoff_keywords} onChange={e => setFormData({...formData, handoff_keywords: e.target.value})} />
+                 </div>
+               </TabsContent>
+ 
+               <TabsContent value="integrations" className="m-0 space-y-4">
+                 <div className="space-y-4">
+                   <div className="flex items-center gap-2">
+                     <Scissors className="h-4 w-4 text-primary" />
+                     <h4 className="font-medium text-sm">Integração AppBarber</h4>
+                   </div>
+                   <p className="text-xs text-muted-foreground">
+                     Configure as credenciais padrão do AppBarber para este agente global.
+                   </p>
+                   <div className="space-y-2">
+                     <Label>API Key AppBarber</Label>
+                     <Input 
+                       type="password" 
+                       value={formData.appbarber_api_key} 
+                       onChange={e => setFormData({...formData, appbarber_api_key: e.target.value})} 
+                       placeholder="sk-..." 
+                     />
+                   </div>
+                   <div className="space-y-2">
+                     <Label>Código do Estabelecimento</Label>
+                     <Input 
+                       value={formData.appbarber_establishment_code} 
+                       onChange={e => setFormData({...formData, appbarber_establishment_code: e.target.value})} 
+                       placeholder="12345" 
+                     />
+                   </div>
+                 </div>
+               </TabsContent>
             </div>
           </Tabs>
           <DialogFooter className="pt-4 border-t">
