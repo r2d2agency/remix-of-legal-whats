@@ -216,8 +216,9 @@ export default function Organizacoes() {
       loadModules(selectedOrg.id);
       loadTemplates(selectedOrg.id);
       loadAccessGroups(selectedOrg.id);
-
+    }
   }, [selectedOrg]);
+
 
   const loadOrganizations = async () => {
     setLoadingOrgs(true);
