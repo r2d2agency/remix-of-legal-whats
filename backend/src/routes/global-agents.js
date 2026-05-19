@@ -497,9 +497,9 @@ router.get('/available', async (req, res) => {
     if (!org) return res.json([]);
 
     const result = await query(`
-      SELECT ga.id, ga.name, ga.description, ga.avatar_url, ga.custom_fields, ga.is_active,
-        ga.system_prompt, ga.greeting_message, ga.ai_provider, ga.ai_model, ga.capabilities,
-        ga.has_knowledge_base,
+       SELECT ga.id, ga.name, ga.description, ga.avatar_url, ga.custom_fields, ga.is_active,
+         ga.system_prompt, ga.greeting_message, ga.ai_provider, ga.ai_model, ga.capabilities,
+         ga.has_knowledge_base, ga.appbarber_api_key, ga.appbarber_establishment_code,
         act.id as activation_id, act.is_active as activation_active, 
         act.schedule_mode, act.schedule_windows, act.custom_field_values,
         act.prompt_additions, act.connection_id, act.client_ai_api_key
@@ -523,8 +523,10 @@ router.get('/available', async (req, res) => {
           greeting_message: row.greeting_message,
           ai_provider: row.ai_provider,
           ai_model: row.ai_model,
-          capabilities: row.capabilities,
-          has_knowledge_base: row.has_knowledge_base,
+           capabilities: row.capabilities,
+           has_knowledge_base: row.has_knowledge_base,
+           appbarber_api_key: row.appbarber_api_key,
+           appbarber_establishment_code: row.appbarber_establishment_code,
           activations: []
         });
       }
