@@ -937,8 +937,125 @@ export default function Organizacoes() {
                   </TabsList>
 
 
+                  {/* Access Groups Tab */}
+                  <TabsContent value="access-groups">
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              <UsersRound className="h-5 w-5" />
+                              Grupos de Acesso
+                            </CardTitle>
+                            <CardDescription>
+                              Defina quais usuários podem ver quais conexões e as conversas uns dos outros.
+                            </CardDescription>
+                          </div>
+                          {canManageOrg && (
+                            <Button size="sm" onClick={() => openAccessGroupDialog()}>
+                              <Plus className="h-4 w-4 mr-2" />
+                              Novo Grupo
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {loadingAccessGroups ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Nome</TableHead>
+                                <TableHead>Usuários</TableHead>
+                                <TableHead>Conexões</TableHead>
+                                <TableHead>Ações</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {accessGroups.map((group) => (
+                                <TableRow key={group.id}>
+                                  <TableCell className="font-medium">
+                                    <div>{group.name}</div>
+                                    <div className="text-xs text-muted-foreground">{group.description}</div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex -space-x-2">
+                                      {(group.user_ids || []).map((uid: string) => {
+                                        const member = members.find(m => m.user_id === uid);
+                                        return member ? (
+                                          <div key={uid} className="h-8 w-8 rounded-full border bg-muted flex items-center justify-center text-[10px]" title={member.name}>
+                                            {member.name.charAt(0)}
+                                          </div>
+                                        ) : null;
+                                      })}
+                                      {(!group.user_ids || group.user_ids.length === 0) && <span className="text-xs text-muted-foreground">Nenhum usuário</span>}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-wrap gap-1">
+                                      {(group.connection_ids || []).map((cid: string) => {
+                                        const conn = connections.find(c => c.id === cid);
+                                        return conn ? (
+                                          <Badge key={cid} variant="secondary" className="text-[10px]">
+                                            {conn.name}
+                                          </Badge>
+                                        ) : null;
+                                      })}
+                                      {(!group.connection_ids || group.connection_ids.length === 0) && <span className="text-xs text-muted-foreground">Nenhuma conexão</span>}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    {canManageOrg && (
+                                      <div className="flex items-center gap-1">
+                                        <Button size="icon" variant="ghost" onClick={() => openAccessGroupDialog(group)}>
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button size="icon" variant="ghost" className="text-destructive">
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Excluir grupo de acesso?</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                Esta ação não pode ser desfeita.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                              <AlertDialogAction onClick={() => handleDeleteAccessGroup(group.id)} className="bg-destructive text-destructive-foreground">
+                                                Excluir
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {accessGroups.length === 0 && (
+                                <TableRow>
+                                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                                    Nenhum grupo de acesso criado.
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
                   {/* Members Tab */}
                   <TabsContent value="members">
+
                     <Card>
                       <CardHeader>
                         <div className="flex items-center justify-between">
