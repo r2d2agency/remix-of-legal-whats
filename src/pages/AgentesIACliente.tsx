@@ -1091,18 +1091,80 @@ export default function AgentesIACliente() {
                   </div>
                   {renderTestChat()}
                 </TabsContent>
-              </div>
-            </Tabs>
-
-            <DialogFooter className="shrink-0 pt-4 border-t">
-              <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {selectedActivation ? 'Salvar' : 'Ativar Agente'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+             </div>
+           </Tabs>
+ 
+           <DialogFooter className="shrink-0 pt-4 border-t">
+             <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>Cancelar</Button>
+             <Button onClick={handleSave} disabled={saving}>
+               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+               {selectedActivation ? 'Salvar' : 'Ativar Agente'}
+             </Button>
+           </DialogFooter>
+         </DialogContent>
+       </Dialog>
+ 
+ function AppBarberActivationSection({ activationId, credentials }: { activationId: string; credentials: { appbarber_api_key: string; appbarber_establishment_code: string } }) {
+   const { getAppBarberServices, syncAppBarberServices, getAppBarberProfessionals, syncAppBarberProfessionals } = useAIAgents();
+   const [services, setServices] = useState<any[]>([]);
+   const [professionals, setProfessionals] = useState<any[]>([]);
+   const [syncing, setSyncing] = useState(false);
+   
+   const loadData = useCallback(async () => {
+     const [s, p] = await Promise.all([
+       getAppBarberServices(activationId),
+       getAppBarberProfessionals(activationId)
+     ]);
+     setServices(s);
+     setProfessionals(p);
+   }, [activationId, getAppBarberServices, getAppBarberProfessionals]);
+ 
+   useEffect(() => { loadData(); }, [loadData]);
+ 
+   const handleSyncServices = async () => {
+     setSyncing(true);
+     try {
+       await syncAppBarberServices(activationId, credentials);
+       toast.success('Serviços sincronizados');
+       loadData();
+     } catch (err: any) { toast.error(err.message); }
+     finally { setSyncing(false); }
+   };
+ 
+   const handleSyncProfessionals = async () => {
+     setSyncing(true);
+     try {
+       await syncAppBarberProfessionals(activationId, credentials);
+       toast.success('Profissionais sincronizados');
+       loadData();
+     } catch (err: any) { toast.error(err.message); }
+     finally { setSyncing(false); }
+   };
+ 
+   return (
+     <div className="space-y-4 border-t pt-4">
+       <div className="flex items-center justify-between">
+         <div className="flex items-center gap-2">
+           <Package className="h-4 w-4 text-primary" />
+           <h4 className="font-medium text-sm">Serviços ({services.length})</h4>
+         </div>
+         <Button size="sm" variant="outline" onClick={handleSyncServices} disabled={syncing}>
+           <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar
+         </Button>
+       </div>
+ 
+       <div className="flex items-center justify-between">
+         <div className="flex items-center gap-2">
+           <Users className="h-4 w-4 text-primary" />
+           <h4 className="font-medium text-sm">Profissionais ({professionals.length})</h4>
+         </div>
+         <Button size="sm" variant="outline" onClick={handleSyncProfessionals} disabled={syncing}>
+           <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar
+         </Button>
+       </div>
+     </div>
+   );
+ }
 
         {/* Standalone Test Chat Dialog - Clean chat-first interface */}
         <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
