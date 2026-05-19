@@ -3500,6 +3500,8 @@ CREATE INDEX IF NOT EXISTS idx_global_agent_knowledge_chunks_source ON global_ag
 DO $$ BEGIN ALTER TABLE global_ai_agents ADD COLUMN IF NOT EXISTS fallback_message TEXT DEFAULT 'Desculpe, não consegui entender.'; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE global_ai_agents ADD COLUMN IF NOT EXISTS has_knowledge_base BOOLEAN DEFAULT false; EXCEPTION WHEN others THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE global_agent_activations ADD COLUMN IF NOT EXISTS client_ai_api_key TEXT; EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE global_ai_agents ADD COLUMN IF NOT EXISTS appbarber_api_key TEXT; EXCEPTION WHEN others THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE global_ai_agents ADD COLUMN IF NOT EXISTS appbarber_establishment_code VARCHAR(50); EXCEPTION WHEN others THEN NULL; END $$;
 `;
 
 // ============================================
