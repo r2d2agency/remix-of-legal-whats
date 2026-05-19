@@ -90,7 +90,7 @@ export function ChatStats({ stats, loading }: ChatStatsProps) {
       {/* Secondary stats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* By Connection */}
-        {stats.conversations_by_connection.length > 0 && (
+        {Array.isArray(stats.conversations_by_connection) && stats.conversations_by_connection.length > 0 && (
           <Card className="border-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -111,7 +111,7 @@ export function ChatStats({ stats, loading }: ChatStatsProps) {
         )}
 
         {/* By Status */}
-        {stats.conversations_by_status.length > 0 && (
+        {Array.isArray(stats.conversations_by_status) && stats.conversations_by_status.length > 0 && (
           <Card className="border-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
