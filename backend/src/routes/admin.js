@@ -1069,7 +1069,7 @@ router.get('/organizations/:id/members', requireSuperadmin, async (req, res) => 
     
     // Get members
     const membersResult = await query(
-      `SELECT om.id, om.role, om.created_at,
+      `SELECT om.id, om.role, om.created_at, om.permission_template_id,
               u.id as user_id, u.email, u.name
        FROM organization_members om
        JOIN users u ON u.id = om.user_id
