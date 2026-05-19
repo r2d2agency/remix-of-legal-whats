@@ -820,9 +820,14 @@ export default function CRMRelatorios() {
                               dataKey="month"
                               tick={{ fontSize: 12 }}
                               tickFormatter={(v) => {
-                                const [year, month] = v.split("-");
+                                if (!v || typeof v !== 'string') return '';
+                                const parts = v.split("-");
+                                if (parts.length < 2) return v;
+                                const [year, month] = parts;
                                 const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                                return `${months[parseInt(month) - 1]}/${year.slice(2)}`;
+                                const monthIdx = parseInt(month) - 1;
+                                const monthLabel = months[monthIdx] || month;
+                                return `${monthLabel}/${year.slice(2)}`;
                               }}
                             />
                             <YAxis yAxisId="left" tick={{ fontSize: 12 }} />

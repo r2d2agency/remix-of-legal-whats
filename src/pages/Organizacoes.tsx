@@ -1267,7 +1267,7 @@ export default function Organizacoes() {
                                         <span className="text-muted-foreground text-sm">Todas</span>
                                       ) : (
                                         <div className="flex flex-wrap gap-1">
-                                          {assignedConns.slice(0, 2).map((c) => (
+                                          {(Array.isArray(assignedConns) ? assignedConns : []).slice(0, 2).map((c) => (
                                             <Badge key={c.id} variant="outline" className="text-xs">
                                               {c.name}
                                             </Badge>

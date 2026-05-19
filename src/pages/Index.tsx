@@ -121,8 +121,12 @@ const Index = () => {
         messagesToday: chatStats?.messages_today ?? 0,
         messagesWeek: chatStats?.messages_week ?? 0,
       });
-
-      setRecentCampaigns(campaignsData.slice(0, 5));
+      
+      if (Array.isArray(campaignsData)) {
+        setRecentCampaigns(campaignsData.slice(0, 5));
+      } else {
+        setRecentCampaigns([]);
+      }
       setLoading(false);
 
       // Load non-critical data after UI renders

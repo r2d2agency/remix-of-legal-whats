@@ -1779,7 +1779,7 @@ export default function Admin() {
                           </TableCell>
                           <TableCell className="text-muted-foreground">{user.email}</TableCell>
                           <TableCell>
-                            {user.organizations && user.organizations.length > 0 ? (
+                            {Array.isArray(user.organizations) && user.organizations.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
                                 {user.organizations.slice(0, 2).map((org, i) => (
                                   <Badge key={i} variant="secondary" className="text-xs">
