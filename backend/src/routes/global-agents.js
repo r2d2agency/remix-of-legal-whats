@@ -891,7 +891,124 @@ async function processGlobalKnowledgeSource(sourceId) {
   }
 }
 
+// =============================================
+// AppBarber AI Tools
+// =============================================
+
+function buildAppBarberServicesTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_services',
+      description: 'Lista os serviços disponíveis para agendamento (ex: corte, barba).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  };
+}
+
+function buildAppBarberProfessionalsTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_professionals',
+      description: 'Lista os barbeiros/atendentes disponíveis.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  };
+}
+
+function buildAppBarberAvailabilityTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_availability',
+      description: 'Consulta horários disponíveis em uma data (YYYY-MM-DD).',
+      parameters: {
+        type: 'object',
+        properties: { start_date: { type: 'string' } },
+        required: ['start_date'],
+      },
+    },
+  };
+}
+
+function buildAppBarberAppointmentTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_appointment',
+      description: 'Cria um agendamento.',
+      parameters: {
+        type: 'object',
+        properties: {
+          customer_name: { type: 'string' },
+          customer_phone: { type: 'string' },
+          start_date: { type: 'string', description: 'YYYY-MM-DD HH:mm' },
+          professional_code: { type: 'integer' },
+          service_code: { type: 'integer' },
+          duration: { type: 'integer' },
+        },
+        required: ['customer_name', 'customer_phone', 'start_date', 'professional_code', 'service_code', 'duration'],
+      },
+    },
+  };
+}
+
+async function executeGlobalAppBarberTool(toolName, args, agent) {
+  const apiKey = agent.appbarber_api_key;
+  const estCode = agent.appbarber_establishment_code;
+  if (!apiKey || !estCode) return 'Credenciais AppBarber não configuradas.';
+
+  try {
+    switch (toolName) {
+      case 'appbarber_services': {
+        const result = await query(
+          `SELECT service_code, service_description, service_value, service_interval 
+           FROM global_agent_appbarber_services 
+           WHERE global_agent_id = $1 AND is_active = true`,
+          [agent.id]
+        );
+        if (result.rows.length === 0) return 'Nenhum serviço encontrado na tabela local.';
+        return JSON.stringify(result.rows);
+      }
+      case 'appbarber_professionals': {
+        const result = await query(
+          `SELECT employee_code, employee_name, employee_nickname 
+           FROM global_agent_appbarber_professionals 
+           WHERE global_agent_id = $1 AND is_active = true`,
+          [agent.id]
+        );
+        if (result.rows.length === 0) return 'Nenhum profissional encontrado na tabela local.';
+        return JSON.stringify(result.rows);
+      }
+      case 'appbarber_availability': {
+        const params = new URLSearchParams({ establishment_code: String(estCode), start_date: args.start_date });
+        const res = await fetch(`https://api.appbarber.com/v1/availability?${params.toString()}`, {
+          headers: { 'X-API-Key': apiKey, 'User-Agent': 'curl/8.7.1' }
+        });
+        const { payload } = await readAppBarberResponse(res);
+        return JSON.stringify(payload || []);
+      }
+      case 'appbarber_appointment': {
+        const res = await fetch(`https://api.appbarber.com/v1/appointment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey, 'User-Agent': 'curl/8.7.1' },
+          body: JSON.stringify({ ...args, establishment_code: estCode })
+        });
+        const { payload } = await readAppBarberResponse(res);
+        return JSON.stringify(payload || { success: res.ok });
+      }
+      default:
+        return 'Ferramenta desconhecida.';
+    }
+  } catch (err) {
+    console.error('Error executing global appbarber tool:', err);
+    return `Erro ao executar ferramenta: ${err.message}`;
+  }
+}
+
 export default router;
+
 
 // =============================================
 // SUPERADMIN - AppBarber Integration
