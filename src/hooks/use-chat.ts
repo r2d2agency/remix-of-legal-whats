@@ -266,21 +266,19 @@ export const useChat = () => {
     }
   }, []);
 
-  // Get connections for filter (now correctly restricted to allowed connections)
   const getConnections = useCallback(async (): Promise<Connection[]> => {
     try {
       const allConnections = await api<Connection[]>('/api/connections');
       
       // If user is owner or admin, they see everything
-      const currentUser = await api<{ user: { id: string; role: string; organization_id: string } }>('/api/auth/me');
-      if (currentUser.user.role === 'owner' || currentUser.user.role === 'admin') {
+      if (user?.role === 'owner' || user?.role === 'admin') {
         return allConnections;
       }
 
       // Check if there are access groups defined for this organization
-      if (currentUser.user.organization_id) {
+      if (user?.organization_id) {
         try {
-          const accessGroups = await api<any[]>(`/api/organizations/${currentUser.user.organization_id}/access-groups`);
+          const accessGroups = await api<any[]>(`/api/organizations/${user.organization_id}/access-groups`);
           
           // Hybrid mode: if no groups exist, show everything
           if (!accessGroups || accessGroups.length === 0) {
@@ -289,7 +287,7 @@ export const useChat = () => {
 
           // Strict filtering if groups exist
           const userGroups = accessGroups.filter(group => 
-            group.user_ids && group.user_ids.includes(currentUser.user.id)
+            group.user_ids && group.user_ids.includes(user.id)
           );
           
           const allowedConnectionIds = new Set<string>();
@@ -311,7 +309,7 @@ export const useChat = () => {
       console.error('Error fetching connections:', err);
       return [];
     }
-  }, []);
+  }, [user]);
 
   // Get chat statistics
   const getChatStats = useCallback(async (): Promise<ChatStats> => {
