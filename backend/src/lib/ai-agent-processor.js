@@ -1570,15 +1570,17 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
       }
 
       case 'appbarber_services': {
-       // Query from local cached services table (no API cost)
-       const filterCol = agent._isGlobalAgent ? 'global_agent_id' : 'agent_id';
-       const result = await query(
-         `SELECT service_code, service_description, service_value, service_interval 
-          FROM appbarber_services 
-          WHERE ${filterCol} = $1 AND is_active = true 
-          ORDER BY service_description`,
-         [agent.id]
-       );
+        // Query from local cached services table (no API cost)
+        const tableName = agent._isGlobalAgent ? 'global_agent_appbarber_services' : 'appbarber_services';
+        const filterCol = agent._isGlobalAgent ? 'global_agent_id' : 'agent_id';
+        const result = await query(
+          `SELECT service_code, service_description, service_value, service_interval 
+           FROM ${tableName} 
+           WHERE ${filterCol} = $1 AND is_active = true 
+           ORDER BY service_description`,
+          [agent.id]
+        );
+
         if (result.rows.length === 0) {
           resultText = 'Nenhum serviço cadastrado. Peça ao administrador para sincronizar os serviços do AppBarber.';
         } else {
