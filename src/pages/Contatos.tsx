@@ -93,6 +93,7 @@ const Contatos = () => {
   const [isValidatingNewContact, setIsValidatingNewContact] = useState(false);
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [editingContact, setEditingContact] = useState<string | null>(null);
+  const { data: allConnections } = useConnections();
   const [validatingContact, setValidatingContact] = useState<string | null>(null);
   const [wapiConnectionId, setWapiConnectionId] = useState<string | null>(null);
   const [syncConnections, setSyncConnections] = useState<SyncConnection[]>([]);
@@ -328,15 +329,20 @@ const Contatos = () => {
   };
 
   const handleValidateWhatsApp = async (contactId: string, phone: string) => {
-    const config = evolutionApi.getConfig();
-    if (!config) {
-      toast.error("Configure a conexão Evolution API primeiro");
+    // Find a connection that can validate
+    const validConn = allConnections?.find(c => 
+      c.status === 'connected' && 
+      (c.provider === 'evolution' || c.provider === 'wapi' || c.provider === 'meta')
+    );
+
+    if (!validConn) {
+      toast.error("Nenhuma conexão ativa disponível para validar o número");
       return;
     }
 
     setValidatingContact(contactId);
     try {
-      const isValid = await evolutionApi.checkWhatsAppNumber(config, phone);
+      const isValid = await whatsappProvider.checkNumber(validConn as any, phone);
       if (isValid) {
         toast.success("Número é WhatsApp válido!");
         await updateContact(contactId, { is_whatsapp: true });
@@ -385,17 +391,25 @@ const Contatos = () => {
   };
 
   const validateWhatsAppNumber = async (phone: string): Promise<boolean> => {
-    const config = evolutionApi.getConfig();
-    if (!config) {
-      throw new Error("Evolution API não configurada");
+    const validConn = allConnections?.find(c => 
+      c.status === 'connected' && 
+      (c.provider === 'evolution' || c.provider === 'wapi' || c.provider === 'meta')
+    );
+    
+    if (!validConn) {
+      throw new Error("Nenhuma conexão ativa disponível para validação");
     }
-    return evolutionApi.checkWhatsAppNumber(config, phone);
+    
+    return whatsappProvider.checkNumber(validConn as any, phone);
   };
 
   const validateWhatsAppBulk = async (phones: string[]): Promise<{ phone: string; exists: boolean }[]> => {
-    if (!wapiConnectionId) throw new Error("Nenhuma conexão W-API disponível");
+    const wapiConn = allConnections?.find(c => c.status === 'connected' && c.provider === 'wapi');
+    
+    if (!wapiConn) throw new Error("Nenhuma conexão W-API ativa disponível para validação em massa");
+    
     const result = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(
-      `/api/wapi/${wapiConnectionId}/validate-numbers`,
+      `/api/wapi/${wapiConn.id}/validate-numbers`,
       { method: 'POST', body: { phones } }
     );
     return result.results;
