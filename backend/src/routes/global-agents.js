@@ -985,7 +985,14 @@ async function executeGlobalAppBarberTool(toolName, args, agent) {
         return JSON.stringify(result.rows);
       }
       case 'appbarber_availability': {
-        const params = new URLSearchParams({ establishment_code: String(estCode), start_date: args.start_date });
+        const queryParams = { 
+          establishment_code: String(estCode), 
+          start_date: args.start_date 
+        };
+        if (args.service_code) {
+          queryParams.service_code = String(args.service_code);
+        }
+        const params = new URLSearchParams(queryParams);
         const res = await fetch(`https://api.appbarber.com/v1/availability?${params.toString()}`, {
           headers: { 'X-API-Key': apiKey, 'User-Agent': 'curl/8.7.1' }
         });
