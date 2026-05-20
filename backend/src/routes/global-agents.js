@@ -1027,6 +1027,22 @@ async function executeGlobalAppBarberTool(toolName, args, agent) {
         const { payload } = await readAppBarberResponse(res);
         return JSON.stringify(payload || { success: res.ok });
       }
+      case 'appbarber_history': {
+        const params = new URLSearchParams({ 
+          establishment_code: String(estCode), 
+          type: '1', 
+          start_date: args.start_date, 
+          end_date: args.end_date 
+        });
+        if (args.status_type) params.set('status_type', String(args.status_type));
+        const res = await fetch(`https://api.appbarber.com/v1/appointments/history?${params.toString()}`, {
+          headers: { 'X-API-Key': apiKey, 'User-Agent': 'curl/8.7.1' }
+        });
+        const { payload } = await readAppBarberResponse(res);
+        const data = payload || {};
+        const items = data.data || [];
+        return items.map(a => `• ${a.client_name} - ${a.service_description} com ${a.employee_name} - ${a.scheduling_start} - ${a.scheduling_status}`).join('\n') || 'Nenhum agendamento encontrado.';
+      }
       default:
         return 'Ferramenta desconhecida.';
     }
