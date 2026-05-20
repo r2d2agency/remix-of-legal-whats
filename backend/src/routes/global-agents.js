@@ -396,9 +396,43 @@ router.post('/admin/:id/test', requireSuperadmin, async (req, res) => {
       return res.status(400).json({ error: 'Nenhuma API key configurada para este agente. Configure na aba IA.' });
     }
 
-    // Build system prompt with knowledge base if enabled
+    // Build system prompt with knowledge base and local data
     let systemPrompt = agent.system_prompt || 'Você é um assistente virtual profissional.';
     
+    // Inject AppBarber Local Data if capability enabled
+    const capabilities = Array.isArray(agent.capabilities) ? agent.capabilities : (agent.capabilities || []);
+    if (capabilities.includes('appbarber')) {
+      try {
+        const [servicesRes, professionalsRes] = await Promise.all([
+          query(`SELECT service_code, service_description, service_value, service_interval 
+                 FROM global_agent_appbarber_services 
+                 WHERE global_agent_id = $1 AND is_active = true`, [agent.id]),
+          query(`SELECT employee_code, employee_name, employee_nickname 
+                 FROM global_agent_appbarber_professionals 
+                 WHERE global_agent_id = $1 AND is_active = true`, [agent.id])
+        ]);
+
+        if (servicesRes.rows.length > 0 || professionalsRes.rows.length > 0) {
+          systemPrompt += '\n\n=== BASE LOCAL (AppBarber) ===\n';
+          if (servicesRes.rows.length > 0) {
+            systemPrompt += '\n--- SERVIÇOS E PREÇOS ---\n';
+            servicesRes.rows.forEach(s => {
+              systemPrompt += `• ${s.service_description} - R$ ${s.service_value} - Duração: ${s.service_interval}min (Código: ${s.service_code})\n`;
+            });
+          }
+          if (professionalsRes.rows.length > 0) {
+            systemPrompt += '\n--- PROFISSIONAIS DISPONÍVEIS ---\n';
+            professionalsRes.rows.forEach(p => {
+              systemPrompt += `• ${p.employee_name}${p.employee_nickname ? ` (${p.employee_nickname})` : ''} (Código: ${p.employee_code})\n`;
+            });
+          }
+          systemPrompt += '\nUse SEMPRE estes dados da BASE LOCAL para informar serviços, preços e profissionais. Não use a API para listar serviços.';
+        }
+      } catch (err) {
+        console.error('Error injecting appbarber local data:', err);
+      }
+    }
+
     if (agent.has_knowledge_base) {
       try {
         const knowledgeResult = await query(`
@@ -418,11 +452,6 @@ router.post('/admin/:id/test', requireSuperadmin, async (req, res) => {
       }
     }
 
-    // AppBarber instructions
-    const capabilities = Array.isArray(agent.capabilities) ? agent.capabilities : (agent.capabilities || []);
-    if (capabilities.includes('appbarber')) {
-      systemPrompt += `\n\nREGRAS CRÍTICAS DE DADOS (AppBarber):\n1. NUNCA invente nomes de profissionais ou preços.\n2. Para saber quem trabalha no local, use SEMPRE a ferramenta 'appbarber_professionals'.\n3. Para saber preços e serviços, use 'appbarber_services'.\n4. Se o usuário perguntar por algo que não retornou nas ferramentas, diga que não encontrou esse registro.`;
-    }
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -439,10 +468,10 @@ router.post('/admin/:id/test', requireSuperadmin, async (req, res) => {
     let tools = [];
     if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
       tools = [
-        buildAppBarberServicesTool(),
         buildAppBarberProfessionalsTool(),
         buildAppBarberAvailabilityTool(),
         buildAppBarberAppointmentTool(),
+        buildAppBarberHistoryTool(),
       ];
     }
 
@@ -804,6 +833,40 @@ router.post('/test/:id', async (req, res) => {
     
     systemPrompt += `\n\nInformações de contexto:\n- Data atual: ${currentDate} (${currentDay})\n- Hora atual: ${currentTime} (horário de Brasília)`;
 
+    // Inject AppBarber Local Data if capability enabled
+    const capabilities = Array.isArray(agent.capabilities) ? agent.capabilities : (agent.capabilities || []);
+    if (capabilities.includes('appbarber')) {
+      try {
+        const [servicesRes, professionalsRes] = await Promise.all([
+          query(`SELECT service_code, service_description, service_value, service_interval 
+                 FROM global_agent_appbarber_services 
+                 WHERE global_agent_id = $1 AND is_active = true`, [agent.id]),
+          query(`SELECT employee_code, employee_name, employee_nickname 
+                 FROM global_agent_appbarber_professionals 
+                 WHERE global_agent_id = $1 AND is_active = true`, [agent.id])
+        ]);
+
+        if (servicesRes.rows.length > 0 || professionalsRes.rows.length > 0) {
+          systemPrompt += '\n\n=== BASE LOCAL (AppBarber) ===\n';
+          if (servicesRes.rows.length > 0) {
+            systemPrompt += '\n--- SERVIÇOS E PREÇOS ---\n';
+            servicesRes.rows.forEach(s => {
+              systemPrompt += `• ${s.service_description} - R$ ${s.service_value} - Duração: ${s.service_interval}min (Código: ${s.service_code})\n`;
+            });
+          }
+          if (professionalsRes.rows.length > 0) {
+            systemPrompt += '\n--- PROFISSIONAIS DISPONÍVEIS ---\n';
+            professionalsRes.rows.forEach(p => {
+              systemPrompt += `• ${p.employee_name}${p.employee_nickname ? ` (${p.employee_nickname})` : ''} (Código: ${p.employee_code})\n`;
+            });
+          }
+          systemPrompt += '\nUse SEMPRE estes dados da BASE LOCAL para informar serviços, preços e profissionais. Não use a API para listar serviços.';
+        }
+      } catch (err) {
+        console.error('Error injecting appbarber local data for client test:', err);
+      }
+    }
+
     // Include knowledge base
     if (agent.has_knowledge_base) {
       try {
@@ -922,11 +985,14 @@ function buildAppBarberAvailabilityTool() {
     type: 'function',
     function: {
       name: 'appbarber_availability',
-      description: 'Consulta horários disponíveis em uma data (YYYY-MM-DD).',
+      description: 'Consulta horários disponíveis em uma data (YYYY-MM-DD) para um serviço.',
       parameters: {
         type: 'object',
-        properties: { start_date: { type: 'string' } },
-        required: ['start_date'],
+        properties: { 
+          start_date: { type: 'string', description: 'YYYY-MM-DD' },
+          service_code: { type: 'integer' }
+        },
+        required: ['start_date', 'service_code'],
       },
     },
   };
@@ -949,6 +1015,25 @@ function buildAppBarberAppointmentTool() {
           duration: { type: 'integer' },
         },
         required: ['customer_name', 'customer_phone', 'start_date', 'professional_code', 'service_code', 'duration'],
+      },
+    },
+  };
+}
+
+function buildAppBarberHistoryTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_history',
+      description: 'Consulta histórico de agendamentos num período (máx 31 dias).',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: { type: 'string', description: 'Data inicial YYYY-MM-DD' },
+          end_date: { type: 'string', description: 'Data final YYYY-MM-DD' },
+          status_type: { type: 'integer', description: '1=Agendado, 2=Realizado, 3=Cancelado, 4=Bloqueado, 5=Ausente' },
+        },
+        required: ['start_date', 'end_date'],
       },
     },
   };
@@ -982,7 +1067,14 @@ async function executeGlobalAppBarberTool(toolName, args, agent) {
         return JSON.stringify(result.rows);
       }
       case 'appbarber_availability': {
-        const params = new URLSearchParams({ establishment_code: String(estCode), start_date: args.start_date });
+        const queryParams = { 
+          establishment_code: String(estCode), 
+          start_date: args.start_date 
+        };
+        if (args.service_code) {
+          queryParams.service_code = String(args.service_code);
+        }
+        const params = new URLSearchParams(queryParams);
         const res = await fetch(`https://api.appbarber.com/v1/availability?${params.toString()}`, {
           headers: { 'X-API-Key': apiKey, 'User-Agent': 'curl/8.7.1' }
         });
@@ -997,6 +1089,22 @@ async function executeGlobalAppBarberTool(toolName, args, agent) {
         });
         const { payload } = await readAppBarberResponse(res);
         return JSON.stringify(payload || { success: res.ok });
+      }
+      case 'appbarber_history': {
+        const params = new URLSearchParams({ 
+          establishment_code: String(estCode), 
+          type: '1', 
+          start_date: args.start_date, 
+          end_date: args.end_date 
+        });
+        if (args.status_type) params.set('status_type', String(args.status_type));
+        const res = await fetch(`https://api.appbarber.com/v1/appointments/history?${params.toString()}`, {
+          headers: { 'X-API-Key': apiKey, 'User-Agent': 'curl/8.7.1' }
+        });
+        const { payload } = await readAppBarberResponse(res);
+        const data = payload || {};
+        const items = data.data || [];
+        return items.map(a => `• ${a.client_name} - ${a.service_description} com ${a.employee_name} - ${a.scheduling_start} - ${a.scheduling_status}`).join('\n') || 'Nenhum agendamento encontrado.';
       }
       default:
         return 'Ferramenta desconhecida.';
