@@ -301,24 +301,32 @@ export const useChat = () => {
         try {
           const accessGroups = await api<any[]>(`/api/organizations/${user.organization_id}/access-groups`);
           
-          // Hybrid mode: if no groups exist, show everything
-          if (!accessGroups || accessGroups.length === 0) {
-            return allConnections;
+          // If there ARE access groups, strictly filter by those groups the user belongs to
+          if (accessGroups && accessGroups.length > 0) {
+            const userGroups = accessGroups.filter(group => 
+              group.user_ids && group.user_ids.includes(user.id)
+            );
+            
+            const allowedConnectionIds = new Set<string>();
+            userGroups.forEach(group => {
+              if (group.connection_ids) {
+                group.connection_ids.forEach(id => allowedConnectionIds.add(id));
+              }
+            });
+
+            return allConnections.filter(conn => allowedConnectionIds.has(conn.id));
           }
 
-          // Strict filtering if groups exist
-          const userGroups = accessGroups.filter(group => 
-            group.user_ids && group.user_ids.includes(user.id)
-          );
-          
-          const allowedConnectionIds = new Set<string>();
-          userGroups.forEach(group => {
-            if (group.connection_ids) {
-              group.connection_ids.forEach(id => allowedConnectionIds.add(id));
+          // If NO access groups are created, check for direct connection assignments (Hybrid Mode)
+          try {
+            const memberInfo = await api<any>(`/api/organizations/${user.organization_id}/members/${user.id}`);
+            if (memberInfo && memberInfo.assigned_connections && memberInfo.assigned_connections.length > 0) {
+              const assignedIds = new Set(memberInfo.assigned_connections.map((c: any) => c.id));
+              return allConnections.filter(conn => assignedIds.has(conn.id));
             }
-          });
-
-          return allConnections.filter(conn => allowedConnectionIds.has(conn.id));
+          } catch (e) {
+            // Fallback
+          }
         } catch (error) {
           console.error('[useChat] Error fetching access groups:', error);
           return allConnections;
