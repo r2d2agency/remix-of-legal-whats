@@ -2516,6 +2516,14 @@ DO $$ BEGIN
   ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS appbarber_establishment_code VARCHAR(50);
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 
+DO $$ BEGIN
+  ALTER TABLE global_ai_agents ADD COLUMN IF NOT EXISTS appbarber_api_key TEXT;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+DO $$ BEGIN
+  ALTER TABLE global_ai_agents ADD COLUMN IF NOT EXISTS appbarber_establishment_code VARCHAR(50);
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+
 -- Add appbarber capability to enum
 DO $$ BEGIN
   ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'appbarber';
@@ -2570,6 +2578,48 @@ CREATE TABLE IF NOT EXISTS appbarber_payment_types (
     UNIQUE(agent_id, payment_code)
 );
 CREATE INDEX IF NOT EXISTS idx_appbarber_payment_types_agent ON appbarber_payment_types(agent_id);
+
+--- AppBarber for Global Agents
+CREATE TABLE IF NOT EXISTS global_agent_appbarber_payment_types (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    global_agent_id UUID REFERENCES global_ai_agents(id) ON DELETE CASCADE NOT NULL,
+    payment_code INTEGER NOT NULL,
+    payment_description VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    synced_from_api BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(global_agent_id, payment_code)
+);
+
+CREATE TABLE IF NOT EXISTS global_agent_appbarber_services (
+
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    global_agent_id UUID REFERENCES global_ai_agents(id) ON DELETE CASCADE NOT NULL,
+    service_code INTEGER NOT NULL,
+    service_description VARCHAR(255) NOT NULL,
+    service_value DECIMAL(10,2) DEFAULT 0,
+    service_interval INTEGER DEFAULT 30,
+    is_active BOOLEAN DEFAULT true,
+    synced_from_api BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(global_agent_id, service_code)
+);
+
+CREATE TABLE IF NOT EXISTS global_agent_appbarber_professionals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    global_agent_id UUID REFERENCES global_ai_agents(id) ON DELETE CASCADE NOT NULL,
+    employee_code INTEGER NOT NULL,
+    employee_name VARCHAR(255) NOT NULL,
+    employee_nickname VARCHAR(255),
+    is_active BOOLEAN DEFAULT true,
+    synced_from_api BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(global_agent_id, employee_code)
+);
+
 CREATE INDEX IF NOT EXISTS idx_appbarber_payment_types_org ON appbarber_payment_types(organization_id);
 
 ALTER TABLE ai_knowledge_chunks ADD COLUMN IF NOT EXISTS embedding JSONB;
