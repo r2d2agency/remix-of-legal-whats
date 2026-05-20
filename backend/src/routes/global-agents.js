@@ -439,10 +439,10 @@ router.post('/admin/:id/test', requireSuperadmin, async (req, res) => {
     let tools = [];
     if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
       tools = [
-        buildAppBarberServicesTool(),
         buildAppBarberProfessionalsTool(),
         buildAppBarberAvailabilityTool(),
         buildAppBarberAppointmentTool(),
+        buildAppBarberHistoryTool(),
       ];
     }
 
