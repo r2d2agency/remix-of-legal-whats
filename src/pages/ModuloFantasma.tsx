@@ -218,7 +218,7 @@ export default function ModuloFantasma() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as instâncias</SelectItem>
-                  {connections.map(c => (
+                  {availableConnections.map(c => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
