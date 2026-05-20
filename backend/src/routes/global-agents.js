@@ -957,6 +957,25 @@ function buildAppBarberAppointmentTool() {
   };
 }
 
+function buildAppBarberHistoryTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'appbarber_history',
+      description: 'Consulta histórico de agendamentos num período (máx 31 dias).',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: { type: 'string', description: 'Data inicial YYYY-MM-DD' },
+          end_date: { type: 'string', description: 'Data final YYYY-MM-DD' },
+          status_type: { type: 'integer', description: '1=Agendado, 2=Realizado, 3=Cancelado, 4=Bloqueado, 5=Ausente' },
+        },
+        required: ['start_date', 'end_date'],
+      },
+    },
+  };
+}
+
 async function executeGlobalAppBarberTool(toolName, args, agent) {
   const apiKey = agent.appbarber_api_key;
   const estCode = agent.appbarber_establishment_code;
