@@ -2580,7 +2580,20 @@ CREATE TABLE IF NOT EXISTS appbarber_payment_types (
 CREATE INDEX IF NOT EXISTS idx_appbarber_payment_types_agent ON appbarber_payment_types(agent_id);
 
 --- AppBarber for Global Agents
+CREATE TABLE IF NOT EXISTS global_agent_appbarber_payment_types (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    global_agent_id UUID REFERENCES global_ai_agents(id) ON DELETE CASCADE NOT NULL,
+    payment_code INTEGER NOT NULL,
+    payment_description VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    synced_from_api BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(global_agent_id, payment_code)
+);
+
 CREATE TABLE IF NOT EXISTS global_agent_appbarber_services (
+
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     global_agent_id UUID REFERENCES global_ai_agents(id) ON DELETE CASCADE NOT NULL,
     service_code INTEGER NOT NULL,
