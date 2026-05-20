@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
 import { ConnectionAIAgentDialog } from "@/components/conexao/ConnectionAIAgentDialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { useConnections as useConnectionsHook } from "@/hooks/use-connections";
 
 interface Connection {
   id: string;
