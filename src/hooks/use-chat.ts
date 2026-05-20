@@ -495,7 +495,7 @@ export const useChat = () => {
      let url = `/api/evolution/${params.connectionId}/sync-chat`;
      let body: any = {
        remoteJid: params.remoteJid,
-       days: params.days ?? 7,
+       days: params.days ?? 30,
      };
  
       if (params.provider === 'uazapi') {
