@@ -202,8 +202,6 @@ const Conexao = () => {
     loadPlanLimits();
   }, [authLoading, user?.id, user?.organization_id, filteredConnections]);
 
-  const { data: filteredConnections = [] } = useConnectionsHook();
-
   const loadConnections = async () => {
     setLoading(true);
     try {
