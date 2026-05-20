@@ -3,6 +3,8 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { callAI } from '../lib/ai-caller.js';
 import { searchKnowledge } from '../lib/knowledge-processor.js';
+import { logInfo, logError } from '../logger.js';
+
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
