@@ -144,6 +144,8 @@ const Conexao = () => {
   const [migrateSourceId, setMigrateSourceId] = useState<string>("");
   const [migrating, setMigrating] = useState(false);
 
+  const { data: filteredConnections = [] } = useConnectionsHook();
+
   // Import history (Gleego legacy export) state
   const [importingConnectionId, setImportingConnectionId] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
