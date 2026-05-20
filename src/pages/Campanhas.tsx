@@ -155,18 +155,21 @@ const Campanhas = () => {
   const [randomOrder, setRandomOrder] = useState(true);
   const [randomMessages, setRandomMessages] = useState(false);
 
+  const { data: availableConnections = [] } = useConnections();
+  
   const loadData = useCallback(async () => {
     const results = await Promise.allSettled([
       getCampaigns(),
       getLists(),
       getMessages(),
       getFlows(),
-      // Respeita os grupos de acesso do usuário
-      api<Connection[]>('/api/connections'),
       api<ConversationTag[]>('/api/chat/tags/with-count'),
     ]);
 
-    const [campaignsRes, listsRes, messagesRes, flowsRes, connectionsRes, tagsRes] = results;
+    const [campaignsRes, listsRes, messagesRes, flowsRes, tagsRes] = results;
+    
+    // Set connections from useConnections hook
+    setConnections(availableConnections);
 
     if (campaignsRes.status === 'fulfilled') {
       setCampaigns(campaignsRes.value);
