@@ -15,6 +15,8 @@ import { API_URL, getAuthToken } from '@/lib/api';
 import { toast } from 'sonner';
  import { Bot, Plus, Trash2, Loader2, Pencil, Building2, X, Brain, MessageSquare, Send, Sparkles, FileText, BookOpen, Shield, Clock, Headphones, Target, Upload, BarChart3, Mic, Image, Eye, Users, Zap, ArrowRightLeft, Scissors, RefreshCw, Package } from 'lucide-react';
 import { useAIAgents } from '@/hooks/use-ai-agents';
+import { useGlobalAgents, AppBarberService, AppBarberProfessional } from '@/hooks/use-global-agents';
+
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 
