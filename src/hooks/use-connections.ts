@@ -39,27 +39,36 @@ export function useConnections(options: { scope?: 'organization' | 'user' } = { 
         try {
           const accessGroups = await api<AccessGroup[]>(`/api/organizations/${user.organization_id}/access-groups`);
           
-          // If NO access groups are created, we are in "Hybrid Mode" - show everything or fallback to existing behavior
-          if (!accessGroups || accessGroups.length === 0) {
-            return allConnections;
+          // If there ARE access groups, strictly filter by those groups the user belongs to
+          if (accessGroups && accessGroups.length > 0) {
+            const userGroups = accessGroups.filter(group => 
+              group.user_ids && group.user_ids.includes(user.id)
+            );
+            
+            const allowedConnectionIds = new Set<string>();
+            userGroups.forEach(group => {
+              if (group.connection_ids) {
+                group.connection_ids.forEach(id => allowedConnectionIds.add(id));
+              }
+            });
+
+            return allConnections.filter(conn => allowedConnectionIds.has(conn.id));
           }
 
-          // If there ARE access groups, strictly filter by those groups the user belongs to
-          const userGroups = accessGroups.filter(group => 
-            group.user_ids && group.user_ids.includes(user.id)
-          );
-          
-          const allowedConnectionIds = new Set<string>();
-          userGroups.forEach(group => {
-            if (group.connection_ids) {
-              group.connection_ids.forEach(id => allowedConnectionIds.add(id));
+          // If NO access groups are created, we check for direct connection assignments (Hybrid Mode)
+          // We fetch the member info for the current user
+          try {
+            const memberInfo = await api<any>(`/api/organizations/${user.organization_id}/members/${user.id}`);
+            if (memberInfo && memberInfo.assigned_connections && memberInfo.assigned_connections.length > 0) {
+              const assignedIds = new Set(memberInfo.assigned_connections.map((c: any) => c.id));
+              return allConnections.filter(conn => assignedIds.has(conn.id));
             }
-          });
-
-          return allConnections.filter(conn => allowedConnectionIds.has(conn.id));
+          } catch (e) {
+            // If we can't get member info or it's not restricted, return all (standard behavior)
+            return allConnections;
+          }
         } catch (error) {
           console.error('[useConnections] Error fetching access groups:', error);
-          // On error, fallback to returning all (safer for "hybrid mode")
           return allConnections;
         }
       }
