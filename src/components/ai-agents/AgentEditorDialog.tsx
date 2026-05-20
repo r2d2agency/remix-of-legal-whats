@@ -1010,6 +1010,7 @@ function AppBarberConfigSection({ agentId, formData, setFormData }: {
       const result = await syncAppBarberServices(agentId, {
         appbarber_api_key: String(formData.appbarber_api_key || '').trim(),
         appbarber_establishment_code: String(formData.appbarber_establishment_code || '').trim(),
+        type: 1,
       });
 
       if (!result?.imported) {
