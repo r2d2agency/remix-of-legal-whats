@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface ConversationTag {
   id: string;
