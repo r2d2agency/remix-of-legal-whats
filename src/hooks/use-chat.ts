@@ -495,15 +495,16 @@ export const useChat = () => {
      let url = `/api/evolution/${params.connectionId}/sync-chat`;
      let body: any = {
        remoteJid: params.remoteJid,
-       days: params.days ?? 7,
+       days: params.days ?? 30,
      };
  
-     if (params.provider === 'uazapi') {
-       url = `/api/uazapi/${params.connectionId}/sync-messages`;
-       body = {
-         chatId: params.remoteJid,
-         limit: (params.days ?? 7) * 50, // rough estimate of messages per day
-       };
+      if (params.provider === 'uazapi') {
+        url = `/api/uazapi/${params.connectionId}/sync-messages`;
+        body = {
+          chatId: params.remoteJid,
+          limit: (params.days ?? 30) * 500, // Aumentado para garantir histórico longo (30 dias padrão)
+          days: params.days ?? 30, // Enviando também o parâmetro days caso o backend suporte
+        };
      } else if (params.provider === 'wapi') {
        // W-API uses a different sync flow, but we can call sync-conversations for the whole instance
        // or just return a message saying it's not supported per-chat yet
