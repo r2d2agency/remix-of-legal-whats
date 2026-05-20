@@ -263,15 +263,20 @@ export const useChat = () => {
       // For now, we'll assume the backend might need the list of allowed connections if we're not admin.
       
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
-      const data = await api<Conversation[]>(url);
+      let data = await api<Conversation[]>(url);
+
+      // Client-side filter fallback for connection and tag if backend doesn't support it
+      if (filters?.connection && filters.connection !== 'all') {
+        data = data.filter(conv => conv.connection_id === filters.connection);
+      }
+      
+      if (filters?.tag && filters.tag !== 'all') {
+        data = data.filter(conv => conv.tags?.some(t => t.id === filters.tag));
+      }
 
       // Frontend fallback filtering for "Hybrid Mode" and security
       if (user?.role !== 'owner' && user?.role !== 'admin' && user?.organization_id) {
         try {
-          // We can't easily fetch groups on every conversation load, so we should probably
-          // cache them or assume the connections list we already have is correct.
-          // For now, let's just use the connection list if we have it, or just return the data.
-          // If we want to be very strict:
           const allowedConnections = await getConnections();
           const allowedIds = new Set(allowedConnections.map(c => c.id));
           return data.filter(conv => allowedIds.has(conv.connection_id));
