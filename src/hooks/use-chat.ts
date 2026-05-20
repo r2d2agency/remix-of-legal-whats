@@ -267,9 +267,44 @@ export const useChat = () => {
   // Get connections for filter (now correctly restricted to allowed connections)
   const getConnections = useCallback(async (): Promise<Connection[]> => {
     try {
-      // Changed from ?scope=organization to default endpoint which respects access group filters
-      const data = await api<Connection[]>('/api/connections');
-      return data;
+      const allConnections = await api<Connection[]>('/api/connections');
+      
+      // If user is owner or admin, they see everything
+      const currentUser = await api<{ user: { id: string; role: string; organization_id: string } }>('/api/auth/me');
+      if (currentUser.user.role === 'owner' || currentUser.user.role === 'admin') {
+        return allConnections;
+      }
+
+      // Check if there are access groups defined for this organization
+      if (currentUser.user.organization_id) {
+        try {
+          const accessGroups = await api<any[]>(`/api/organizations/${currentUser.user.organization_id}/access-groups`);
+          
+          // Hybrid mode: if no groups exist, show everything
+          if (!accessGroups || accessGroups.length === 0) {
+            return allConnections;
+          }
+
+          // Strict filtering if groups exist
+          const userGroups = accessGroups.filter(group => 
+            group.user_ids && group.user_ids.includes(currentUser.user.id)
+          );
+          
+          const allowedConnectionIds = new Set<string>();
+          userGroups.forEach(group => {
+            if (group.connection_ids) {
+              group.connection_ids.forEach(id => allowedConnectionIds.add(id));
+            }
+          });
+
+          return allConnections.filter(conn => allowedConnectionIds.has(conn.id));
+        } catch (error) {
+          console.error('[useChat] Error fetching access groups:', error);
+          return allConnections;
+        }
+      }
+
+      return allConnections;
     } catch (err) {
       console.error('Error fetching connections:', err);
       return [];
