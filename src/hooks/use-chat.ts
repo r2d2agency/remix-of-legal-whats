@@ -274,6 +274,11 @@ export const useChat = () => {
         data = data.filter(conv => conv.tags?.some(t => t.id === filters.tag));
       }
 
+      if (filters?.is_group !== undefined) {
+        const isGroupBool = String(filters.is_group) === 'true';
+        data = data.filter(conv => !!conv.is_group === isGroupBool);
+      }
+
       // Frontend fallback filtering for "Hybrid Mode" and security
       if (user?.role !== 'owner' && user?.role !== 'admin' && user?.organization_id) {
         try {
