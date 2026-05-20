@@ -1551,14 +1551,16 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
       }
 
       case 'appbarber_payment_types': {
-       const filterCol = agent._isGlobalAgent ? 'global_agent_id' : 'agent_id';
-       const result = await query(
-         `SELECT payment_code, payment_description
-          FROM appbarber_payment_types
-          WHERE ${filterCol} = $1 AND is_active = true
-          ORDER BY payment_description`,
-         [agent.id]
-       );
+        const tableName = agent._isGlobalAgent ? 'global_agent_appbarber_payment_types' : 'appbarber_payment_types';
+        const filterCol = agent._isGlobalAgent ? 'global_agent_id' : 'agent_id';
+        const result = await query(
+          `SELECT payment_code, payment_description
+           FROM ${tableName}
+           WHERE ${filterCol} = $1 AND is_active = true
+           ORDER BY payment_description`,
+          [agent.id]
+        );
+
         if (result.rows.length === 0) {
           resultText = 'Nenhum tipo de pagamento cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os tipos de pagamento do AppBarber.';
         } else {
