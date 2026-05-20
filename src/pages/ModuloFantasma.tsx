@@ -126,7 +126,7 @@ export default function ModuloFantasma() {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [connectionId, setConnectionId] = useState<string>("all");
   const [analysisType, setAnalysisType] = useState<string>("full");
-  const [connections, setConnections] = useState<Array<{ id: string; name: string }>>([]);
+  const { data: availableConnections = [] } = useConnections();
   const [orgInfo, setOrgInfo] = useState<{ name?: string; logo_url?: string | null }>({});
 
   const analysisTypes = [
