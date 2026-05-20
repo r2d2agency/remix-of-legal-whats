@@ -833,6 +833,40 @@ router.post('/test/:id', async (req, res) => {
     
     systemPrompt += `\n\nInformações de contexto:\n- Data atual: ${currentDate} (${currentDay})\n- Hora atual: ${currentTime} (horário de Brasília)`;
 
+    // Inject AppBarber Local Data if capability enabled
+    const capabilities = Array.isArray(agent.capabilities) ? agent.capabilities : (agent.capabilities || []);
+    if (capabilities.includes('appbarber')) {
+      try {
+        const [servicesRes, professionalsRes] = await Promise.all([
+          query(`SELECT service_code, service_description, service_value, service_interval 
+                 FROM global_agent_appbarber_services 
+                 WHERE global_agent_id = $1 AND is_active = true`, [agent.id]),
+          query(`SELECT employee_code, employee_name, employee_nickname 
+                 FROM global_agent_appbarber_professionals 
+                 WHERE global_agent_id = $1 AND is_active = true`, [agent.id])
+        ]);
+
+        if (servicesRes.rows.length > 0 || professionalsRes.rows.length > 0) {
+          systemPrompt += '\n\n=== BASE LOCAL (AppBarber) ===\n';
+          if (servicesRes.rows.length > 0) {
+            systemPrompt += '\n--- SERVIÇOS E PREÇOS ---\n';
+            servicesRes.rows.forEach(s => {
+              systemPrompt += `• ${s.service_description} - R$ ${s.service_value} - Duração: ${s.service_interval}min (Código: ${s.service_code})\n`;
+            });
+          }
+          if (professionalsRes.rows.length > 0) {
+            systemPrompt += '\n--- PROFISSIONAIS DISPONÍVEIS ---\n';
+            professionalsRes.rows.forEach(p => {
+              systemPrompt += `• ${p.employee_name}${p.employee_nickname ? ` (${p.employee_nickname})` : ''} (Código: ${p.employee_code})\n`;
+            });
+          }
+          systemPrompt += '\nUse SEMPRE estes dados da BASE LOCAL para informar serviços, preços e profissionais. Não use a API para listar serviços.';
+        }
+      } catch (err) {
+        console.error('Error injecting appbarber local data for client test:', err);
+      }
+    }
+
     // Include knowledge base
     if (agent.has_knowledge_base) {
       try {
