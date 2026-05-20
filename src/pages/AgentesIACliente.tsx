@@ -207,7 +207,7 @@ export default function AgentesIACliente() {
     const [agentsData, modelsData, orgScopedConns, assignedConns, orgDirectConns] = await Promise.all([
       getAvailableAgents(),
       getAIModels(),
-      api<Connection[]>('/api/connections?scope=organization', { auth: true }).catch(() => []),
+      api<Connection[]>('/api/connections', { auth: true }).catch(() => []),
       api<Connection[]>('/api/connections', { auth: true }).catch(() => []),
       user?.organization_id
         ? api<Connection[]>(`/api/organizations/${user.organization_id}/connections`, { auth: true }).catch(() => [])

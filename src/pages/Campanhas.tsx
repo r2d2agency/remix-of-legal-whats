@@ -161,6 +161,7 @@ const Campanhas = () => {
       getLists(),
       getMessages(),
       getFlows(),
+      // Respeita os grupos de acesso do usuário
       api<Connection[]>('/api/connections'),
       api<ConversationTag[]>('/api/chat/tags/with-count'),
     ]);

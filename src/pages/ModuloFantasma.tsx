@@ -137,6 +137,7 @@ export default function ModuloFantasma() {
   ];
 
   useEffect(() => {
+    // Busca apenas as conexões permitidas pelo grupo de acesso do usuário
     api<Array<{ id: string; name: string }>>("/api/connections").then(setConnections).catch(() => {});
     api<Array<{ id: string; name: string; logo_url?: string | null }>>("/api/organizations").then(orgs => {
       if (orgs?.[0]) setOrgInfo({ name: orgs[0].name, logo_url: orgs[0].logo_url });

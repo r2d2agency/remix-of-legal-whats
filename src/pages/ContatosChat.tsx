@@ -174,6 +174,7 @@ const ContatosChat = () => {
     try {
       const [contactsData, connectionsData] = await Promise.all([
         api<ChatContact[]>("/api/chat/contacts"),
+        // Agora respeita os grupos de acesso ao não usar scope=organization
         api<Connection[]>("/api/connections"),
       ]);
       setChatContacts(contactsData);
