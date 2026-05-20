@@ -61,6 +61,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { CampaignDetailModal } from "@/components/campanhas/CampaignDetailModal";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useConnections } from "@/hooks/use-connections";
 
 interface Connection {
   id: string;
