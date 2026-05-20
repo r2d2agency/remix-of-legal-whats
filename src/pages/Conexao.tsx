@@ -198,7 +198,7 @@ const Conexao = () => {
 
     loadConnections();
     loadPlanLimits();
-  }, [authLoading, user?.id, user?.organization_id]);
+  }, [authLoading, user?.id, user?.organization_id, filteredConnections]);
 
   const { data: filteredConnections = [] } = useConnectionsHook();
 
