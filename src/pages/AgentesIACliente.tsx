@@ -1331,7 +1331,7 @@ function AppBarberActivationSection({ activationId, credentials }: { activationI
   const handleSyncServices = async () => {
     setSyncing(true);
     try {
-      await syncAppBarberServices(activationId, credentials);
+      await syncAppBarberServices(activationId, { ...credentials, type: 1 });
       toast.success('Serviços sincronizados');
       loadData();
     } catch (err: any) { toast.error(err.message); }
