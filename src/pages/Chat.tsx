@@ -390,7 +390,10 @@ const Chat = () => {
         return; // User switched to another conversation
       }
       
-       const msgs = await getMessages(conversation.id, { days: historyDays });
+      const msgs = await getMessages(conversation.id, { 
+        days: historyDays,
+        limit: 500 // Increased limit to match sync capacity
+      });
       
       // Verify again after async call
       if (selectedIdRef.current !== conversation.id) {
@@ -398,7 +401,7 @@ const Chat = () => {
       }
       
       setMessages(msgs);
-      setHasMoreMessages(msgs.length >= 50);
+      setHasMoreMessages(msgs.length >= 500);
 
       // Mark as read
       if (conversation.unread_count > 0) {
