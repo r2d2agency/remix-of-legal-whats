@@ -200,20 +200,13 @@ const Campanhas = () => {
       setFlows([]);
     }
 
-    if (connectionsRes.status === 'fulfilled') {
-      setConnections(connectionsRes.value);
-    } else {
-      console.error('Erro ao carregar conexões:', connectionsRes.reason);
-      setConnections([]);
-    }
-
     if (tagsRes.status === 'fulfilled') {
       setConversationTags(tagsRes.value);
     } else {
       console.error('Erro ao carregar tags:', tagsRes.reason);
       setConversationTags([]);
     }
-  }, [getCampaigns, getLists, getMessages, getFlows]);
+  }, [getCampaigns, getLists, getMessages, getFlows, availableConnections]);
 
   const loadReports = useCallback(async () => {
     setLoadingReport(true);
