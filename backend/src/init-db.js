@@ -2516,6 +2516,14 @@ DO $$ BEGIN
   ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS appbarber_establishment_code VARCHAR(50);
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 
+DO $$ BEGIN
+  ALTER TABLE global_ai_agents ADD COLUMN IF NOT EXISTS appbarber_api_key TEXT;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+DO $$ BEGIN
+  ALTER TABLE global_ai_agents ADD COLUMN IF NOT EXISTS appbarber_establishment_code VARCHAR(50);
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+
 -- Add appbarber capability to enum
 DO $$ BEGIN
   ALTER TYPE agent_capability ADD VALUE IF NOT EXISTS 'appbarber';
