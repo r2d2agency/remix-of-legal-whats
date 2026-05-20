@@ -508,11 +508,11 @@ const Chat = () => {
       // or ensure the backend doesn't combine before + days in a way that returns nothing
       const olderMsgs = await getMessages(selectedConversation.id, {
         before: oldestMessage.timestamp,
-        limit: 50,
+        limit: 500,
       });
       
       setMessages([...olderMsgs, ...messages]);
-      setHasMoreMessages(olderMsgs.length >= 50);
+      setHasMoreMessages(olderMsgs.length >= 500);
     } catch (error) {
       console.error('Error loading more messages:', error);
     } finally {
