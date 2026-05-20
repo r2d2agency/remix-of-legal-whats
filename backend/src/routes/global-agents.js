@@ -922,11 +922,14 @@ function buildAppBarberAvailabilityTool() {
     type: 'function',
     function: {
       name: 'appbarber_availability',
-      description: 'Consulta horários disponíveis em uma data (YYYY-MM-DD).',
+      description: 'Consulta horários disponíveis em uma data (YYYY-MM-DD) para um serviço.',
       parameters: {
         type: 'object',
-        properties: { start_date: { type: 'string' } },
-        required: ['start_date'],
+        properties: { 
+          start_date: { type: 'string', description: 'YYYY-MM-DD' },
+          service_code: { type: 'integer' }
+        },
+        required: ['start_date', 'service_code'],
       },
     },
   };
