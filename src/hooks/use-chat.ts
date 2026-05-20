@@ -245,7 +245,10 @@ export const useChat = () => {
       if (filters?.tag && filters.tag !== 'all') params.append('tag', filters.tag);
       if (filters?.assigned && filters.assigned !== 'all') params.append('assigned', filters.assigned);
       if (filters?.archived !== undefined) params.append('archived', String(filters.archived));
-      if (filters?.connection && filters.connection !== 'all') params.append('connection', filters.connection);
+      if (filters?.connection && filters.connection !== 'all') {
+        params.append('connection', filters.connection);
+        params.append('connection_id', filters.connection);
+      }
       if (filters?.is_group !== undefined) params.append('is_group', String(filters.is_group));
       if (filters?.attendance_status) params.append('attendance_status', filters.attendance_status);
       if (filters?.department && filters.department !== 'all') params.append('department', filters.department);
@@ -260,15 +263,25 @@ export const useChat = () => {
       // For now, we'll assume the backend might need the list of allowed connections if we're not admin.
       
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
-      const data = await api<Conversation[]>(url);
+      let data = await api<Conversation[]>(url);
+
+      // Client-side filter fallback for connection and tag if backend doesn't support it
+      if (filters?.connection && filters.connection !== 'all') {
+        data = data.filter(conv => conv.connection_id === filters.connection);
+      }
+      
+      if (filters?.tag && filters.tag !== 'all') {
+        data = data.filter(conv => conv.tags?.some(t => t.id === filters.tag));
+      }
+
+      if (filters?.is_group !== undefined) {
+        const isGroupBool = String(filters.is_group) === 'true';
+        data = data.filter(conv => !!conv.is_group === isGroupBool);
+      }
 
       // Frontend fallback filtering for "Hybrid Mode" and security
       if (user?.role !== 'owner' && user?.role !== 'admin' && user?.organization_id) {
         try {
-          // We can't easily fetch groups on every conversation load, so we should probably
-          // cache them or assume the connections list we already have is correct.
-          // For now, let's just use the connection list if we have it, or just return the data.
-          // If we want to be very strict:
           const allowedConnections = await getConnections();
           const allowedIds = new Set(allowedConnections.map(c => c.id));
           return data.filter(conv => allowedIds.has(conv.connection_id));
