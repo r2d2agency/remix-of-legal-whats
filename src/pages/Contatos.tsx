@@ -49,6 +49,7 @@ import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
 import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
 import { useConnections } from "@/hooks/use-connections";
 import { evolutionApi } from "@/lib/evolution-api";
+import { whatsappProvider } from "@/lib/whatsapp-provider";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -93,7 +94,7 @@ const Contatos = () => {
   const [isValidatingNewContact, setIsValidatingNewContact] = useState(false);
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [editingContact, setEditingContact] = useState<string | null>(null);
-  const { data: allConnections } = useConnections();
+  const { data: availableConnections = [] } = useConnections();
   const [validatingContact, setValidatingContact] = useState<string | null>(null);
   const [wapiConnectionId, setWapiConnectionId] = useState<string | null>(null);
   const [syncConnections, setSyncConnections] = useState<SyncConnection[]>([]);
@@ -106,7 +107,6 @@ const Contatos = () => {
   const [uazapiSyncing, setUazapiSyncing] = useState(false);
   const [uazapiTargetListId, setUazapiTargetListId] = useState<string>("");
 
-  const { data: availableConnections = [] } = useConnections();
 
   // Load connected W-API connections
   useEffect(() => {
