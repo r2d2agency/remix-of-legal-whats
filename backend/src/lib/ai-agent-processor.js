@@ -1530,14 +1530,16 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
     let resultText;
     switch (toolName) {
       case 'appbarber_professionals': {
-       const filterCol = agent._isGlobalAgent ? 'global_agent_id' : 'agent_id';
-       const result = await query(
-         `SELECT employee_code, employee_name, employee_nickname
-          FROM appbarber_professionals
-          WHERE ${filterCol} = $1 AND is_active = true
-          ORDER BY employee_name`,
-         [agent.id]
-       );
+        const tableName = agent._isGlobalAgent ? 'global_agent_appbarber_professionals' : 'appbarber_professionals';
+        const filterCol = agent._isGlobalAgent ? 'global_agent_id' : 'agent_id';
+        const result = await query(
+          `SELECT employee_code, employee_name, employee_nickname
+           FROM ${tableName}
+           WHERE ${filterCol} = $1 AND is_active = true
+           ORDER BY employee_name`,
+          [agent.id]
+        );
+
         if (result.rows.length === 0) {
           resultText = 'Nenhum profissional cadastrado na tabela local sincronizada. Peça ao administrador para sincronizar os profissionais do AppBarber.';
         } else {
