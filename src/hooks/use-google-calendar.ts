@@ -9,6 +9,8 @@ export interface GoogleCalendarStatus {
   lastSync?: string;
   lastError?: string;
   tokenExpired?: boolean;
+  availableCalendars?: Array<{ id: string; summary: string; primary?: boolean }>;
+  selectedCalendarId?: string;
 }
 
 export interface GoogleCalendarEvent {
@@ -156,6 +158,32 @@ export function useGoogleCalendarEvents(timeMin?: string, timeMax?: string) {
       return api<GoogleCalendarEvent[]>(
         `/api/google-calendar/events?${params.toString()}`
       );
+    },
+  });
+}
+
+// Update selected calendar
+export function useUpdateGoogleCalendarSettings() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (settings: { selectedCalendarId: string }) => {
+      return api<{ success: boolean }>("/api/google-calendar/settings", {
+        method: "PATCH",
+        body: settings,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-status"] });
+      toast({ title: "Configurações de calendário atualizadas" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atualizar configurações",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 }
