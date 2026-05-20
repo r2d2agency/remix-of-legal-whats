@@ -376,22 +376,23 @@ router.post('/admin/:id/test', requireSuperadmin, async (req, res) => {
     if (!agent) return res.status(404).json({ error: 'Agente não encontrado' });
 
     // Get AI config (agent key or org config)
-    const apiKey = agent.ai_api_key;
+    let apiKey = agent.ai_api_key;
+    let provider = agent.ai_provider;
     if (!apiKey) {
       // Try org AI config
       const org = await getUserOrganization(req.userId);
       if (org) {
         const configResult = await query(`SELECT ai_api_key, ai_provider FROM organizations WHERE id = $1`, [org.organization_id]);
         if (configResult.rows[0]?.ai_api_key) {
-          agent.ai_api_key = configResult.rows[0].ai_api_key;
-          if (!agent.ai_provider || agent.ai_provider === 'none') {
-            agent.ai_provider = configResult.rows[0].ai_provider;
+          apiKey = configResult.rows[0].ai_api_key;
+          if (!provider || provider === 'none') {
+            provider = configResult.rows[0].ai_provider;
           }
         }
       }
     }
 
-    if (!agent.ai_api_key) {
+    if (!apiKey) {
       return res.status(400).json({ error: 'Nenhuma API key configurada para este agente. Configure na aba IA.' });
     }
 
@@ -417,6 +418,12 @@ router.post('/admin/:id/test', requireSuperadmin, async (req, res) => {
       }
     }
 
+    // AppBarber instructions
+    const capabilities = Array.isArray(agent.capabilities) ? agent.capabilities : (agent.capabilities || []);
+    if (capabilities.includes('appbarber')) {
+      systemPrompt += `\n\nREGRAS CRÍTICAS DE DADOS (AppBarber):\n1. NUNCA invente nomes de profissionais ou preços.\n2. Para saber quem trabalha no local, use SEMPRE a ferramenta 'appbarber_professionals'.\n3. Para saber preços e serviços, use 'appbarber_services'.\n4. Se o usuário perguntar por algo que não retornou nas ferramentas, diga que não encontrou esse registro.`;
+    }
+
     const messages = [
       { role: 'system', content: systemPrompt },
       ...(history || []).map(m => ({ role: m.role, content: m.content })),
@@ -424,26 +431,45 @@ router.post('/admin/:id/test', requireSuperadmin, async (req, res) => {
     ];
 
     const aiConfig = {
-      provider: agent.ai_provider,
-      apiKey: agent.ai_api_key,
+      provider: provider,
+      apiKey: apiKey,
       model: agent.ai_model,
     };
 
-    const result = await callAI(aiConfig, messages, {
+    let tools = [];
+    if (capabilities.includes('appbarber') && agent.appbarber_api_key && agent.appbarber_establishment_code) {
+      tools = [
+        buildAppBarberServicesTool(),
+        buildAppBarberProfessionalsTool(),
+        buildAppBarberAvailabilityTool(),
+        buildAppBarberAppointmentTool(),
+      ];
+    }
+
+    const options = {
       temperature: agent.temperature || 0.7,
       maxTokens: agent.max_tokens || 1000,
-    });
+      tools: tools.length > 0 ? tools : null,
+    };
+
+    const toolExecutor = async (name, args) => {
+      return await executeGlobalAppBarberTool(name, args, agent);
+    };
+
+    const result = await callAIWithTools(aiConfig, messages, options, toolExecutor);
 
     res.json({
       response: result.content,
       tokens: result.tokensUsed,
       model: result.model,
+      toolCalls: result.toolCallsExecuted
     });
   } catch (err) {
     console.error('Error testing global agent:', err);
     res.status(500).json({ error: err.message || 'Erro ao testar agente' });
   }
 });
+
 
 // =============================================
 // SUPERADMIN - Organization assignments
