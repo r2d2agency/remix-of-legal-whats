@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGhostAnalysis, GhostInsight, SavedAnalysis } from "@/hooks/use-ghost-analysis";
+import { useConnections } from "@/hooks/use-connections";
 import { AnalysisProgressBar } from "@/components/ghost/AnalysisProgressBar";
 import { ExtraMetricsPanel } from "@/components/ghost/ExtraMetricsPanel";
 import { api } from "@/lib/api";
@@ -125,7 +126,7 @@ export default function ModuloFantasma() {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [connectionId, setConnectionId] = useState<string>("all");
   const [analysisType, setAnalysisType] = useState<string>("full");
-  const [connections, setConnections] = useState<Array<{ id: string; name: string }>>([]);
+  const { data: availableConnections = [] } = useConnections();
   const [orgInfo, setOrgInfo] = useState<{ name?: string; logo_url?: string | null }>({});
 
   const analysisTypes = [
@@ -137,15 +138,14 @@ export default function ModuloFantasma() {
   ];
 
   useEffect(() => {
-    // Busca apenas as conexões permitidas pelo grupo de acesso do usuário
-    api<Array<{ id: string; name: string }>>("/api/connections").then(setConnections).catch(() => {});
+    // Busca informações da organização
     api<Array<{ id: string; name: string; logo_url?: string | null }>>("/api/organizations").then(orgs => {
       if (orgs?.[0]) setOrgInfo({ name: orgs[0].name, logo_url: orgs[0].logo_url });
     }).catch(() => {});
   }, []);
 
   const handleAnalyze = () => {
-    const conn = connections.find(c => c.id === connectionId);
+    const conn = availableConnections.find(c => c.id === connectionId);
     const at = analysisTypes.find(a => a.value === analysisType);
     runAnalysis({
       days: parseInt(days),
@@ -218,7 +218,7 @@ export default function ModuloFantasma() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as instâncias</SelectItem>
-                  {connections.map(c => (
+                  {availableConnections.map(c => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>

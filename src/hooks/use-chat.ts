@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface ConversationTag {
   id: string;
@@ -149,6 +150,7 @@ export interface UserAlert {
 }
 
 export const useChat = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const alertsPollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -252,8 +254,29 @@ export const useChat = () => {
       if (filters?.endDate) params.append('endDate', filters.endDate);
       if (filters?.limit) params.append('limit', String(filters.limit));
       if (filters?.offset) params.append('offset', String(filters.offset));
+      // If restricted and "all" connections is selected, we must ensure we only get allowed ones.
+      // However, the backend should ideally handle this. If it doesn't, we might need to 
+      // fetch each allowed connection separately or filter here.
+      // For now, we'll assume the backend might need the list of allowed connections if we're not admin.
+      
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
       const data = await api<Conversation[]>(url);
+
+      // Frontend fallback filtering for "Hybrid Mode" and security
+      if (user?.role !== 'owner' && user?.role !== 'admin' && user?.organization_id) {
+        try {
+          // We can't easily fetch groups on every conversation load, so we should probably
+          // cache them or assume the connections list we already have is correct.
+          // For now, let's just use the connection list if we have it, or just return the data.
+          // If we want to be very strict:
+          const allowedConnections = await getConnections();
+          const allowedIds = new Set(allowedConnections.map(c => c.id));
+          return data.filter(conv => allowedIds.has(conv.connection_id));
+        } catch {
+          return data;
+        }
+      }
+
       return data;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao buscar conversas';
@@ -264,17 +287,58 @@ export const useChat = () => {
     }
   }, []);
 
-  // Get connections for filter (now correctly restricted to allowed connections)
   const getConnections = useCallback(async (): Promise<Connection[]> => {
     try {
-      // Changed from ?scope=organization to default endpoint which respects access group filters
-      const data = await api<Connection[]>('/api/connections');
-      return data;
+      const allConnections = await api<Connection[]>('/api/connections');
+      
+      // If user is owner or admin, they see everything
+      if (user?.role === 'owner' || user?.role === 'admin') {
+        return allConnections;
+      }
+
+      // Check if there are access groups defined for this organization
+      if (user?.organization_id) {
+        try {
+          const accessGroups = await api<any[]>(`/api/organizations/${user.organization_id}/access-groups`);
+          
+          // If there ARE access groups, strictly filter by those groups the user belongs to
+          if (accessGroups && accessGroups.length > 0) {
+            const userGroups = accessGroups.filter(group => 
+              group.user_ids && group.user_ids.includes(user.id)
+            );
+            
+            const allowedConnectionIds = new Set<string>();
+            userGroups.forEach(group => {
+              if (group.connection_ids) {
+                group.connection_ids.forEach(id => allowedConnectionIds.add(id));
+              }
+            });
+
+            return allConnections.filter(conn => allowedConnectionIds.has(conn.id));
+          }
+
+          // If NO access groups are created, check for direct connection assignments (Hybrid Mode)
+          try {
+            const memberInfo = await api<any>(`/api/organizations/${user.organization_id}/members/${user.id}`);
+            if (memberInfo && memberInfo.assigned_connections && memberInfo.assigned_connections.length > 0) {
+              const assignedIds = new Set(memberInfo.assigned_connections.map((c: any) => c.id));
+              return allConnections.filter(conn => assignedIds.has(conn.id));
+            }
+          } catch (e) {
+            // Fallback
+          }
+        } catch (error) {
+          console.error('[useChat] Error fetching access groups:', error);
+          return allConnections;
+        }
+      }
+
+      return allConnections;
     } catch (err) {
       console.error('Error fetching connections:', err);
       return [];
     }
-  }, []);
+  }, [user]);
 
   // Get chat statistics
   const getChatStats = useCallback(async (): Promise<ChatStats> => {

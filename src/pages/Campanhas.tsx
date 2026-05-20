@@ -61,6 +61,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { CampaignDetailModal } from "@/components/campanhas/CampaignDetailModal";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useConnections } from "@/hooks/use-connections";
 
 interface Connection {
   id: string;
@@ -155,18 +156,21 @@ const Campanhas = () => {
   const [randomOrder, setRandomOrder] = useState(true);
   const [randomMessages, setRandomMessages] = useState(false);
 
+  const { data: availableConnections = [] } = useConnections();
+  
   const loadData = useCallback(async () => {
     const results = await Promise.allSettled([
       getCampaigns(),
       getLists(),
       getMessages(),
       getFlows(),
-      // Respeita os grupos de acesso do usuário
-      api<Connection[]>('/api/connections'),
       api<ConversationTag[]>('/api/chat/tags/with-count'),
     ]);
 
-    const [campaignsRes, listsRes, messagesRes, flowsRes, connectionsRes, tagsRes] = results;
+    const [campaignsRes, listsRes, messagesRes, flowsRes, tagsRes] = results;
+    
+    // Set connections from useConnections hook
+    setConnections(availableConnections);
 
     if (campaignsRes.status === 'fulfilled') {
       setCampaigns(campaignsRes.value);
@@ -196,20 +200,13 @@ const Campanhas = () => {
       setFlows([]);
     }
 
-    if (connectionsRes.status === 'fulfilled') {
-      setConnections(connectionsRes.value);
-    } else {
-      console.error('Erro ao carregar conexões:', connectionsRes.reason);
-      setConnections([]);
-    }
-
     if (tagsRes.status === 'fulfilled') {
       setConversationTags(tagsRes.value);
     } else {
       console.error('Erro ao carregar tags:', tagsRes.reason);
       setConversationTags([]);
     }
-  }, [getCampaigns, getLists, getMessages, getFlows]);
+  }, [getCampaigns, getLists, getMessages, getFlows, availableConnections]);
 
   const loadReports = useCallback(async () => {
     setLoadingReport(true);

@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
 import { ConnectionAIAgentDialog } from "@/components/conexao/ConnectionAIAgentDialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { useConnections as useConnectionsHook } from "@/hooks/use-connections";
 
 interface Connection {
   id: string;
@@ -143,6 +144,8 @@ const Conexao = () => {
   const [migrateSourceId, setMigrateSourceId] = useState<string>("");
   const [migrating, setMigrating] = useState(false);
 
+  const { data: filteredConnections = [] } = useConnectionsHook();
+
   // Import history (Gleego legacy export) state
   const [importingConnectionId, setImportingConnectionId] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -197,25 +200,34 @@ const Conexao = () => {
 
     loadConnections();
     loadPlanLimits();
-  }, [authLoading, user?.id, user?.organization_id]);
+  }, [authLoading, user?.id, user?.organization_id, filteredConnections]);
 
   const loadConnections = async () => {
     setLoading(true);
     try {
-      const [orgScopedConnections, assignedConnections, orgDirectConnections] = await Promise.all([
-        api<Connection[]>('/api/connections?scope=organization').catch(() => []),
-        api<Connection[]>('/api/connections').catch(() => []),
-        user?.organization_id
-          ? api<Connection[]>(`/api/organizations/${user.organization_id}/connections`).catch(() => [])
-          : Promise.resolve([] as Connection[]),
-      ]);
+      // For Admins/Owners, we still want to show all organization-scoped connections
+      // but for others we respect the hook's filtered results
+      let nextConnections: Connection[] = [];
+      
+      if (user?.role === 'owner' || user?.role === 'admin') {
+        const [orgScopedConnections, assignedConnections, orgDirectConnections] = await Promise.all([
+          api<Connection[]>('/api/connections?scope=organization').catch(() => []),
+          api<Connection[]>('/api/connections').catch(() => []),
+          user?.organization_id
+            ? api<Connection[]>(`/api/organizations/${user.organization_id}/connections`).catch(() => [])
+            : Promise.resolve([] as Connection[]),
+        ]);
 
-      const mergedConnections = new Map<string, Connection>();
-      [...orgScopedConnections, ...assignedConnections, ...orgDirectConnections].forEach((conn) => {
-        mergedConnections.set(conn.id, conn);
-      });
+        const mergedConnections = new Map<string, Connection>();
+        [...orgScopedConnections, ...assignedConnections, ...orgDirectConnections].forEach((conn) => {
+          mergedConnections.set(conn.id, conn);
+        });
+        nextConnections = Array.from(mergedConnections.values());
+      } else {
+        // Restricted user - use filtered list from hook
+        nextConnections = filteredConnections as Connection[];
+      }
 
-      const nextConnections = Array.from(mergedConnections.values());
       setConnections(nextConnections);
 
       const uazapiConnections = nextConnections.filter(
