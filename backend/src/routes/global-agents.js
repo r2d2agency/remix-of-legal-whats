@@ -452,11 +452,6 @@ router.post('/admin/:id/test', requireSuperadmin, async (req, res) => {
       }
     }
 
-    // AppBarber instructions
-    const capabilities = Array.isArray(agent.capabilities) ? agent.capabilities : (agent.capabilities || []);
-    if (capabilities.includes('appbarber')) {
-      systemPrompt += `\n\nREGRAS CRÍTICAS DE DADOS (AppBarber):\n1. NUNCA invente nomes de profissionais ou preços.\n2. Para saber quem trabalha no local, use SEMPRE a ferramenta 'appbarber_professionals'.\n3. Para saber preços e serviços, use 'appbarber_services'.\n4. Se o usuário perguntar por algo que não retornou nas ferramentas, diga que não encontrou esse registro.`;
-    }
 
     const messages = [
       { role: 'system', content: systemPrompt },
