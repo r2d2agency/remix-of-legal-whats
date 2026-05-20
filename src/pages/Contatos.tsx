@@ -105,34 +105,30 @@ const Contatos = () => {
   const [uazapiSyncing, setUazapiSyncing] = useState(false);
   const [uazapiTargetListId, setUazapiTargetListId] = useState<string>("");
 
+  const { data: availableConnections = [] } = useConnections();
+
   // Load connected W-API connections
   useEffect(() => {
-    const loadConnections = async () => {
-      try {
-        const connections = await api<SyncConnection[]>('/api/connections');
-        setAllConnections(connections);
-        const connectedWapi = connections.filter(
-          (c) => (c.provider === 'wapi' || !!c.instance_id) && c.status === 'connected'
-        );
+    const loadConnectionsData = () => {
+      const connections = availableConnections;
+      setAllConnections(connections);
+      const connectedWapi = connections.filter(
+        (c) => (c.provider === 'wapi' || !!c.instance_id) && c.status === 'connected'
+      );
 
-        setSyncConnections(connectedWapi);
-        setWapiConnectionId(connectedWapi[0]?.id || null);
-        setSelectedSyncConnectionId((prev) => prev || connectedWapi[0]?.id || "");
+      setSyncConnections(connectedWapi);
+      setWapiConnectionId(connectedWapi[0]?.id || null);
+      setSelectedSyncConnectionId((prev) => prev || connectedWapi[0]?.id || "");
 
-        const uaz = connections.filter(
-          (c) => String(c.provider || '').toLowerCase() === 'uazapi' && c.status === 'connected'
-        );
-        setUazapiConnections(uaz);
-        setSelectedUazapiConnId((prev) => prev || uaz[0]?.id || "");
-      } catch {
-        setSyncConnections([]);
-        setAllConnections([]);
-        setUazapiConnections([]);
-      }
+      const uaz = connections.filter(
+        (c) => String(c.provider || '').toLowerCase() === 'uazapi' && c.status === 'connected'
+      );
+      setUazapiConnections(uaz);
+      setSelectedUazapiConnId((prev) => prev || uaz[0]?.id || "");
     };
 
-    loadConnections();
-  }, []);
+    loadConnectionsData();
+  }, [availableConnections]);
 
   const handleSyncUazapiContacts = async () => {
     if (!selectedUazapiConnId) {
