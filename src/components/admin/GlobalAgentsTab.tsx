@@ -1329,7 +1329,7 @@ function AppBarberActivationSection({ agentId, credentials }: { agentId: string;
     }
     setSyncing(true);
     try {
-      await syncAppBarberServices(agentId, credentials);
+      await syncAppBarberServices(agentId, { ...credentials, type: 1 });
       toast.success('Serviços sincronizados');
       loadData();
     } catch (err: any) { toast.error(err.message); }
