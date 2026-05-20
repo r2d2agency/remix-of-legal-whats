@@ -39,11 +39,38 @@ export interface GlobalAgentForClient {
   greeting_message?: string;
   ai_provider?: string;
   ai_model?: string;
-   capabilities?: string[];
-   has_knowledge_base?: boolean;
-   appbarber_api_key?: string;
-   appbarber_establishment_code?: string;
+  capabilities?: string[];
+  has_knowledge_base?: boolean;
+  appbarber_api_key?: string;
+  appbarber_establishment_code?: string;
   activations: GlobalAgentActivation[];
+}
+
+export interface AppBarberService {
+  id: string;
+  agent_id: string;
+  organization_id: string;
+  service_code: number;
+  service_description: string;
+  service_value: number;
+  service_interval: number;
+  is_active: boolean;
+  synced_from_api: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppBarberProfessional {
+  id: string;
+  agent_id: string;
+  organization_id: string;
+  employee_code: number;
+  employee_name: string;
+  employee_nickname: string | null;
+  is_active: boolean;
+  synced_from_api: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export function useGlobalAgents() {
@@ -159,5 +186,93 @@ export function useGlobalAgents() {
     return result;
   }, []);
 
-  return { loading, error, getAvailableAgents, activateAgent, updateActivation, deactivateAgent, deleteActivation, getAIModels, testAgent };
+  // ==================== APPBARBER GLOBAL SERVICES ====================
+
+  const getGlobalAppBarberServices = useCallback(async (agentId: string): Promise<AppBarberService[]> => {
+    try {
+      return await api<AppBarberService[]>(`/api/global-agents/admin/${agentId}/appbarber-services`, { auth: true });
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const saveGlobalAppBarberService = useCallback(async (agentId: string, data: Partial<AppBarberService>): Promise<AppBarberService | null> => {
+    try {
+      return await api<AppBarberService>(`/api/global-agents/admin/${agentId}/appbarber-services`, {
+        method: 'POST',
+        body: data,
+        auth: true,
+      });
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const syncGlobalAppBarberServices = useCallback(async (agentId: string, credentials?: { appbarber_api_key?: string; appbarber_establishment_code?: string; type?: number }): Promise<{ imported: number; total?: number; source?: string; code?: string } | null> => {
+    try {
+      return await api<{ imported: number; total?: number; source?: string; code?: string }>(`/api/global-agents/admin/${agentId}/appbarber-services/sync`, {
+        method: 'POST',
+        body: credentials || {},
+        auth: true,
+      });
+    } catch (err) {
+      if (err instanceof Error) throw err;
+      throw new Error('Erro ao sincronizar serviços');
+    }
+  }, []);
+
+  // ==================== APPBARBER GLOBAL PROFESSIONALS ====================
+
+  const getGlobalAppBarberProfessionals = useCallback(async (agentId: string): Promise<AppBarberProfessional[]> => {
+    try {
+      return await api<AppBarberProfessional[]>(`/api/global-agents/admin/${agentId}/appbarber-professionals`, { auth: true });
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const saveGlobalAppBarberProfessional = useCallback(async (agentId: string, data: Partial<AppBarberProfessional>): Promise<AppBarberProfessional | null> => {
+    try {
+      return await api<AppBarberProfessional>(`/api/global-agents/admin/${agentId}/appbarber-professionals`, {
+        method: 'POST',
+        body: data,
+        auth: true,
+      });
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const syncGlobalAppBarberProfessionals = useCallback(async (agentId: string, credentials?: { appbarber_api_key?: string; appbarber_establishment_code?: string }): Promise<{ imported: number; total?: number; source?: string } | null> => {
+    try {
+      return await api<{ imported: number; total?: number; source?: string }>(`/api/global-agents/admin/${agentId}/appbarber-professionals/sync`, {
+        method: 'POST',
+        body: credentials || {},
+        auth: true,
+      });
+    } catch (err) {
+      if (err instanceof Error) throw err;
+      throw new Error('Erro ao sincronizar profissionais');
+    }
+  }, []);
+
+  return { 
+    loading, 
+    error, 
+    getAvailableAgents, 
+    activateAgent, 
+    updateActivation, 
+    deactivateAgent, 
+    deleteActivation, 
+    getAIModels, 
+    testAgent,
+    // Global AppBarber
+    getGlobalAppBarberServices,
+    saveGlobalAppBarberService,
+    syncGlobalAppBarberServices,
+    getGlobalAppBarberProfessionals,
+    saveGlobalAppBarberProfessional,
+    syncGlobalAppBarberProfessionals
+  };
 }
+
