@@ -1297,26 +1297,26 @@ export function GlobalAgentsTab() {
 
 function AppBarberActivationSection({ agentId, credentials }: { agentId: string; credentials: { appbarber_api_key: string; appbarber_establishment_code: string } }) {
   const { 
-    getAppBarberServices, 
-    syncAppBarberServices, 
-    saveAppBarberService,
-    getAppBarberProfessionals, 
-    syncAppBarberProfessionals,
-    saveAppBarberProfessional
-  } = useAIAgents();
-  const [services, setServices] = useState<any[]>([]);
-  const [professionals, setProfessionals] = useState<any[]>([]);
+    getGlobalAppBarberServices, 
+    syncGlobalAppBarberServices, 
+    saveGlobalAppBarberService,
+    getGlobalAppBarberProfessionals, 
+    syncGlobalAppBarberProfessionals,
+    saveGlobalAppBarberProfessional
+  } = useGlobalAgents();
+  const [services, setServices] = useState<AppBarberService[]>([]);
+  const [professionals, setProfessionals] = useState<AppBarberProfessional[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const [s, p] = await Promise.all([
-      getAppBarberServices(agentId),
-      getAppBarberProfessionals(agentId)
+      getGlobalAppBarberServices(agentId),
+      getGlobalAppBarberProfessionals(agentId)
     ]);
     setServices(s || []);
     setProfessionals(p || []);
-  }, [agentId, getAppBarberServices, getAppBarberProfessionals]);
+  }, [agentId, getGlobalAppBarberServices, getGlobalAppBarberProfessionals]);
 
   useEffect(() => { 
     if (agentId) loadData(); 
@@ -1329,7 +1329,11 @@ function AppBarberActivationSection({ agentId, credentials }: { agentId: string;
     }
     setSyncing(true);
     try {
-      await syncAppBarberServices(agentId, { ...credentials, type: 1 });
+      await syncGlobalAppBarberServices(agentId, { 
+        appbarber_api_key: credentials.appbarber_api_key.trim(), 
+        appbarber_establishment_code: credentials.appbarber_establishment_code.trim(), 
+        type: 1 
+      });
       toast.success('Serviços sincronizados');
       loadData();
     } catch (err: any) { toast.error(err.message); }
@@ -1343,17 +1347,20 @@ function AppBarberActivationSection({ agentId, credentials }: { agentId: string;
     }
     setSyncing(true);
     try {
-      await syncAppBarberProfessionals(agentId, credentials);
+      await syncGlobalAppBarberProfessionals(agentId, {
+        appbarber_api_key: credentials.appbarber_api_key.trim(), 
+        appbarber_establishment_code: credentials.appbarber_establishment_code.trim(),
+      });
       toast.success('Profissionais sincronizados');
       loadData();
     } catch (err: any) { toast.error(err.message); }
     finally { setSyncing(false); }
   };
 
-  const handleToggleService = async (service: any) => {
+  const handleToggleService = async (service: AppBarberService) => {
     setToggling(`service-${service.id}`);
     try {
-      await saveAppBarberService(agentId, {
+      await saveGlobalAppBarberService(agentId, {
         ...service,
         is_active: !service.is_active
       });
@@ -1362,10 +1369,10 @@ function AppBarberActivationSection({ agentId, credentials }: { agentId: string;
     finally { setToggling(null); }
   };
 
-  const handleToggleProfessional = async (prof: any) => {
+  const handleToggleProfessional = async (prof: AppBarberProfessional) => {
     setToggling(`prof-${prof.id}`);
     try {
-      await saveAppBarberProfessional(agentId, {
+      await saveGlobalAppBarberProfessional(agentId, {
         ...prof,
         is_active: !prof.is_active
       });
@@ -1474,3 +1481,4 @@ function AppBarberActivationSection({ agentId, credentials }: { agentId: string;
     </div>
   );
 }
+
