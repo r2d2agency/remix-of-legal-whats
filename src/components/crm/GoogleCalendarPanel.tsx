@@ -3,8 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useGoogleCalendarStatus, useGoogleCalendarAuth, useGoogleCalendarDisconnect } from "@/hooks/use-google-calendar";
-import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, RefreshCw, AlertCircle } from "lucide-react";
+import { useGoogleCalendarStatus, useGoogleCalendarAuth, useGoogleCalendarDisconnect, useUpdateGoogleCalendarSettings } from "@/hooks/use-google-calendar";
+import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, RefreshCw, AlertCircle, Settings } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function GoogleCalendarPanel() {
@@ -12,6 +13,7 @@ export function GoogleCalendarPanel() {
   const { data: status, isLoading, refetch } = useGoogleCalendarStatus();
   const connectMutation = useGoogleCalendarAuth();
   const disconnectMutation = useGoogleCalendarDisconnect();
+  const updateSettingsMutation = useUpdateGoogleCalendarSettings();
 
   // Handle OAuth callback messages
   useEffect(() => {
@@ -112,6 +114,37 @@ export function GoogleCalendarPanel() {
               <p className="text-xs text-muted-foreground">
                 Última sincronização: {new Date(status.lastSync).toLocaleString("pt-BR")}
               </p>
+            )}
+
+            {/* Calendar Selection */}
+            {status.availableCalendars && status.availableCalendars.length > 0 && (
+              <div className="space-y-3 pt-2 border-t">
+                <div>
+                  <h4 className="font-medium text-sm">Configurações de Sincronização</h4>
+                  <p className="text-xs text-muted-foreground">Escolha qual agenda será usada como padrão no sistema.</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs font-medium uppercase text-muted-foreground">Agenda Padrão</label>
+                  <select 
+                    className="w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={status.selectedCalendarId || status.availableCalendars.find(c => c.primary)?.id || ""}
+                    onChange={(e) => updateSettingsMutation.mutate({ selectedCalendarId: e.target.value })}
+                    disabled={updateSettingsMutation.isPending}
+                  >
+                    {status.availableCalendars.map((cal) => (
+                      <option key={cal.id} value={cal.id}>
+                        {cal.summary} {cal.primary ? "(Principal)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 text-primary border border-primary/10">
+                  <RefreshCw className={cn("h-4 w-4", updateSettingsMutation.isPending && "animate-spin")} />
+                  <span className="text-xs font-medium">Sincronização assíncrona ativa</span>
+                </div>
+              </div>
             )}
 
             {/* Usage info */}
