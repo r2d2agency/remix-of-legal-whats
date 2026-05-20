@@ -866,3 +866,269 @@ async function processGlobalKnowledgeSource(sourceId) {
 }
 
 export default router;
+
+// =============================================
+// SUPERADMIN - AppBarber Integration
+// =============================================
+
+// List cached services for a global agent
+router.get('/admin/:id/appbarber-services', requireSuperadmin, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT * FROM global_agent_appbarber_services WHERE global_agent_id = $1 ORDER BY service_description`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    logError('global_appbarber_services.list_error', error);
+    res.status(500).json({ error: 'Erro ao listar serviços' });
+  }
+});
+
+// Add/update a service manually
+router.post('/admin/:id/appbarber-services', requireSuperadmin, async (req, res) => {
+  try {
+    const { service_code, service_description, service_value, service_interval, is_active } = req.body;
+
+    const result = await query(
+      `INSERT INTO global_agent_appbarber_services (global_agent_id, service_code, service_description, service_value, service_interval, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (global_agent_id, service_code) 
+       DO UPDATE SET service_description = $3, service_value = $4, service_interval = $5, is_active = $6, updated_at = NOW()
+       RETURNING *`,
+      [req.params.id, service_code, service_description, service_value || 0, service_interval || 30, is_active !== false]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    logError('global_appbarber_services.create_error', error);
+    res.status(500).json({ error: 'Erro ao salvar serviço' });
+  }
+});
+
+// Delete a service
+router.delete('/admin/:id/appbarber-services/:serviceId', requireSuperadmin, async (req, res) => {
+  try {
+    await query(
+      `DELETE FROM global_agent_appbarber_services WHERE id = $1 AND global_agent_id = $2`,
+      [req.params.serviceId, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    logError('global_appbarber_services.delete_error', error);
+    res.status(500).json({ error: 'Erro ao deletar serviço' });
+  }
+});
+
+// Sync services from AppBarber API
+router.post('/admin/:id/appbarber-services/sync', requireSuperadmin, async (req, res) => {
+  try {
+    const agentResult = await query(
+      `SELECT appbarber_api_key, appbarber_establishment_code FROM global_ai_agents WHERE id = $1`,
+      [req.params.id]
+    );
+    const agent = agentResult.rows[0];
+    const apiKey = req.body.appbarber_api_key || agent?.appbarber_api_key;
+    const estCode = req.body.appbarber_establishment_code || agent?.appbarber_establishment_code;
+
+    if (!apiKey || !estCode) {
+      return res.status(400).json({ error: 'Credenciais AppBarber não configuradas.' });
+    }
+
+    try {
+      const services = await fetchAppBarberServicesFromApi({ apiKey, estCode });
+      const imported = await importGlobalAppBarberServices(req.params.id, services);
+      return res.json({ ok: true, imported, total: services.length, source: 'server' });
+    } catch (error) {
+      logError('global_appbarber_sync_error', error);
+      return res.status(400).json({ 
+        error: `Erro AppBarber: ${error.message}`,
+        code: error.code
+      });
+    }
+  } catch (error) {
+    logError('global_appbarber_services.sync_error', error);
+    res.status(500).json({ error: 'Erro ao sincronizar serviços' });
+  }
+});
+
+// List cached professionals
+router.get('/admin/:id/appbarber-professionals', requireSuperadmin, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT * FROM global_agent_appbarber_professionals WHERE global_agent_id = $1 ORDER BY employee_name`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    logError('global_appbarber_professionals.list_error', error);
+    res.status(500).json({ error: 'Erro ao listar profissionais' });
+  }
+});
+
+// Add/update a professional manually
+router.post('/admin/:id/appbarber-professionals', requireSuperadmin, async (req, res) => {
+  try {
+    const { employee_code, employee_name, employee_nickname, is_active } = req.body;
+    const result = await query(
+      `INSERT INTO global_agent_appbarber_professionals (global_agent_id, employee_code, employee_name, employee_nickname, is_active)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (global_agent_id, employee_code)
+       DO UPDATE SET employee_name = $3, employee_nickname = $4, is_active = $5, updated_at = NOW()
+       RETURNING *`,
+      [req.params.id, parseInt(String(employee_code), 10), employee_name, employee_nickname || null, is_active !== false]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    logError('global_appbarber_professionals.create_error', error);
+    res.status(500).json({ error: 'Erro ao salvar profissional' });
+  }
+});
+
+// Delete a professional
+router.delete('/admin/:id/appbarber-professionals/:profId', requireSuperadmin, async (req, res) => {
+  try {
+    await query(
+      `DELETE FROM global_agent_appbarber_professionals WHERE id = $1 AND global_agent_id = $2`,
+      [req.params.profId, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    logError('global_appbarber_professionals.delete_error', error);
+    res.status(500).json({ error: 'Erro ao deletar profissional' });
+  }
+});
+
+// Sync professionals from AppBarber API
+router.post('/admin/:id/appbarber-professionals/sync', requireSuperadmin, async (req, res) => {
+  try {
+    const agentResult = await query(
+      `SELECT appbarber_api_key, appbarber_establishment_code FROM global_ai_agents WHERE id = $1`,
+      [req.params.id]
+    );
+    const agent = agentResult.rows[0];
+    const apiKey = req.body.appbarber_api_key || agent?.appbarber_api_key;
+    const estCode = req.body.appbarber_establishment_code || agent?.appbarber_establishment_code;
+
+    if (!apiKey || !estCode) {
+      return res.status(400).json({ error: 'Credenciais AppBarber não configuradas.' });
+    }
+
+    try {
+      const professionals = await fetchAppBarberFromApi({ apiKey, estCode, endpoint: '/v1/professional-list' });
+      const imported = await importGlobalAppBarberProfessionals(req.params.id, professionals);
+      return res.json({ ok: true, imported, total: professionals.length, source: 'server' });
+    } catch (error) {
+      logError('global_appbarber_sync_professionals_error', error);
+      return res.status(400).json({ error: `Erro AppBarber: ${error.message}` });
+    }
+  } catch (error) {
+    logError('global_appbarber_professionals.sync_error', error);
+    res.status(500).json({ error: 'Erro ao sincronizar profissionais' });
+  }
+});
+
+// =============================================
+// AppBarber Helper Functions
+// =============================================
+
+function normalizeAppBarberMoney(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(/\./g, '').replace(',', '.');
+    const parsed = parseFloat(normalized);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function extractAppBarberArray(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
+async function readAppBarberResponse(response) {
+  const rawText = await response.text().catch(() => '');
+  let payload = null;
+  if (rawText) {
+    try { payload = JSON.parse(rawText); } catch { payload = null; }
+  }
+  return { rawText, payload };
+}
+
+function isAppBarberCloudflareBlock(response, rawText) {
+  const server = (response.headers.get('server') || '').toLowerCase();
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  const text = typeof rawText === 'string' ? rawText.toLowerCase() : '';
+  const looksLikeHtml = contentType.includes('text/html') || text.includes('<html') || text.includes('<!doctype html');
+  return response.status === 403 && (server.includes('cloudflare') && looksLikeHtml);
+}
+
+function getAppBarberErrorMessage(response, payload, rawText) {
+  if (isAppBarberCloudflareBlock(response, rawText)) return 'Bloqueio Cloudflare na AppBarber.';
+  if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message;
+  return `Erro ${response.status}`;
+}
+
+async function fetchAppBarberServicesFromApi({ apiKey, estCode }) {
+  const params = new URLSearchParams({ establishment_code: String(estCode), type: '1' });
+  const response = await fetch(`https://api.appbarber.com/v1/services?${params.toString()}`, {
+    headers: { Accept: 'application/json', 'X-API-Key': apiKey, 'User-Agent': 'curl/8.7.1' },
+  });
+  const { rawText, payload } = await readAppBarberResponse(response);
+  if (!response.ok) {
+    const error = new Error(getAppBarberErrorMessage(response, payload, rawText));
+    error.status = response.status;
+    error.code = isAppBarberCloudflareBlock(response, rawText) ? 'APPBARBER_CLOUDFLARE_BLOCK' : 'APPBARBER_API_ERROR';
+    throw error;
+  }
+  return extractAppBarberArray(payload);
+}
+
+async function fetchAppBarberFromApi({ apiKey, estCode, endpoint }) {
+  const params = new URLSearchParams({ establishment_code: String(estCode) });
+  const response = await fetch(`https://api.appbarber.com${endpoint}?${params.toString()}`, {
+    headers: { Accept: 'application/json', 'X-API-Key': apiKey, 'User-Agent': 'curl/8.7.1' },
+  });
+  const { rawText, payload } = await readAppBarberResponse(response);
+  if (!response.ok) {
+    const error = new Error(getAppBarberErrorMessage(response, payload, rawText));
+    error.status = response.status;
+    error.code = isAppBarberCloudflareBlock(response, rawText) ? 'APPBARBER_CLOUDFLARE_BLOCK' : 'APPBARBER_API_ERROR';
+    throw error;
+  }
+  return extractAppBarberArray(payload);
+}
+
+async function importGlobalAppBarberServices(agentId, services) {
+  let imported = 0;
+  for (const service of services) {
+    if (!service?.service_code || !service?.service_description) continue;
+    await query(
+      `INSERT INTO global_agent_appbarber_services (global_agent_id, service_code, service_description, service_value, service_interval, synced_from_api)
+       VALUES ($1, $2, $3, $4, $5, true)
+       ON CONFLICT (global_agent_id, service_code)
+       DO UPDATE SET service_description = $3, service_value = $4, service_interval = $5, synced_from_api = true, updated_at = NOW()`,
+      [agentId, service.service_code, service.service_description, normalizeAppBarberMoney(service.service_value), parseInt(String(service.service_interval || 30), 10) || 30]
+    );
+    imported++;
+  }
+  return imported;
+}
+
+async function importGlobalAppBarberProfessionals(agentId, professionals) {
+  let imported = 0;
+  for (const p of professionals) {
+    if (!p?.employee_code || !(p?.employee_name || p?.employee_nickname)) continue;
+    await query(
+      `INSERT INTO global_agent_appbarber_professionals (global_agent_id, employee_code, employee_name, employee_nickname, synced_from_api)
+       VALUES ($1, $2, $3, $4, true)
+       ON CONFLICT (global_agent_id, employee_code)
+       DO UPDATE SET employee_name = $3, employee_nickname = $4, synced_from_api = true, updated_at = NOW()`,
+      [agentId, parseInt(String(p.employee_code), 10), String(p.employee_name || p.employee_nickname || '').slice(0, 255), p.employee_nickname ? String(p.employee_nickname).slice(0, 255) : null]
+    );
+    imported++;
+  }
+  return imported;
+}
+
