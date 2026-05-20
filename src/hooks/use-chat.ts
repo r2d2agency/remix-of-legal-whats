@@ -150,6 +150,7 @@ export interface UserAlert {
 }
 
 export const useChat = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const alertsPollingRef = useRef<NodeJS.Timeout | null>(null);
