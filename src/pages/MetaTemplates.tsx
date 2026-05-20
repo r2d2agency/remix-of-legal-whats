@@ -97,7 +97,7 @@ const MetaTemplates = () => {
 
   const loadMetaConnections = async () => {
     try {
-      const all = await api<MetaConnection[]>("/api/connections?scope=organization");
+      const all = await api<MetaConnection[]>("/api/connections");
       const metaConns = all.filter((c) => c.provider === "meta");
       setConnections(metaConns);
       if (metaConns.length > 0 && !selectedConnectionId) {
