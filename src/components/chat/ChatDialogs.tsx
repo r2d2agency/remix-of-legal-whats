@@ -380,7 +380,7 @@ interface SyncDialogProps {
 }
 
 export function SyncDialog({ open, onOpenChange, onSync, syncing }: SyncDialogProps) {
-  const [days, setDays] = useState("7");
+  const [days, setDays] = useState("30");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
