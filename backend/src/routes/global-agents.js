@@ -1322,7 +1322,7 @@ function getAppBarberErrorMessage(response, payload, rawText) {
 }
 
 async function fetchAppBarberServicesFromApi({ apiKey, estCode }) {
-  const params = new URLSearchParams({ establishment_code: String(estCode), type: '1' });
+  const params = new URLSearchParams({ establishment_code: String(estCode) });
   const response = await fetch(`https://api.appbarber.com/v1/services?${params.toString()}`, {
     headers: { Accept: 'application/json', 'X-API-Key': apiKey, 'User-Agent': 'curl/8.7.1' },
   });
