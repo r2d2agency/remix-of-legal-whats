@@ -633,7 +633,7 @@ export const useAIAgents = () => {
     }
   }, []);
 
-  const syncAppBarberServices = useCallback(async (agentId: string, credentials?: { appbarber_api_key?: string; appbarber_establishment_code?: string; services?: unknown[] }): Promise<{ imported: number; total?: number; source?: string; code?: string } | null> => {
+  const syncAppBarberServices = useCallback(async (agentId: string, credentials?: { appbarber_api_key?: string; appbarber_establishment_code?: string; services?: unknown[]; type?: number }): Promise<{ imported: number; total?: number; source?: string; code?: string } | null> => {
     try {
       return await api<{ imported: number; total?: number; source?: string; code?: string }>(`/api/ai-agents/${agentId}/appbarber-services/sync`, {
         method: 'POST',
