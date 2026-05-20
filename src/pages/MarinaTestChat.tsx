@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { API_URL } from "@/lib/api";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 interface ToolCall {
@@ -29,11 +29,6 @@ interface GlobalAgent {
   capabilities?: string[];
 }
 
-const headers = () => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-});
-
 export default function MarinaTestChat() {
   const [agents, setAgents] = useState<GlobalAgent[]>([]);
   const [agentId, setAgentId] = useState<string>("");
@@ -47,16 +42,19 @@ export default function MarinaTestChat() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/api/global-agents/admin/list`, { headers: headers() });
-        const data = await res.json();
-        if (res.ok) {
-          setAgents(data);
-          const marina = data.find((a: GlobalAgent) => /marina/i.test(a.name));
-          if (marina) setAgentId(marina.id);
-          else if (data[0]) setAgentId(data[0].id);
+        const data = await api<GlobalAgent[]>(`/api/global-agents/available`, { auth: true });
+        const filtered = (data || []).filter(a =>
+          Array.isArray(a.capabilities) && a.capabilities.includes("appbarber")
+        );
+        setAgents(filtered);
+        const marina = filtered.find(a => /marina/i.test(a.name));
+        if (marina) setAgentId(marina.id);
+        else if (filtered[0]) setAgentId(filtered[0].id);
+        if (filtered.length === 0) {
+          toast.message("Nenhum agente global com AppBarber disponível para esta organização.");
         }
       } catch (e: any) {
-        toast.error("Erro ao carregar agentes");
+        toast.error(e?.message || "Erro ao carregar agentes");
       }
     })();
   }, []);
@@ -82,13 +80,11 @@ export default function MarinaTestChat() {
     setInput("");
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/global-agents/admin/${agentId}/test`, {
+      const data = await api<any>(`/api/global-agents/test/${agentId}`, {
         method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ message: userMsg.content, history }),
+        auth: true,
+        body: { message: userMsg.content, history },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao enviar");
       setMessages(prev => [
         ...prev,
         {
@@ -120,7 +116,7 @@ export default function MarinaTestChat() {
       <div className="container mx-auto p-4 max-w-5xl">
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold">Simulador de Conversa — Marina</h1>
+            <h1 className="text-2xl font-bold">TestBarber</h1>
             <p className="text-sm text-muted-foreground">
               Teste o fluxo: coleta de dados → confirmação → chamada de <code>appbarber_availability</code> e <code>appbarber_appointment</code>.
             </p>
