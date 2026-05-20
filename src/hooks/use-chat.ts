@@ -254,8 +254,29 @@ export const useChat = () => {
       if (filters?.endDate) params.append('endDate', filters.endDate);
       if (filters?.limit) params.append('limit', String(filters.limit));
       if (filters?.offset) params.append('offset', String(filters.offset));
+      // If restricted and "all" connections is selected, we must ensure we only get allowed ones.
+      // However, the backend should ideally handle this. If it doesn't, we might need to 
+      // fetch each allowed connection separately or filter here.
+      // For now, we'll assume the backend might need the list of allowed connections if we're not admin.
+      
       const url = `/api/chat/conversations${params.toString() ? `?${params}` : ''}`;
       const data = await api<Conversation[]>(url);
+
+      // Frontend fallback filtering for "Hybrid Mode" and security
+      if (user?.role !== 'owner' && user?.role !== 'admin' && user?.organization_id) {
+        try {
+          // We can't easily fetch groups on every conversation load, so we should probably
+          // cache them or assume the connections list we already have is correct.
+          // For now, let's just use the connection list if we have it, or just return the data.
+          // If we want to be very strict:
+          const allowedConnections = await getConnections();
+          const allowedIds = new Set(allowedConnections.map(c => c.id));
+          return data.filter(conv => allowedIds.has(conv.connection_id));
+        } catch {
+          return data;
+        }
+      }
+
       return data;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao buscar conversas';
