@@ -245,7 +245,10 @@ export const useChat = () => {
       if (filters?.tag && filters.tag !== 'all') params.append('tag', filters.tag);
       if (filters?.assigned && filters.assigned !== 'all') params.append('assigned', filters.assigned);
       if (filters?.archived !== undefined) params.append('archived', String(filters.archived));
-      if (filters?.connection && filters.connection !== 'all') params.append('connection', filters.connection);
+      if (filters?.connection && filters.connection !== 'all') {
+        params.append('connection', filters.connection);
+        params.append('connection_id', filters.connection);
+      }
       if (filters?.is_group !== undefined) params.append('is_group', String(filters.is_group));
       if (filters?.attendance_status) params.append('attendance_status', filters.attendance_status);
       if (filters?.department && filters.department !== 'all') params.append('department', filters.department);
