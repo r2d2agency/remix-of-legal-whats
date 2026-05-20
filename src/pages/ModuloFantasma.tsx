@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGhostAnalysis, GhostInsight, SavedAnalysis } from "@/hooks/use-ghost-analysis";
+import { useConnections } from "@/hooks/use-connections";
 import { AnalysisProgressBar } from "@/components/ghost/AnalysisProgressBar";
 import { ExtraMetricsPanel } from "@/components/ghost/ExtraMetricsPanel";
 import { api } from "@/lib/api";
