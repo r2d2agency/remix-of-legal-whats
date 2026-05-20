@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
 import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
+import { useConnections } from "@/hooks/use-connections";
 import { evolutionApi } from "@/lib/evolution-api";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
