@@ -264,10 +264,11 @@ export const useChat = () => {
     }
   }, []);
 
-  // Get connections for filter
+  // Get connections for filter (now correctly restricted to allowed connections)
   const getConnections = useCallback(async (): Promise<Connection[]> => {
     try {
-      const data = await api<Connection[]>('/api/connections?scope=organization');
+      // Changed from ?scope=organization to default endpoint which respects access group filters
+      const data = await api<Connection[]>('/api/connections');
       return data;
     } catch (err) {
       console.error('Error fetching connections:', err);
