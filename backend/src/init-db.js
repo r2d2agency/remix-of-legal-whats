@@ -2205,8 +2205,25 @@ DO $$ BEGIN
     ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS event_start TIMESTAMP WITH TIME ZONE;
     ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS event_end TIMESTAMP WITH TIME ZONE;
     ALTER TABLE google_calendar_events ADD COLUMN IF NOT EXISTS meet_link VARCHAR(500);
+    
+    -- Drop old unique constraint if it was crm_task_id only
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'google_calendar_events_user_id_crm_task_id_key') THEN
+        ALTER TABLE google_calendar_events DROP CONSTRAINT google_calendar_events_user_id_crm_task_id_key;
+    END IF;
+
+    -- Add composite unique constraint to allow multiple events per user/task if needed (or just ensure mapping)
+    -- Actually keep user_id + crm_task_id unique for standard tasks
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'google_calendar_events_user_id_crm_task_id_key') THEN
+        ALTER TABLE google_calendar_events ADD CONSTRAINT google_calendar_events_user_id_crm_task_id_key UNIQUE (user_id, crm_task_id);
+    END IF;
+    
+    -- Add unique constraint for google_event_id per user
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'google_calendar_events_user_id_google_event_id_key') THEN
+        ALTER TABLE google_calendar_events ADD CONSTRAINT google_calendar_events_user_id_google_event_id_key UNIQUE (user_id, google_event_id);
+    END IF;
 EXCEPTION
     WHEN duplicate_column THEN null;
+    WHEN duplicate_object THEN null;
 END $$;
 
 -- Calendar selection / enabled calendars per user
