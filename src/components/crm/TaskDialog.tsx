@@ -13,7 +13,7 @@ import { api } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGoogleCalendarStatus } from "@/hooks/use-google-calendar";
 import { toast } from "sonner";
-import { Video, Users, Calendar, X, Plus, Mail, Loader2, ExternalLink, Bell, MessageSquare } from "lucide-react";
+import { Video, Users, Calendar, X, Plus, Mail, Loader2, ExternalLink, Bell, MessageSquare, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface TaskDialogProps {
