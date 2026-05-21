@@ -2209,6 +2209,14 @@ EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
 
+-- Calendar selection / enabled calendars per user
+DO $$ BEGIN
+    ALTER TABLE google_oauth_tokens ADD COLUMN IF NOT EXISTS selected_calendar_id VARCHAR(255);
+    ALTER TABLE google_oauth_tokens ADD COLUMN IF NOT EXISTS enabled_calendars JSONB DEFAULT '[]'::jsonb;
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
+
 -- Add unique constraint on google_event_id if not exists
 DO $$ BEGIN
     IF NOT EXISTS (

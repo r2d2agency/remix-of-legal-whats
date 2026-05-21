@@ -156,7 +156,8 @@ router.use(authenticate);
 router.get('/status', async (req, res) => {
   try {
     const result = await query(
-      `SELECT google_email, google_name, is_active, last_sync_at, last_error, expires_at
+      `SELECT google_email, google_name, is_active, last_sync_at, last_error, expires_at,
+              selected_calendar_id, enabled_calendars
        FROM google_oauth_tokens WHERE user_id = $1`,
       [req.userId]
     );
@@ -166,16 +167,78 @@ router.get('/status', async (req, res) => {
     }
 
     const token = result.rows[0];
+    const tokenExpired = new Date(token.expires_at) < new Date();
+
+    // Fetch available calendars from Google (best-effort, async)
+    let availableCalendars = [];
+    if (token.is_active && !tokenExpired) {
+      try {
+        const accessToken = await getValidAccessToken(req.userId);
+        const calResp = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList?minAccessRole=writer`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (calResp.ok) {
+          const data = await calResp.json();
+          const enabledList = Array.isArray(token.enabled_calendars) ? token.enabled_calendars : [];
+          availableCalendars = (data.items || []).map(c => ({
+            id: c.id,
+            summary: c.summary,
+            primary: !!c.primary,
+            enabled: enabledList.length === 0 ? true : enabledList.includes(c.id),
+          }));
+        }
+      } catch (e) {
+        logError('Error fetching calendarList for status:', e.message);
+      }
+    }
+
     res.json({
       connected: token.is_active,
       email: token.google_email,
       name: token.google_name,
       lastSync: token.last_sync_at,
       lastError: token.last_error,
-      tokenExpired: new Date(token.expires_at) < new Date(),
+      tokenExpired,
+      availableCalendars,
+      selectedCalendarId: token.selected_calendar_id || null,
     });
   } catch (error) {
     logError('Error fetching Google status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update sync settings (selected calendar + enabled calendars)
+router.patch('/settings', async (req, res) => {
+  try {
+    const { selectedCalendarId, enabledCalendars } = req.body || {};
+
+    const updates = [];
+    const values = [];
+    let idx = 1;
+
+    if (typeof selectedCalendarId !== 'undefined') {
+      updates.push(`selected_calendar_id = $${idx++}`);
+      values.push(selectedCalendarId || null);
+    }
+    if (Array.isArray(enabledCalendars)) {
+      updates.push(`enabled_calendars = $${idx++}::jsonb`);
+      values.push(JSON.stringify(enabledCalendars));
+    }
+
+    if (updates.length === 0) {
+      return res.json({ success: true });
+    }
+
+    values.push(req.userId);
+    await query(
+      `UPDATE google_oauth_tokens SET ${updates.join(', ')}, updated_at = NOW() WHERE user_id = $${idx}`,
+      values
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    logError('Error updating Google Calendar settings:', error);
     res.status(500).json({ error: error.message });
   }
 });
