@@ -96,7 +96,7 @@ const Contatos = () => {
   const [editingContact, setEditingContact] = useState<string | null>(null);
   const { data: availableConnections = [] } = useConnections();
   const [validatingContact, setValidatingContact] = useState<string | null>(null);
-  const [wapiConnectionId, setWapiConnectionId] = useState<string | null>(null);
+  const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
   const [syncConnections, setSyncConnections] = useState<SyncConnection[]>([]);
   const [selectedSyncConnectionId, setSelectedSyncConnectionId] = useState("");
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
@@ -404,15 +404,56 @@ const Contatos = () => {
   };
 
   const validateWhatsAppBulk = async (phones: string[]): Promise<{ phone: string; exists: boolean }[]> => {
-    const wapiConn = allConnections?.find(c => c.status === 'connected' && c.provider === 'wapi');
-    
-    if (!wapiConn) throw new Error("Nenhuma conexão W-API ativa disponível para validação em massa");
-    
-    const result = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(
-      `/api/wapi/${wapiConn.id}/validate-numbers`,
-      { method: 'POST', body: { phones } }
+    const validConn = allConnections?.find(c => 
+      c.status === 'connected' && 
+      (c.provider === 'wapi' || c.provider === 'evolution')
     );
-    return result.results;
+    
+    if (!validConn) {
+      // Se for Meta ou outro, fazemos a validação individual em paralelo pois não há endpoint de bulk nativo
+      // mas simulamos o retorno esperado pelo ExcelImportDialog
+      const results = await Promise.all(phones.map(async (phone) => {
+        try {
+          const exists = await validateWhatsAppNumber(phone);
+          return { phone, exists };
+        } catch {
+          return { phone, exists: false };
+        }
+      }));
+      return results;
+    }
+    
+    if (validConn.provider === 'wapi') {
+      const result = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(
+        `/api/wapi/${validConn.id}/validate-numbers`,
+        { method: 'POST', body: { phones } }
+      );
+      return result.results;
+    } else {
+      // Evolution API Bulk
+      const config = {
+        apiUrl: (validConn as any).api_url || (validConn as any).apiUrl,
+        apiKey: (validConn as any).api_key || (validConn as any).apiKey,
+        instanceName: (validConn as any).instance_name || (validConn as any).instanceName || validConn.name
+      };
+      
+      const response = await fetch(
+        `${config.apiUrl}/chat/whatsappNumbers/${config.instanceName}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: config.apiKey,
+          },
+          body: JSON.stringify({
+            numbers: phones,
+          }),
+        }
+      );
+      
+      const data = await response.json();
+      return Array.isArray(data) ? data.map((d: any) => ({ phone: d.number, exists: d.exists })) : [];
+    }
   };
 
   const ensureConnectionReadyForSync = async (connection: SyncConnection): Promise<boolean> => {
@@ -914,7 +955,7 @@ const Contatos = () => {
           onOpenChange={setIsImportOpen}
           onImport={handleImportContacts}
           validateWhatsApp={validateWhatsAppNumber}
-          validateWhatsAppBulk={wapiConnectionId ? validateWhatsAppBulk : undefined}
+          validateWhatsAppBulk={activeConnectionId ? validateWhatsAppBulk : undefined}
         />
 
         {/* Add Contact Dialog */}
