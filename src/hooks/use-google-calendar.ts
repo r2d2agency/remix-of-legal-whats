@@ -9,7 +9,7 @@ export interface GoogleCalendarStatus {
   lastSync?: string;
   lastError?: string;
   tokenExpired?: boolean;
-  availableCalendars?: Array<{ id: string; summary: string; primary?: boolean }>;
+  availableCalendars?: Array<{ id: string; summary: string; primary?: boolean; enabled?: boolean }>;
   selectedCalendarId?: string;
 }
 
@@ -168,7 +168,7 @@ export function useUpdateGoogleCalendarSettings() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (settings: { selectedCalendarId: string }) => {
+    mutationFn: async (settings: { selectedCalendarId?: string; enabledCalendars?: string[] }) => {
       return api<{ success: boolean }>("/api/google-calendar/settings", {
         method: "PATCH",
         body: settings,
