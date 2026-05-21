@@ -135,6 +135,7 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
     const params = [connectionIds];
     let paramIndex = 2;
 
+    // Se sharedConversations estiver ativo, usuários podem ver todas as conversas das conexões atribuídas.
     if (!sharedConversations && !isAdminOrSupervisor && !isSupervisorInAnyDept) {
       if (userDepartmentIds.length > 0) {
         visibilityFilter = ` AND (
@@ -573,7 +574,8 @@ router.get('/conversations', authenticate, async (req, res) => {
 
     // Visibility logic
     if (!isAdminOrSupervisor && !sharedConversations) {
-      // If user is in access groups, they see conversations from all users in those same groups
+      // Se sharedConversations NÃO estiver ativo, aplicamos restrições.
+      // Caso contrário (está ativo), o usuário vê tudo das conexões permitidas.
       if (accessGroupIds.length > 0) {
         filter += ` AND (
           conv.assigned_to = $${paramIndex}
@@ -770,7 +772,7 @@ const oldListConversationsEnd = true;
       // 6. Admin/Supervisor/Owner can see everything
       
       if (supportsDepartment && !sharedConversations && !isAdminOrSupervisor && !isSupervisorInAnyDept) {
-        // Non-admin users: apply visibility restrictions
+        // Non-admin users: apply visibility restrictions if shared_conversations is OFF
         if (userDepartmentIds.length > 0) {
           // User has departments: can see their department conversations + assigned to them + waiting without department
           sql += ` AND (
