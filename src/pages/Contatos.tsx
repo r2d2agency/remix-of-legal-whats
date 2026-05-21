@@ -406,15 +406,31 @@ const Contatos = () => {
   };
 
   const validateWhatsAppBulk = async (phones: string[]): Promise<{ phone: string; exists: boolean }[]> => {
-    const validConn = allConnections?.find(c => 
-      c.status === 'connected' && 
-      (c.provider === 'wapi' || c.provider === 'evolution')
-    );
+    const validConn = allConnections?.find(c => c.status === 'connected');
     
-    if (!validConn) {
-      // Se for Meta ou outro, fazemos a validação individual em paralelo pois não há endpoint de bulk nativo
-      // mas simulamos o retorno esperado pelo ExcelImportDialog
-      const results = await Promise.all(phones.map(async (phone) => {
+    if (!validConn) throw new Error("Nenhuma conexão ativa disponível para validação");
+
+    // W-API tem endpoint de bulk real no backend
+    if (validConn.provider === 'wapi') {
+      try {
+        const result = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(
+          `/api/wapi/${validConn.id}/validate-numbers`,
+          { method: 'POST', body: { phones } }
+        );
+        if (result.success) return result.results;
+      } catch (err) {
+        console.error("Erro na validação bulk W-API, tentando individual:", err);
+      }
+    }
+    
+    // Fallback para validação individual em paralelo (funciona para Meta, Evolution, Uazapi)
+    // Processamos em lotes pequenos para não sobrecarregar
+    const results: { phone: string; exists: boolean }[] = [];
+    const BATCH_SIZE = 5;
+    
+    for (let i = 0; i < phones.length; i += BATCH_SIZE) {
+      const batch = phones.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map(async (phone) => {
         try {
           const exists = await validateWhatsAppNumber(phone);
           return { phone, exists };
@@ -422,40 +438,10 @@ const Contatos = () => {
           return { phone, exists: false };
         }
       }));
-      return results;
+      results.push(...batchResults);
     }
     
-    if (validConn.provider === 'wapi') {
-      const result = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(
-        `/api/wapi/${validConn.id}/validate-numbers`,
-        { method: 'POST', body: { phones } }
-      );
-      return result.results;
-    } else {
-      // Evolution API Bulk
-      const config = {
-        apiUrl: (validConn as any).api_url || (validConn as any).apiUrl,
-        apiKey: (validConn as any).api_key || (validConn as any).apiKey,
-        instanceName: (validConn as any).instance_name || (validConn as any).instanceName || validConn.name
-      };
-      
-      const response = await fetch(
-        `${config.apiUrl}/chat/whatsappNumbers/${config.instanceName}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: config.apiKey,
-          },
-          body: JSON.stringify({
-            numbers: phones,
-          }),
-        }
-      );
-      
-      const data = await response.json();
-      return Array.isArray(data) ? data.map((d: any) => ({ phone: d.number, exists: d.exists })) : [];
-    }
+    return results;
   };
 
   const ensureConnectionReadyForSync = async (connection: SyncConnection): Promise<boolean> => {
