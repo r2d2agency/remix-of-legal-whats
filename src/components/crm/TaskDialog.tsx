@@ -13,7 +13,7 @@ import { api } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGoogleCalendarStatus } from "@/hooks/use-google-calendar";
 import { toast } from "sonner";
-import { Video, Users, Calendar, X, Plus, Mail, Loader2, ExternalLink, Bell, MessageSquare } from "lucide-react";
+import { Video, Users, Calendar, X, Plus, Mail, Loader2, ExternalLink, Bell, MessageSquare, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface TaskDialogProps {
@@ -95,7 +95,7 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
 
   const { data: members } = useOrgMembers(user?.organization_id || null);
   const { data: googleStatus } = useGoogleCalendarStatus();
-  const { createTask, updateTask } = useCRMTaskMutations();
+  const { createTask, updateTask, deleteTask } = useCRMTaskMutations();
   const createMeeting = useCreateMeetingWithMeet();
 
   const isGoogleConnected = googleStatus?.connected === true;
@@ -195,18 +195,37 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
         const startDateTime = dueDate.includes("T") ? dueDate : `${dueDate}T09:00`;
         const endDateTime = endTime || new Date(new Date(startDateTime).getTime() + 60 * 60 * 1000).toISOString().slice(0, 16);
 
-        const result = await createMeeting.mutateAsync({
-          title,
-          description,
-          startDateTime: `${startDateTime}:00`,
-          endDateTime: `${endDateTime}:00`,
-          addMeet: true,
-          attendees: allAttendees,
-          dealId,
-        });
+        // If editing existing task that has Google mapping
+        const existingMapping = await api<any[]>(`/api/google-calendar/deal-meetings/${dealId || 'none'}`).then(meetings => 
+          meetings.find(m => m.crm_task_id === task?.id)
+        ).catch(() => null);
 
-        toast.success("Reunião criada com Google Meet!", {
-          description: result.meetLink ? "Link do Meet gerado" : "Evento criado no calendário",
+        let result;
+        if (task && existingMapping) {
+          result = await api<any>(`/api/google-calendar/events/${existingMapping.google_event_id}`, {
+            method: 'PUT',
+            body: {
+              title,
+              description,
+              startDateTime: `${startDateTime}:00`,
+              endDateTime: `${endDateTime}:00`,
+              attendees: allAttendees,
+            }
+          });
+        } else {
+          result = await createMeeting.mutateAsync({
+            title,
+            description,
+            startDateTime: `${startDateTime}:00`,
+            endDateTime: `${endDateTime}:00`,
+            addMeet: true,
+            attendees: allAttendees,
+            dealId,
+          });
+        }
+
+        toast.success(task ? "Reunião atualizada!" : "Reunião criada com Google Meet!", {
+          description: result.meetLink ? "Link do Meet gerado" : "Evento sincronizado no calendário",
           action: result.htmlLink
             ? {
                 label: "Abrir",
@@ -218,14 +237,14 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
         onOpenChange(false);
         return;
       } catch (error: any) {
-        toast.error("Erro ao criar reunião", {
+        toast.error("Erro ao processar reunião", {
           description: error.message || "Tente novamente",
         });
         return;
       }
     }
 
-    // Otherwise, create as regular CRM task
+    // Otherwise, create/update as regular CRM task
     const reminderMins = reminderMinutes ? parseInt(reminderMinutes) : undefined;
     const data = {
       title,
@@ -242,12 +261,59 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
     };
 
     if (task) {
-      updateTask.mutate({ id: task.id, ...data });
+      await updateTask.mutateAsync({ id: task.id, ...data });
+      
+      // If task was synced to Google, update it there too
+      try {
+        const meetings = await api<any[]>(`/api/google-calendar/deal-meetings/${dealId || 'none'}`);
+        const mapping = meetings.find(m => m.crm_task_id === task.id);
+        
+        if (mapping) {
+          const startDateTime = dueDate.includes("T") ? dueDate : `${dueDate}T09:00`;
+          const endDateTime = endTime || new Date(new Date(startDateTime).getTime() + 60 * 60 * 1000).toISOString().slice(0, 16);
+          
+          await api(`/api/google-calendar/events/${mapping.google_event_id}`, {
+            method: 'PUT',
+            body: {
+              title,
+              description,
+              startDateTime: `${startDateTime}:00`,
+              endDateTime: `${endDateTime}:00`,
+            }
+          });
+          toast.success("Sincronizado com Google Calendar");
+        }
+      } catch (e) {
+        console.error("Error updating Google Calendar event:", e);
+      }
     } else {
       createTask.mutate(data);
     }
 
     onOpenChange(false);
+  };
+
+  const handleDelete = async () => {
+    if (!task) return;
+    if (!confirm("Tem certeza que deseja excluir esta tarefa?")) return;
+
+    try {
+      // Check for Google mapping before deleting
+      const meetings = await api<any[]>(`/api/google-calendar/deal-meetings/${dealId || 'none'}`);
+      const mapping = meetings.find(m => m.crm_task_id === task.id);
+      
+      if (mapping) {
+        if (confirm("Esta tarefa está sincronizada com o Google Calendar. Deseja remover também o evento do Google?")) {
+          await api(`/api/google-calendar/events/${mapping.google_event_id}`, { method: 'DELETE' });
+        }
+      }
+
+      await deleteTask.mutateAsync(task.id);
+      onOpenChange(false);
+    } catch (e) {
+      console.error("Error deleting task:", e);
+      toast.error("Erro ao excluir tarefa");
+    }
   };
 
   const typeOptions = [
@@ -265,7 +331,7 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
     { value: "urgent", label: "Urgente" },
   ];
 
-  const isSaving = createTask.isPending || updateTask.isPending || createMeeting.isPending;
+  const isSaving = createTask.isPending || updateTask.isPending || createMeeting.isPending || deleteTask.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -531,27 +597,43 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
           </div>
         </div>
 
-        <DialogFooter className="pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={!title.trim() || isSaving}>
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Salvando...
-              </>
-            ) : type === "meeting" && addGoogleMeet ? (
-              <>
-                <Video className="h-4 w-4 mr-2" />
-                Criar Reunião
-              </>
-            ) : task ? (
-              "Salvar"
-            ) : (
-              "Criar"
+        <DialogFooter className="pt-4 border-t flex justify-between items-center">
+          <div className="flex-1">
+            {task && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={handleDelete}
+                disabled={isSaving}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </Button>
             )}
-          </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={!title.trim() || isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Salvando...
+                </>
+              ) : type === "meeting" && addGoogleMeet ? (
+                <>
+                  <Video className="h-4 w-4 mr-2" />
+                  {task ? "Atualizar Reunião" : "Criar Reunião"}
+                </>
+              ) : task ? (
+                "Salvar"
+              ) : (
+                "Criar"
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

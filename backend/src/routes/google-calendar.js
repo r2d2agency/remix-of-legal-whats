@@ -366,13 +366,16 @@ router.post('/events', async (req, res) => {
     if (taskId) {
       await query(
         `INSERT INTO google_calendar_events 
-         (user_id, crm_task_id, crm_deal_id, google_event_id, google_calendar_id)
-         VALUES ($1, $2, $3, $4, 'primary')
+         (user_id, crm_task_id, crm_deal_id, google_event_id, google_calendar_id, event_summary, event_start, event_end)
+         VALUES ($1, $2, $3, $4, 'primary', $5, $6, $7)
          ON CONFLICT (user_id, crm_task_id) DO UPDATE SET
            google_event_id = EXCLUDED.google_event_id,
+           event_summary = EXCLUDED.event_summary,
+           event_start = EXCLUDED.event_start,
+           event_end = EXCLUDED.event_end,
            sync_status = 'synced',
            last_synced_at = NOW()`,
-        [req.userId, taskId, dealId || null, eventData.id]
+        [req.userId, taskId, dealId || null, eventData.id, title, startDateTime, endDateTime]
       );
     }
 
@@ -433,6 +436,17 @@ router.put('/events/:eventId', async (req, res) => {
     if (!response.ok) {
       throw new Error(eventData.error?.message || 'Erro ao atualizar evento');
     }
+
+    // Update local mapping if exists
+    await query(
+      `UPDATE google_calendar_events SET 
+         event_summary = $1, 
+         event_start = $2, 
+         event_end = $3, 
+         last_synced_at = NOW()
+       WHERE user_id = $4 AND google_event_id = $5`,
+      [title, startDateTime, endDateTime, req.userId, eventId]
+    );
 
     res.json({ success: true, eventId: eventData.id });
   } catch (error) {
