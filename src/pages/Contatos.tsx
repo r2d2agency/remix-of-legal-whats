@@ -96,7 +96,7 @@ const Contatos = () => {
   const [editingContact, setEditingContact] = useState<string | null>(null);
   const { data: availableConnections = [] } = useConnections();
   const [validatingContact, setValidatingContact] = useState<string | null>(null);
-  const [wapiConnectionId, setWapiConnectionId] = useState<string | null>(null);
+  const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
   const [syncConnections, setSyncConnections] = useState<SyncConnection[]>([]);
   const [selectedSyncConnectionId, setSelectedSyncConnectionId] = useState("");
   const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
@@ -117,8 +117,10 @@ const Contatos = () => {
         (c) => (c.provider === 'wapi' || !!c.instance_id) && c.status === 'connected'
       );
 
+      const anyConnected = connections.find(c => c.status === 'connected');
+
       setSyncConnections(connectedWapi);
-      setWapiConnectionId(connectedWapi[0]?.id || null);
+      setActiveConnectionId(anyConnected?.id || null);
       setSelectedSyncConnectionId((prev) => prev || connectedWapi[0]?.id || "");
 
       const uaz = connections.filter(
@@ -404,15 +406,42 @@ const Contatos = () => {
   };
 
   const validateWhatsAppBulk = async (phones: string[]): Promise<{ phone: string; exists: boolean }[]> => {
-    const wapiConn = allConnections?.find(c => c.status === 'connected' && c.provider === 'wapi');
+    const validConn = allConnections?.find(c => c.status === 'connected');
     
-    if (!wapiConn) throw new Error("Nenhuma conexão W-API ativa disponível para validação em massa");
+    if (!validConn) throw new Error("Nenhuma conexão ativa disponível para validação");
+
+    // W-API tem endpoint de bulk real no backend
+    if (validConn.provider === 'wapi') {
+      try {
+        const result = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(
+          `/api/wapi/${validConn.id}/validate-numbers`,
+          { method: 'POST', body: { phones } }
+        );
+        if (result.success) return result.results;
+      } catch (err) {
+        console.error("Erro na validação bulk W-API, tentando individual:", err);
+      }
+    }
     
-    const result = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(
-      `/api/wapi/${wapiConn.id}/validate-numbers`,
-      { method: 'POST', body: { phones } }
-    );
-    return result.results;
+    // Fallback para validação individual em paralelo (funciona para Meta, Evolution, Uazapi)
+    // Processamos em lotes pequenos para não sobrecarregar
+    const results: { phone: string; exists: boolean }[] = [];
+    const BATCH_SIZE = 5;
+    
+    for (let i = 0; i < phones.length; i += BATCH_SIZE) {
+      const batch = phones.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map(async (phone) => {
+        try {
+          const exists = await validateWhatsAppNumber(phone);
+          return { phone, exists };
+        } catch {
+          return { phone, exists: false };
+        }
+      }));
+      results.push(...batchResults);
+    }
+    
+    return results;
   };
 
   const ensureConnectionReadyForSync = async (connection: SyncConnection): Promise<boolean> => {
@@ -914,7 +943,7 @@ const Contatos = () => {
           onOpenChange={setIsImportOpen}
           onImport={handleImportContacts}
           validateWhatsApp={validateWhatsAppNumber}
-          validateWhatsAppBulk={wapiConnectionId ? validateWhatsAppBulk : undefined}
+          validateWhatsAppBulk={activeConnectionId ? validateWhatsAppBulk : undefined}
         />
 
         {/* Add Contact Dialog */}

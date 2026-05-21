@@ -4,7 +4,7 @@
 import { evolutionApi, EvolutionConfig, ConnectionState } from "./evolution-api";
 import { wapiApi, WApiConfig, WApiConnectionState } from "./wapi-api";
 
-export type WhatsAppProvider = "evolution" | "wapi" | "meta";
+export type WhatsAppProvider = "evolution" | "wapi" | "meta" | "uazapi";
 
 export interface WhatsAppConnection {
   id: string;
@@ -46,11 +46,11 @@ export function detectProvider(connection: WhatsAppConnection): WhatsAppProvider
   }
 
   // Prioriza credenciais concretas da W-API para cobrir registros legados
-  if (connection.instanceId && connection.token) {
+  if (connection.instanceId && connection.token && provider !== "meta") {
     return "wapi";
   }
 
-  if (provider === "wapi" || provider === "evolution") {
+  if (["wapi", "evolution", "meta", "uazapi"].includes(provider)) {
     return provider as WhatsAppProvider;
   }
 
@@ -167,6 +167,37 @@ export const whatsappProvider: WhatsAppProviderInterface = {
     
     if (provider === "wapi") {
       return wapiApi.checkWhatsAppNumber(toWApiConfig(connection), phone);
+    }
+    
+    if (provider === "meta") {
+      // Para Meta, como não há API direta de verificação, 
+      // usamos o endpoint do nosso backend que tenta validar via Business API ou retorna true se o formato for válido
+      try {
+        const { api } = await import("./api");
+        const res = await api<{ exists: boolean }>(`/api/meta/${connection.id}/check-number`, {
+          method: 'POST',
+          body: { phone }
+        });
+        return res.exists;
+      } catch (err) {
+        console.error("Erro ao validar número via Meta:", err);
+        // Fallback: se o número tiver o formato correto, consideramos válido para não bloquear o usuário
+        const cleanPhone = phone.replace(/\D/g, "");
+        return cleanPhone.length >= 10;
+      }
+    }
+
+    if (provider === "uazapi") {
+      try {
+        const { api } = await import("./api");
+        const res = await api<{ exists: boolean }>(`/api/uazapi/${connection.id}/check-number`, {
+          method: 'POST',
+          body: { phone }
+        });
+        return res.exists;
+      } catch (err) {
+        return true;
+      }
     }
     
     return evolutionApi.checkWhatsAppNumber(toEvolutionConfig(connection), phone);
