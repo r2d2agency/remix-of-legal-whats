@@ -124,7 +124,7 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
           `SELECT modules_enabled FROM organizations WHERE id = $1`,
           [userOrg.organization_id]
         );
-        if (orgResult.rows[0]?.modules_enabled?.shared_conversations) {
+        if (orgResult.rows[0]?.modules_enabled?.shared_conversations === true) {
           sharedConversations = true;
         }
       } catch {}
@@ -548,7 +548,7 @@ router.get('/conversations', authenticate, async (req, res) => {
           `SELECT modules_enabled FROM organizations WHERE id = $1`,
           [userOrg.organization_id]
         );
-        if (orgResult.rows[0]?.modules_enabled?.shared_conversations) {
+        if (orgResult.rows[0]?.modules_enabled?.shared_conversations === true) {
           sharedConversations = true;
         }
         
