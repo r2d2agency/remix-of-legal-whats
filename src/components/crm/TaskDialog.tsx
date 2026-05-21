@@ -95,7 +95,7 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
 
   const { data: members } = useOrgMembers(user?.organization_id || null);
   const { data: googleStatus } = useGoogleCalendarStatus();
-  const { createTask, updateTask } = useCRMTaskMutations();
+  const { createTask, updateTask, deleteTask } = useCRMTaskMutations();
   const createMeeting = useCreateMeetingWithMeet();
 
   const isGoogleConnected = googleStatus?.connected === true;
@@ -293,6 +293,29 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
     onOpenChange(false);
   };
 
+  const handleDelete = async () => {
+    if (!task) return;
+    if (!confirm("Tem certeza que deseja excluir esta tarefa?")) return;
+
+    try {
+      // Check for Google mapping before deleting
+      const meetings = await api<any[]>(`/api/google-calendar/deal-meetings/${dealId || 'none'}`);
+      const mapping = meetings.find(m => m.crm_task_id === task.id);
+      
+      if (mapping) {
+        if (confirm("Esta tarefa está sincronizada com o Google Calendar. Deseja remover também o evento do Google?")) {
+          await api(`/api/google-calendar/events/${mapping.google_event_id}`, { method: 'DELETE' });
+        }
+      }
+
+      await deleteTask.mutateAsync(task.id);
+      onOpenChange(false);
+    } catch (e) {
+      console.error("Error deleting task:", e);
+      toast.error("Erro ao excluir tarefa");
+    }
+  };
+
   const typeOptions = [
     { value: "task", label: "Tarefa" },
     { value: "call", label: "Ligação" },
@@ -308,7 +331,7 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
     { value: "urgent", label: "Urgente" },
   ];
 
-  const isSaving = createTask.isPending || updateTask.isPending || createMeeting.isPending;
+  const isSaving = createTask.isPending || updateTask.isPending || createMeeting.isPending || deleteTask.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -574,27 +597,43 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
           </div>
         </div>
 
-        <DialogFooter className="pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={!title.trim() || isSaving}>
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Salvando...
-              </>
-            ) : type === "meeting" && addGoogleMeet ? (
-              <>
-                <Video className="h-4 w-4 mr-2" />
-                Criar Reunião
-              </>
-            ) : task ? (
-              "Salvar"
-            ) : (
-              "Criar"
+        <DialogFooter className="pt-4 border-t flex justify-between items-center">
+          <div className="flex-1">
+            {task && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={handleDelete}
+                disabled={isSaving}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </Button>
             )}
-          </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={!title.trim() || isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Salvando...
+                </>
+              ) : type === "meeting" && addGoogleMeet ? (
+                <>
+                  <Video className="h-4 w-4 mr-2" />
+                  {task ? "Atualizar Reunião" : "Criar Reunião"}
+                </>
+              ) : task ? (
+                "Salvar"
+              ) : (
+                "Criar"
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
