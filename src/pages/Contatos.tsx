@@ -117,8 +117,10 @@ const Contatos = () => {
         (c) => (c.provider === 'wapi' || !!c.instance_id) && c.status === 'connected'
       );
 
+      const anyConnected = connections.find(c => c.status === 'connected');
+
       setSyncConnections(connectedWapi);
-      setWapiConnectionId(connectedWapi[0]?.id || null);
+      setActiveConnectionId(anyConnected?.id || null);
       setSelectedSyncConnectionId((prev) => prev || connectedWapi[0]?.id || "");
 
       const uaz = connections.filter(
