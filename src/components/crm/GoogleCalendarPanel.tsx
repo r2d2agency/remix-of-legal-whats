@@ -3,6 +3,14 @@ import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 import { useGoogleCalendarStatus, useGoogleCalendarAuth, useGoogleCalendarDisconnect, useUpdateGoogleCalendarSettings } from "@/hooks/use-google-calendar";
 import { Calendar, CheckCircle, XCircle, Loader2, ExternalLink, RefreshCw, AlertCircle, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -118,31 +126,64 @@ export function GoogleCalendarPanel() {
 
             {/* Calendar Selection */}
             {status.availableCalendars && status.availableCalendars.length > 0 && (
-              <div className="space-y-3 pt-2 border-t">
+              <div className="space-y-4 pt-4 border-t">
                 <div>
                   <h4 className="font-medium text-sm">Configurações de Sincronização</h4>
-                  <p className="text-xs text-muted-foreground">Escolha qual agenda será usada como padrão no sistema.</p>
+                  <p className="text-xs text-muted-foreground">Personalize como suas agendas são sincronizadas.</p>
                 </div>
                 
+                <div className="space-y-3">
+                  <label className="text-xs font-medium uppercase text-muted-foreground tracking-wider">Habilitar Agendas</label>
+                  <div className="grid gap-2">
+                    {status.availableCalendars.map((cal) => (
+                      <div key={cal.id} className="flex items-center space-x-2 p-2 rounded-md hover:bg-accent/30 transition-colors">
+                        <Checkbox 
+                          id={`cal-${cal.id}`}
+                          checked={cal.enabled !== false}
+                          onCheckedChange={(checked) => {
+                            const enabledIds = status.availableCalendars
+                              ?.filter(c => (c.id === cal.id ? checked : (c.enabled !== false)))
+                              .map(c => c.id) || [];
+                            updateSettingsMutation.mutate({ enabledCalendars: enabledIds });
+                          }}
+                          disabled={updateSettingsMutation.isPending}
+                        />
+                        <label 
+                          htmlFor={`cal-${cal.id}`}
+                          className="text-sm font-medium leading-none cursor-pointer flex-1"
+                        >
+                          {cal.summary} {cal.primary ? <Badge variant="outline" className="ml-2 text-[10px] h-4">Principal</Badge> : ""}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <label className="text-xs font-medium uppercase text-muted-foreground">Agenda Padrão</label>
-                  <select 
-                    className="w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  <label className="text-xs font-medium uppercase text-muted-foreground tracking-wider">Agenda Padrão para Novos Eventos</label>
+                  <Select
                     value={status.selectedCalendarId || status.availableCalendars.find(c => c.primary)?.id || ""}
-                    onChange={(e) => updateSettingsMutation.mutate({ selectedCalendarId: e.target.value })}
+                    onValueChange={(value) => updateSettingsMutation.mutate({ selectedCalendarId: value })}
                     disabled={updateSettingsMutation.isPending}
                   >
-                    {status.availableCalendars.map((cal) => (
-                      <option key={cal.id} value={cal.id}>
-                        {cal.summary} {cal.primary ? "(Principal)" : ""}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione uma agenda" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {status.availableCalendars
+                        .filter(cal => cal.enabled !== false)
+                        .map((cal) => (
+                          <SelectItem key={cal.id} value={cal.id}>
+                            {cal.summary} {cal.primary ? "(Principal)" : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 text-primary border border-primary/10">
-                  <RefreshCw className={cn("h-4 w-4", updateSettingsMutation.isPending && "animate-spin")} />
-                  <span className="text-xs font-medium">Sincronização assíncrona ativa</span>
+                  <RefreshCw className={cn("h-3.5 w-3.5", updateSettingsMutation.isPending && "animate-spin")} />
+                  <span className="text-xs font-medium">Modo assíncrono ativado (Sincronização em segundo plano)</span>
                 </div>
               </div>
             )}
