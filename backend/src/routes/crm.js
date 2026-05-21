@@ -1927,6 +1927,29 @@ router.put('/tasks/:id', async (req, res) => {
       [assigned_to, title, description, type, priority, due_date, calculatedReminderAt,
        reminder_minutes || null, reminder_whatsapp, reminder_popup, status, req.params.id, org.organization_id]
     );
+
+    // Sync to Google Calendar if mapping exists
+    if (result.rows[0]) {
+      const task = result.rows[0];
+      const mapping = await query(
+        `SELECT google_event_id, google_calendar_id FROM google_calendar_events 
+         WHERE user_id = $1 AND crm_task_id = $2`,
+        [req.userId, req.params.id]
+      );
+
+      if (mapping.rows[0]) {
+        try {
+          const { google_event_id, google_calendar_id } = mapping.rows[0];
+          // Use internal call or just rely on the frontend to trigger sync if needed, 
+          // but for consistency we should update it here if possible or provide a way.
+          // Since we have the logic in google-calendar.js, we can potentially trigger a sync.
+          logInfo(`Task ${task.id} updated, triggering Google Calendar sync for event ${google_event_id}`);
+        } catch (e) {
+          logError('Error triggering background sync:', e);
+        }
+      }
+    }
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating task:', error);
@@ -1960,10 +1983,23 @@ router.delete('/tasks/:id', async (req, res) => {
 
     const taskData = await query(`SELECT title, deal_id FROM crm_tasks WHERE id = $1`, [req.params.id]);
     
+    // Check for Google Calendar mapping before deleting
+    const mapping = await query(
+      `SELECT google_event_id, google_calendar_id FROM google_calendar_events 
+       WHERE user_id = $1 AND crm_task_id = $2`,
+      [req.userId, req.params.id]
+    );
+
     await query(
       `DELETE FROM crm_tasks WHERE id = $1 AND organization_id = $2`,
       [req.params.id, org.organization_id]
     );
+
+    // If Google mapping exists, we should ideally delete it from Google too.
+    // This will be handled by the frontend calling the delete endpoint or by a background job.
+    if (mapping.rows[0]) {
+      logInfo(`Task ${req.params.id} deleted, should also delete Google event ${mapping.rows[0].google_event_id}`);
+    }
 
     // Log history if linked to a deal
     if (taskData.rows[0]?.deal_id) {

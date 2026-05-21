@@ -195,18 +195,37 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
         const startDateTime = dueDate.includes("T") ? dueDate : `${dueDate}T09:00`;
         const endDateTime = endTime || new Date(new Date(startDateTime).getTime() + 60 * 60 * 1000).toISOString().slice(0, 16);
 
-        const result = await createMeeting.mutateAsync({
-          title,
-          description,
-          startDateTime: `${startDateTime}:00`,
-          endDateTime: `${endDateTime}:00`,
-          addMeet: true,
-          attendees: allAttendees,
-          dealId,
-        });
+        // If editing existing task that has Google mapping
+        const existingMapping = await api<any[]>(`/api/google-calendar/deal-meetings/${dealId || 'none'}`).then(meetings => 
+          meetings.find(m => m.crm_task_id === task?.id)
+        ).catch(() => null);
 
-        toast.success("Reunião criada com Google Meet!", {
-          description: result.meetLink ? "Link do Meet gerado" : "Evento criado no calendário",
+        let result;
+        if (task && existingMapping) {
+          result = await api<any>(`/api/google-calendar/events/${existingMapping.google_event_id}`, {
+            method: 'PUT',
+            body: {
+              title,
+              description,
+              startDateTime: `${startDateTime}:00`,
+              endDateTime: `${endDateTime}:00`,
+              attendees: allAttendees,
+            }
+          });
+        } else {
+          result = await createMeeting.mutateAsync({
+            title,
+            description,
+            startDateTime: `${startDateTime}:00`,
+            endDateTime: `${endDateTime}:00`,
+            addMeet: true,
+            attendees: allAttendees,
+            dealId,
+          });
+        }
+
+        toast.success(task ? "Reunião atualizada!" : "Reunião criada com Google Meet!", {
+          description: result.meetLink ? "Link do Meet gerado" : "Evento sincronizado no calendário",
           action: result.htmlLink
             ? {
                 label: "Abrir",
@@ -218,14 +237,14 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
         onOpenChange(false);
         return;
       } catch (error: any) {
-        toast.error("Erro ao criar reunião", {
+        toast.error("Erro ao processar reunião", {
           description: error.message || "Tente novamente",
         });
         return;
       }
     }
 
-    // Otherwise, create as regular CRM task
+    // Otherwise, create/update as regular CRM task
     const reminderMins = reminderMinutes ? parseInt(reminderMinutes) : undefined;
     const data = {
       title,
@@ -242,7 +261,31 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
     };
 
     if (task) {
-      updateTask.mutate({ id: task.id, ...data });
+      await updateTask.mutateAsync({ id: task.id, ...data });
+      
+      // If task was synced to Google, update it there too
+      try {
+        const meetings = await api<any[]>(`/api/google-calendar/deal-meetings/${dealId || 'none'}`);
+        const mapping = meetings.find(m => m.crm_task_id === task.id);
+        
+        if (mapping) {
+          const startDateTime = dueDate.includes("T") ? dueDate : `${dueDate}T09:00`;
+          const endDateTime = endTime || new Date(new Date(startDateTime).getTime() + 60 * 60 * 1000).toISOString().slice(0, 16);
+          
+          await api(`/api/google-calendar/events/${mapping.google_event_id}`, {
+            method: 'PUT',
+            body: {
+              title,
+              description,
+              startDateTime: `${startDateTime}:00`,
+              endDateTime: `${endDateTime}:00`,
+            }
+          });
+          toast.success("Sincronizado com Google Calendar");
+        }
+      } catch (e) {
+        console.error("Error updating Google Calendar event:", e);
+      }
     } else {
       createTask.mutate(data);
     }
