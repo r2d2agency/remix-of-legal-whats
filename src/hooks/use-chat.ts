@@ -423,6 +423,10 @@ export const useChat = () => {
     await api(`/api/chat/conversations/${id}/read`, { method: 'POST' });
   }, []);
 
+  const deleteConversation = useCallback(async (id: string): Promise<void> => {
+    await api(`/api/chat/conversations/${id}`, { method: 'DELETE' });
+  }, []);
+
   const transferConversation = useCallback(async (id: string, toUserId: string | null, note?: string): Promise<void> => {
     await api(`/api/chat/conversations/${id}/transfer`, {
       method: 'POST',
