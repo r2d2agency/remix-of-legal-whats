@@ -616,10 +616,14 @@ router.get('/conversations', authenticate, async (req, res) => {
       filter += ` AND COALESCE(conv.is_group, false) = false`;
     }
 
-    if (show_archived === 'true') {
+    if (show_archived) {
       filter += ` AND conv.is_archived = true`;
     } else {
       filter += ` AND conv.is_archived = false`;
+    }
+
+    if (favorite === 'true') {
+      filter += ` AND COALESCE(conv.is_favorite, false) = true`;
     }
 
     if (search) {
