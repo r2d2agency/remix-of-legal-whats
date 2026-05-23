@@ -35,6 +35,7 @@ const Chat = () => {
     getConversation,
     updateConversation,
     markAsRead,
+    deleteConversation,
     transferConversation,
     pinConversation,
     favoriteConversation,
@@ -894,7 +895,7 @@ const Chat = () => {
                 tags={tags} team={team} connections={connections} syncingHistory={syncingHistory} isAdmin={isAdmin} userRole={userRole}
                 onSyncHistory={handleSyncHistory} onSendMessage={handleSendMessage} onForwardMessage={handleForwardMessage} onLoadMore={handleLoadMoreMessages} hasMore={hasMoreMessages}
                 onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} onAssign={handleAssign} onArchive={handleArchive} onTransfer={handleTransfer} onCreateTag={handleCreateTag}
-                onDeleteConversation={async () => { if (!selectedConversation) return; try { await api(`/api/chat/conversations/${selectedConversation.id}`, { method: 'DELETE' }); toast.success('Conversa excluída'); setSelectedConversation(null); setMessages([]); loadConversations(); } catch (error: any) { toast.error(error.message || 'Erro ao excluir conversa'); } }}
+                onDeleteConversation={async () => { if (!selectedConversation) return; try { await deleteConversation(selectedConversation.id); toast.success('Conversa excluída'); setSelectedConversation(null); setMessages([]); loadConversations(); } catch (error: any) { toast.error(error.message || 'Erro ao excluir conversa'); } }}
                 onReleaseConversation={handleReleaseConversation} onFinishConversation={() => handleFinishConversation()} onReopenConversation={() => handleReopenConversation()}
                 onDepartmentChange={() => loadConversations()} isMobile={true} onMobileBack={handleMobileBack}
                 onOpenCRM={() => setCrmPanelOpen(true)}
@@ -997,7 +998,7 @@ const Chat = () => {
                 tags={tags} team={team} connections={connections} syncingHistory={syncingHistory} isAdmin={isAdmin} userRole={userRole}
                 onSyncHistory={handleSyncHistory} onSendMessage={handleSendMessage} onForwardMessage={handleForwardMessage} onLoadMore={handleLoadMoreMessages} hasMore={hasMoreMessages}
                 onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} onAssign={handleAssign} onArchive={handleArchive} onTransfer={handleTransfer} onCreateTag={handleCreateTag}
-                onDeleteConversation={async () => { if (!selectedConversation) return; try { await api(`/api/chat/conversations/${selectedConversation.id}`, { method: 'DELETE' }); toast.success('Conversa excluída'); setSelectedConversation(null); setMessages([]); loadConversations(); } catch (error: any) { toast.error(error.message || 'Erro ao excluir conversa'); } }}
+                onDeleteConversation={async () => { if (!selectedConversation) return; try { await deleteConversation(selectedConversation.id); toast.success('Conversa excluída'); setSelectedConversation(null); setMessages([]); loadConversations(); } catch (error: any) { toast.error(error.message || 'Erro ao excluir conversa'); } }}
                 onReleaseConversation={handleReleaseConversation} onFinishConversation={() => handleFinishConversation()} onReopenConversation={() => handleReopenConversation()}
                 onDepartmentChange={() => loadConversations()} isMobile={false}
                 onOpenCRM={() => setCrmPanelOpen(true)}

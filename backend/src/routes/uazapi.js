@@ -3,6 +3,7 @@
 
 import { Router } from 'express';
 import { query } from '../db.js';
+import { authenticate } from '../middleware/auth.js';
 import * as uazapiProvider from '../lib/uazapi-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import crypto from 'crypto';
@@ -858,17 +859,64 @@ router.get('/:connectionId/chats', async (req, res) => {
  * Sincroniza mensagens de um chat (UAZAPI)
  * POST /api/uazapi/:connectionId/sync-messages  body: { chatId, limit? }
  */
-router.post('/:connectionId/sync-messages', async (req, res) => {
+router.post('/:connectionId/sync-messages', authenticate, async (req, res) => {
   try {
-    const conn = await loadUazapiConnection(req.params.connectionId);
-    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const connResult = await query(
+      'SELECT * FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = $2))',
+      [req.params.connectionId, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada ou sem permissão' });
+    }
+
+    const conn = connResult.rows[0];
     const { chatId, limit } = req.body || {};
     if (!chatId) return res.status(400).json({ error: 'chatId obrigatório' });
+    
+    const syncLimit = Number(limit) || 100;
     const out = await uazapiProvider.syncMessages(conn.uazapi_url, conn.uazapi_token, chatId, {
-      limit: Number(limit) || 100,
+      limit: syncLimit,
     });
+
+    if (out.success && Array.isArray(out.messages)) {
+      console.log(`[UAZAPI Sync] Sincronizando ${out.messages.length} mensagens para ${chatId}`);
+      let imported = 0;
+      let skipped = 0;
+
+      for (const msg of out.messages) {
+        try {
+          const result = await persistIncomingMessage(conn, msg);
+          if (result.skipped) skipped++;
+          else imported++;
+        } catch (err) {
+          console.error('[UAZAPI Sync] Erro ao persistir mensagem:', err.message);
+          skipped++;
+        }
+      }
+
+      // Update conversation last_message_at
+      await query(
+        `UPDATE conversations SET last_message_at = (
+          SELECT MAX(timestamp) FROM chat_messages WHERE conversation_id IN (
+            SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2
+          )
+        ), updated_at = NOW() WHERE connection_id = $1 AND remote_jid = $2`,
+        [conn.id, chatId]
+      );
+
+      return res.json({
+        success: true,
+        imported,
+        skipped,
+        total: out.messages.length,
+        message: `Sincronização concluída: ${imported} novas mensagens importadas.`
+      });
+    }
+
     res.json(out);
   } catch (e) {
+    console.error('[UAZAPI Sync] Erro geral:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1067,10 +1115,18 @@ router.post('/:connectionId/sender/folders/:folderId/action', async (req, res) =
  *   - overwrite=true substitui qualquer nome (default true: corrige nomes errados antigos)
  *   - overwrite=false só preenche quando o nome atual parece ser um telefone
  */
-router.post('/:connectionId/resync-contact-names', async (req, res) => {
+router.post('/:connectionId/resync-contact-names', authenticate, async (req, res) => {
   try {
-    const conn = await loadUazapiConnection(req.params.connectionId);
-    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const connResult = await query(
+      'SELECT * FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = $2))',
+      [req.params.connectionId, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada ou sem permissão' });
+    }
+
+    const conn = connResult.rows[0];
     const parsedBody = typeof req.body === 'string'
       ? (() => {
           try {

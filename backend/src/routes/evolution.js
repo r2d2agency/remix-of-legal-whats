@@ -2526,7 +2526,7 @@ router.post('/:connectionId/sync-chat', authenticate, async (req, res) => {
     }
 
     const connResult = await query(
-      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
+      'SELECT * FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = $2))',
       [connectionId, req.userId]
     );
 
@@ -2737,7 +2737,7 @@ router.post('/:connectionId/sync-all', authenticate, async (req, res) => {
     const { days = 7 } = req.body;
 
     const connResult = await query(
-      'SELECT * FROM connections WHERE id = $1 AND user_id = $2',
+      'SELECT * FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = $2))',
       [connectionId, req.userId]
     );
 
