@@ -864,11 +864,40 @@ router.post('/:connectionId/sync-messages', async (req, res) => {
     if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
     const { chatId, limit } = req.body || {};
     if (!chatId) return res.status(400).json({ error: 'chatId obrigatório' });
+    
+    const syncLimit = Number(limit) || 100;
     const out = await uazapiProvider.syncMessages(conn.uazapi_url, conn.uazapi_token, chatId, {
-      limit: Number(limit) || 100,
+      limit: syncLimit,
     });
+
+    if (out.success && Array.isArray(out.messages)) {
+      console.log(`[UAZAPI Sync] Sincronizando ${out.messages.length} mensagens para ${chatId}`);
+      let imported = 0;
+      let skipped = 0;
+
+      for (const msg of out.messages) {
+        try {
+          const result = await persistIncomingMessage(conn, msg);
+          if (result.skipped) skipped++;
+          else imported++;
+        } catch (err) {
+          console.error('[UAZAPI Sync] Erro ao persistir mensagem:', err.message);
+          skipped++;
+        }
+      }
+
+      return res.json({
+        success: true,
+        imported,
+        skipped,
+        total: out.messages.length,
+        message: `Sincronização concluída: ${imported} novas mensagens importadas.`
+      });
+    }
+
     res.json(out);
   } catch (e) {
+    console.error('[UAZAPI Sync] Erro geral:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
