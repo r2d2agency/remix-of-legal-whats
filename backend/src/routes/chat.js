@@ -648,6 +648,12 @@ router.get('/conversations', authenticate, async (req, res) => {
       paramIndex++;
     }
 
+    if (department_id && department_id !== 'all') {
+      filter += ` AND conv.department_id = $${paramIndex}`;
+      params.push(department_id);
+      paramIndex++;
+    }
+
     if (search) {
       filter += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex} OR conv.group_name ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
