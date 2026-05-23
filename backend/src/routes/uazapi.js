@@ -3,6 +3,7 @@
 
 import { Router } from 'express';
 import { query } from '../db.js';
+import { authenticate } from '../middleware/auth.js';
 import * as uazapiProvider from '../lib/uazapi-provider.js';
 import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import crypto from 'crypto';
