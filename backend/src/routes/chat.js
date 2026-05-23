@@ -627,6 +627,27 @@ router.get('/conversations', authenticate, async (req, res) => {
       filter += ` AND COALESCE(conv.is_favorite, false) = true`;
     }
 
+    if (tag && tag !== 'all') {
+      filter += ` AND EXISTS (
+        SELECT 1 FROM conversation_tag_links ctl 
+        WHERE ctl.conversation_id = conv.id AND ctl.tag_id = $${paramIndex}
+      )`;
+      params.push(tag);
+      paramIndex++;
+    }
+
+    if (assigned_to === 'me') {
+      filter += ` AND conv.assigned_to = $${paramIndex}`;
+      params.push(req.userId);
+      paramIndex++;
+    } else if (assigned_to === 'unassigned') {
+      filter += ` AND conv.assigned_to IS NULL`;
+    } else if (assigned_to && assigned_to !== 'all') {
+      filter += ` AND conv.assigned_to = $${paramIndex}`;
+      params.push(assigned_to);
+      paramIndex++;
+    }
+
     if (search) {
       filter += ` AND (conv.contact_name ILIKE $${paramIndex} OR conv.contact_phone ILIKE $${paramIndex} OR conv.group_name ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
