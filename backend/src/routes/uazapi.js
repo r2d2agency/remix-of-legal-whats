@@ -1115,10 +1115,18 @@ router.post('/:connectionId/sender/folders/:folderId/action', async (req, res) =
  *   - overwrite=true substitui qualquer nome (default true: corrige nomes errados antigos)
  *   - overwrite=false só preenche quando o nome atual parece ser um telefone
  */
-router.post('/:connectionId/resync-contact-names', async (req, res) => {
+router.post('/:connectionId/resync-contact-names', authenticate, async (req, res) => {
   try {
-    const conn = await loadUazapiConnection(req.params.connectionId);
-    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const connResult = await query(
+      'SELECT * FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = $2))',
+      [req.params.connectionId, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada ou sem permissão' });
+    }
+
+    const conn = connResult.rows[0];
     const parsedBody = typeof req.body === 'string'
       ? (() => {
           try {
