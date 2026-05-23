@@ -533,8 +533,12 @@ router.get('/conversations', authenticate, async (req, res) => {
       offset = 0,
       is_group,
       connection_id: filterConnectionId,
-      show_archived = 'false'
+      show_archived: show_archived_raw = 'false',
+      favorite,
+      tag
     } = req.query;
+    
+    const show_archived = String(show_archived_raw) === 'true';
 
     const userOrg = await getUserOrganization(req.userId);
     const isAdminOrSupervisor = userOrg && ['owner', 'admin'].includes(userOrg.role);
@@ -613,10 +617,41 @@ router.get('/conversations', authenticate, async (req, res) => {
       filter += ` AND COALESCE(conv.is_group, false) = false`;
     }
 
-    if (show_archived === 'true') {
+    if (show_archived) {
       filter += ` AND conv.is_archived = true`;
     } else {
       filter += ` AND conv.is_archived = false`;
+    }
+
+    if (favorite === 'true') {
+      filter += ` AND COALESCE(conv.is_favorite, false) = true`;
+    }
+
+    if (tag && tag !== 'all') {
+      filter += ` AND EXISTS (
+        SELECT 1 FROM conversation_tag_links ctl 
+        WHERE ctl.conversation_id = conv.id AND ctl.tag_id = $${paramIndex}
+      )`;
+      params.push(tag);
+      paramIndex++;
+    }
+
+    if (assigned_to === 'me') {
+      filter += ` AND conv.assigned_to = $${paramIndex}`;
+      params.push(req.userId);
+      paramIndex++;
+    } else if (assigned_to === 'unassigned') {
+      filter += ` AND conv.assigned_to IS NULL`;
+    } else if (assigned_to && assigned_to !== 'all') {
+      filter += ` AND conv.assigned_to = $${paramIndex}`;
+      params.push(assigned_to);
+      paramIndex++;
+    }
+
+    if (department_id && department_id !== 'all') {
+      filter += ` AND conv.department_id = $${paramIndex}`;
+      params.push(department_id);
+      paramIndex++;
     }
 
     if (search) {
@@ -634,7 +669,7 @@ router.get('/conversations', authenticate, async (req, res) => {
        JOIN connections conn ON conn.id = conv.connection_id
        LEFT JOIN users u ON u.id = conv.assigned_to
        WHERE ${filter}
-       ORDER BY conv.last_message_at DESC NULLS LAST
+       ORDER BY COALESCE(conv.is_pinned, false) DESC, conv.last_message_at DESC NULLS LAST, conv.created_at DESC
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, parseInt(limit), parseInt(offset)]
     );
