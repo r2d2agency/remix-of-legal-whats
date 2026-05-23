@@ -534,7 +534,8 @@ router.get('/conversations', authenticate, async (req, res) => {
       is_group,
       connection_id: filterConnectionId,
       show_archived: show_archived_raw = 'false',
-      favorite
+      favorite,
+      tag
     } = req.query;
     
     const show_archived = String(show_archived_raw) === 'true';
