@@ -641,7 +641,7 @@ router.get('/conversations', authenticate, async (req, res) => {
        JOIN connections conn ON conn.id = conv.connection_id
        LEFT JOIN users u ON u.id = conv.assigned_to
        WHERE ${filter}
-       ORDER BY conv.last_message_at DESC NULLS LAST
+       ORDER BY COALESCE(conv.is_pinned, false) DESC, conv.last_message_at DESC NULLS LAST, conv.created_at DESC
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, parseInt(limit), parseInt(offset)]
     );
