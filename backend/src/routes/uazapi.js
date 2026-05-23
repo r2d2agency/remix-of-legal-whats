@@ -859,10 +859,18 @@ router.get('/:connectionId/chats', async (req, res) => {
  * Sincroniza mensagens de um chat (UAZAPI)
  * POST /api/uazapi/:connectionId/sync-messages  body: { chatId, limit? }
  */
-router.post('/:connectionId/sync-messages', async (req, res) => {
+router.post('/:connectionId/sync-messages', authenticate, async (req, res) => {
   try {
-    const conn = await loadUazapiConnection(req.params.connectionId);
-    if (!conn) return res.status(404).json({ error: 'Conexão UAZAPI não encontrada' });
+    const connResult = await query(
+      'SELECT * FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = $2))',
+      [req.params.connectionId, req.userId]
+    );
+
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Conexão não encontrada ou sem permissão' });
+    }
+
+    const conn = connResult.rows[0];
     const { chatId, limit } = req.body || {};
     if (!chatId) return res.status(400).json({ error: 'chatId obrigatório' });
     
@@ -886,6 +894,16 @@ router.post('/:connectionId/sync-messages', async (req, res) => {
           skipped++;
         }
       }
+
+      // Update conversation last_message_at
+      await query(
+        `UPDATE conversations SET last_message_at = (
+          SELECT MAX(timestamp) FROM chat_messages WHERE conversation_id IN (
+            SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2
+          )
+        ), updated_at = NOW() WHERE connection_id = $1 AND remote_jid = $2`,
+        [conn.id, chatId]
+      );
 
       return res.json({
         success: true,
