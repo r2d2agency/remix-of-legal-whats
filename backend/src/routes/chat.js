@@ -533,8 +533,11 @@ router.get('/conversations', authenticate, async (req, res) => {
       offset = 0,
       is_group,
       connection_id: filterConnectionId,
-      show_archived = 'false'
+      show_archived: show_archived_raw = 'false',
+      favorite
     } = req.query;
+    
+    const show_archived = String(show_archived_raw) === 'true';
 
     const userOrg = await getUserOrganization(req.userId);
     const isAdminOrSupervisor = userOrg && ['owner', 'admin'].includes(userOrg.role);
