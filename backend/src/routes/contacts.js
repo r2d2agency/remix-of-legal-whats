@@ -586,7 +586,7 @@ router.post('/lists/:listId/validate-all', async (req, res) => {
       );
     }
 
-    if (connCheck.rows.length === 0) {
+    if (!connCheck || connCheck.rows.length === 0) {
       return res.status(400).json({ error: 'Conexão não encontrada ou sem permissão' });
     }
 
@@ -598,7 +598,7 @@ router.post('/lists/:listId/validate-all', async (req, res) => {
       [listId]
     );
 
-    const contacts = contactsResult.rows;
+    const contacts = contactsResult?.rows || [];
     if (contacts.length === 0) {
       return res.json({ success: true, validated: 0, message: 'Nenhum contato pendente de validação' });
     }
@@ -617,10 +617,17 @@ router.post('/lists/:listId/validate-all', async (req, res) => {
     // Use UAZAPI if available
     if (connection.uazapi_url && connection.uazapi_token) {
       const { checkNumbers } = await import('../lib/uazapi-provider.js');
-      const results = await checkNumbers(connection.uazapi_url, connection.uazapi_token, phones);
-      results.forEach(item => {
-        validMap[item.phone] = item.exists;
-      });
+      try {
+        const results = await checkNumbers(connection.uazapi_url, connection.uazapi_token, phones);
+        if (Array.isArray(results)) {
+          results.forEach(item => {
+            validMap[item.phone] = item.exists;
+          });
+        }
+      } catch (err) {
+        console.error('UAZAPI checkNumbers error:', err);
+        return res.status(500).json({ error: 'Erro ao validar na UAZAPI: ' + err.message });
+      }
     } else if (connection.api_url && connection.api_key && connection.instance_name) {
       // Use Evolution API
       const result = await validateWhatsAppNumbers(connection_id, phones);
@@ -647,7 +654,7 @@ router.post('/lists/:listId/validate-all', async (req, res) => {
     res.json({ success: true, validated: validatedCount });
   } catch (error) {
     console.error('Validate list contacts error:', error);
-    res.status(500).json({ error: 'Erro ao validar contatos da lista' });
+    res.status(500).json({ error: 'Erro ao validar contatos da lista: ' + error.message });
   }
 });
 
