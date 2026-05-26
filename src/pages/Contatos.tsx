@@ -86,6 +86,7 @@ const Contatos = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [filterConnectionId, setFilterConnectionId] = useState<string>("");
   const [isCreateListOpen, setIsCreateListOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -366,7 +367,7 @@ const Contatos = () => {
     }
   };
 
-  const handleValidateList = async () => {
+  const handleValidateList = async (forceAll: boolean = false) => {
     if (!selectedList) return;
     
     // Find a connection that can validate
@@ -380,25 +381,25 @@ const Contatos = () => {
       return;
     }
 
-    const unverifiedContacts = contacts.filter(c => c.is_whatsapp === null);
-    if (unverifiedContacts.length === 0) {
-      toast.info("Não há contatos não verificados nesta lista");
+    const contactsToValidate = forceAll ? contacts : contacts.filter(c => c.is_whatsapp === null);
+    if (contactsToValidate.length === 0) {
+      toast.info("Não há contatos para validar nesta lista");
       return;
     }
 
     // Se a conexão for UAZAPI, usamos o hook useNumberValidation para mostrar a barra de progresso
     if (validConn.provider === 'uazapi') {
-      const phones = unverifiedContacts.map(c => c.phone);
+      const phones = contactsToValidate.map(c => c.phone);
       await startUazapiValidation(selectedList, validConn.id, phones);
       loadContacts(selectedList);
       return;
     }
 
     setIsValidatingList(true);
-    toast.info(`Iniciando validação de ${unverifiedContacts.length} contatos...`);
+    toast.info(`Iniciando validação de ${contactsToValidate.length} contatos...`);
     
     try {
-      const phones = unverifiedContacts.map(c => c.phone);
+      const phones = contactsToValidate.map(c => c.phone);
       let results: { phone: string; exists: boolean }[] = [];
       let serverSideValidated = false;
       
@@ -613,11 +614,42 @@ const Contatos = () => {
     }
   };
 
-  const filteredContacts = contacts.filter(
-    (contact) =>
+  const filteredContacts = contacts.filter((contact) => {
+    const matchesSearch =
       contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.phone.includes(searchTerm)
-  );
+      contact.phone.includes(searchTerm);
+    
+    const matchesStatus = 
+      statusFilter === "all" ||
+      (statusFilter === "valid" && contact.is_whatsapp === true) ||
+      (statusFilter === "invalid" && contact.is_whatsapp === false) ||
+      (statusFilter === "unverified" && contact.is_whatsapp === null);
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const handleDeleteInvalidContacts = async () => {
+    const invalidContacts = contacts.filter(c => c.is_whatsapp === false);
+    if (invalidContacts.length === 0) {
+      toast.info("Não há contatos inválidos para apagar");
+      return;
+    }
+
+    if (!confirm(`Deseja apagar ${invalidContacts.length} contatos inválidos?`)) return;
+
+    try {
+      setIsValidatingList(true);
+      for (const contact of invalidContacts) {
+        await deleteContact(contact.id);
+      }
+      toast.success(`${invalidContacts.length} contatos removidos!`);
+      if (selectedList) loadContacts(selectedList);
+    } catch (err) {
+      toast.error("Erro ao remover contatos");
+    } finally {
+      setIsValidatingList(false);
+    }
+  };
 
   const totalContacts = lists.reduce((sum, list) => sum + Number(list.contact_count || 0), 0);
 
@@ -922,15 +954,51 @@ const Contatos = () => {
                       className="pl-10"
                     />
                   </div>
-                  <Button 
-                    variant="outline" 
-                    onClick={handleValidateList} 
-                    disabled={isValidatingList || isUazapiValidating || contacts.filter(c => c.is_whatsapp === null).length === 0}
-                    className="gap-2"
-                  >
-                    {(isValidatingList || isUazapiValidating) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4 text-green-500" />}
-                    Validar WhatsApp
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Todos status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos status</SelectItem>
+                        <SelectItem value="valid">Válidos</SelectItem>
+                        <SelectItem value="invalid">Inválidos</SelectItem>
+                        <SelectItem value="unverified">Não verificados</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleValidateList(false)} 
+                      disabled={isValidatingList || isUazapiValidating || contacts.filter(c => c.is_whatsapp === null).length === 0}
+                      className="gap-2"
+                      title="Validar apenas contatos não verificados"
+                    >
+                      {(isValidatingList || isUazapiValidating) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4 text-green-500" />}
+                      Validar Pendentes
+                    </Button>
+
+                    <Button 
+                      variant="outline" 
+                      onClick={() => handleValidateList(true)} 
+                      disabled={isValidatingList || isUazapiValidating || contacts.length === 0}
+                      className="gap-2"
+                      title="Validar todos os contatos da lista novamente"
+                    >
+                      <RefreshCw className={cn("h-4 w-4", (isValidatingList || isUazapiValidating) && "animate-spin")} />
+                      Validar Tudo
+                    </Button>
+
+                    <Button 
+                      variant="outline" 
+                      onClick={handleDeleteInvalidContacts} 
+                      disabled={isValidatingList || isUazapiValidating || contacts.filter(c => c.is_whatsapp === false).length === 0}
+                      className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Apagar Inválidos
+                    </Button>
+                  </div>
                   <Button variant="outline" onClick={() => setIsImportOpen(true)}>
                     <Upload className="h-4 w-4" />
                     Importar Excel
