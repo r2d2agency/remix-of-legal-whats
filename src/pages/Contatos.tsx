@@ -82,7 +82,7 @@ const Contatos = () => {
     updateContact,
   } = useContacts();
 
-  const [lists, setLists] = useState<ContactList[]>([]);
+  const [lists, setLists] = useState<(ContactList & { created_by_name?: string })[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
