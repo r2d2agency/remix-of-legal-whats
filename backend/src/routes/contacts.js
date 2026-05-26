@@ -262,14 +262,19 @@ router.get('/lists/:listId/contacts', async (req, res) => {
     const { listId } = req.params;
     const org = await getUserOrganization(req.userId);
 
+    const isOwnerOrAdmin = org && ['owner', 'admin'].includes(org.role);
+
     // Verify list access
     let whereClause = 'id = $1 AND user_id = $2';
     let params = [listId, req.userId];
 
-    if (org) {
+    if (isOwnerOrAdmin) {
       whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $3
       ))`;
+      params = [listId, req.userId, org.organization_id];
+    } else if (org) {
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
       params = [listId, req.userId, org.organization_id];
     }
 
@@ -306,14 +311,19 @@ router.post('/lists/:listId/contacts', async (req, res) => {
 
     const org = await getUserOrganization(req.userId);
 
+    const isOwnerOrAdmin = org && ['owner', 'admin'].includes(org.role);
+
     // Verify list access
     let whereClause = 'id = $1 AND user_id = $2';
     let params = [listId, req.userId];
 
-    if (org) {
+    if (isOwnerOrAdmin) {
       whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $3
       ))`;
+      params = [listId, req.userId, org.organization_id];
+    } else if (org) {
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
       params = [listId, req.userId, org.organization_id];
     }
 
@@ -350,14 +360,19 @@ router.post('/lists/:listId/import', async (req, res) => {
 
     const org = await getUserOrganization(req.userId);
 
+    const isOwnerOrAdmin = org && ['owner', 'admin'].includes(org.role);
+
     // Verify list access and get connection_id
     let whereClause = 'id = $1 AND user_id = $2';
     let params = [listId, req.userId];
 
-    if (org) {
+    if (isOwnerOrAdmin) {
       whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $3
       ))`;
+      params = [listId, req.userId, org.organization_id];
+    } else if (org) {
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
       params = [listId, req.userId, org.organization_id];
     }
 
