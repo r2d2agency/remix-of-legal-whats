@@ -732,9 +732,13 @@ const Campanhas = () => {
                             </span>
                             <span className="flex items-center gap-1">
                               <Coffee className="h-4 w-4" />
-                              Pausa a cada {campaign.pause_after_messages} msgs
-                            </span>
-                          </div>
+                               Pausa a cada {campaign.pause_after_messages} msgs
+                             </span>
+                             <span className="flex items-center gap-1">
+                               <Plus className="h-4 w-4" />
+                               Criado por: {campaign.created_by_name || "Você"}
+                             </span>
+                           </div>
                         </div>
 
                         <div className="flex items-center gap-4">
