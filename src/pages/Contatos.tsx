@@ -106,6 +106,7 @@ const Contatos = () => {
   const [selectedUazapiConnId, setSelectedUazapiConnId] = useState<string>("");
   const [uazapiSyncing, setUazapiSyncing] = useState(false);
   const [uazapiTargetListId, setUazapiTargetListId] = useState<string>("");
+  const [isValidatingList, setIsValidatingList] = useState(false);
 
 
   // Load connected W-API connections
