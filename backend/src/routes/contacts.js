@@ -85,9 +85,12 @@ router.get('/lists', async (req, res) => {
 
     if (isOwnerOrAdmin) {
       // Owner/Admin sees EVERYTHING in the organization (including unshared ones)
-      whereClause = `(cl.user_id = $1 OR cl.organization_id = $2 OR cl.connection_id IN (
-        SELECT id FROM connections WHERE organization_id = $2
-      ))`;
+      whereClause = `(
+        cl.user_id = $1
+        OR cl.organization_id = $2
+        OR cl.user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $2)
+        OR cl.connection_id IN (SELECT id FROM connections WHERE organization_id = $2)
+      )`;
       params = [req.userId, org.organization_id];
     } else if (org) {
       // Agent/Manager sees their own OR explicitly shared ones (organization_id is not null)
