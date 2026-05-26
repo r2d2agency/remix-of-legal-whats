@@ -43,11 +43,50 @@ async function getUserConnections(userId) {
   // If the user has specific connections selected (even if admin), only return those.
   // This honors the user's specific connection selection in the chat.
   if (directConnIds.length > 0) {
+    // If user is owner or admin, they can select any connection from their organization.
+    // If not, they can only see connections they have access to via access groups.
+    if (userOrg && ['owner', 'admin'].includes(userOrg.role)) {
+      return directConnIds;
+    }
+    
+    // For non-admin users, we must ensure they actually have access to these connections
+    const accessGroupsResult = await query(
+      `SELECT access_group_id FROM access_group_members WHERE user_id = $1`,
+      [userId]
+    );
+    
+    if (accessGroupsResult.rows.length > 0) {
+      const groupIds = accessGroupsResult.rows.map(r => r.access_group_id);
+      const groupConnsResult = await query(
+        `SELECT DISTINCT connection_id FROM access_group_connections WHERE access_group_id = ANY($1) AND connection_id = ANY($2)`,
+        [groupIds, directConnIds]
+      );
+      return groupConnsResult.rows.map(r => r.connection_id);
+    }
+    
+    // If no access groups but specific connections selected, still honor specific ones
+    // as it's the most restricted set.
     return directConnIds;
   }
 
-  // Fallback: If no specific connections are assigned/selected, 
-  // owners/admins/managers get all org connections.
+  // Fallback: If no specific connections are assigned/selected
+  
+  // Check access groups (for standard users AND admins without specific selection)
+  const accessGroupsResult = await query(
+    `SELECT access_group_id FROM access_group_members WHERE user_id = $1`,
+    [userId]
+  );
+  
+  if (accessGroupsResult.rows.length > 0) {
+    const groupIds = accessGroupsResult.rows.map(r => r.access_group_id);
+    const groupConnsResult = await query(
+      `SELECT DISTINCT connection_id FROM access_group_connections WHERE access_group_id = ANY($1)`,
+      [groupIds]
+    );
+    return groupConnsResult.rows.map(r => r.connection_id);
+  }
+
+  // Fallback for admins: if no selection AND no access groups, they get all org connections.
   if (userOrg && ['owner', 'admin', 'manager'].includes(userOrg.role)) {
     const orgResult = await query(
       `SELECT id FROM connections WHERE organization_id = $1`,
@@ -57,23 +96,7 @@ async function getUserConnections(userId) {
     return orgResult.rows.map(r => r.id);
   }
 
-  // Check access groups (for standard users without specific assignments)
-  const accessGroupsResult = await query(
-    `SELECT access_group_id FROM access_group_members WHERE user_id = $1`,
-    [userId]
-  );
-  
-  let connIds = [];
-  if (accessGroupsResult.rows.length > 0) {
-    const groupIds = accessGroupsResult.rows.map(r => r.access_group_id);
-    const groupConnsResult = await query(
-      `SELECT DISTINCT connection_id FROM access_group_connections WHERE access_group_id = ANY($1)`,
-      [groupIds]
-    );
-    connIds = groupConnsResult.rows.map(r => r.connection_id);
-  }
-
-  return [...new Set([...connIds, ...directConnIds])];
+  return [];
 }
 
 
