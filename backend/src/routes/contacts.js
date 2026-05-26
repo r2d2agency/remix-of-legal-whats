@@ -180,9 +180,7 @@ async function checkListAccess(listId, userId) {
   let params = [listId, userId];
 
   if (isOwnerOrAdmin) {
-    whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
-      SELECT id FROM connections WHERE organization_id = $3
-    ))`;
+    whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $3) OR connection_id IN (SELECT id FROM connections WHERE organization_id = $3))`;
     params = [listId, userId, org.organization_id];
   } else if (org) {
     whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
@@ -272,9 +270,7 @@ router.get('/lists/:listId/contacts', async (req, res) => {
     let params = [listId, req.userId];
 
     if (isOwnerOrAdmin) {
-      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
-        SELECT id FROM connections WHERE organization_id = $3
-      ))`;
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $3) OR connection_id IN (SELECT id FROM connections WHERE organization_id = $3))`;
       params = [listId, req.userId, org.organization_id];
     } else if (org) {
       whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
@@ -321,9 +317,7 @@ router.post('/lists/:listId/contacts', async (req, res) => {
     let params = [listId, req.userId];
 
     if (isOwnerOrAdmin) {
-      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
-        SELECT id FROM connections WHERE organization_id = $3
-      ))`;
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $3) OR connection_id IN (SELECT id FROM connections WHERE organization_id = $3))`;
       params = [listId, req.userId, org.organization_id];
     } else if (org) {
       whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
@@ -370,9 +364,7 @@ router.post('/lists/:listId/import', async (req, res) => {
     let params = [listId, req.userId];
 
     if (isOwnerOrAdmin) {
-      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
-        SELECT id FROM connections WHERE organization_id = $3
-      ))`;
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $3) OR connection_id IN (SELECT id FROM connections WHERE organization_id = $3))`;
       params = [listId, req.userId, org.organization_id];
     } else if (org) {
       whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
