@@ -466,14 +466,27 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
  * Verifica se número está no WhatsApp
  */
 export async function checkNumber(baseUrl, token, phone) {
+  const results = await checkNumbers(baseUrl, token, [phone]);
+  return results[0]?.exists || false;
+}
+
+/**
+ * Verifica vários números de uma vez
+ */
+export async function checkNumbers(baseUrl, token, phones) {
   const r = await uazapiFetch(baseUrl, '/chat/check', {
     method: 'POST',
     token,
-    body: { numbers: [normalizePhone(phone)] },
+    body: { numbers: phones.map(normalizePhone) },
   });
-  if (!r.ok) return false;
+  
+  if (!r.ok) return phones.map(p => ({ phone: p, exists: false }));
+  
   const arr = Array.isArray(r.data) ? r.data : r.data?.results || [];
-  return arr[0]?.exists === true || arr[0]?.isInWhatsapp === true;
+  return arr.map(item => ({
+    phone: item.number || item.phone,
+    exists: item.exists === true || item.isInWhatsapp === true
+  }));
 }
 
 /**
