@@ -25,9 +25,29 @@ function isViewOnlyRole(role) {
 
 // Get user's connections based on their access rights.
 // Admin/owner/manager can access all org connections; others only assigned ones via members or groups.
+// Get user's connections based on their access rights.
+// Admin/owner/manager can access all org connections; others only assigned ones via members or groups.
 async function getUserConnections(userId) {
   const userOrg = await getUserOrganization(userId);
+  
+  // Check if user has specific connections assigned via connection_members (active selection/filter)
+  const specificResult = await query(
+    `SELECT DISTINCT cm.connection_id as id
+     FROM connection_members cm
+     WHERE cm.user_id = $1`,
+    [userId]
+  );
+  
+  const directConnIds = specificResult.rows.map(r => r.id);
 
+  // If the user has specific connections selected (even if admin), only return those.
+  // This honors the user's specific connection selection in the chat.
+  if (directConnIds.length > 0) {
+    return directConnIds;
+  }
+
+  // Fallback: If no specific connections are assigned/selected, 
+  // owners/admins/managers get all org connections.
   if (userOrg && ['owner', 'admin', 'manager'].includes(userOrg.role)) {
     const orgResult = await query(
       `SELECT id FROM connections WHERE organization_id = $1`,
@@ -37,7 +57,7 @@ async function getUserConnections(userId) {
     return orgResult.rows.map(r => r.id);
   }
 
-  // Check access groups
+  // Check access groups (for standard users without specific assignments)
   const accessGroupsResult = await query(
     `SELECT access_group_id FROM access_group_members WHERE user_id = $1`,
     [userId]
@@ -53,17 +73,6 @@ async function getUserConnections(userId) {
     connIds = groupConnsResult.rows.map(r => r.connection_id);
   }
 
-  // Also include connections assigned directly via connection_members
-  const specificResult = await query(
-    `SELECT DISTINCT cm.connection_id as id
-     FROM connection_members cm
-     WHERE cm.user_id = $1`,
-    [userId]
-  );
-  
-  const directConnIds = specificResult.rows.map(r => r.id);
-  
-  // Return unique IDs from both sources
   return [...new Set([...connIds, ...directConnIds])];
 }
 
