@@ -3,6 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -44,6 +45,8 @@ import {
   UserPlus,
   RefreshCw,
   Share2,
+  ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
 import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
 import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
@@ -55,6 +58,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useNumberValidation } from "@/hooks/use-number-validation";
 
 interface SyncConnection {
   id: string;
@@ -107,6 +111,7 @@ const Contatos = () => {
   const [uazapiSyncing, setUazapiSyncing] = useState(false);
   const [uazapiTargetListId, setUazapiTargetListId] = useState<string>("");
   const [isValidatingList, setIsValidatingList] = useState(false);
+  const { status: validationStatus, isValidating: isUazapiValidating, validateList: startUazapiValidation, resetStatus: resetValidationStatus } = useNumberValidation();
 
 
   // Load connected W-API connections
@@ -912,10 +917,10 @@ const Contatos = () => {
                   <Button 
                     variant="outline" 
                     onClick={handleValidateList} 
-                    disabled={isValidatingList || contacts.filter(c => c.is_whatsapp === null).length === 0}
+                    disabled={isValidatingList || isUazapiValidating || contacts.filter(c => c.is_whatsapp === null).length === 0}
                     className="gap-2"
                   >
-                    {isValidatingList ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4 text-green-500" />}
+                    {(isValidatingList || isUazapiValidating) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4 text-green-500" />}
                     Validar WhatsApp
                   </Button>
                   <Button variant="outline" onClick={() => setIsImportOpen(true)}>
@@ -930,6 +935,58 @@ const Contatos = () => {
               </div>
             </CardHeader>
             <CardContent>
+              {validationStatus && (
+                <div className="mb-6 p-4 border rounded-lg bg-muted/30 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {validationStatus.isComplete ? (
+                        <ShieldCheck className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      )}
+                      <span className="font-medium">
+                        {validationStatus.isComplete ? "Validação concluída!" : `Validando: ${validationStatus.currentPhone}`}
+                      </span>
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      {validationStatus.processed} de {validationStatus.total}
+                    </span>
+                  </div>
+                  
+                  <Progress value={(validationStatus.processed / validationStatus.total) * 100} className="h-2 mb-4" />
+                  
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="p-2 rounded-md bg-green-500/10 border border-green-500/20">
+                      <div className="text-xs text-green-600 font-medium uppercase">Válidos</div>
+                      <div className="text-lg font-bold text-green-700">{validationStatus.valid}</div>
+                    </div>
+                    <div className="p-2 rounded-md bg-red-500/10 border border-red-500/20">
+                      <div className="text-xs text-red-600 font-medium uppercase">Inválidos</div>
+                      <div className="text-lg font-bold text-red-700">{validationStatus.invalid}</div>
+                    </div>
+                    <div className="p-2 rounded-md bg-primary/10 border border-primary/20">
+                      <div className="text-xs text-primary font-medium uppercase">Progresso</div>
+                      <div className="text-lg font-bold text-primary">{Math.round((validationStatus.processed / validationStatus.total) * 100)}%</div>
+                    </div>
+                  </div>
+
+                  {validationStatus.isComplete && (
+                    <div className="mt-4 flex justify-end">
+                      <Button variant="ghost" size="sm" onClick={resetValidationStatus}>
+                        Fechar painel
+                      </Button>
+                    </div>
+                  )}
+
+                  {validationStatus.error && (
+                    <div className="mt-4 p-2 rounded bg-red-50 border border-red-200 flex items-center gap-2 text-sm text-red-600">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>{validationStatus.error}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {isLoadingContacts ? (
                 <div className="flex items-center justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
