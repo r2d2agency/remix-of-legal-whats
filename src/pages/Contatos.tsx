@@ -335,7 +335,7 @@ const Contatos = () => {
     // Find a connection that can validate
     const validConn = allConnections?.find(c => 
       c.status === 'connected' && 
-      (c.provider === 'evolution' || c.provider === 'wapi' || c.provider === 'meta')
+      (c.provider === 'evolution' || c.provider === 'wapi' || c.provider === 'meta' || c.provider === 'uazapi')
     );
 
     if (!validConn) {
