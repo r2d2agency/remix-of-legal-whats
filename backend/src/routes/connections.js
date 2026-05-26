@@ -66,44 +66,46 @@ router.get('/', async (req, res) => {
         `${connQuery} WHERE c.organization_id = $1 ORDER BY c.created_at DESC`,
         [org.organization_id]
       );
-    } else if (org && ['owner', 'admin', 'manager'].includes(org.role)) {
-      result = await query(
-        `${connQuery} WHERE c.organization_id = $1 ORDER BY c.created_at DESC`,
-        [org.organization_id]
-      );
     } else {
-      // Check if user is in any access group
-      const accessGroupsResult = await query(
-        `SELECT access_group_id FROM access_group_members WHERE user_id = $1`,
+      // For standard users and owners/admins without organization scope:
+      // 1. Check if user has specific connections assigned via connection_members (active selection)
+      const specificResult = await query(
+        `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
         [req.userId]
       );
-      
-      let connIds = [];
-      
-      if (accessGroupsResult.rows.length > 0) {
-        const groupIds = accessGroupsResult.rows.map(r => r.access_group_id);
-        const groupConnsResult = await query(
-          `SELECT DISTINCT connection_id FROM access_group_connections WHERE access_group_id = ANY($1)`,
-          [groupIds]
-        );
-        connIds = groupConnsResult.rows.map(r => r.connection_id);
-      } else {
-        // Fallback: only connections assigned via connection_members
-        const specificResult = await query(
-          `SELECT DISTINCT cm.connection_id FROM connection_members cm WHERE cm.user_id = $1`,
+      let connIds = specificResult.rows.map(r => r.connection_id);
+
+      // 2. If no specific selection, check if user is in any access group
+      if (connIds.length === 0) {
+        const accessGroupsResult = await query(
+          `SELECT access_group_id FROM access_group_members WHERE user_id = $1`,
           [req.userId]
         );
-        connIds = specificResult.rows.map(r => r.connection_id);
+        
+        if (accessGroupsResult.rows.length > 0) {
+          const groupIds = accessGroupsResult.rows.map(r => r.access_group_id);
+          const groupConnsResult = await query(
+            `SELECT DISTINCT connection_id FROM access_group_connections WHERE access_group_id = ANY($1)`,
+            [groupIds]
+          );
+          connIds = groupConnsResult.rows.map(r => r.connection_id);
+        }
       }
 
-      if (connIds.length === 0) {
+      // 3. Fallback for owners/admins: if still no connections found, return all org connections
+      if (connIds.length === 0 && org && ['owner', 'admin'].includes(org.role)) {
+        result = await query(
+          `${connQuery} WHERE c.organization_id = $1 ORDER BY c.created_at DESC`,
+          [org.organization_id]
+        );
+      } else if (connIds.length > 0) {
+        result = await query(
+          `${connQuery} WHERE c.id = ANY($1) ORDER BY c.created_at DESC`,
+          [connIds]
+        );
+      } else {
         return res.json([]);
       }
-
-      result = await query(
-        `${connQuery} WHERE c.id = ANY($1) ORDER BY c.created_at DESC`,
-        [connIds]
-      );
     }
 
     

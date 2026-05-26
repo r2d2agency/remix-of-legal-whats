@@ -40,10 +40,10 @@ async function getUserConnections(userId) {
   
   const directConnIds = specificResult.rows.map(r => r.id);
 
-  // If the user has specific connections selected (even if admin), only return those.
+  // If the user has specific connections selected, only return those.
   // This honors the user's specific connection selection in the chat.
   if (directConnIds.length > 0) {
-    // If user is owner or admin, they can select any connection from their organization.
+    // For owners/admins, they can select any connection from their organization.
     // If not, they can only see connections they have access to via access groups.
     if (userOrg && ['owner', 'admin'].includes(userOrg.role)) {
       return directConnIds;
@@ -64,14 +64,12 @@ async function getUserConnections(userId) {
       return groupConnsResult.rows.map(r => r.connection_id);
     }
     
-    // If no access groups but specific connections selected, still honor specific ones
-    // as it's the most restricted set.
     return directConnIds;
   }
 
   // Fallback: If no specific connections are assigned/selected
   
-  // Check access groups (for standard users AND admins without specific selection)
+  // Check access groups (for standard users AND owners/admins without specific selection)
   const accessGroupsResult = await query(
     `SELECT access_group_id FROM access_group_members WHERE user_id = $1`,
     [userId]
@@ -86,8 +84,9 @@ async function getUserConnections(userId) {
     return groupConnsResult.rows.map(r => r.connection_id);
   }
 
-  // Fallback for admins: if no selection AND no access groups, they get all org connections.
-  if (userOrg && ['owner', 'admin', 'manager'].includes(userOrg.role)) {
+  // Fallback for owners/admins: if no selection AND no access groups, they get all org connections.
+  // This is a safety measure to avoid an empty chat if no access is configured yet.
+  if (userOrg && ['owner', 'admin'].includes(userOrg.role)) {
     const orgResult = await query(
       `SELECT id FROM connections WHERE organization_id = $1`,
       [userOrg.organization_id]
