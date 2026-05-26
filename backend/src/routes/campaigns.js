@@ -22,15 +22,22 @@ router.get('/', async (req, res) => {
   try {
     const org = await getUserOrganization(req.userId);
 
+    const isOwnerOrAdmin = org && ['owner', 'admin'].includes(org.role);
+    
     let whereClause = 'c.user_id = $1';
     let params = [req.userId];
 
-    if (org) {
-      // Get campaigns from connections in user's organization
+    if (isOwnerOrAdmin) {
+      // Owner/Admin sees EVERYTHING in the organization
       whereClause = `(c.user_id = $1 OR c.connection_id IN (
         SELECT id FROM connections WHERE organization_id = $2
       ))`;
       params = [req.userId, org.organization_id];
+    } else if (org) {
+      // Others see their own OR shared (shared flag to be added if needed, 
+      // for now keeping it to own campaigns since user said "unicas e exclusivas")
+      whereClause = 'c.user_id = $1';
+      params = [req.userId];
     }
 
     const result = await query(
@@ -452,14 +459,20 @@ router.patch('/:id/status', async (req, res) => {
 
     const org = await getUserOrganization(req.userId);
 
+    const isOwnerOrAdmin = org && ['owner', 'admin'].includes(org.role);
+    
     let whereClause = 'id = $2 AND user_id = $3';
     let params = [status, id, req.userId];
 
-    if (org) {
+    if (isOwnerOrAdmin) {
       whereClause = `id = $2 AND (user_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $4
       ))`;
       params = [status, id, req.userId, org.organization_id];
+    } else if (org) {
+      // Not admin, must be creator
+      whereClause = 'id = $2 AND user_id = $3';
+      params = [status, id, req.userId];
     }
 
     // If starting/resuming campaign, recalculate pending message times from now

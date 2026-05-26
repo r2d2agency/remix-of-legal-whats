@@ -78,14 +78,20 @@ router.get('/lists', async (req, res) => {
     const org = await getUserOrganization(req.userId);
     const filterConnectionId = typeof req.query.connection_id === 'string' ? req.query.connection_id : null;
 
+    const isOwnerOrAdmin = org && ['owner', 'admin'].includes(org.role);
+    
     let whereClause = 'cl.user_id = $1';
     let params = [req.userId];
 
-    if (org) {
-      // Get lists owned by user OR shared with organization OR linked to organization's connections
+    if (isOwnerOrAdmin) {
+      // Owner/Admin sees EVERYTHING in the organization (including unshared ones)
       whereClause = `(cl.user_id = $1 OR cl.organization_id = $2 OR cl.connection_id IN (
         SELECT id FROM connections WHERE organization_id = $2
       ))`;
+      params = [req.userId, org.organization_id];
+    } else if (org) {
+      // Agent/Manager sees their own OR explicitly shared ones (organization_id is not null)
+      whereClause = `(cl.user_id = $1 OR cl.organization_id = $2)`;
       params = [req.userId, org.organization_id];
     }
 
@@ -165,14 +171,18 @@ router.post('/lists', async (req, res) => {
 // Helper to check list access
 async function checkListAccess(listId, userId) {
   const org = await getUserOrganization(userId);
+  const isOwnerOrAdmin = org && ['owner', 'admin'].includes(org.role);
 
   let whereClause = 'id = $1 AND user_id = $2';
   let params = [listId, userId];
 
-  if (org) {
+  if (isOwnerOrAdmin) {
     whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
       SELECT id FROM connections WHERE organization_id = $3
     ))`;
+    params = [listId, userId, org.organization_id];
+  } else if (org) {
+    whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
     params = [listId, userId, org.organization_id];
   }
 
@@ -252,14 +262,19 @@ router.get('/lists/:listId/contacts', async (req, res) => {
     const { listId } = req.params;
     const org = await getUserOrganization(req.userId);
 
+    const isOwnerOrAdmin = org && ['owner', 'admin'].includes(org.role);
+
     // Verify list access
     let whereClause = 'id = $1 AND user_id = $2';
     let params = [listId, req.userId];
 
-    if (org) {
+    if (isOwnerOrAdmin) {
       whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $3
       ))`;
+      params = [listId, req.userId, org.organization_id];
+    } else if (org) {
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
       params = [listId, req.userId, org.organization_id];
     }
 
@@ -296,14 +311,19 @@ router.post('/lists/:listId/contacts', async (req, res) => {
 
     const org = await getUserOrganization(req.userId);
 
+    const isOwnerOrAdmin = org && ['owner', 'admin'].includes(org.role);
+
     // Verify list access
     let whereClause = 'id = $1 AND user_id = $2';
     let params = [listId, req.userId];
 
-    if (org) {
+    if (isOwnerOrAdmin) {
       whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $3
       ))`;
+      params = [listId, req.userId, org.organization_id];
+    } else if (org) {
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
       params = [listId, req.userId, org.organization_id];
     }
 
@@ -340,14 +360,19 @@ router.post('/lists/:listId/import', async (req, res) => {
 
     const org = await getUserOrganization(req.userId);
 
+    const isOwnerOrAdmin = org && ['owner', 'admin'].includes(org.role);
+
     // Verify list access and get connection_id
     let whereClause = 'id = $1 AND user_id = $2';
     let params = [listId, req.userId];
 
-    if (org) {
+    if (isOwnerOrAdmin) {
       whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3 OR connection_id IN (
         SELECT id FROM connections WHERE organization_id = $3
       ))`;
+      params = [listId, req.userId, org.organization_id];
+    } else if (org) {
+      whereClause = `id = $1 AND (user_id = $2 OR organization_id = $3)`;
       params = [listId, req.userId, org.organization_id];
     }
 

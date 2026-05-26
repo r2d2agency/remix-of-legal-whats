@@ -29,6 +29,7 @@ export interface Campaign {
   message_name?: string;
   flow_name?: string;
   connection_name?: string;
+  created_by_name?: string;
 }
 
 export interface CampaignStats {
