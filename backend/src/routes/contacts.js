@@ -560,6 +560,97 @@ router.patch('/:id', async (req, res) => {
 });
 
 // Delete contact
+// Validate list contacts via UAZAPI/Evolution
+router.post('/lists/:listId/validate-all', async (req, res) => {
+  try {
+    const { listId } = req.params;
+    const { connection_id } = req.body;
+
+    if (!connection_id) {
+      return res.status(400).json({ error: 'connection_id é obrigatório' });
+    }
+
+    const org = await getUserOrganization(req.userId);
+    
+    // Verify connection access
+    let connCheck;
+    if (org) {
+      connCheck = await query(
+        'SELECT id, uazapi_url, uazapi_token, api_url, api_key, instance_name FROM connections WHERE id = $1 AND (user_id = $2 OR organization_id = $3)',
+        [connection_id, req.userId, org.organization_id]
+      );
+    } else {
+      connCheck = await query(
+        'SELECT id, uazapi_url, uazapi_token, api_url, api_key, instance_name FROM connections WHERE id = $1 AND user_id = $2',
+        [connection_id, req.userId]
+      );
+    }
+
+    if (connCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Conexão não encontrada ou sem permissão' });
+    }
+
+    const connection = connCheck.rows[0];
+
+    // Get non-validated contacts
+    const contactsResult = await query(
+      'SELECT id, phone FROM contacts WHERE list_id = $1 AND (is_whatsapp IS NULL)',
+      [listId]
+    );
+
+    const contacts = contactsResult.rows;
+    if (contacts.length === 0) {
+      return res.json({ success: true, validated: 0, message: 'Nenhum contato pendente de validação' });
+    }
+
+    // Prepare phones (Evolution/UAZAPI usually want normalized phones)
+    const phones = contacts.map(c => {
+      let phone = String(c.phone).replace(/\D/g, '');
+      if (!phone.startsWith('55') && phone.length <= 11) {
+        phone = '55' + phone;
+      }
+      return phone;
+    });
+
+    let validMap = {};
+
+    // Use UAZAPI if available
+    if (connection.uazapi_url && connection.uazapi_token) {
+      const { checkNumbers } = await import('../lib/uazapi-provider.js');
+      const results = await checkNumbers(connection.uazapi_url, connection.uazapi_token, phones);
+      results.forEach(item => {
+        validMap[item.phone] = item.exists;
+      });
+    } else if (connection.api_url && connection.api_key && connection.instance_name) {
+      // Use Evolution API
+      const result = await validateWhatsAppNumbers(connection_id, phones);
+      if (result) validMap = result;
+    } else {
+      return res.status(400).json({ error: 'Conexão não configurada para validação' });
+    }
+
+    // Update contacts in database
+    let validatedCount = 0;
+    for (const contact of contacts) {
+      const phone = String(contact.phone).replace(/\D/g, '');
+      const normalizedPhone = (!phone.startsWith('55') && phone.length <= 11) ? '55' + phone : phone;
+      
+      if (validMap[normalizedPhone] !== undefined) {
+        await query(
+          'UPDATE contacts SET is_whatsapp = $1 WHERE id = $2',
+          [validMap[normalizedPhone], contact.id]
+        );
+        validatedCount++;
+      }
+    }
+
+    res.json({ success: true, validated: validatedCount });
+  } catch (error) {
+    console.error('Validate list contacts error:', error);
+    res.status(500).json({ error: 'Erro ao validar contatos da lista' });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
