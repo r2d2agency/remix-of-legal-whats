@@ -59,7 +59,13 @@ export function clearUazapiEvents({ instanceId, connectionId } = {}) {
 
 function normalizeBaseUrl(url) {
   if (!url) return '';
-  return String(url).replace(/\/+$/, '');
+  let s = String(url).trim().replace(/\/+$/, '');
+  if (!s) return '';
+  // Adiciona protocolo se faltar (ex: "meusub.uazapi.com" -> "https://meusub.uazapi.com")
+  if (!/^https?:\/\//i.test(s)) {
+    s = `https://${s}`;
+  }
+  return s;
 }
 
 function buildHeaders({ token, admintoken } = {}) {
@@ -70,7 +76,16 @@ function buildHeaders({ token, admintoken } = {}) {
 }
 
 async function uazapiFetch(baseUrl, path, { method = 'GET', body, token, admintoken, timeout = DEFAULT_TIMEOUT } = {}) {
-  const url = `${normalizeBaseUrl(baseUrl)}${path}`;
+  const normalizedBase = normalizeBaseUrl(baseUrl);
+  if (!normalizedBase) {
+    return {
+      ok: false,
+      status: 0,
+      data: { error: 'URL da UAZAPI não configurada para esta conexão. Acesse Conexões e preencha a URL e o Token da instância UAZAPI.' },
+      error: 'UAZAPI base URL ausente',
+    };
+  }
+  const url = `${normalizedBase}${path}`;
   const opts = {
     method,
     headers: buildHeaders({ token, admintoken }),
