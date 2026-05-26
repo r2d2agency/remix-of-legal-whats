@@ -61,7 +61,7 @@ export function useNumberValidation() {
             };
           });
         } else {
-          // If a batch fails, we mark them as invalid or just skip
+          // Se falhar o lote, marcamos como inválido
           setStatus(prev => {
             if (!prev) return null;
             return {
@@ -71,6 +71,10 @@ export function useNumberValidation() {
             };
           });
         }
+
+        // Aguarda um pequeno intervalo entre cada validação para evitar bloqueios e garantir precisão
+        // Especialmente importante para listas grandes conforme solicitado pelo usuário
+        await new Promise(resolve => setTimeout(resolve, 800));
       }
 
       // Final update to the DB
