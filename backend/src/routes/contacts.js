@@ -692,4 +692,24 @@ router.post('/lists/from-tag', async (req, res) => {
   }
 });
 
+router.post('/lists/:listId/validate-bulk', async (req, res) => {
+  const { listId } = req.params;
+  const { results } = req.body; // Array de { phone, exists }
+
+  if (!Array.isArray(results)) return res.status(400).json({ error: 'Resultados inválidos' });
+
+  try {
+    // Processar em lotes para atualizar o banco
+    for (const item of results) {
+      await query(
+        'UPDATE contacts SET is_whatsapp = $1 WHERE list_id = $2 AND phone = $3',
+        [item.exists, listId, item.phone]
+      );
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
