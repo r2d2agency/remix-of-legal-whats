@@ -406,14 +406,18 @@ const Contatos = () => {
         console.warn("Validação otimizada falhou, tentando fallback local:", err);
       }
 
-      // Fallback 1: Validação por lotes no provedor específico (W-API)
-      if (validConn.provider === 'wapi') {
+      // Fallback 1: Validação por lotes no provedor específico (W-API ou UAZAPI)
+      if (validConn.provider === 'wapi' || validConn.provider === 'uazapi') {
         const endpoint = `/api/${validConn.provider}/${validConn.id}/validate-numbers`;
-        const res = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(endpoint, {
-          method: 'POST',
-          body: { phones }
-        });
-        if (res.success) results = res.results;
+        try {
+          const res = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(endpoint, {
+            method: 'POST',
+            body: { phones }
+          });
+          if (res.success) results = res.results;
+        } catch (err) {
+          console.error(`Erro na validação bulk ${validConn.provider}:`, err);
+        }
       }
       
       // Fallback 2: Validação individual em paralelo se bulk falhar ou não for suportado
