@@ -1231,4 +1231,38 @@ router.post('/:connectionId/resync-contact-names', authenticate, async (req, res
   }
 });
 
+router.post('/:connectionId/check-number', authenticate, async (req, res) => {
+  const { connectionId } = req.params;
+  const { phone } = req.body;
+  
+  if (!phone) return res.status(400).json({ error: 'Telefone é obrigatório' });
+
+  try {
+    const [conn] = await query('SELECT uazapi_url, uazapi_token FROM connections WHERE id = $1', [connectionId]);
+    if (!conn) return res.status(404).json({ error: 'Conexão não encontrada' });
+
+    const exists = await uazapiProvider.checkNumber(conn.uazapi_url, conn.uazapi_token, phone);
+    res.json({ exists });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/:connectionId/validate-numbers', authenticate, async (req, res) => {
+  const { connectionId } = req.params;
+  const { phones } = req.body;
+  
+  if (!Array.isArray(phones)) return res.status(400).json({ error: 'Lista de telefones inválida' });
+
+  try {
+    const [conn] = await query('SELECT uazapi_url, uazapi_token FROM connections WHERE id = $1', [connectionId]);
+    if (!conn) return res.status(404).json({ error: 'Conexão não encontrada' });
+
+    const results = await uazapiProvider.checkNumbers(conn.uazapi_url, conn.uazapi_token, phones);
+    res.json({ success: true, results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
