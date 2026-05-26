@@ -472,21 +472,102 @@ export async function checkNumber(baseUrl, token, phone) {
 
 /**
  * Verifica vários números de uma vez
+ * UAZAPI supports bulk check in some versions via /chat/check
  */
 export async function checkNumbers(baseUrl, token, phones) {
-  const r = await uazapiFetch(baseUrl, '/chat/check', {
-    method: 'POST',
-    token,
-    body: { numbers: phones.map(normalizePhone) },
-  });
-  
-  if (!r.ok) return phones.map(p => ({ phone: p, exists: false }));
-  
-  const arr = Array.isArray(r.data) ? r.data : r.data?.results || [];
-  return arr.map(item => ({
-    phone: item.number || item.phone,
-    exists: item.exists === true || item.isInWhatsapp === true
-  }));
+  if (!Array.isArray(phones) || phones.length === 0) return [];
+
+  // Tenta bulk check primeiro
+  const endpoints = ['/chat/check', '/chat/whatsappNumbers', '/contact/checkNumber'];
+  let lastError = null;
+
+  for (const path of endpoints) {
+    try {
+      const isBulk = path === '/chat/check' || path === '/chat/whatsappNumbers';
+      const body = isBulk ? { numbers: phones.map(normalizePhone) } : { phoneNumber: normalizePhone(phones[0]) };
+      
+      const r = await uazapiFetch(baseUrl, path, {
+        method: 'POST',
+        token,
+        body,
+      });
+
+      if (r.ok) {
+        const data = r.data || {};
+        const arr = Array.isArray(data) ? data : (data.results || data.numbers || data.data || []);
+        
+        if (Array.isArray(arr) && arr.length > 0) {
+          return arr.map(item => ({
+            phone: item.number || item.phone || item.jid?.split('@')[0],
+            exists: item.exists === true || item.isInWhatsapp === true || item.isWhatsApp === true
+          }));
+        }
+
+        // Se for singular, retorna o resultado para o primeiro número
+        if (!isBulk && (data.exists !== undefined || data.isInWhatsapp !== undefined)) {
+          return [{
+            phone: phones[0],
+            exists: data.exists === true || data.isInWhatsapp === true
+          }];
+        }
+      } else if (r.status !== 404) {
+        // Se deu erro mas não foi 404, talvez o endpoint exista mas algo falhou
+        logWarn('uazapi.check_numbers_failed', { path, status: r.status, data: r.data });
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  // Fallback: validação individual em paralelo se bulk falhar (limite de 10 por vez)
+  logWarn('uazapi.check_numbers_bulk_failed_using_fallback', { count: phones.length });
+  const results = [];
+  const BATCH_SIZE = 5;
+
+  for (let i = 0; i < phones.length; i += BATCH_SIZE) {
+    const batch = phones.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(async (phone) => {
+      try {
+        const cleanPhone = normalizePhone(phone);
+        // Tenta individualmente via /contact/checkNumber (vários nomes de campos comuns)
+        const r = await uazapiFetch(baseUrl, '/contact/checkNumber', {
+          method: 'POST',
+          token,
+          body: { phoneNumber: cleanPhone, phone: cleanPhone, number: cleanPhone }
+        });
+
+        if (r.ok) {
+          const d = r.data || {};
+          return {
+            phone,
+            exists: d.exists === true || d.isInWhatsapp === true || d.isWhatsApp === true || d.data?.exists === true
+          };
+        }
+        
+        // Segundo fallback individual
+        const r2 = await uazapiFetch(baseUrl, '/chat/check', {
+          method: 'POST',
+          token,
+          body: { numbers: [normalizePhone(phone)] }
+        });
+
+        if (r2.ok) {
+          const d = (Array.isArray(r2.data) ? r2.data[0] : (r2.data?.results?.[0] || r2.data?.numbers?.[0])) || {};
+          return {
+            phone,
+            exists: d.exists === true || d.isInWhatsapp === true
+          };
+        }
+
+        return { phone, exists: false };
+      } catch {
+        return { phone, exists: false };
+      }
+    }));
+    results.push(...batchResults);
+  }
+
+  return results;
 }
 
 /**
