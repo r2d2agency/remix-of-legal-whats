@@ -917,10 +917,10 @@ const Contatos = () => {
                   <Button 
                     variant="outline" 
                     onClick={handleValidateList} 
-                    disabled={isValidatingList || contacts.filter(c => c.is_whatsapp === null).length === 0}
+                    disabled={isValidatingList || isUazapiValidating || contacts.filter(c => c.is_whatsapp === null).length === 0}
                     className="gap-2"
                   >
-                    {isValidatingList ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4 text-green-500" />}
+                    {(isValidatingList || isUazapiValidating) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4 text-green-500" />}
                     Validar WhatsApp
                   </Button>
                   <Button variant="outline" onClick={() => setIsImportOpen(true)}>
