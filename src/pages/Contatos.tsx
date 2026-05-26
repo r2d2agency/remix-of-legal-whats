@@ -387,9 +387,27 @@ const Contatos = () => {
     try {
       const phones = unverifiedContacts.map(c => c.phone);
       let results: { phone: string; exists: boolean }[] = [];
+      let serverSideValidated = false;
       
-      // Se for W-API ou UAZAPI, usamos o bulk validation nativo
-      if (validConn.provider === 'wapi' || validConn.provider === 'uazapi') {
+      // Tentar validação otimizada pelo servidor (UAZAPI ou Evolution via Contacts API)
+      try {
+        const res = await api<{ success: boolean; validated: number }>(`/api/contacts/lists/${selectedList}/validate-all`, {
+          method: 'POST',
+          body: { connection_id: validConn.id }
+        });
+        
+        if (res.success) {
+          serverSideValidated = true;
+          toast.success(`Validação concluída: ${res.validated} contatos processados!`);
+          loadContacts(selectedList);
+          return;
+        }
+      } catch (err) {
+        console.warn("Validação otimizada falhou, tentando fallback local:", err);
+      }
+
+      // Fallback 1: Validação por lotes no provedor específico (W-API)
+      if (validConn.provider === 'wapi') {
         const endpoint = `/api/${validConn.provider}/${validConn.id}/validate-numbers`;
         const res = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(endpoint, {
           method: 'POST',
@@ -398,13 +416,13 @@ const Contatos = () => {
         if (res.success) results = res.results;
       }
       
-      // Fallback para individual se bulk falhar ou não for suportado
+      // Fallback 2: Validação individual em paralelo se bulk falhar ou não for suportado
       if (results.length === 0) {
         results = await validateWhatsAppBulk(phones);
       }
 
       if (results.length > 0) {
-        // Atualizar no banco
+        // Atualizar no banco via endpoint de bulk update se validamos localmente
         await api(`/api/contacts/lists/${selectedList}/validate-bulk`, {
           method: 'POST',
           body: { results }
