@@ -392,6 +392,8 @@ export async function executeCampaignMessages() {
           instance_name: msg.instance_name,
           instance_id: msg.instance_id,
           wapi_token: msg.wapi_token,
+          uazapi_url: msg.uazapi_url,
+          uazapi_token: msg.uazapi_token,
         };
 
         // Build contact object for variable replacement
