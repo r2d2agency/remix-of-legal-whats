@@ -106,6 +106,7 @@ const Contatos = () => {
   const [selectedUazapiConnId, setSelectedUazapiConnId] = useState<string>("");
   const [uazapiSyncing, setUazapiSyncing] = useState(false);
   const [uazapiTargetListId, setUazapiTargetListId] = useState<string>("");
+  const [isValidatingList, setIsValidatingList] = useState(false);
 
 
   // Load connected W-API connections
@@ -334,7 +335,7 @@ const Contatos = () => {
     // Find a connection that can validate
     const validConn = allConnections?.find(c => 
       c.status === 'connected' && 
-      (c.provider === 'evolution' || c.provider === 'wapi' || c.provider === 'meta')
+      (c.provider === 'evolution' || c.provider === 'wapi' || c.provider === 'meta' || c.provider === 'uazapi')
     );
 
     if (!validConn) {
@@ -357,6 +358,68 @@ const Contatos = () => {
       toast.error("Erro ao validar número");
     } finally {
       setValidatingContact(null);
+    }
+  };
+
+  const handleValidateList = async () => {
+    if (!selectedList) return;
+    
+    // Find a connection that can validate
+    const validConn = allConnections?.find(c => 
+      c.status === 'connected' && 
+      (c.provider === 'evolution' || c.provider === 'wapi' || c.provider === 'meta' || c.provider === 'uazapi')
+    );
+
+    if (!validConn) {
+      toast.error("Nenhuma conexão ativa disponível para validar a lista");
+      return;
+    }
+
+    const unverifiedContacts = contacts.filter(c => c.is_whatsapp === null);
+    if (unverifiedContacts.length === 0) {
+      toast.info("Não há contatos não verificados nesta lista");
+      return;
+    }
+
+    setIsValidatingList(true);
+    toast.info(`Iniciando validação de ${unverifiedContacts.length} contatos...`);
+    
+    try {
+      const phones = unverifiedContacts.map(c => c.phone);
+      let results: { phone: string; exists: boolean }[] = [];
+      
+      // Se for W-API ou UAZAPI, usamos o bulk validation nativo
+      if (validConn.provider === 'wapi' || validConn.provider === 'uazapi') {
+        const endpoint = `/api/${validConn.provider}/${validConn.id}/validate-numbers`;
+        const res = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(endpoint, {
+          method: 'POST',
+          body: { phones }
+        });
+        if (res.success) results = res.results;
+      }
+      
+      // Fallback para individual se bulk falhar ou não for suportado
+      if (results.length === 0) {
+        results = await validateWhatsAppBulk(phones);
+      }
+
+      if (results.length > 0) {
+        // Atualizar no banco
+        await api(`/api/contacts/lists/${selectedList}/validate-bulk`, {
+          method: 'POST',
+          body: { results }
+        });
+
+        toast.success("Validação de lista concluída!");
+        loadContacts(selectedList);
+      } else {
+        toast.error("Nenhum resultado de validação obtido");
+      }
+    } catch (err) {
+      console.error("Erro na validação de lista:", err);
+      toast.error("Erro ao validar lista de contatos");
+    } finally {
+      setIsValidatingList(false);
     }
   };
 
@@ -395,7 +458,7 @@ const Contatos = () => {
   const validateWhatsAppNumber = async (phone: string): Promise<boolean> => {
     const validConn = allConnections?.find(c => 
       c.status === 'connected' && 
-      (c.provider === 'evolution' || c.provider === 'wapi' || c.provider === 'meta')
+      (c.provider === 'evolution' || c.provider === 'wapi' || c.provider === 'meta' || c.provider === 'uazapi')
     );
     
     if (!validConn) {
@@ -824,6 +887,15 @@ const Contatos = () => {
                       className="pl-10"
                     />
                   </div>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleValidateList} 
+                    disabled={isValidatingList || contacts.filter(c => c.is_whatsapp === null).length === 0}
+                    className="gap-2"
+                  >
+                    {isValidatingList ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4 text-green-500" />}
+                    Validar WhatsApp
+                  </Button>
                   <Button variant="outline" onClick={() => setIsImportOpen(true)}>
                     <Upload className="h-4 w-4" />
                     Importar Excel
