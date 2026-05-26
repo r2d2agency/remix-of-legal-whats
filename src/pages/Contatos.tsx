@@ -3,6 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -44,6 +45,8 @@ import {
   UserPlus,
   RefreshCw,
   Share2,
+  ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
 import { useContacts, ContactList, Contact } from "@/hooks/use-contacts";
 import { ExcelImportDialog } from "@/components/contatos/ExcelImportDialog";
@@ -55,6 +58,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useNumberValidation } from "@/hooks/use-number-validation";
 
 interface SyncConnection {
   id: string;
@@ -107,6 +111,7 @@ const Contatos = () => {
   const [uazapiSyncing, setUazapiSyncing] = useState(false);
   const [uazapiTargetListId, setUazapiTargetListId] = useState<string>("");
   const [isValidatingList, setIsValidatingList] = useState(false);
+  const { status: validationStatus, isValidating: isUazapiValidating, validateList: startUazapiValidation, resetStatus: resetValidationStatus } = useNumberValidation();
 
 
   // Load connected W-API connections
