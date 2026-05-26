@@ -463,6 +463,49 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
 }
 
 /**
+ * Função auxiliar para checar individualmente com retentativas se necessário
+ */
+async function checkIndividualWithRetries(baseUrl, token, phone) {
+  const cleanPhone = normalizePhone(phone);
+  const endpoints = [
+    { path: '/contact/checkNumber', body: { phoneNumber: cleanPhone, phone: cleanPhone, number: cleanPhone } },
+    { path: '/chat/check', body: { numbers: [cleanPhone] } }
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const r = await uazapiFetch(baseUrl, endpoint.path, {
+        method: 'POST',
+        token,
+        body: endpoint.body
+      });
+
+      if (r.ok) {
+        const d = r.data || {};
+        // Se for /chat/check o retorno é array
+        if (Array.isArray(d) || d.results || d.numbers) {
+          const item = (Array.isArray(d) ? d[0] : (d.results?.[0] || d.numbers?.[0])) || {};
+          return {
+            phone,
+            exists: item.exists === true || item.isInWhatsapp === true || item.isWhatsApp === true
+          };
+        }
+        // Se for /contact/checkNumber
+        if (d.exists !== undefined || d.isInWhatsapp !== undefined) {
+          return {
+            phone,
+            exists: d.exists === true || d.isInWhatsapp === true || d.isWhatsApp === true || d.data?.exists === true
+          };
+        }
+      }
+    } catch (e) {
+      logWarn('uazapi.check_individual_error', { phone, path: endpoint.path, error: e.message });
+    }
+  }
+  return null;
+}
+
+/**
  * Verifica se número está no WhatsApp
  */
 export async function checkNumber(baseUrl, token, phone) {
@@ -477,10 +520,16 @@ export async function checkNumber(baseUrl, token, phone) {
 export async function checkNumbers(baseUrl, token, phones) {
   if (!Array.isArray(phones) || phones.length === 0) return [];
 
-  // Tenta bulk check primeiro
-  const endpoints = ['/chat/check', '/chat/whatsappNumbers', '/contact/checkNumber'];
-  let lastError = null;
+  // Se for apenas 1 número, tenta os endpoints individuais primeiro (mais lentos, mas mais precisos)
+  if (phones.length === 1) {
+    const singleResults = await checkIndividualWithRetries(baseUrl, token, phones[0]);
+    if (singleResults) return [singleResults];
+  }
 
+  // Tenta bulk check apenas para listas maiores e como primeira tentativa
+  const endpoints = ['/chat/check', '/chat/whatsappNumbers', '/contact/checkNumber'];
+  
+  // ... rest of bulk logic
   for (const path of endpoints) {
     try {
       const isBulk = path === '/chat/check' || path === '/chat/whatsappNumbers';
@@ -503,26 +552,21 @@ export async function checkNumbers(baseUrl, token, phones) {
           }));
         }
 
-        // Se for singular, retorna o resultado para o primeiro número
         if (!isBulk && (data.exists !== undefined || data.isInWhatsapp !== undefined)) {
           return [{
             phone: phones[0],
             exists: data.exists === true || data.isInWhatsapp === true
           }];
         }
-      } else if (r.status !== 404) {
-        // Se deu erro mas não foi 404, talvez o endpoint exista mas algo falhou
-        logWarn('uazapi.check_numbers_failed', { path, status: r.status, data: r.data });
       }
     } catch (err) {
-      lastError = err;
+      logWarn('uazapi.check_numbers_bulk_error', { path, error: err.message });
     }
   }
 
-  // Fallback: validação individual em paralelo se bulk falhar (limite de 10 por vez)
-  logWarn('uazapi.check_numbers_bulk_failed_using_fallback', { count: phones.length });
+  // Fallback: validação individual
   const results = [];
-  const BATCH_SIZE = 5;
+  const BATCH_SIZE = 1; // Forçamos 1 por vez para máxima precisão conforme solicitado
 
   for (let i = 0; i < phones.length; i += BATCH_SIZE) {
     const batch = phones.slice(i, i + BATCH_SIZE);
