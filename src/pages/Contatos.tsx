@@ -386,6 +386,14 @@ const Contatos = () => {
       return;
     }
 
+    // Se a conexão for UAZAPI, usamos o hook useNumberValidation para mostrar a barra de progresso
+    if (validConn.provider === 'uazapi') {
+      const phones = unverifiedContacts.map(c => c.phone);
+      await startUazapiValidation(selectedList, validConn.id, phones);
+      loadContacts(selectedList);
+      return;
+    }
+
     setIsValidatingList(true);
     toast.info(`Iniciando validação de ${unverifiedContacts.length} contatos...`);
     
@@ -394,7 +402,7 @@ const Contatos = () => {
       let results: { phone: string; exists: boolean }[] = [];
       let serverSideValidated = false;
       
-      // Tentar validação otimizada pelo servidor (UAZAPI ou Evolution via Contacts API)
+      // Tentar validação otimizada pelo servidor (Evolution via Contacts API)
       try {
         const res = await api<{ success: boolean; validated: number }>(`/api/contacts/lists/${selectedList}/validate-all`, {
           method: 'POST',
@@ -411,8 +419,8 @@ const Contatos = () => {
         console.warn("Validação otimizada falhou, tentando fallback local:", err);
       }
 
-      // Fallback 1: Validação por lotes no provedor específico (W-API ou UAZAPI)
-      if (validConn.provider === 'wapi' || validConn.provider === 'uazapi') {
+      // Fallback 1: Validação por lotes no provedor específico (W-API)
+      if (validConn.provider === 'wapi') {
         const endpoint = `/api/${validConn.provider}/${validConn.id}/validate-numbers`;
         try {
           const res = await api<{ success: boolean; results: { phone: string; exists: boolean }[] }>(endpoint, {
