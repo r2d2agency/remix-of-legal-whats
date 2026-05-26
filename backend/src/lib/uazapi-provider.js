@@ -528,11 +528,12 @@ export async function checkNumbers(baseUrl, token, phones) {
     const batch = phones.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.all(batch.map(async (phone) => {
       try {
-        // Tenta individualmente via /contact/checkNumber ou /chat/check
+        const cleanPhone = normalizePhone(phone);
+        // Tenta individualmente via /contact/checkNumber (vários nomes de campos comuns)
         const r = await uazapiFetch(baseUrl, '/contact/checkNumber', {
           method: 'POST',
           token,
-          body: { phoneNumber: normalizePhone(phone) }
+          body: { phoneNumber: cleanPhone, phone: cleanPhone, number: cleanPhone }
         });
 
         if (r.ok) {
