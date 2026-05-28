@@ -1702,6 +1702,14 @@ async function handleMessageUpsert(connection, data) {
       } catch (seoErr) {
         console.error('[Sales SEO] Erro Evolution:', seoErr.message);
       }
+
+      // SALES SEO: Atualiza evolução do lead
+      try {
+        const { updateSalesSeoEvolution } = await import('../lib/sales-seo-service.js');
+        await updateSalesSeoEvolution(conversationId, { fromMe: fromMe });
+      } catch (seoErr) {
+        console.error('[Sales SEO] Erro Evolution Update:', seoErr.message);
+      }
       console.log('Webhook: Created new', isGroup ? 'group' : 'conversation:', conversationId);
     } else {
       conversationId = convResult.rows[0].id;
