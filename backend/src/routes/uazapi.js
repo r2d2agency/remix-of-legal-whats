@@ -605,7 +605,6 @@ async function persistIncomingMessage(connection, payload) {
     );
 
     // SALES SEO: Atualiza evolução do lead
-    const { updateSalesSeoEvolution } = await import('../lib/sales-seo-service.js');
     await updateSalesSeoEvolution(conversationId, message);
   }
 
