@@ -159,7 +159,7 @@ router.get('/analytics', async (req, res) => {
     });
   } catch (error) {
     console.error('Get analytics error:', error);
-    res.status(500).json({ error: 'Erro ao buscar analíticos' });
+    res.status(500).json({ error: 'Erro ao buscar analíticos', details: error.message });
   }
 });
 
@@ -202,7 +202,7 @@ router.get('/leads', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('List leads error:', error);
-    res.status(500).json({ error: 'Erro ao listar leads' });
+    res.status(500).json({ error: 'Erro ao listar leads', details: error.message });
   }
 });
 
