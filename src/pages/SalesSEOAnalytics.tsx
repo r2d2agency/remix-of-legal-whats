@@ -50,7 +50,7 @@ import { toast } from "sonner";
 
 export default function SalesSEOAnalytics() {
   const { getTrackers, createTracker, deleteTracker, getAnalytics, getLeads } = useSalesSeo();
-  const { connections } = useConnections();
+  const { data: connections } = useConnections();
   
   const [trackers, setTrackers] = useState<SalesSeoTracker[]>([]);
   const [analytics, setAnalytics] = useState<SalesSeoAnalytics | null>(null);
