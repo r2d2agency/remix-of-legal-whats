@@ -1692,25 +1692,7 @@ async function handleMessageUpsert(connection, data) {
       );
       conversationId = newConv.rows[0].id;
 
-      // SALES SEO: Detecta lead na criação da conversa (primeira mensagem)
-      try {
-        const { detectSalesSeoLead } = await import('../lib/sales-seo-service.js');
-        await detectSalesSeoLead(connection.id, conversationId, {
-          content: messageContent,
-          phone: contactPhone,
-          fromMe: fromMe
-        }, true);
-      } catch (seoErr) {
-        console.error('[Sales SEO] Erro Evolution:', seoErr.message);
-      }
-
-      // SALES SEO: Atualiza evolução do lead
-      try {
-        const { updateSalesSeoEvolution } = await import('../lib/sales-seo-service.js');
-        await updateSalesSeoEvolution(conversationId, { fromMe: fromMe });
-      } catch (seoErr) {
-        console.error('[Sales SEO] Erro Evolution Update:', seoErr.message);
-      }
+      // SALES SEO detection will happen after message insert to cover both new and existing conversations
       console.log('Webhook: Created new', isGroup ? 'group' : 'conversation:', conversationId);
     } else {
       conversationId = convResult.rows[0].id;
