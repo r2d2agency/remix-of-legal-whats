@@ -132,6 +132,8 @@ router.get('/analytics', async (req, res) => {
       `SELECT 
         DATE(l.created_at) as date,
         COUNT(*) as total,
+        COUNT(*) FILTER (WHERE evolution_status = 1) as just_arrived,
+        COUNT(*) FILTER (WHERE evolution_status = 2) as engaged,
         COUNT(*) FILTER (WHERE evolution_status = 3) as converted
        FROM sales_seo_leads l
        WHERE ${whereClause}
