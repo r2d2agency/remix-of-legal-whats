@@ -18,8 +18,9 @@ export interface SalesSeoAnalytics {
     converted: number;
     lost: number;
   };
-  daily: Array<{ date: string; total: number; converted: number }>;
+  daily: Array<{ date: string; total: number; converted: number; just_arrived: number; engaged: number }>;
   hourly: Array<{ hour: number; total: number }>;
+  monthly: Array<{ month: string; total: number; attended: number }>;
 }
 
 export interface SalesSeoLead {

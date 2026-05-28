@@ -67,6 +67,7 @@ export default function SalesSEOAnalytics() {
   const [newTracker, setNewTracker] = useState({ name: "", phrase: "", connection_ids: [] as string[] });
   
   const [filterTracker, setFilterTracker] = useState("all");
+  const [filterConnection, setFilterConnection] = useState("all");
   const [datePreset, setDatePreset] = useState("this_month");
   const [customRange, setCustomRange] = useState<{from: Date, to: Date} | null>(null);
 
@@ -97,6 +98,7 @@ export default function SalesSEOAnalytics() {
       const range = getDateRange();
       const params = { 
         tracker_id: filterTracker === "all" ? "" : filterTracker,
+        connection_id: filterConnection === "all" ? "" : filterConnection,
         start_date: range.start.toISOString(),
         end_date: range.end.toISOString()
       };
@@ -119,7 +121,7 @@ export default function SalesSEOAnalytics() {
 
   useEffect(() => {
     fetchData();
-  }, [filterTracker, datePreset, customRange]);
+  }, [filterTracker, filterConnection, datePreset, customRange]);
 
   const handleCreateTracker = async () => {
     if (!newTracker.name || !newTracker.phrase) return;
@@ -205,6 +207,19 @@ export default function SalesSEOAnalytics() {
                 ))}
               </SelectContent>
             </Select>
+             <Select value={filterConnection} onValueChange={setFilterConnection}>
+              <SelectTrigger className="w-44">
+                <MessageSquare className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Conexão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas conexões</SelectItem>
+                {connections?.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Button onClick={() => setShowCreateDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Novo Canal
@@ -306,25 +321,28 @@ export default function SalesSEOAnalytics() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="h-4 w-4" /> Distribuição Horária
+                <BarChart3 className="h-4 w-4" /> Desempenho Mensal
               </CardTitle>
-              <CardDescription>Picos de tráfego por hora do dia</CardDescription>
+              <CardDescription>Quantidade de leads mapeados vs atendidos por mês</CardDescription>
             </CardHeader>
-            <CardContent className="h-[200px]">
-               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={analytics?.hourly || []}>
-                  <defs>
-                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                  <XAxis dataKey="hour" fontSize={12} tickFormatter={(h) => `${h}h`} />
+            <CardContent className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={analytics?.monthly || []}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="month" 
+                    tickFormatter={(val) => {
+                      const [year, month] = val.split('-');
+                      const date = new Date(parseInt(year), parseInt(month) - 1);
+                      return format(date, "MMM/yy", { locale: ptBR });
+                    }}
+                    fontSize={12}
+                  />
                   <YAxis fontSize={12} />
                   <Tooltip />
-                  <Area type="monotone" dataKey="total" name="Leads" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorTotal)" />
-                </AreaChart>
+                  <Line type="monotone" dataKey="total" name="Mapeados (Leads)" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="attended" name="Atendidos" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                </LineChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>

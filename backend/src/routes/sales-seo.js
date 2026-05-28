@@ -92,7 +92,7 @@ router.get('/analytics', async (req, res) => {
     const org = await getUserOrganization(req.userId);
     if (!org) return res.status(403).json({ error: 'Organização não encontrada' });
 
-    const { start_date, end_date, tracker_id } = req.query;
+    const { start_date, end_date, tracker_id, connection_id } = req.query;
 
     let whereClause = 'l.organization_id = $1';
     const params = [org.organization_id];
@@ -111,6 +111,11 @@ router.get('/analytics', async (req, res) => {
     if (tracker_id) {
       whereClause += ` AND l.tracker_id = $${paramIndex}`;
       params.push(tracker_id);
+      paramIndex++;
+    }
+    if (connection_id) {
+      whereClause += ` AND l.connection_id = $${paramIndex}`;
+      params.push(connection_id);
       paramIndex++;
     }
 
@@ -154,10 +159,25 @@ router.get('/analytics', async (req, res) => {
       params
     );
 
+    // Stats by Month
+    const monthlyResult = await query(
+      `SELECT 
+        TO_CHAR(l.created_at, 'YYYY-MM') as month,
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE evolution_status >= 2) as attended
+       FROM sales_seo_leads l
+       WHERE l.organization_id = $1
+       GROUP BY month
+       ORDER BY month ASC
+       LIMIT 12`,
+      [org.organization_id]
+    );
+
     res.json({
       stats: statsResult.rows[0],
       daily: dailyResult.rows,
-      hourly: hourlyResult.rows
+      hourly: hourlyResult.rows,
+      monthly: monthlyResult.rows
     });
   } catch (error) {
     console.error('Get analytics error:', error);
