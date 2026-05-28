@@ -40,6 +40,7 @@ import {
   FolderKanban,
   BarChart4,
   Video,
+  Target as TargetIcon,
 } from "lucide-react";
 import { API_URL, getAuthToken } from "@/lib/api";
 import gleegoLogo from "@/assets/gleego-logo.png";
@@ -102,6 +103,7 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
       { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3, pageKey: 'crm_relatorios' },
       { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, pageKey: 'revenue_intelligence', adminOnly: true },
       { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, pageKey: 'modulo_fantasma', ownerOnly: true, moduleKey: 'ghost' },
+      { name: "Análise SEO e Vendas", href: "/sales-seo", icon: TargetIcon, pageKey: 'sales_seo', adminOnly: true },
       { name: "Configurações", href: "/crm/configuracoes", icon: Settings, pageKey: 'crm_configuracoes', adminOnly: true },
     ],
   },

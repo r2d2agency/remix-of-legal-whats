@@ -50,6 +50,7 @@ import CTWAAnalytics from "./pages/CTWAAnalytics";
 import RevenueIntelligence from "./pages/RevenueIntelligence";
 import SecretariaGrupos from "./pages/SecretariaGrupos";
 import ModuloFantasma from "./pages/ModuloFantasma";
+import SalesSEOAnalytics from "./pages/SalesSEOAnalytics";
 import Projetos from "./pages/Projetos";
 import TarefasKanban from "./pages/TarefasKanban";
 import LeadGleego from "./pages/LeadGleego";
@@ -152,6 +153,7 @@ const App = () => (
             <Route path="/revenue-intelligence" element={<ProtectedRoute><RevenueIntelligence /></ProtectedRoute>} />
             <Route path="/secretaria-grupos" element={<ProtectedRoute><SecretariaGrupos /></ProtectedRoute>} />
             <Route path="/modulo-fantasma" element={<ProtectedRoute><ModuloFantasma /></ProtectedRoute>} />
+            <Route path="/sales-seo" element={<ProtectedRoute><SalesSEOAnalytics /></ProtectedRoute>} />
             <Route path="/projetos" element={<ProtectedRoute><Projetos /></ProtectedRoute>} />
             <Route path="/tarefas" element={<ProtectedRoute><TarefasKanban /></ProtectedRoute>} />
             <Route path="/lead-gleego" element={<ProtectedRoute><LeadGleego /></ProtectedRoute>} />

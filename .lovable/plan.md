@@ -1,23 +1,43 @@
-The user reported two main issues:
-1. Kanban automation (follow-up) sends messages even if the lead has already responded.
-2. Card history shows long IDs in the title when assigning users, which is visually cluttered.
+Criação do módulo "Análise de Vendas e SEO" para rastrear a origem de conversas no WhatsApp baseadas em frases de entrada específicas (ex: "Olá, vim através do site!"). O módulo incluirá mapeamento de conexões, relatórios de horários/dias e análise de evolução de conversas (vendas, churn, upsell) com auxílio de IA.
 
-### Proposed Changes:
+### Alterações no Backend
 
-#### 1. Kanban Automation (Follow-up) Logic
-I will add a setting in the `StageAutomationEditor` to allow users to choose if the automation should cancel if the lead responds. While the backend handles the actual execution, providing the UI option ensures users can configure this behavior. I will also clarify that I've optimized the "wait" and "stop on response" indicators.
+1. **Banco de Dados**:
+   - Criar tabela `sales_seo_trackers` para configurar os mapeamentos (frase-origem, conexões, nome da origem).
+   - Adicionar colunas ou tabela de eventos para capturar metadados de origem quando uma conversa começa com a frase monitorada.
 
-#### 2. Visual Simplification of History
-I will modify the `DealDetailDialog`'s history tab to:
-- Detect and hide long UUID-like patterns in history messages.
-- Ensure messages like "atribuído ao usuário X" are clean and readable.
-- If an ID is present in the `to_value` or `from_value`, I will replace it with a shorter version or hide it if it's redundant.
+2. **Webhooks e Processamento**:
+   - Atualizar os handlers de webhook (UAZAPI, Evolution, etc.) para verificar se a primeira mensagem de uma conversa corresponde a um rastreador ativo.
+   - Registrar automaticamente a origem na conversa ou em uma tabela de rastreamento.
 
-### Technical Details:
-- **File:** `src/components/crm/StageAutomationEditor.tsx`
-  - Add a switch for `stop_on_response` (mapping to the backend capability).
-  - Update the "wait hours" section to be more intuitive.
-- **File:** `src/components/crm/DealDetailDialog.tsx`
-  - Implement a helper function `formatHistoryValue(val)` that truncates long IDs.
-  - Apply this helper to `item.from_value` and `item.to_value` in the history list.
-  - Adjust the custom message logic for `owner_changed` to be more user-friendly.
+3. **Novas Rotas**:
+   - `GET /api/sales-seo/trackers`: Listar configuradores.
+   - `POST /api/sales-seo/trackers`: Criar novo rastreador (frase, conexões).
+   - `GET /api/sales-seo/analytics`: Relatório consolidado (leads por dia/hora, taxa de evolução).
+   - `POST /api/sales-seo/analyze-ia`: Endpoint para disparar análise de IA sobre o funil de conversas rastreadas.
+
+### Alterações no Frontend
+
+1. **Nova Página**: `src/pages/SalesSEOAnalytics.tsx`.
+   - Dashboard com filtros por período e conexão.
+   - Gráficos de "Leads por Origem" e "Distribuição Horária" (confronto com Google Analytics).
+   - Lista de conversas rastreadas com status de "Evolução" (Parada, Em Andamento, Venda, Churn).
+
+2. **Gerenciamento de Rastreadores**: Interface para cadastrar as frases e selecionar quais números de WhatsApp devem monitorar essa frase.
+
+3. **Integração com IA**: Botão para gerar insights automáticos sobre as conversas (ex: "Quantas evoluíram para venda?").
+
+### Detalhes Técnicos (para desenvolvedores)
+
+- A detecção será feita no `persistIncomingMessage` (ou equivalente no backend) comparando o conteúdo exato (trim/lowercase) da primeira mensagem do contato.
+- A análise de evolução usará os logs de mensagens da conversa enviando um resumo para a API de IA configurada (Prompt customizado para SEO/Vendas).
+- Adição do link no `Sidebar.tsx` na seção "CRM" com o nome "Análise de Vendas e SEO".
+
+**Arquivos que serão criados/modificados:**
+- `backend/schema-sales-seo.sql` (novo)
+- `backend/src/routes/sales-seo.js` (novo)
+- `backend/src/index.js` (registrar rota)
+- `src/pages/SalesSEOAnalytics.tsx` (novo)
+- `src/hooks/use-sales-seo.ts` (novo)
+- `src/components/layout/Sidebar.tsx` (adicionar menu)
+- `backend/src/routes/uazapi.js` e `backend/src/routes/evolution.js` (hook de detecção)

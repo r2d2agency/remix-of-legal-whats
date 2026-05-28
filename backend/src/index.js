@@ -49,6 +49,7 @@ import metaTemplatesRoutes from './routes/meta-templates.js';
 import docSignaturesRoutes from './routes/doc-signatures.js';
 import telehealthRoutes from './routes/telehealth.js';
 import linkPreviewRoutes from './routes/link-preview.js';
+import salesSeoRoutes from './routes/sales-seo.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -833,6 +834,7 @@ app.use('/api/global-agents', globalAgentsRoutes);
 app.use('/api/meta', metaTemplatesRoutes);
 app.use('/api/doc-signatures', docSignaturesRoutes);
 app.use('/api/telehealth', telehealthRoutes);
+app.use('/api/sales-seo', salesSeoRoutes);
 app.use('/api/link-preview', linkPreviewRoutes);
 
 app.get('/health', (req, res) => {
