@@ -1692,25 +1692,7 @@ async function handleMessageUpsert(connection, data) {
       );
       conversationId = newConv.rows[0].id;
 
-      // SALES SEO: Detecta lead na criação da conversa (primeira mensagem)
-      try {
-        const { detectSalesSeoLead } = await import('../lib/sales-seo-service.js');
-        await detectSalesSeoLead(connection.id, conversationId, {
-          content: messageContent,
-          phone: contactPhone,
-          fromMe: fromMe
-        }, true);
-      } catch (seoErr) {
-        console.error('[Sales SEO] Erro Evolution:', seoErr.message);
-      }
-
-      // SALES SEO: Atualiza evolução do lead
-      try {
-        const { updateSalesSeoEvolution } = await import('../lib/sales-seo-service.js');
-        await updateSalesSeoEvolution(conversationId, { fromMe: fromMe });
-      } catch (seoErr) {
-        console.error('[Sales SEO] Erro Evolution Update:', seoErr.message);
-      }
+      // SALES SEO detection will happen after message insert to cover both new and existing conversations
       console.log('Webhook: Created new', isGroup ? 'group' : 'conversation:', conversationId);
     } else {
       conversationId = convResult.rows[0].id;
@@ -1944,24 +1926,6 @@ async function handleMessageUpsert(connection, data) {
     } else if (msgContent.senderKeyDistributionMessage) {
       console.log('Webhook: Ignoring senderKeyDistribution message');
       return;
-
-    // ==========================================
-    // SALES & SEO TRACKER DETECTION
-    // ==========================================
-    const messageDataForSEO = {
-      content,
-      fromMe,
-      phone: rawRemoteJid?.replace(/\D/g, '') || null
-    };
-
-    if (existingRow === null) {
-      // Only check for new lead if message doesn't exist yet
-      await detectSalesSeoLead(connection.id, conversationId, messageDataForSEO);
-    }
-    
-    // Always check for evolution (e.g. if we replied, status moves from 1 to 2)
-    await updateSalesSeoEvolution(conversationId, messageDataForSEO);
-    // ==========================================
     } else if (msgContent.protocolMessage) {
       const proto = msgContent.protocolMessage;
       const editedMsg = proto.editedMessage;
@@ -2107,6 +2071,23 @@ async function handleMessageUpsert(connection, data) {
       if (insertResult.rows.length > 0) {
         console.log('Webhook: Message saved/updated:', messageId, 'Type:', messageType, 'FromMe:', fromMe, 'Content:', content?.substring(0, 50));
         
+        // ==========================================
+        // SALES & SEO TRACKER DETECTION
+        // ==========================================
+        try {
+          const messageDataForSEO = {
+            content,
+            fromMe,
+            phone: contactPhone || rawRemoteJid?.replace(/\D/g, '') || null
+          };
+          
+          await detectSalesSeoLead(connection.id, conversationId, messageDataForSEO);
+          await updateSalesSeoEvolution(conversationId, messageDataForSEO);
+        } catch (seoErr) {
+          console.error('[Sales SEO] Error in webhook processing:', seoErr.message);
+        }
+        // ==========================================
+
         // Pause nurturing sequences on incoming message
         if (!fromMe && contactPhone && connection.organization_id) {
           pauseNurturingOnReply(contactPhone, connection.organization_id, conversationId)
