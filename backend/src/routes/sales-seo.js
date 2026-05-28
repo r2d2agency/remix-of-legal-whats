@@ -35,7 +35,7 @@ router.get('/trackers', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('List trackers error:', error);
-    res.status(500).json({ error: 'Erro ao listar rastreadores' });
+    res.status(500).json({ error: 'Erro ao listar rastreadores', details: error.message });
   }
 });
 
