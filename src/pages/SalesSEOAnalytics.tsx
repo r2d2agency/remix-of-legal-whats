@@ -281,8 +281,16 @@ export default function SalesSEOAnalytics() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">Vendas</CardTitle>
+              <TooltipUI>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground/50 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Leads que chegaram ao status de "Venda" no funil de atendimento.</p>
+                </TooltipContent>
+              </TooltipUI>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{analytics?.stats?.converted || 0}</div>
@@ -290,8 +298,16 @@ export default function SalesSEOAnalytics() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">Novos (24h)</CardTitle>
+              <TooltipUI>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground/50 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Leads capturados nas últimas 24 horas que ainda não tiveram interação profunda.</p>
+                </TooltipContent>
+              </TooltipUI>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">{analytics?.stats?.just_arrived || 0}</div>
@@ -504,6 +520,7 @@ export default function SalesSEOAnalytics() {
           </DialogContent>
         </Dialog>
       </div>
-    </MainLayout>
+      </MainLayout>
+    </TooltipProvider>
   );
 }
