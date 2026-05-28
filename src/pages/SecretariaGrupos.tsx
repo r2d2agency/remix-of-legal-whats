@@ -36,7 +36,7 @@ export default function SecretariaGrupos() {
     notify_external_enabled: false, notify_external_phone: '',
     notify_members_whatsapp: false, default_connection_id: null,
     followup_enabled: false, followup_hours: 4,
-    daily_digest_enabled: false, daily_digest_hour: 8,
+    daily_digest_enabled: false, daily_digest_hour: 8, daily_digest_type: 'detailed',
     auto_reply_enabled: false, auto_reply_message: '',
     excluded_senders: [],
   });
@@ -661,6 +661,28 @@ export default function SecretariaGrupos() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+                  {config.daily_digest_enabled && (
+                    <div className="space-y-1.5 mt-2">
+                      <Label>Tipo de Resumo</Label>
+                      <Select
+                        value={config.daily_digest_type || 'detailed'}
+                        onValueChange={(v) => setConfig((c) => ({ ...c, daily_digest_type: v as 'detailed' | 'analytical' }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="detailed">Detalhado (Lista de itens)</SelectItem>
+                          <SelectItem value="analytical">Analítico (Análise de tendências)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        {config.daily_digest_type === 'analytical' 
+                          ? "O resumo analítico foca em padrões e volume de solicitações." 
+                          : "O resumo detalhado lista cada solicitação detectada individualmente."}
+                      </p>
                     </div>
                   )}
                 </div>
