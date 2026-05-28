@@ -825,9 +825,10 @@ export function ConversationList({
                     </AvatarFallback>
                   </Avatar>
 
-                   {/* Content - added absolute fill to cover padding areas and ensure clickability */}
-                   <div className="flex-1 min-w-0 relative z-10" onClick={() => onSelect(conv)}>
-                     <div className="absolute -inset-y-4 -inset-x-16 cursor-pointer" onClick={() => onSelect(conv)} />
+                   {/* Content - improved z-index and click area */}
+                   <div className="flex-1 min-w-0 relative" onClick={() => onSelect(conv)}>
+                     <div className="absolute -inset-y-4 -inset-x-4 cursor-pointer z-0" onClick={() => onSelect(conv)} />
+                    <div className="relative z-10 flex flex-col gap-0.5">
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-medium truncate flex-1 min-w-0 flex items-center gap-1">
                         {conv.is_pinned && <Pin className="h-3 w-3 text-primary flex-shrink-0" />}
@@ -957,8 +958,7 @@ export function ConversationList({
                         </Badge>
                       )}
                     </div>
-
-
+                    </div>
                   </div>
 
                   {/* Accept button - visible for waiting conversations */}
@@ -982,9 +982,10 @@ export function ConversationList({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-7 px-2 text-xs flex-shrink-0 gap-1 text-muted-foreground"
+                      className="h-7 px-2 text-xs flex-shrink-0 gap-1 text-muted-foreground hover:bg-green-50 hover:text-green-600 hover:border-green-200"
                       onClick={(e) => {
                         e.stopPropagation();
+                        console.log('Clicking Finish button for:', conv.id);
                         onFinishConversation(conv.id);
                       }}
                     >
