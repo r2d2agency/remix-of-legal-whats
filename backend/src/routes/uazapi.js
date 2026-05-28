@@ -587,8 +587,13 @@ async function persistIncomingMessage(connection, payload) {
     );
     conversationId = createdConversation.rows[0].id;
     
-    // SALES SEO: Detecta lead na criação da conversa (primeira mensagem)
-    await detectSalesSeoLead(connection.id, conversationId, message);
+    // SALES SEO: Detecta lead na criação da conversa
+    try {
+      await detectSalesSeoLead(connection.id, conversationId, message);
+      await updateSalesSeoEvolution(conversationId, message);
+    } catch (seoErr) {
+      console.error('[Sales SEO] Erro UAZAPI (new):', seoErr.message);
+    }
   } else {
     conversationId = conversationResult.rows[0].id;
     await query(
