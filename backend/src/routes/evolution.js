@@ -1526,24 +1526,6 @@ async function handleMessageUpsert(connection, data) {
       return;
     }
     // Handle edited/deleted messages via protocolMessage
-    // ==========================================
-    // SALES & SEO TRACKER DETECTION
-    // ==========================================
-    const messageDataForSEO = {
-      content,
-      fromMe,
-      phone: rawRemoteJid?.replace(/\D/g, '') || null
-    };
-
-    if (existingRow === null) {
-      // Only check for new lead if message doesn't exist yet
-      await detectSalesSeoLead(connection.id, conversationId, messageDataForSEO);
-    }
-    
-    // Always check for evolution (e.g. if we replied, status moves from 1 to 2)
-    await updateSalesSeoEvolution(conversationId, messageDataForSEO);
-    // ==========================================
-
     if (msgContent.protocolMessage) {
       const proto = msgContent.protocolMessage;
       const editedMsg = proto.editedMessage;
