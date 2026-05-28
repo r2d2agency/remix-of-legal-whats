@@ -298,7 +298,18 @@ router.post('/analyze-ia', async (req, res) => {
 
     const aiResponse = await callAI(aiConfig, [{ role: 'user', content: prompt }], { responseFormat: { type: 'json_object' } });
     
-    const result = JSON.parse(aiResponse.content);
+    let result;
+    try {
+      result = JSON.parse(aiResponse.content);
+    } catch (parseError) {
+      console.error('Failed to parse AI response as JSON:', aiResponse.content);
+      // Fallback: se não for JSON, tenta extrair o status se possível ou usa o atual
+      result = {
+        status: lead.evolution_status,
+        resumo: aiResponse.content.substring(0, 200),
+        oportunidade: 'Não foi possível analisar detalhadamente.'
+      };
+    }
 
     // 3. Update lead
     await query(
@@ -307,7 +318,7 @@ router.post('/analyze-ia', async (req, res) => {
            ia_analysis = $2,
            updated_at = NOW()
        WHERE id = $3`,
-      [result.status || lead.evolution_status, aiResponse.content, lead_id]
+      [result.status || lead.evolution_status, JSON.stringify(result), lead_id]
     );
 
     res.json({ success: true, analysis: result });
