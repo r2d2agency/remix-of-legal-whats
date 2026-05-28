@@ -1,0 +1,346 @@
+import { useState, useEffect } from "react";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Search,
+  Plus,
+  BarChart3,
+  TrendingUp,
+  Target,
+  Users,
+  MessageSquare,
+  Clock,
+  Trash2,
+  Brain,
+  Filter,
+} from "lucide-react";
+import { useSalesSeo, SalesSeoTracker, SalesSeoAnalytics, SalesSeoLead } from "@/hooks/use-sales-seo";
+import { useConnections } from "@/hooks/use-connections";
+import { format } from "date-fns";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+} from "recharts";
+import { toast } from "sonner";
+
+export default function SalesSEOAnalytics() {
+  const { getTrackers, createTracker, deleteTracker, getAnalytics, getLeads } = useSalesSeo();
+  const { connections } = useConnections();
+  
+  const [trackers, setTrackers] = useState<SalesSeoTracker[]>([]);
+  const [analytics, setAnalytics] = useState<SalesSeoAnalytics | null>(null);
+  const [leads, setLeads] = useState<SalesSeoLead[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newTracker, setNewTracker] = useState({ name: "", phrase: "", connection_ids: [] as string[] });
+  
+  const [filterTracker, setFilterTracker] = useState("all");
+  const [dateRange, setDateRange] = useState("30");
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [tList, stats, leadList] = await Promise.all([
+        getTrackers(),
+        getAnalytics({ tracker_id: filterTracker === "all" ? "" : filterTracker }),
+        getLeads({ tracker_id: filterTracker === "all" ? "" : filterTracker })
+      ]);
+      setTrackers(tList);
+      setAnalytics(stats);
+      setLeads(leadList);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao carregar dados");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [filterTracker]);
+
+  const handleCreateTracker = async () => {
+    if (!newTracker.name || !newTracker.phrase) return;
+    try {
+      await createTracker(newTracker);
+      toast.success("Rastreador criado");
+      setShowCreateDialog(false);
+      setNewTracker({ name: "", phrase: "", connection_ids: [] });
+      fetchData();
+    } catch (err) {
+      toast.error("Erro ao criar rastreador");
+    }
+  };
+
+  const handleDeleteTracker = async (id: string) => {
+    if (!confirm("Tem certeza?")) return;
+    try {
+      await deleteTracker(id);
+      toast.success("Rastreador excluído");
+      fetchData();
+    } catch (err) {
+      toast.error("Erro ao excluir rastreador");
+    }
+  };
+
+  const evolutionStatusMap = {
+    1: { label: "Nova", color: "bg-blue-100 text-blue-700" },
+    2: { label: "Engajada", color: "bg-amber-100 text-amber-700" },
+    3: { label: "Venda", color: "bg-green-100 text-green-700" },
+    4: { label: "Perda", color: "bg-red-100 text-red-700" },
+  };
+
+  return (
+    <MainLayout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Target className="h-6 w-6 text-primary" />
+              Análise de Vendas e SEO
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Rastreie a origem de conversas e analise o funil de vendas via WhatsApp
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+             <Select value={filterTracker} onValueChange={setFilterTracker}>
+              <SelectTrigger className="w-48">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Rastreador" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os canais</SelectItem>
+                {trackers.map(t => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Canal
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total de Leads</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{analytics?.stats?.total || 0}</div>
+              <p className="text-xs text-muted-foreground">Capturados via frase</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Engajados</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">{analytics?.stats?.engaged || 0}</div>
+              <p className="text-xs text-muted-foreground">Houve resposta do operador</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Vendas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{analytics?.stats?.converted || 0}</div>
+              <p className="text-xs text-muted-foreground">Taxa: {analytics?.stats?.total ? Math.round((analytics.stats.converted / analytics.stats.total) * 100) : 0}%</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Novos (24h)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{analytics?.stats?.just_arrived || 0}</div>
+              <p className="text-xs text-muted-foreground">Aguardando atendimento</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" /> Evolução Diária
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={analytics?.daily || []}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="date" 
+                    tickFormatter={(val) => format(new Date(val), "dd/MM")}
+                    fontSize={12}
+                  />
+                  <YAxis fontSize={12} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="total" name="Leads" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="converted" name="Vendas" stroke="#10b981" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="h-4 w-4" /> Distribuição Horária
+              </CardTitle>
+              <CardDescription>Confronto de tráfego (Pico de Leads)</CardDescription>
+            </CardHeader>
+            <CardContent className="h-[300px]">
+               <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analytics?.hourly || []}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="hour" fontSize={12} tickFormatter={(h) => `${h}h`} />
+                  <YAxis fontSize={12} />
+                  <Tooltip />
+                  <Bar dataKey="total" name="Leads" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="leads">
+          <TabsList>
+            <TabsTrigger value="leads">Conversas Recentes</TabsTrigger>
+            <TabsTrigger value="canais">Configuração de Canais</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="leads" className="pt-4">
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="text-left p-3 font-medium">Data</th>
+                        <th className="text-left p-3 font-medium">Canal</th>
+                        <th className="text-left p-3 font-medium">Contato</th>
+                        <th className="text-left p-3 font-medium">Frase</th>
+                        <th className="text-center p-3 font-medium">Status</th>
+                        <th className="text-right p-3 font-medium">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leads.map(lead => (
+                        <tr key={lead.id} className="border-b last:border-0 hover:bg-muted/30">
+                          <td className="p-3 whitespace-nowrap">{format(new Date(lead.created_at), "dd/MM HH:mm")}</td>
+                          <td className="p-3 font-medium">{lead.tracker_name}</td>
+                          <td className="p-3">
+                            <div className="flex flex-col">
+                              <span>{lead.contact_name || lead.phone}</span>
+                              <span className="text-xs text-muted-foreground">{lead.connection_name}</span>
+                            </div>
+                          </td>
+                          <td className="p-3 text-muted-foreground truncate max-w-[200px]">{lead.entry_message}</td>
+                          <td className="p-3 text-center">
+                            <Badge variant="secondary" className={evolutionStatusMap[lead.evolution_status as keyof typeof evolutionStatusMap]?.color}>
+                              {evolutionStatusMap[lead.evolution_status as keyof typeof evolutionStatusMap]?.label}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-right">
+                             <Button variant="ghost" size="icon" onClick={() => window.open(`/chat?conversationId=${lead.conversation_id}`, '_blank')}>
+                              <MessageSquare className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="canais" className="pt-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {trackers.map(t => (
+                <Card key={t.id}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <CardTitle className="text-base">{t.name}</CardTitle>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteTracker(t.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted-foreground uppercase">Frase Monitorada</div>
+                      <div className="bg-muted p-2 rounded text-sm italic">"{t.phrase}"</div>
+                      <div className="text-xs text-muted-foreground mt-4">Conexões: {t.connection_ids?.length || 'Todas'}</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Novo Rastreador de SEO</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Nome do Canal</label>
+                <Input 
+                  placeholder="Ex: Site Principal" 
+                  value={newTracker.name} 
+                  onChange={e => setNewTracker({...newTracker, name: e.target.value})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Frase de Origem (Exata)</label>
+                <Input 
+                  placeholder="Ex: Olá, vim através do site!" 
+                  value={newTracker.phrase} 
+                  onChange={e => setNewTracker({...newTracker, phrase: e.target.value})} 
+                />
+                <p className="text-xs text-muted-foreground">O sistema criará um lead sempre que uma conversa começar com esta frase exata.</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancelar</Button>
+              <Button onClick={handleCreateTracker}>Salvar Rastreador</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </MainLayout>
+  );
+}
