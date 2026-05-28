@@ -44,14 +44,24 @@ router.get('/trackers', async (req, res) => {
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
           tracker_id UUID REFERENCES sales_seo_trackers(id) ON DELETE SET NULL,
+          conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
           connection_id UUID REFERENCES connections(id) ON DELETE SET NULL,
-          conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+          phone VARCHAR(50),
           entry_message TEXT,
           evolution_status INTEGER DEFAULT 1,
           ia_analysis JSONB DEFAULT '{}',
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
+      ALTER TABLE sales_seo_trackers ADD COLUMN IF NOT EXISTS connection_ids UUID[] DEFAULT '{}';
+      ALTER TABLE sales_seo_trackers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+      ALTER TABLE sales_seo_trackers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+      ALTER TABLE sales_seo_leads ADD COLUMN IF NOT EXISTS connection_id UUID REFERENCES connections(id) ON DELETE SET NULL;
+      ALTER TABLE sales_seo_leads ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+      ALTER TABLE sales_seo_leads ADD COLUMN IF NOT EXISTS entry_message TEXT;
+      ALTER TABLE sales_seo_leads ADD COLUMN IF NOT EXISTS evolution_status INTEGER DEFAULT 1;
+      ALTER TABLE sales_seo_leads ADD COLUMN IF NOT EXISTS ia_analysis JSONB DEFAULT '{}';
+      ALTER TABLE sales_seo_leads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
     `);
 
     const result = await query(
