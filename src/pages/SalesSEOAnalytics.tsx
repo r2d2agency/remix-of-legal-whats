@@ -432,9 +432,38 @@ export default function SalesSEOAnalytics() {
                           </td>
                           <td className="p-3 text-muted-foreground truncate max-w-[200px]">{lead.entry_message}</td>
                           <td className="p-3 text-center">
-                            <Badge variant="secondary" className={evolutionStatusMap[lead.evolution_status as keyof typeof evolutionStatusMap]?.color}>
-                              {evolutionStatusMap[lead.evolution_status as keyof typeof evolutionStatusMap]?.label}
-                            </Badge>
+                            <div className="flex items-center justify-center gap-2">
+                              <Badge variant="secondary" className={evolutionStatusMap[lead.evolution_status as keyof typeof evolutionStatusMap]?.color}>
+                                {evolutionStatusMap[lead.evolution_status as keyof typeof evolutionStatusMap]?.label}
+                              </Badge>
+                              {lead.ia_analysis && (
+                                <TooltipUI>
+                                  <TooltipTrigger asChild>
+                                    <Brain className="h-4 w-4 text-primary cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs">
+                                    <div className="space-y-2">
+                                      <p className="font-bold border-b pb-1">Análise da IA</p>
+                                      {(() => {
+                                        try {
+                                          const analysis = typeof lead.ia_analysis === 'string' 
+                                            ? JSON.parse(lead.ia_analysis) 
+                                            : lead.ia_analysis;
+                                          return (
+                                            <>
+                                              <p><strong>Resumo:</strong> {analysis.resumo || 'Sem resumo'}</p>
+                                              <p><strong>Oportunidade:</strong> {analysis.oportunidade || 'Não identificada'}</p>
+                                            </>
+                                          );
+                                        } catch {
+                                          return <p>{String(lead.ia_analysis)}</p>;
+                                        }
+                                      })()}
+                                    </div>
+                                  </TooltipContent>
+                                </TooltipUI>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 text-right">
                              <div className="flex items-center justify-end gap-2">
