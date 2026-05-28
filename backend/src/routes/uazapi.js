@@ -9,6 +9,7 @@ import { executeFlow, continueFlowWithInput } from '../lib/flow-executor.js';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { detectSalesSeoLead, updateSalesSeoEvolution } from '../lib/sales-seo-service.js';
 
 const router = Router();
 

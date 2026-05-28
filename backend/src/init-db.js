@@ -3690,6 +3690,37 @@ CREATE INDEX IF NOT EXISTS idx_meta_templates_status
   ON meta_message_templates(status);
 `;
 
+const step42SalesSEO = `
+CREATE TABLE IF NOT EXISTS sales_seo_trackers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    phrase TEXT NOT NULL,
+    connection_ids UUID[] DEFAULT '{}',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sales_seo_leads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    tracker_id UUID REFERENCES sales_seo_trackers(id) ON DELETE SET NULL,
+    connection_id UUID REFERENCES connections(id) ON DELETE SET NULL,
+    conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+    entry_message TEXT,
+    evolution_status INTEGER DEFAULT 1, -- 1: just_arrived, 2: engaged, 3: converted, 4: lost
+    ia_analysis JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sales_seo_trackers_org ON sales_seo_trackers(organization_id);
+CREATE INDEX IF NOT EXISTS idx_sales_seo_leads_org ON sales_seo_leads(organization_id);
+CREATE INDEX IF NOT EXISTS idx_sales_seo_leads_tracker ON sales_seo_leads(tracker_id);
+CREATE INDEX IF NOT EXISTS idx_sales_seo_leads_created ON sales_seo_leads(created_at DESC);
+`;
+
 const migrationSteps = [
   { name: 'Enums', sql: step1Enums, critical: true },
   { name: 'Core Tables (users, plans)', sql: step2CoreTables, critical: true },
@@ -3733,6 +3764,7 @@ const migrationSteps = [
   { name: 'Global AI Agents', sql: step39GlobalAgents, critical: false },
   { name: 'Lead Webhooks', sql: step40LeadWebhooks, critical: false },
   { name: 'Meta Message Templates', sql: step41MetaTemplates, critical: false },
+  { name: 'Sales & SEO Module', sql: step42SalesSEO, critical: false },
   { name: 'Wait Reply Flow Sessions', sql: `
     ALTER TABLE flow_sessions ADD COLUMN IF NOT EXISTS wait_reply_expires_at TIMESTAMPTZ DEFAULT NULL;
     ALTER TABLE flow_sessions ADD COLUMN IF NOT EXISTS wait_reply_variable TEXT DEFAULT NULL;

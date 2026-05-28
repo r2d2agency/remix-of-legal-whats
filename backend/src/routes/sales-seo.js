@@ -28,6 +28,32 @@ router.get('/trackers', async (req, res) => {
     const org = await getUserOrganization(req.userId);
     if (!org) return res.status(403).json({ error: 'Organização não encontrada' });
 
+    // Hotfix: Ensure tables exist
+    await query(`
+      CREATE TABLE IF NOT EXISTS sales_seo_trackers (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL,
+          phrase TEXT NOT NULL,
+          connection_ids UUID[] DEFAULT '{}',
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS sales_seo_leads (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          tracker_id UUID REFERENCES sales_seo_trackers(id) ON DELETE SET NULL,
+          connection_id UUID REFERENCES connections(id) ON DELETE SET NULL,
+          conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+          entry_message TEXT,
+          evolution_status INTEGER DEFAULT 1,
+          ia_analysis JSONB DEFAULT '{}',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `);
+
     const result = await query(
       `SELECT * FROM sales_seo_trackers WHERE organization_id = $1 ORDER BY created_at DESC`,
       [org.organization_id]
@@ -35,7 +61,7 @@ router.get('/trackers', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('List trackers error:', error);
-    res.status(500).json({ error: 'Erro ao listar rastreadores' });
+    res.status(500).json({ error: 'Erro ao listar rastreadores', details: error.message });
   }
 });
 
@@ -59,7 +85,7 @@ router.post('/trackers', async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Create tracker error:', error);
-    res.status(500).json({ error: 'Erro ao criar rastreador' });
+    res.status(500).json({ error: 'Erro ao criar rastreador', details: error.message });
   }
 });
 
@@ -78,7 +104,7 @@ router.delete('/trackers/:id', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Delete tracker error:', error);
-    res.status(500).json({ error: 'Erro ao excluir rastreador' });
+    res.status(500).json({ error: 'Erro ao excluir rastreador', details: error.message });
   }
 });
 
@@ -159,7 +185,7 @@ router.get('/analytics', async (req, res) => {
     });
   } catch (error) {
     console.error('Get analytics error:', error);
-    res.status(500).json({ error: 'Erro ao buscar analíticos' });
+    res.status(500).json({ error: 'Erro ao buscar analíticos', details: error.message });
   }
 });
 
@@ -202,7 +228,7 @@ router.get('/leads', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('List leads error:', error);
-    res.status(500).json({ error: 'Erro ao listar leads' });
+    res.status(500).json({ error: 'Erro ao listar leads', details: error.message });
   }
 });
 
@@ -281,7 +307,7 @@ router.post('/analyze-ia', async (req, res) => {
     res.json({ success: true, analysis: result });
   } catch (error) {
     console.error('IA Analysis error:', error);
-    res.status(500).json({ error: 'Erro na análise de IA' });
+    res.status(500).json({ error: 'Erro na análise de IA', details: error.message });
   }
 });
 
