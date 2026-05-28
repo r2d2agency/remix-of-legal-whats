@@ -61,7 +61,6 @@ router.get('/trackers', async (req, res) => {
       [org.organization_id]
     );
     res.json(result.rows);
-    res.json(result.rows);
   } catch (error) {
     console.error('List trackers error:', error);
     res.status(500).json({ error: 'Erro ao listar rastreadores', details: error.message });
