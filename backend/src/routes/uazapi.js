@@ -604,7 +604,8 @@ async function persistIncomingMessage(connection, payload) {
        [conversationId, message.senderName, message.groupName, connection.id]
     );
 
-    // SALES SEO: Atualiza evolução do lead
+    // SALES SEO: Detecta lead e atualiza evolução
+    await detectSalesSeoLead(connection.id, conversationId, message);
     await updateSalesSeoEvolution(conversationId, message);
   }
 
