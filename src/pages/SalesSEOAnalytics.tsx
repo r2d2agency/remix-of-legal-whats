@@ -48,6 +48,8 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  AreaChart,
+  Area,
 } from "recharts";
 import { toast } from "sonner";
 
@@ -65,15 +67,44 @@ export default function SalesSEOAnalytics() {
   const [newTracker, setNewTracker] = useState({ name: "", phrase: "", connection_ids: [] as string[] });
   
   const [filterTracker, setFilterTracker] = useState("all");
-  const [dateRange, setDateRange] = useState("30");
+  const [datePreset, setDatePreset] = useState("this_month");
+  const [customRange, setCustomRange] = useState<{from: Date, to: Date} | null>(null);
+
+  const getDateRange = () => {
+    const now = new Date();
+    switch (datePreset) {
+      case "today":
+        return { start: startOfDay(now), end: endOfDay(now) };
+      case "last_7":
+        return { start: startOfDay(subDays(now, 7)), end: endOfDay(now) };
+      case "last_30":
+        return { start: startOfDay(subDays(now, 30)), end: endOfDay(now) };
+      case "this_month":
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case "last_month":
+        const lastMonth = subMonths(now, 1);
+        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      case "custom":
+        return customRange ? { start: startOfDay(customRange.from), end: endOfDay(customRange.to) } : { start: startOfMonth(now), end: endOfMonth(now) };
+      default:
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const range = getDateRange();
+      const params = { 
+        tracker_id: filterTracker === "all" ? "" : filterTracker,
+        start_date: range.start.toISOString(),
+        end_date: range.end.toISOString()
+      };
+      
       const [tList, stats, leadList] = await Promise.all([
         getTrackers(),
-        getAnalytics({ tracker_id: filterTracker === "all" ? "" : filterTracker }),
-        getLeads({ tracker_id: filterTracker === "all" ? "" : filterTracker })
+        getAnalytics(params),
+        getLeads(params)
       ]);
       setTrackers(tList);
       setAnalytics(stats);
@@ -88,7 +119,7 @@ export default function SalesSEOAnalytics() {
 
   useEffect(() => {
     fetchData();
-  }, [filterTracker]);
+  }, [filterTracker, datePreset, customRange]);
 
   const handleCreateTracker = async () => {
     if (!newTracker.name || !newTracker.phrase) return;
