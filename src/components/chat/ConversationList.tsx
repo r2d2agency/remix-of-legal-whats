@@ -959,6 +959,7 @@ export function ConversationList({
                       )}
                     </div>
                   </div>
+                </div>
 
                   {/* Accept button - visible for waiting conversations */}
                   {isWaiting && onAcceptConversation && (
