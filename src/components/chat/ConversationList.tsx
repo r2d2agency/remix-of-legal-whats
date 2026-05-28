@@ -958,8 +958,8 @@ export function ConversationList({
                         </Badge>
                       )}
                     </div>
+                    </div>
                   </div>
-                </div>
 
                   {/* Accept button - visible for waiting conversations */}
                   {isWaiting && onAcceptConversation && (
