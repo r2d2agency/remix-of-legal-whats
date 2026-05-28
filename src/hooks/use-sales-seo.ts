@@ -65,6 +65,13 @@ export const useSalesSeo = () => {
     return api<SalesSeoLead[]>(`/api/sales-seo/leads?${searchParams.toString()}`);
   }, []);
 
+  const analyzeIA = useCallback(async (leadId: string): Promise<any> => {
+    return api('/api/sales-seo/analyze-ia', {
+      method: 'POST',
+      body: { lead_id: leadId },
+    });
+  }, []);
+
   return {
     loading,
     setLoading,
@@ -73,5 +80,6 @@ export const useSalesSeo = () => {
     deleteTracker,
     getAnalytics,
     getLeads,
+    analyzeIA,
   };
 };
