@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import { callAI } from '../lib/ai-caller.js';
 
 const router = Router();
 router.use(authenticate);
@@ -202,6 +203,85 @@ router.get('/leads', async (req, res) => {
   } catch (error) {
     console.error('List leads error:', error);
     res.status(500).json({ error: 'Erro ao listar leads' });
+  }
+});
+
+// Analyze lead with IA
+router.post('/analyze-ia', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Organização não encontrada' });
+
+    const { lead_id } = req.body;
+    if (!lead_id) return res.status(400).json({ error: 'ID do lead é obrigatório' });
+
+    // 1. Get lead and messages
+    const leadRes = await query(
+      `SELECT l.*, conv.id as conversation_id 
+       FROM sales_seo_leads l
+       JOIN conversations conv ON conv.id = l.conversation_id
+       WHERE l.id = $1 AND l.organization_id = $2`,
+      [lead_id, org.organization_id]
+    );
+
+    if (leadRes.rows.length === 0) return res.status(404).json({ error: 'Lead não encontrado' });
+    const lead = leadRes.rows[0];
+
+    const messagesRes = await query(
+      `SELECT content, from_me, timestamp 
+       FROM chat_messages 
+       WHERE conversation_id = $1 
+       ORDER BY timestamp ASC LIMIT 50`,
+      [lead.conversation_id]
+    );
+
+    const history = messagesRes.rows.map(m => 
+      `${m.from_me ? 'Operador' : 'Cliente'} (${new Date(m.timestamp).toLocaleString()}): ${m.content}`
+    ).join('\n');
+
+    // 2. Get AI config
+    const aiConfigRes = await query(
+      `SELECT * FROM system_settings WHERE key IN ('openai_api_key', 'openai_model')`
+    );
+    const settings = Object.fromEntries(aiConfigRes.rows.map(r => [r.key, r.value]));
+    
+    if (!settings.openai_api_key) {
+      return res.status(400).json({ error: 'IA não configurada. Configure a API Key no painel Admin.' });
+    }
+
+    const aiConfig = {
+      provider: 'openai',
+      apiKey: settings.openai_api_key,
+      model: settings.openai_model || 'gpt-4o-mini'
+    };
+
+    const prompt = `Analise a seguinte conversa de WhatsApp que começou com a frase: "${lead.entry_message}".
+    Histórico:
+    ${history}
+
+    Responda em formato JSON com:
+    - status: 1 (apenas primeira mensagem), 2 (engajado/diálogo), 3 (venda realizada/encaminhada), 4 (perda/churn)
+    - resumo: um resumo curto da interação (max 200 caracteres)
+    - oportunidade: chance de upsell ou risco de churn (texto curto)`;
+
+    const aiResponse = await callAI(aiConfig, [{ role: 'user', content: prompt }], { responseFormat: { type: 'json_object' } });
+    
+    const result = JSON.parse(aiResponse.content);
+
+    // 3. Update lead
+    await query(
+      `UPDATE sales_seo_leads 
+       SET evolution_status = $1, 
+           ia_analysis = $2,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [result.status || lead.evolution_status, aiResponse.content, lead_id]
+    );
+
+    res.json({ success: true, analysis: result });
+  } catch (error) {
+    console.error('IA Analysis error:', error);
+    res.status(500).json({ error: 'Erro na análise de IA' });
   }
 });
 

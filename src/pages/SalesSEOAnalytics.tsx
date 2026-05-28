@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,8 @@ import {
   Trash2,
   Brain,
   Filter,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { useSalesSeo, SalesSeoTracker, SalesSeoAnalytics, SalesSeoLead } from "@/hooks/use-sales-seo";
 import { useConnections } from "@/hooks/use-connections";
@@ -49,13 +51,14 @@ import {
 import { toast } from "sonner";
 
 export default function SalesSEOAnalytics() {
-  const { getTrackers, createTracker, deleteTracker, getAnalytics, getLeads } = useSalesSeo();
+  const { getTrackers, createTracker, deleteTracker, getAnalytics, getLeads, analyzeIA } = useSalesSeo();
   const { data: connections } = useConnections();
   
   const [trackers, setTrackers] = useState<SalesSeoTracker[]>([]);
   const [analytics, setAnalytics] = useState<SalesSeoAnalytics | null>(null);
   const [leads, setLeads] = useState<SalesSeoLead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newTracker, setNewTracker] = useState({ name: "", phrase: "", connection_ids: [] as string[] });
@@ -96,6 +99,19 @@ export default function SalesSEOAnalytics() {
       fetchData();
     } catch (err) {
       toast.error("Erro ao criar rastreador");
+    }
+  };
+
+  const handleAnalyzeIA = async (leadId: string) => {
+    setAnalyzingId(leadId);
+    try {
+      await analyzeIA(leadId);
+      toast.success("Análise concluída");
+      fetchData();
+    } catch (err) {
+      toast.error("Erro na análise de IA");
+    } finally {
+      setAnalyzingId(null);
     }
   };
 
@@ -274,9 +290,25 @@ export default function SalesSEOAnalytics() {
                             </Badge>
                           </td>
                           <td className="p-3 text-right">
-                             <Button variant="ghost" size="icon" onClick={() => window.open(`/chat?conversationId=${lead.conversation_id}`, '_blank')}>
-                              <MessageSquare className="h-4 w-4" />
-                            </Button>
+                             <div className="flex items-center justify-end gap-2">
+                               <Button 
+                                 variant="outline" 
+                                 size="icon" 
+                                 onClick={() => handleAnalyzeIA(lead.id)}
+                                 disabled={analyzingId === lead.id}
+                                 title="Análise de IA"
+                               >
+                                 {analyzingId === lead.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                               </Button>
+                               <Button 
+                                 variant="ghost" 
+                                 size="icon" 
+                                 onClick={() => window.open(`/chat?conversationId=${lead.conversation_id}`, '_blank')}
+                                 title="Ir para o Chat"
+                               >
+                                 <MessageSquare className="h-4 w-4" />
+                               </Button>
+                             </div>
                           </td>
                         </tr>
                       ))}
