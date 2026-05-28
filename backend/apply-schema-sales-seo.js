@@ -9,7 +9,7 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
 async function run() {
     try {
-        const schema = fs.readFileSync('backend/schema-sales-seo.sql', 'utf8');
+        const schema = fs.readFileSync('schema-sales-seo.sql', 'utf8');
         await pool.query(schema);
         console.log('Schema aplicado com sucesso!');
         process.exit(0);
