@@ -169,7 +169,7 @@ router.get('/leads', async (req, res) => {
     const org = await getUserOrganization(req.userId);
     if (!org) return res.status(403).json({ error: 'Organização não encontrada' });
 
-    const { tracker_id, limit = 50 } = req.query;
+    const { tracker_id, start_date, end_date, limit = 50 } = req.query;
 
     let whereClause = 'l.organization_id = $1';
     const params = [org.organization_id];
@@ -178,6 +178,16 @@ router.get('/leads', async (req, res) => {
     if (tracker_id) {
       whereClause += ` AND l.tracker_id = $${paramIndex}`;
       params.push(tracker_id);
+      paramIndex++;
+    }
+    if (start_date) {
+      whereClause += ` AND l.created_at >= $${paramIndex}`;
+      params.push(start_date);
+      paramIndex++;
+    }
+    if (end_date) {
+      whereClause += ` AND l.created_at <= $${paramIndex}`;
+      params.push(end_date);
       paramIndex++;
     }
 
