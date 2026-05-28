@@ -1944,9 +1944,6 @@ async function handleMessageUpsert(connection, data) {
     } else if (msgContent.senderKeyDistributionMessage) {
       console.log('Webhook: Ignoring senderKeyDistribution message');
       return;
-    } else if (msgContent.protocolMessage) {
-      // Handled early
-    }
 
     // ==========================================
     // SALES & SEO TRACKER DETECTION
