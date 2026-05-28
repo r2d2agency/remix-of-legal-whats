@@ -651,12 +651,12 @@ export function ConversationList({
             value={filters.tag}
             onValueChange={(v) => onFiltersChange({ ...filters, tag: v })}
           >
-            <SelectTrigger className="flex-1 h-8 text-xs min-w-[70px] max-w-[90px]">
+            <SelectTrigger className="flex-1 h-8 text-xs min-w-[70px] max-w-[110px]">
               <Tag className="h-3 w-3 mr-1" />
               <SelectValue placeholder="Tag" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="all">Todas as Tags</SelectItem>
               {Array.isArray(tags) && tags.map(tag => (
                 <SelectItem key={tag.id} value={tag.id}>
                   <div className="flex items-center gap-2">
@@ -664,7 +664,7 @@ export function ConversationList({
                       className="w-2 h-2 rounded-full" 
                       style={{ backgroundColor: tag.color }}
                     />
-                    {tag.name}
+                    <span className="truncate max-w-[80px]">{tag.name}</span>
                   </div>
                 </SelectItem>
               ))}
