@@ -1690,6 +1690,18 @@ async function handleMessageUpsert(connection, data) {
         [connection.id, remoteJid, displayName, isGroup ? null : contactPhone, isGroup, groupSubject, fromMe ? 0 : 1]
       );
       conversationId = newConv.rows[0].id;
+
+      // SALES SEO: Detecta lead na criação da conversa (primeira mensagem)
+      try {
+        const { detectSalesSeoLead } = await import('../lib/sales-seo-service.js');
+        await detectSalesSeoLead(connection.id, conversationId, {
+          content: messageContent,
+          phone: contactPhone,
+          fromMe: fromMe
+        }, true);
+      } catch (seoErr) {
+        console.error('[Sales SEO] Erro Evolution:', seoErr.message);
+      }
       console.log('Webhook: Created new', isGroup ? 'group' : 'conversation:', conversationId);
     } else {
       conversationId = convResult.rows[0].id;
