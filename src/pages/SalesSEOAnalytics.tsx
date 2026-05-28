@@ -36,7 +36,8 @@ import {
 } from "lucide-react";
 import { useSalesSeo, SalesSeoTracker, SalesSeoAnalytics, SalesSeoLead } from "@/hooks/use-sales-seo";
 import { useConnections } from "@/hooks/use-connections";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay, subDays } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   LineChart,
   Line,
@@ -47,6 +48,8 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  AreaChart,
+  Area,
 } from "recharts";
 import { toast } from "sonner";
 
@@ -64,15 +67,44 @@ export default function SalesSEOAnalytics() {
   const [newTracker, setNewTracker] = useState({ name: "", phrase: "", connection_ids: [] as string[] });
   
   const [filterTracker, setFilterTracker] = useState("all");
-  const [dateRange, setDateRange] = useState("30");
+  const [datePreset, setDatePreset] = useState("this_month");
+  const [customRange, setCustomRange] = useState<{from: Date, to: Date} | null>(null);
+
+  const getDateRange = () => {
+    const now = new Date();
+    switch (datePreset) {
+      case "today":
+        return { start: startOfDay(now), end: endOfDay(now) };
+      case "last_7":
+        return { start: startOfDay(subDays(now, 7)), end: endOfDay(now) };
+      case "last_30":
+        return { start: startOfDay(subDays(now, 30)), end: endOfDay(now) };
+      case "this_month":
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case "last_month":
+        const lastMonth = subMonths(now, 1);
+        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+      case "custom":
+        return customRange ? { start: startOfDay(customRange.from), end: endOfDay(customRange.to) } : { start: startOfMonth(now), end: endOfMonth(now) };
+      default:
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const range = getDateRange();
+      const params = { 
+        tracker_id: filterTracker === "all" ? "" : filterTracker,
+        start_date: range.start.toISOString(),
+        end_date: range.end.toISOString()
+      };
+      
       const [tList, stats, leadList] = await Promise.all([
         getTrackers(),
-        getAnalytics({ tracker_id: filterTracker === "all" ? "" : filterTracker }),
-        getLeads({ tracker_id: filterTracker === "all" ? "" : filterTracker })
+        getAnalytics(params),
+        getLeads(params)
       ]);
       setTrackers(tList);
       setAnalytics(stats);
@@ -87,7 +119,7 @@ export default function SalesSEOAnalytics() {
 
   useEffect(() => {
     fetchData();
-  }, [filterTracker]);
+  }, [filterTracker, datePreset, customRange]);
 
   const handleCreateTracker = async () => {
     if (!newTracker.name || !newTracker.phrase) return;
@@ -147,8 +179,22 @@ export default function SalesSEOAnalytics() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+             <Select value={datePreset} onValueChange={setDatePreset}>
+              <SelectTrigger className="w-40">
+                <Clock className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hoje</SelectItem>
+                <SelectItem value="last_7">Últimos 7 dias</SelectItem>
+                <SelectItem value="last_30">Últimos 30 dias</SelectItem>
+                <SelectItem value="this_month">Este Mês</SelectItem>
+                <SelectItem value="last_month">Mês Passado</SelectItem>
+              </SelectContent>
+            </Select>
+
              <Select value={filterTracker} onValueChange={setFilterTracker}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-44">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Rastreador" />
               </SelectTrigger>
@@ -182,7 +228,7 @@ export default function SalesSEOAnalytics() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-amber-600">{analytics?.stats?.engaged || 0}</div>
-              <p className="text-xs text-muted-foreground">Houve resposta do operador</p>
+              <p className="text-xs text-muted-foreground">Retenção: {analytics?.stats?.total ? Math.round((analytics.stats.engaged / analytics.stats.total) * 100) : 0}%</p>
             </CardContent>
           </Card>
           <Card>
@@ -233,19 +279,52 @@ export default function SalesSEOAnalytics() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="h-4 w-4" /> Distribuição Horária
+                <Users className="h-4 w-4" /> Novos vs Engajados
               </CardTitle>
-              <CardDescription>Confronto de tráfego (Pico de Leads)</CardDescription>
+              <CardDescription>Comparativo de retenção (Quantitativo)</CardDescription>
             </CardHeader>
             <CardContent className="h-[300px]">
                <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analytics?.hourly || []}>
+                <BarChart data={analytics?.daily || []}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="date" 
+                    tickFormatter={(val) => format(new Date(val), "dd/MM")}
+                    fontSize={12}
+                  />
+                  <YAxis fontSize={12} />
+                  <Tooltip />
+                  <Bar dataKey="just_arrived" name="Novos" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="engaged" name="Engajados" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-1">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="h-4 w-4" /> Distribuição Horária
+              </CardTitle>
+              <CardDescription>Picos de tráfego por hora do dia</CardDescription>
+            </CardHeader>
+            <CardContent className="h-[200px]">
+               <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={analytics?.hourly || []}>
+                  <defs>
+                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                   <XAxis dataKey="hour" fontSize={12} tickFormatter={(h) => `${h}h`} />
                   <YAxis fontSize={12} />
                   <Tooltip />
-                  <Bar dataKey="total" name="Leads" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                  <Area type="monotone" dataKey="total" name="Leads" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorTotal)" />
+                </AreaChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
