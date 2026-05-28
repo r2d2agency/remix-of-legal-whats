@@ -1945,8 +1945,7 @@ async function handleMessageUpsert(connection, data) {
       console.log('Webhook: Ignoring senderKeyDistribution message');
       return;
     } else if (msgContent.protocolMessage) {
-      const proto = msgContent.protocolMessage;
-      // ... (it's already there)
+      // Handled early
     }
 
     // ==========================================
