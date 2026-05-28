@@ -982,9 +982,10 @@ export function ConversationList({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-7 px-2 text-xs flex-shrink-0 gap-1 text-muted-foreground"
+                      className="h-7 px-2 text-xs flex-shrink-0 gap-1 text-muted-foreground hover:bg-green-50 hover:text-green-600 hover:border-green-200"
                       onClick={(e) => {
                         e.stopPropagation();
+                        console.log('Clicking Finish button for:', conv.id);
                         onFinishConversation(conv.id);
                       }}
                     >
