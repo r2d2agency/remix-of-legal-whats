@@ -605,8 +605,12 @@ async function persistIncomingMessage(connection, payload) {
     );
 
     // SALES SEO: Detecta lead e atualiza evolução
-    await detectSalesSeoLead(connection.id, conversationId, message);
-    await updateSalesSeoEvolution(conversationId, message);
+    try {
+      await detectSalesSeoLead(connection.id, conversationId, message);
+      await updateSalesSeoEvolution(connection.id, conversationId, message);
+    } catch (seoErr) {
+      console.error('[Sales SEO] Erro UAZAPI:', seoErr.message);
+    }
   }
 
   // Verifica se chat_messages tem a coluna connection_id
