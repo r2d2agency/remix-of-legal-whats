@@ -612,7 +612,7 @@ async function persistIncomingMessage(connection, payload) {
     // SALES SEO: Detecta lead e atualiza evolução
     try {
       await detectSalesSeoLead(connection.id, conversationId, message);
-      await updateSalesSeoEvolution(connection.id, conversationId, message);
+      await updateSalesSeoEvolution(conversationId, message);
     } catch (seoErr) {
       console.error('[Sales SEO] Erro UAZAPI:', seoErr.message);
     }
