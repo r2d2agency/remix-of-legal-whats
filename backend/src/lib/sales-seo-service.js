@@ -93,12 +93,18 @@ export async function detectSalesSeoLead(connectionId, conversationId, message, 
     if (!message || !message.content) return;
     if (message.fromMe) return;
 
-    await ensureSalesSeoSchema();
-
     const contentStr = String(message.content).trim();
-    const organizationId = await getConnectionOrganizationId(connectionId);
+    if (!contentStr) return;
 
-    if (!organizationId || !contentStr) return;
+    // Use a try-catch for the schema check to not block detection
+    try {
+      await ensureSalesSeoSchema();
+    } catch (schemaErr) {
+      console.error('[Sales SEO] Schema check failed, but continuing:', schemaErr.message);
+    }
+
+    const organizationId = await getConnectionOrganizationId(connectionId);
+    if (!organizationId) return;
     
     const trackers = await query(
       `SELECT * FROM sales_seo_trackers 
