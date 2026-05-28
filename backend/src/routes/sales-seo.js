@@ -21,9 +21,6 @@ async function getUserOrganization(userId) {
 // TRACKERS CRUD
 // ==========================================
 
-// TRACKERS CRUD
-// ==========================================
-
 // List trackers
 router.get('/trackers', async (req, res) => {
   try {
