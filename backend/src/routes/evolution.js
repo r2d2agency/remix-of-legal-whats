@@ -11,6 +11,7 @@ import { pauseNurturingOnReply } from './nurturing.js';
 import { emitLeadEvent } from '../lib/event-bus.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
+import { detectSalesSeoLead, updateSalesSeoEvolution } from '../lib/sales-seo-service.js';
 
 
 const router = Router();
