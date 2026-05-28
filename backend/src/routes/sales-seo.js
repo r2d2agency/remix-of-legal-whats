@@ -18,19 +18,7 @@ async function getUserOrganization(userId) {
   return result.rows[0] || null;
 }
 
-// ==========================================
-// DB CHECK (Temporary)
-// ==========================================
-router.get('/db-check', async (req, res) => {
-  try {
-    const trackers = await query("SELECT count(*) FROM sales_seo_trackers");
-    const leads = await query("SELECT count(*) FROM sales_seo_leads");
-    res.json({ trackers: trackers.rows[0].count, leads: leads.rows[0].count });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
+// TRACKERS CRUD
 // ==========================================
 
 // TRACKERS CRUD
