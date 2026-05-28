@@ -1965,7 +1965,7 @@ async function handleMessageUpsert(connection, data) {
     // Always check for evolution (e.g. if we replied, status moves from 1 to 2)
     await updateSalesSeoEvolution(conversationId, messageDataForSEO);
     // ==========================================
-
+    if (msgContent.protocolMessage) {
       const proto = msgContent.protocolMessage;
       const editedMsg = proto.editedMessage;
       const protoType = proto.type;
