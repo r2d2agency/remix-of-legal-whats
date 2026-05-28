@@ -18,6 +18,7 @@ async function getUserOrganization(userId) {
   return result.rows[0] || null;
 }
 
+// ==========================================
 // TRACKERS CRUD
 // ==========================================
 
@@ -27,7 +28,7 @@ router.get('/trackers', async (req, res) => {
     const org = await getUserOrganization(req.userId);
     if (!org) return res.status(403).json({ error: 'Organização não encontrada' });
 
-    // Ensure tables exist (hotfix)
+    // Hotfix: Ensure tables exist
     await query(`
       CREATE TABLE IF NOT EXISTS sales_seo_trackers (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -84,7 +85,7 @@ router.post('/trackers', async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Create tracker error:', error);
-    res.status(500).json({ error: 'Erro ao criar rastreador' });
+    res.status(500).json({ error: 'Erro ao criar rastreador', details: error.message });
   }
 });
 
@@ -103,7 +104,7 @@ router.delete('/trackers/:id', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Delete tracker error:', error);
-    res.status(500).json({ error: 'Erro ao excluir rastreador' });
+    res.status(500).json({ error: 'Erro ao excluir rastreador', details: error.message });
   }
 });
 
@@ -306,7 +307,7 @@ router.post('/analyze-ia', async (req, res) => {
     res.json({ success: true, analysis: result });
   } catch (error) {
     console.error('IA Analysis error:', error);
-    res.status(500).json({ error: 'Erro na análise de IA' });
+    res.status(500).json({ error: 'Erro na análise de IA', details: error.message });
   }
 });
 
