@@ -588,8 +588,7 @@ async function persistIncomingMessage(connection, payload) {
     conversationId = createdConversation.rows[0].id;
     
     // SALES SEO: Detecta lead na criação da conversa (primeira mensagem)
-    const { detectSalesSeoLead } = await import('../lib/sales-seo-service.js');
-    await detectSalesSeoLead(connection.id, conversationId, message, true);
+    await detectSalesSeoLead(connection.id, conversationId, message);
   } else {
     conversationId = conversationResult.rows[0].id;
     await query(
@@ -606,7 +605,6 @@ async function persistIncomingMessage(connection, payload) {
     );
 
     // SALES SEO: Atualiza evolução do lead
-    const { updateSalesSeoEvolution } = await import('../lib/sales-seo-service.js');
     await updateSalesSeoEvolution(conversationId, message);
   }
 

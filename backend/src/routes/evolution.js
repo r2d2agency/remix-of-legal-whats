@@ -1840,23 +1840,6 @@ async function handleMessageUpsert(connection, data) {
       console.log('Webhook: Message exists but media is not local; will attempt to download:', messageId);
     }
 
-    // ==========================================
-    // SALES & SEO TRACKER DETECTION
-    // ==========================================
-    const messageDataForSEO = {
-      content,
-      fromMe,
-      phone: rawRemoteJid?.replace(/\D/g, '') || null
-    };
-
-    if (existingRow === null) {
-      // Only check for new lead if message doesn't exist yet
-      await detectSalesSeoLead(connection.id, conversationId, messageDataForSEO);
-    }
-    
-    // Always check for evolution (e.g. if we replied, status moves from 1 to 2)
-    await updateSalesSeoEvolution(conversationId, messageDataForSEO);
-    // ==========================================
 
 
     // Extract message content and type
@@ -1961,10 +1944,6 @@ async function handleMessageUpsert(connection, data) {
     } else if (msgContent.senderKeyDistributionMessage) {
       console.log('Webhook: Ignoring senderKeyDistribution message');
       return;
-    } else if (msgContent.protocolMessage) {
-      const proto = msgContent.protocolMessage;
-      // ... (it's already there)
-    }
 
     // ==========================================
     // SALES & SEO TRACKER DETECTION
@@ -1983,7 +1962,7 @@ async function handleMessageUpsert(connection, data) {
     // Always check for evolution (e.g. if we replied, status moves from 1 to 2)
     await updateSalesSeoEvolution(conversationId, messageDataForSEO);
     // ==========================================
-
+    } else if (msgContent.protocolMessage) {
       const proto = msgContent.protocolMessage;
       const editedMsg = proto.editedMessage;
       const protoType = proto.type;
