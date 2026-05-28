@@ -693,12 +693,21 @@ router.get('/conversations', authenticate, async (req, res) => {
 
     // Execute the final query
     const result = await query(
-      `SELECT conv.*, conn.name as connection_name, u.name as assigned_name,
+      `SELECT conv.*, conn.name as connection_name, u.name as assigned_name, d.name as department_name,
+        COALESCE(
+          (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+           FROM conversation_tag_links ctl
+           JOIN conversation_tags t ON t.id = ctl.tag_id
+           WHERE ctl.conversation_id = conv.id
+          ), '[]'::json
+        ) as tags,
         (SELECT content FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message,
+        (SELECT message_type FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_type,
         (SELECT timestamp FROM chat_messages WHERE conversation_id = conv.id ORDER BY timestamp DESC LIMIT 1) as last_message_at
        FROM conversations conv
        JOIN connections conn ON conn.id = conv.connection_id
        LEFT JOIN users u ON u.id = conv.assigned_to
+       LEFT JOIN departments d ON d.id = conv.department_id
        WHERE ${filter}
        ORDER BY COALESCE(conv.is_pinned, false) DESC, conv.last_message_at DESC NULLS LAST, conv.created_at DESC
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
