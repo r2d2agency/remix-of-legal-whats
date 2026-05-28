@@ -14,7 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      secretary_configs: {
+        Row: {
+          ai_model: string | null
+          ai_provider: string | null
+          auto_reply_enabled: boolean | null
+          auto_reply_message: string | null
+          connection_ids: string[] | null
+          create_crm_task: boolean | null
+          created_at: string | null
+          daily_digest_enabled: boolean | null
+          daily_digest_hour: number | null
+          daily_digest_type: string | null
+          default_connection_id: string | null
+          excluded_senders: string[] | null
+          followup_enabled: boolean | null
+          followup_hours: number | null
+          group_jids: string[] | null
+          id: string
+          is_active: boolean | null
+          min_confidence: number | null
+          notify_external_enabled: boolean | null
+          notify_external_phone: string | null
+          notify_members_whatsapp: boolean | null
+          organization_id: string
+          show_popup_alert: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_model?: string | null
+          ai_provider?: string | null
+          auto_reply_enabled?: boolean | null
+          auto_reply_message?: string | null
+          connection_ids?: string[] | null
+          create_crm_task?: boolean | null
+          created_at?: string | null
+          daily_digest_enabled?: boolean | null
+          daily_digest_hour?: number | null
+          daily_digest_type?: string | null
+          default_connection_id?: string | null
+          excluded_senders?: string[] | null
+          followup_enabled?: boolean | null
+          followup_hours?: number | null
+          group_jids?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          min_confidence?: number | null
+          notify_external_enabled?: boolean | null
+          notify_external_phone?: string | null
+          notify_members_whatsapp?: boolean | null
+          organization_id: string
+          show_popup_alert?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_model?: string | null
+          ai_provider?: string | null
+          auto_reply_enabled?: boolean | null
+          auto_reply_message?: string | null
+          connection_ids?: string[] | null
+          create_crm_task?: boolean | null
+          created_at?: string | null
+          daily_digest_enabled?: boolean | null
+          daily_digest_hour?: number | null
+          daily_digest_type?: string | null
+          default_connection_id?: string | null
+          excluded_senders?: string[] | null
+          followup_enabled?: boolean | null
+          followup_hours?: number | null
+          group_jids?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          min_confidence?: number | null
+          notify_external_enabled?: boolean | null
+          notify_external_phone?: string | null
+          notify_members_whatsapp?: boolean | null
+          organization_id?: string
+          show_popup_alert?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
