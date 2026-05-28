@@ -20,6 +20,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tooltip as TooltipUI,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Search,
   Plus,
   BarChart3,
@@ -33,6 +39,7 @@ import {
   Filter,
   Sparkles,
   Loader2,
+  Info,
 } from "lucide-react";
 import { useSalesSeo, SalesSeoTracker, SalesSeoAnalytics, SalesSeoLead } from "@/hooks/use-sales-seo";
 import { useConnections } from "@/hooks/use-connections";
@@ -168,18 +175,29 @@ export default function SalesSEOAnalytics() {
   };
 
   return (
-    <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Target className="h-6 w-6 text-primary" />
-              Análise de Vendas e SEO
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Rastreie a origem de conversas e analise o funil de vendas via WhatsApp
-            </p>
-          </div>
+    <TooltipProvider>
+      <MainLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                  <Target className="h-6 w-6 text-primary" />
+                  Análise de Vendas e SEO
+                </h1>
+                <TooltipUI>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Este painel permite rastrear leads originados de frases específicas no WhatsApp, ajudando a identificar quais campanhas de SEO ou anúncios estão gerando conversas.</p>
+                  </TooltipContent>
+                </TooltipUI>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Rastreie a origem de conversas e analise o funil de vendas via WhatsApp
+              </p>
+            </div>
           <div className="flex items-center gap-3">
              <Select value={datePreset} onValueChange={setDatePreset}>
               <SelectTrigger className="w-40">
@@ -229,8 +247,16 @@ export default function SalesSEOAnalytics() {
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total de Leads</CardTitle>
+              <TooltipUI>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground/50 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Número total de contatos únicos que iniciaram conversa com as frases cadastradas.</p>
+                </TooltipContent>
+              </TooltipUI>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{analytics?.stats?.total || 0}</div>
@@ -238,8 +264,16 @@ export default function SalesSEOAnalytics() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-medium text-muted-foreground">Engajados</CardTitle>
+              <TooltipUI>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground/50 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Contatos que responderam ao menos uma vez após a mensagem inicial.</p>
+                </TooltipContent>
+              </TooltipUI>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-amber-600">{analytics?.stats?.engaged || 0}</div>
