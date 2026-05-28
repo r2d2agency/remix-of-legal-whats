@@ -9,14 +9,14 @@ export async function detectSalesSeoLead(connectionId, conversationId, message, 
     if (!message || typeof message.content !== 'string') return;
     if (message.fromMe) return;
 
-    const cleanContent = message.content.trim().toLowerCase();
+    const cleanContent = message.content.trim();
     
     // Busca rastreadores ativos para esta organização ou frase
     // Nota: Usamos ILIKE para permitir correspondência parcial (ex: frase contida na mensagem)
     const trackers = await query(
       `SELECT * FROM sales_seo_trackers 
        WHERE is_active = true 
-       AND $1 ILIKE '%' || LOWER(TRIM(phrase)) || '%'
+       AND $1 ILIKE '%' || TRIM(phrase) || '%'
        AND (cardinality(connection_ids) = 0 OR $2 = ANY(connection_ids))`,
       [cleanContent, connectionId]
     );
