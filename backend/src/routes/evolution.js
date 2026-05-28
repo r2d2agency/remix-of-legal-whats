@@ -2071,6 +2071,23 @@ async function handleMessageUpsert(connection, data) {
       if (insertResult.rows.length > 0) {
         console.log('Webhook: Message saved/updated:', messageId, 'Type:', messageType, 'FromMe:', fromMe, 'Content:', content?.substring(0, 50));
         
+        // ==========================================
+        // SALES & SEO TRACKER DETECTION
+        // ==========================================
+        try {
+          const messageDataForSEO = {
+            content,
+            fromMe,
+            phone: contactPhone || rawRemoteJid?.replace(/\D/g, '') || null
+          };
+          
+          await detectSalesSeoLead(connection.id, conversationId, messageDataForSEO);
+          await updateSalesSeoEvolution(conversationId, messageDataForSEO);
+        } catch (seoErr) {
+          console.error('[Sales SEO] Error in webhook processing:', seoErr.message);
+        }
+        // ==========================================
+
         // Pause nurturing sequences on incoming message
         if (!fromMe && contactPhone && connection.organization_id) {
           pauseNurturingOnReply(contactPhone, connection.organization_id, conversationId)
