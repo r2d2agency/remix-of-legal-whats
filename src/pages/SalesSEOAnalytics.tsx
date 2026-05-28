@@ -228,7 +228,7 @@ export default function SalesSEOAnalytics() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-amber-600">{analytics?.stats?.engaged || 0}</div>
-              <p className="text-xs text-muted-foreground">Houve resposta do operador</p>
+              <p className="text-xs text-muted-foreground">Retenção: {analytics?.stats?.total ? Math.round((analytics.stats.engaged / analytics.stats.total) * 100) : 0}%</p>
             </CardContent>
           </Card>
           <Card>
