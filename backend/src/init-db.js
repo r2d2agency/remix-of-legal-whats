@@ -238,9 +238,7 @@ DO $$ BEGIN
     -- UAZAPI columns
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_url TEXT;
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_token TEXT;
-    -- Away message and business hours
-    ALTER TABLE connections ADD COLUMN IF NOT EXISTS away_message_enabled BOOLEAN DEFAULT false;
-    ALTER TABLE connections ADD COLUMN IF NOT EXISTS away_message TEXT;
+    -- Business hours automation
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS out_of_office_message_enabled BOOLEAN DEFAULT false;
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS out_of_office_message TEXT;
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS business_hours_start TIME DEFAULT '08:00';

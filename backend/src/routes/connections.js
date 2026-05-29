@@ -422,8 +422,6 @@ router.patch('/:id', async (req, res) => {
       meta_token,
       meta_phone_number_id,
       meta_waba_id,
-      away_message_enabled,
-      away_message,
       out_of_office_message_enabled,
       out_of_office_message,
       business_hours
@@ -433,11 +431,11 @@ router.patch('/:id', async (req, res) => {
     const org = await getUserOrganization(req.userId);
 
     // Allow update if user owns the connection OR belongs to same organization
-    let whereClause = 'id = $18 AND user_id = $19';
+    let whereClause = 'id = $16 AND user_id = $17';
     let authId = req.userId;
 
     if (org) {
-      whereClause = 'id = $18 AND organization_id = $19';
+      whereClause = 'id = $16 AND organization_id = $17';
       authId = org.organization_id;
     }
 
@@ -454,8 +452,6 @@ router.patch('/:id', async (req, res) => {
       meta_token === undefined ? null : meta_token,
       meta_phone_number_id === undefined ? null : meta_phone_number_id,
       meta_waba_id === undefined ? null : meta_waba_id,
-      away_message_enabled === undefined ? null : away_message_enabled,
-      away_message === undefined ? null : away_message,
       out_of_office_message_enabled === undefined ? null : out_of_office_message_enabled,
       out_of_office_message === undefined ? null : out_of_office_message,
       business_hours ? JSON.stringify(business_hours) : null,
@@ -477,11 +473,9 @@ router.patch('/:id', async (req, res) => {
            meta_token = CASE WHEN $10::text IS NULL AND $10 IS NULL THEN meta_token ELSE $10 END,
            meta_phone_number_id = CASE WHEN $11::text IS NULL AND $11 IS NULL THEN meta_phone_number_id ELSE $11 END,
            meta_waba_id = CASE WHEN $12::text IS NULL AND $12 IS NULL THEN meta_waba_id ELSE $12 END,
-           away_message_enabled = CASE WHEN $13::boolean IS NULL AND $13 IS NULL THEN away_message_enabled ELSE $13 END,
-           away_message = CASE WHEN $14::text IS NULL AND $14 IS NULL THEN away_message ELSE $14 END,
-           out_of_office_message_enabled = CASE WHEN $15::boolean IS NULL AND $15 IS NULL THEN out_of_office_message_enabled ELSE $15 END,
-           out_of_office_message = CASE WHEN $16::text IS NULL AND $16 IS NULL THEN out_of_office_message ELSE $16 END,
-           business_hours = CASE WHEN $17::jsonb IS NULL AND $17 IS NULL THEN business_hours ELSE $17 END,
+           out_of_office_message_enabled = CASE WHEN $13::boolean IS NULL AND $13 IS NULL THEN out_of_office_message_enabled ELSE $13 END,
+           out_of_office_message = CASE WHEN $14::text IS NULL AND $14 IS NULL THEN out_of_office_message ELSE $14 END,
+           business_hours = CASE WHEN $15::jsonb IS NULL AND $15 IS NULL THEN business_hours ELSE $15 END,
            updated_at = NOW()
        WHERE ${whereClause}
         RETURNING *`,
