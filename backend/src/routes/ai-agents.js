@@ -2365,17 +2365,18 @@ router.get('/config/models', authenticate, async (req, res) => {
       { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Econômico' }
     ],
     gemini: [
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Geração atual rápida e multimodal' },
-      { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash-Lite', description: 'Econômico e rápido' },
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Legado)', description: 'Versão estável anterior' },
-      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Máxima capacidade de raciocínio' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Nova geração recomendada' },
+      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite', description: 'Econômico e de alta performance' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Capacidade máxima de raciocínio' },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Geração anterior rápida e multimodal' },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Versão estável legada' },
     ],
     openrouter: [
       { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', description: 'Multimodal poderoso' },
       { id: 'openai/gpt-4o-mini', name: 'OpenAI GPT-4o Mini', description: 'Econômico' },
       { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', description: 'Excelente raciocínio' },
       { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', description: 'Rápido e econômico' },
-      { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', description: 'Google via OpenRouter' },
+      { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Google via OpenRouter' },
       { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', description: 'Open source poderoso' },
       { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', description: 'Custo-benefício' },
     ]

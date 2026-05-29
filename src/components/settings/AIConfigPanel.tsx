@@ -24,15 +24,17 @@ const AI_MODELS = {
   gemini: [
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Recomendado)', description: 'Atual, rápido e multimodal' },
     { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash-Lite', description: 'Econômico e eficiente' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Nova geração - Mais rápido e capaz' },
+    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite', description: 'Alta performance, baixo custo' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Máxima capacidade de raciocínio' },
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Legado)', description: 'Versão estável anterior' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Máxima capacidade de raciocínio' },
   ],
   openrouter: [
     { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', description: 'Via OpenRouter - Multimodal poderoso' },
     { id: 'openai/gpt-4o-mini', name: 'OpenAI GPT-4o Mini', description: 'Via OpenRouter - Econômico' },
     { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', description: 'Anthropic - Excelente raciocínio' },
     { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', description: 'Anthropic - Rápido e econômico' },
-    { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', description: 'Google via OpenRouter' },
+    { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Google via OpenRouter' },
     { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B', description: 'Meta - Open source poderoso' },
     { id: 'meta-llama/llama-3.1-8b-instruct', name: 'Llama 3.1 8B', description: 'Meta - Leve e rápido' },
     { id: 'mistralai/mistral-large-latest', name: 'Mistral Large', description: 'Mistral - Alta capacidade' },
@@ -119,7 +121,7 @@ export function AIConfigPanel() {
 
   const getDefaultModel = (provider: string) => {
     if (provider === 'openai') return 'gpt-4o-mini';
-    if (provider === 'gemini') return 'gemini-2.0-flash';
+    if (provider === 'gemini') return 'gemini-2.5-flash';
     if (provider === 'openrouter') return 'openai/gpt-4o-mini';
     return '';
   };
