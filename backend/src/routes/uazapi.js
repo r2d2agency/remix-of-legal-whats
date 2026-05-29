@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { detectSalesSeoLead, updateSalesSeoEvolution } from '../lib/sales-seo-service.js';
+import { handleAutoReplies } from '../lib/auto-reply-service.js';
 
 const router = Router();
 
