@@ -452,7 +452,8 @@ router.patch('/:id', async (req, res) => {
       out_of_office_message_enabled === undefined ? null : out_of_office_message_enabled,
       out_of_office_message === undefined ? null : out_of_office_message,
       business_hours ? JSON.stringify(business_hours) : null,
-      id, req.userId
+      id,
+      req.userId
     ];
 
     if (org) {
