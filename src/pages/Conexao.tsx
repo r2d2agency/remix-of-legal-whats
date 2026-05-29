@@ -1073,7 +1073,16 @@ const handleGetQRCode = async (connection: Connection) => {
 
     setSavingEdit(true);
     try {
-      const body: Record<string, string> = { name: editName };
+      const body: any = { 
+        name: editName,
+        away_message_enabled: editAwayMessageEnabled,
+        away_message: editAwayMessage,
+        out_of_office_message_enabled: editOutOfOfficeEnabled,
+        out_of_office_message: editOutOfOfficeMessage,
+        business_hours_start: editBusinessHoursStart,
+        business_hours_end: editBusinessHoursEnd,
+        business_days: editBusinessDays,
+      };
       
       if (isWapi) {
         body.instance_id = editInstanceId;
@@ -1090,7 +1099,7 @@ const handleGetQRCode = async (connection: Connection) => {
         }
       }
 
-      await api(`/api/connections/${editingConnection.id}`, {
+      const result = await api<Connection>(`/api/connections/${editingConnection.id}`, {
         method: 'PATCH',
         body,
       });
