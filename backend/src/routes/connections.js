@@ -434,7 +434,14 @@ router.patch('/:id', async (req, res) => {
 
     // Allow update if user owns the connection OR belongs to same organization
     let whereClause = 'id = $18 AND user_id = $19';
-    let params = [
+    let authId = req.userId;
+
+    if (org) {
+      whereClause = 'id = $18 AND organization_id = $19';
+      authId = org.organization_id;
+    }
+
+    const params = [
       provider === undefined ? null : provider,
       api_url === undefined ? null : api_url,
       api_key === undefined ? null : api_key,
@@ -453,13 +460,8 @@ router.patch('/:id', async (req, res) => {
       out_of_office_message === undefined ? null : out_of_office_message,
       business_hours ? JSON.stringify(business_hours) : null,
       id,
-      req.userId
+      authId
     ];
-
-    if (org) {
-      whereClause = 'id = $18 AND organization_id = $19';
-      params[params.length - 1] = org.organization_id;
-    }
 
     const result = await query(
       `UPDATE connections 
