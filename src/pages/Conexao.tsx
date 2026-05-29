@@ -43,9 +43,7 @@ interface Connection {
   away_message?: string;
   out_of_office_message_enabled?: boolean;
   out_of_office_message?: string;
-  business_hours_start?: string;
-  business_hours_end?: string;
-  business_days?: number[];
+  business_hours?: { day: number; start: string; end: string; enabled: boolean }[];
   created_at: string;
 }
 
@@ -139,9 +137,7 @@ const Conexao = () => {
   const [editAwayMessage, setEditAwayMessage] = useState("");
   const [editOutOfOfficeEnabled, setEditOutOfOfficeEnabled] = useState(false);
   const [editOutOfOfficeMessage, setEditOutOfOfficeMessage] = useState("");
-  const [editBusinessHoursStart, setEditBusinessHoursStart] = useState("08:00");
-  const [editBusinessHoursEnd, setEditBusinessHoursEnd] = useState("18:00");
-  const [editBusinessDays, setEditBusinessDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [editBusinessHours, setEditBusinessHours] = useState<{ day: number; start: string; end: string; enabled: boolean }[]>([]);
   const [diagnosticConnection, setDiagnosticConnection] = useState<Connection | null>(null);
   
   // Lead distribution state
@@ -1044,9 +1040,15 @@ const handleGetQRCode = async (connection: Connection) => {
     setEditAwayMessage(connection.away_message || "");
     setEditOutOfOfficeEnabled(connection.out_of_office_message_enabled || false);
     setEditOutOfOfficeMessage(connection.out_of_office_message || "");
-    setEditBusinessHoursStart(connection.business_hours_start || "08:00");
-    setEditBusinessHoursEnd(connection.business_hours_end || "18:00");
-    setEditBusinessDays(connection.business_days || [1, 2, 3, 4, 5]);
+    
+    // Initialize business hours for all days
+    const days = [1, 2, 3, 4, 5, 6, 0]; // Seg to Dom
+    const existingHours = connection.business_hours || [];
+    const initialHours = days.map(d => {
+      const found = existingHours.find(h => h.day === d);
+      return found || { day: d, start: "08:00", end: "18:00", enabled: d !== 0 && d !== 6 };
+    });
+    setEditBusinessHours(initialHours);
     setEditDialogOpen(true);
   };
 
@@ -1083,9 +1085,7 @@ const handleGetQRCode = async (connection: Connection) => {
         away_message: editAwayMessage,
         out_of_office_message_enabled: editOutOfOfficeEnabled,
         out_of_office_message: editOutOfOfficeMessage,
-        business_hours_start: editBusinessHoursStart,
-        business_hours_end: editBusinessHoursEnd,
-        business_days: editBusinessDays,
+        business_hours: editBusinessHours,
       };
       
       if (isWapi) {
@@ -2500,58 +2500,62 @@ const handleGetQRCode = async (connection: Connection) => {
                           <History className="h-4 w-4 text-primary" />
                           Horário de Trabalho
                         </h5>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-xs">Início</Label>
-                            <Input 
-                              type="time" 
-                              value={editBusinessHoursStart}
-                              onChange={(e) => setEditBusinessHoursStart(e.target.value)}
-                              className="h-9 text-xs"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Fim</Label>
-                            <Input 
-                              type="time" 
-                              value={editBusinessHoursEnd}
-                              onChange={(e) => setEditBusinessHoursEnd(e.target.value)}
-                              className="h-9 text-xs"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label className="text-xs">Dias de Trabalho</Label>
-                          <div className="flex flex-wrap gap-3">
-                            {[
-                              { id: 1, label: 'Seg' },
-                              { id: 2, label: 'Ter' },
-                              { id: 3, label: 'Qua' },
-                              { id: 4, label: 'Qui' },
-                              { id: 5, label: 'Sex' },
-                              { id: 10, divider: true },
-                              { id: 6, label: 'Sáb' },
-                              { id: 0, label: 'Dom' }
-                            ].map((day) => day.divider ? (
-                              <div key={day.id} className="w-full h-[1px] bg-border my-1 hidden sm:block" />
-                            ) : (
-                              <div key={day.id} className="flex items-center gap-2">
-                                <Checkbox 
-                                  id={`day-${day.id}`} 
-                                  checked={editBusinessDays.includes(day.id!)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setEditBusinessDays([...editBusinessDays, day.id!]);
-                                    } else {
-                                      setEditBusinessDays(editBusinessDays.filter(d => d !== day.id));
-                                    }
-                                  }}
-                                />
-                                <Label htmlFor={`day-${day.id}`} className="text-xs cursor-pointer">{day.label}</Label>
+                      <div className="space-y-4">
+                        {[
+                          { id: 1, label: 'Segunda-feira' },
+                          { id: 2, label: 'Terça-feira' },
+                          { id: 3, label: 'Quarta-feira' },
+                          { id: 4, label: 'Quinta-feira' },
+                          { id: 5, label: 'Sexta-feira' },
+                          { id: 6, label: 'Sábado' },
+                          { id: 0, label: 'Domingo' }
+                        ].map((day) => {
+                          const hours = editBusinessHours.find(h => h.day === day.id) || { day: day.id, start: "08:00", end: "18:00", enabled: false };
+                          return (
+                            <div key={day.id} className="p-3 border rounded-lg bg-muted/5 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Checkbox 
+                                    id={`day-${day.id}`} 
+                                    checked={hours.enabled}
+                                    onCheckedChange={(checked) => {
+                                      setEditBusinessHours(prev => prev.map(h => h.day === day.id ? { ...h, enabled: !!checked } : h));
+                                    }}
+                                  />
+                                  <Label htmlFor={`day-${day.id}`} className="text-sm font-medium cursor-pointer">{day.label}</Label>
+                                </div>
+                                {!hours.enabled && <Badge variant="secondary" className="text-[10px]">Fechado</Badge>}
                               </div>
-                            ))}
-                          </div>
+                              
+                              {hours.enabled && (
+                                <div className="grid grid-cols-2 gap-4 pl-6">
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">Início</Label>
+                                    <Input 
+                                      type="time" 
+                                      value={hours.start}
+                                      onChange={(e) => {
+                                        setEditBusinessHours(prev => prev.map(h => h.day === day.id ? { ...h, start: e.target.value } : h));
+                                      }}
+                                      className="h-8 text-xs"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">Fim</Label>
+                                    <Input 
+                                      type="time" 
+                                      value={hours.end}
+                                      onChange={(e) => {
+                                        setEditBusinessHours(prev => prev.map(h => h.day === day.id ? { ...h, end: e.target.value } : h));
+                                      }}
+                                      className="h-8 text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                         </div>
                       </div>
                     </div>
