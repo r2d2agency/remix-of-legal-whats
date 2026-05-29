@@ -426,10 +426,9 @@ router.patch('/:id', async (req, res) => {
       away_message,
       out_of_office_message_enabled,
       out_of_office_message,
-      business_hours_start,
-      business_hours_end,
-      business_days
+      business_hours
     } = req.body;
+
 
     const org = await getUserOrganization(req.userId);
 
