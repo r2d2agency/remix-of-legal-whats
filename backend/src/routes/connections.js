@@ -435,24 +435,30 @@ router.patch('/:id', async (req, res) => {
     // Allow update if user owns the connection OR belongs to same organization
     let whereClause = 'id = $18 AND user_id = $19';
     let params = [
-      provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, 
-      meta_token, meta_phone_number_id, meta_waba_id,
-      away_message_enabled, away_message, out_of_office_message_enabled, out_of_office_message,
-      JSON.stringify(business_hours || []),
+      provider === undefined ? null : provider,
+      api_url === undefined ? null : api_url,
+      api_key === undefined ? null : api_key,
+      instance_name === undefined ? null : instance_name,
+      instance_id === undefined ? null : instance_id,
+      wapi_token === undefined ? null : wapi_token,
+      name === undefined ? null : name,
+      status === undefined ? null : status,
+      show_groups === undefined ? null : show_groups,
+      meta_token === undefined ? null : meta_token,
+      meta_phone_number_id === undefined ? null : meta_phone_number_id,
+      meta_waba_id === undefined ? null : meta_waba_id,
+      away_message_enabled === undefined ? null : away_message_enabled,
+      away_message === undefined ? null : away_message,
+      out_of_office_message_enabled === undefined ? null : out_of_office_message_enabled,
+      out_of_office_message === undefined ? null : out_of_office_message,
+      business_hours ? JSON.stringify(business_hours) : null,
       id, req.userId
     ];
 
     if (org) {
       whereClause = 'id = $18 AND organization_id = $19';
-      params = [
-        provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, 
-        meta_token, meta_phone_number_id, meta_waba_id,
-        away_message_enabled, away_message, out_of_office_message_enabled, out_of_office_message,
-        JSON.stringify(business_hours || []),
-        id, org.organization_id
-      ];
+      params[params.length - 1] = org.organization_id;
     }
-
 
     const result = await query(
       `UPDATE connections 
@@ -468,14 +474,16 @@ router.patch('/:id', async (req, res) => {
            meta_token = COALESCE($10, meta_token),
            meta_phone_number_id = COALESCE($11, meta_phone_number_id),
            meta_waba_id = COALESCE($12, meta_waba_id),
-           away_message_enabled = $13,
+           away_message_enabled = COALESCE($13, away_message_enabled),
            away_message = COALESCE($14, away_message),
-           out_of_office_message_enabled = $15,
+           out_of_office_message_enabled = COALESCE($15, out_of_office_message_enabled),
            out_of_office_message = COALESCE($16, out_of_office_message),
            business_hours = COALESCE($17::jsonb, business_hours),
            updated_at = NOW()
        WHERE ${whereClause}
        RETURNING *`,
+      params
+    );
       params
     );
 
