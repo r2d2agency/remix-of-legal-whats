@@ -704,7 +704,7 @@ router.post('/webhook', async (req, res) => {
         console.log('[W-API Webhook] Calling handleIncomingMessage...');
         await handleIncomingMessage(connection, payload);
         if (!payload.fromMe) {
-          handleAutoReplies(connection, payload.chat?.id || payload.phone, payload.message?.text || '').catch(err => {
+          handleAutoReplies(connection, payload.chat?.id || payload.phone, payload.message?.text || payload.content || '').catch(err => {
             console.error('[W-API] Auto-reply error:', err.message);
           });
         }
