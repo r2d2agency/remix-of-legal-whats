@@ -118,7 +118,7 @@ export function AIConfigPanel() {
 
   const getDefaultModel = (provider: string) => {
     if (provider === 'openai') return 'gpt-4o-mini';
-    if (provider === 'gemini') return 'gemini-2.5-flash';
+    if (provider === 'gemini') return 'gemini-1.5-flash';
     if (provider === 'openrouter') return 'openai/gpt-4o-mini';
     return '';
   };
