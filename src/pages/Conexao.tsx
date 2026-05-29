@@ -129,6 +129,15 @@ const Conexao = () => {
   const [editMetaPhoneNumberId, setEditMetaPhoneNumberId] = useState("");
   const [editMetaWabaId, setEditMetaWabaId] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editAwayMessage, setEditAwayMessage] = useState("");
+  const [editAwayMessageEnabled, setEditAwayMessageEnabled] = useState(false);
+  const [editWorkingHoursEnabled, setEditWorkingHoursEnabled] = useState(false);
+  const [editWorkingHours, setEditWorkingHours] = useState<any>({
+    work_days: [1, 2, 3, 4, 5],
+    work_start: '08:00',
+    work_end: '18:00',
+  });
+  const [editOutOfHoursMessage, setEditOutOfHoursMessage] = useState("");
   const [diagnosticConnection, setDiagnosticConnection] = useState<Connection | null>(null);
   
   // Lead distribution state
