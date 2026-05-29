@@ -2367,7 +2367,7 @@ router.get('/config/models', authenticate, async (req, res) => {
     gemini: [
       { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Recomendado)', description: 'Rápido e equilibrado' },
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Alta capacidade' },
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Nova geração experimental' },
+      { id: 'gemini-1.0-pro', name: 'Gemini 1.0 Pro', description: 'Versão estável' },
     ],
     openrouter: [
       { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', description: 'Multimodal poderoso' },
