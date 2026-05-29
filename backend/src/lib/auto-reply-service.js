@@ -40,11 +40,7 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
 
     // 2. Out of Office Check (Priority)
     if (connection.out_of_office_message_enabled && connection.out_of_office_message) {
-      const withinHours = isWithinBusinessHours(
-        connection.business_hours_start,
-        connection.business_hours_end,
-        connection.business_days
-      );
+      const withinHours = isWithinBusinessHours(connection.business_hours);
       
       if (!withinHours) {
         console.log(`[AutoReply] Sending out of office message to ${remoteJid}`);
