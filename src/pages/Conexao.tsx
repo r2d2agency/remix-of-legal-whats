@@ -1036,6 +1036,15 @@ const handleGetQRCode = async (connection: Connection) => {
     setEditMetaToken('');
     setEditMetaPhoneNumberId(connection.meta_phone_number_id || '');
     setEditMetaWabaId(connection.meta_waba_id || '');
+    setEditAwayMessage(connection.away_message || '');
+    setEditAwayMessageEnabled(connection.away_message_enabled || false);
+    setEditWorkingHoursEnabled(connection.working_hours_enabled || false);
+    setEditWorkingHours(connection.working_hours || {
+      work_days: [1, 2, 3, 4, 5],
+      work_start: '08:00',
+      work_end: '18:00',
+    });
+    setEditOutOfHoursMessage(connection.out_of_hours_message || '');
     setEditDialogOpen(true);
   };
 
