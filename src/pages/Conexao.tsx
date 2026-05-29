@@ -1106,13 +1106,9 @@ const handleGetQRCode = async (connection: Connection) => {
 
       setConnections(prev => prev.map(c => 
         c.id === editingConnection.id 
-          ? { 
-              ...c, 
-              name: editName, 
-              instance_id: editInstanceId,
-              ...(isMeta ? { meta_phone_number_id: editMetaPhoneNumberId, meta_waba_id: editMetaWabaId } : {}),
-            } 
+          ? result 
           : c
+      ));
       ));
 
       toast.success('Conexão atualizada!');
