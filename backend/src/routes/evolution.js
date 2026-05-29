@@ -2182,7 +2182,7 @@ async function handleMessageUpsert(connection, data) {
 
         // Auto-replies (Away / Out of Office)
         if (!fromMe) {
-          handleAutoReplies(connection, rawRemoteJid, content).catch(err => {
+          handleAutoReplies(connection, remoteJid, content || '').catch(err => {
             console.error('[Evolution] Auto-reply error:', err.message);
           });
         }
