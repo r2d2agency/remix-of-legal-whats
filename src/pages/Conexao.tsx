@@ -21,6 +21,9 @@ import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDia
 import { ConnectionAIAgentDialog } from "@/components/conexao/ConnectionAIAgentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConnections as useConnectionsHook } from "@/hooks/use-connections";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface Connection {
   id: string;
