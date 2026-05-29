@@ -426,33 +426,33 @@ router.patch('/:id', async (req, res) => {
       away_message,
       out_of_office_message_enabled,
       out_of_office_message,
-      business_hours_start,
-      business_hours_end,
-      business_days
+      business_hours
     } = req.body;
+
 
     const org = await getUserOrganization(req.userId);
 
     // Allow update if user owns the connection OR belongs to same organization
-    let whereClause = 'id = $20 AND user_id = $21';
+    let whereClause = 'id = $18 AND user_id = $19';
     let params = [
       provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, 
       meta_token, meta_phone_number_id, meta_waba_id,
       away_message_enabled, away_message, out_of_office_message_enabled, out_of_office_message,
-      business_hours_start, business_hours_end, business_days,
+      JSON.stringify(business_hours || []),
       id, req.userId
     ];
 
     if (org) {
-      whereClause = 'id = $20 AND organization_id = $21';
+      whereClause = 'id = $18 AND organization_id = $19';
       params = [
         provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, 
         meta_token, meta_phone_number_id, meta_waba_id,
         away_message_enabled, away_message, out_of_office_message_enabled, out_of_office_message,
-        business_hours_start, business_hours_end, business_days,
+        JSON.stringify(business_hours || []),
         id, org.organization_id
       ];
     }
+
 
     const result = await query(
       `UPDATE connections 
@@ -472,9 +472,7 @@ router.patch('/:id', async (req, res) => {
            away_message = COALESCE($14, away_message),
            out_of_office_message_enabled = COALESCE($15, out_of_office_message_enabled),
            out_of_office_message = COALESCE($16, out_of_office_message),
-           business_hours_start = COALESCE($17, business_hours_start),
-           business_hours_end = COALESCE($18, business_hours_end),
-           business_days = COALESCE($19, business_days),
+            business_hours = COALESCE($17::jsonb, business_hours),
            updated_at = NOW()
        WHERE ${whereClause}
        RETURNING *`,

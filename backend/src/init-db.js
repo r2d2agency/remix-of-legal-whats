@@ -246,6 +246,7 @@ DO $$ BEGIN
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS business_hours_start TIME DEFAULT '08:00';
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS business_hours_end TIME DEFAULT '18:00';
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS business_days INTEGER[] DEFAULT ARRAY[1,2,3,4,5];
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS business_hours JSONB DEFAULT '[]'::jsonb;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
