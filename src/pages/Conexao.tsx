@@ -137,9 +137,7 @@ const Conexao = () => {
   const [editAwayMessage, setEditAwayMessage] = useState("");
   const [editOutOfOfficeEnabled, setEditOutOfOfficeEnabled] = useState(false);
   const [editOutOfOfficeMessage, setEditOutOfOfficeMessage] = useState("");
-  const [editBusinessHoursStart, setEditBusinessHoursStart] = useState("08:00");
-  const [editBusinessHoursEnd, setEditBusinessHoursEnd] = useState("18:00");
-  const [editBusinessDays, setEditBusinessDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [editBusinessHours, setEditBusinessHours] = useState<{ day: number; start: string; end: string; enabled: boolean }[]>([]);
   const [diagnosticConnection, setDiagnosticConnection] = useState<Connection | null>(null);
   
   // Lead distribution state
