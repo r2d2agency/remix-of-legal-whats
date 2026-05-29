@@ -238,13 +238,6 @@ DO $$ BEGIN
     -- UAZAPI columns
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_url TEXT;
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_token TEXT;
-    
-    -- Away message and Working hours columns
-    ALTER TABLE connections ADD COLUMN IF NOT EXISTS away_message TEXT;
-    ALTER TABLE connections ADD COLUMN IF NOT EXISTS away_message_enabled BOOLEAN DEFAULT false;
-    ALTER TABLE connections ADD COLUMN IF NOT EXISTS working_hours_enabled BOOLEAN DEFAULT false;
-    ALTER TABLE connections ADD COLUMN IF NOT EXISTS working_hours JSONB DEFAULT '[]';
-    ALTER TABLE connections ADD COLUMN IF NOT EXISTS out_of_hours_message TEXT;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;

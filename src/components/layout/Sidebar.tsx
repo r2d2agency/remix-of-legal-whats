@@ -101,7 +101,6 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
       { name: "Agenda", href: "/crm/agenda", icon: CalendarDays, pageKey: 'crm_agenda' },
       { name: "Tarefas", href: "/tarefas", icon: ClipboardList, pageKey: 'crm_tarefas' },
       { name: "Relatórios", href: "/crm/relatorios", icon: BarChart3, pageKey: 'crm_relatorios' },
-      { name: "Relatório Marcas", href: "/relatorio-marcas", icon: BarChart4, pageKey: 'relatorio_marcas' },
       { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, pageKey: 'revenue_intelligence', adminOnly: true },
       { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, pageKey: 'modulo_fantasma', ownerOnly: true, moduleKey: 'ghost' },
       { name: "Análise SEO e Vendas", href: "/sales-seo", icon: TargetIcon, pageKey: 'sales_seo', adminOnly: true },
