@@ -1040,9 +1040,15 @@ const handleGetQRCode = async (connection: Connection) => {
     setEditAwayMessage(connection.away_message || "");
     setEditOutOfOfficeEnabled(connection.out_of_office_message_enabled || false);
     setEditOutOfOfficeMessage(connection.out_of_office_message || "");
-    setEditBusinessHoursStart(connection.business_hours_start || "08:00");
-    setEditBusinessHoursEnd(connection.business_hours_end || "18:00");
-    setEditBusinessDays(connection.business_days || [1, 2, 3, 4, 5]);
+    
+    // Initialize business hours for all days
+    const days = [1, 2, 3, 4, 5, 6, 0]; // Seg to Dom
+    const existingHours = connection.business_hours || [];
+    const initialHours = days.map(d => {
+      const found = existingHours.find(h => h.day === d);
+      return found || { day: d, start: "08:00", end: "18:00", enabled: d !== 0 && d !== 6 };
+    });
+    setEditBusinessHours(initialHours);
     setEditDialogOpen(true);
   };
 
