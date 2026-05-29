@@ -209,7 +209,7 @@ async function callOpenAI(config, messages, options) {
 // ==================== Gemini ====================
 
 async function callGemini(config, messages, options) {
-  const model = config.model || 'gemini-1.5-flash';
+  const model = config.model || 'gemini-2.5-flash';
   
   // Convert messages to Gemini format
   const contents = [];
@@ -303,7 +303,7 @@ async function callGemini(config, messages, options) {
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${config.apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
