@@ -6,18 +6,18 @@ import * as uazapiProvider from './uazapi-provider.js';
 /**
  * Checks if current time is within business hours
  */
-function isWithinBusinessHours(start, end, days) {
-  if (!start || !end || !days || !Array.isArray(days)) return true;
+function isWithinBusinessHours(hours) {
+  if (!hours || !Array.isArray(hours) || hours.length === 0) return true;
 
   // Use America/Sao_Paulo as default timezone
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-  
   const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, ...
   
-  if (!days.includes(currentDay)) return false;
+  const dayConfig = hours.find(h => h.day === currentDay);
+  if (!dayConfig || !dayConfig.enabled) return false;
 
-  const [startH, startM] = start.split(':').map(Number);
-  const [endH, endM] = end.split(':').map(Number);
+  const [startH, startM] = dayConfig.start.split(':').map(Number);
+  const [endH, endM] = dayConfig.end.split(':').map(Number);
   
   const currentH = now.getHours();
   const currentM = now.getMinutes();
