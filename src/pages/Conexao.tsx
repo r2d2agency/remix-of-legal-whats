@@ -2500,59 +2500,62 @@ const handleGetQRCode = async (connection: Connection) => {
                           <History className="h-4 w-4 text-primary" />
                           Horário de Trabalho
                         </h5>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-xs">Início</Label>
-                            <Input 
-                              type="time" 
-                              value={editBusinessHoursStart}
-                              onChange={(e) => setEditBusinessHoursStart(e.target.value)}
-                              className="h-9 text-xs"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Fim</Label>
-                            <Input 
-                              type="time" 
-                              value={editBusinessHoursEnd}
-                              onChange={(e) => setEditBusinessHoursEnd(e.target.value)}
-                              className="h-9 text-xs"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label className="text-xs">Dias de Trabalho</Label>
-                          <div className="flex flex-wrap gap-3">
-                            {[
-                              { id: 1, label: 'Seg' },
-                              { id: 2, label: 'Ter' },
-                              { id: 3, label: 'Qua' },
-                              { id: 4, label: 'Qui' },
-                              { id: 5, label: 'Sex' },
-                              { id: 10, divider: true },
-                              { id: 6, label: 'Sáb' },
-                              { id: 0, label: 'Dom' }
-                            ].map((day) => day.divider ? (
-                              <div key={day.id} className="w-full h-[1px] bg-border my-1 hidden sm:block" />
-                            ) : (
-                              <div key={day.id} className="flex items-center gap-2">
-                                <Checkbox 
-                                  id={`day-${day.id}`} 
-                                  checked={editBusinessDays.includes(day.id!)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setEditBusinessDays([...editBusinessDays, day.id!]);
-                                    } else {
-                                      setEditBusinessDays(editBusinessDays.filter(d => d !== day.id));
-                                    }
-                                  }}
-                                />
-                                <Label htmlFor={`day-${day.id}`} className="text-xs cursor-pointer">{day.label}</Label>
+                      <div className="space-y-4">
+                        {[
+                          { id: 1, label: 'Segunda-feira' },
+                          { id: 2, label: 'Terça-feira' },
+                          { id: 3, label: 'Quarta-feira' },
+                          { id: 4, label: 'Quinta-feira' },
+                          { id: 5, label: 'Sexta-feira' },
+                          { id: 6, label: 'Sábado' },
+                          { id: 0, label: 'Domingo' }
+                        ].map((day) => {
+                          const hours = editBusinessHours.find(h => h.day === day.id) || { day: day.id, start: "08:00", end: "18:00", enabled: false };
+                          return (
+                            <div key={day.id} className="p-3 border rounded-lg bg-muted/5 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Checkbox 
+                                    id={`day-${day.id}`} 
+                                    checked={hours.enabled}
+                                    onCheckedChange={(checked) => {
+                                      setEditBusinessHours(prev => prev.map(h => h.day === day.id ? { ...h, enabled: !!checked } : h));
+                                    }}
+                                  />
+                                  <Label htmlFor={`day-${day.id}`} className="text-sm font-medium cursor-pointer">{day.label}</Label>
+                                </div>
+                                {!hours.enabled && <Badge variant="secondary" className="text-[10px]">Fechado</Badge>}
                               </div>
-                            ))}
-                          </div>
-                        </div>
+                              
+                              {hours.enabled && (
+                                <div className="grid grid-cols-2 gap-4 pl-6">
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">Início</Label>
+                                    <Input 
+                                      type="time" 
+                                      value={hours.start}
+                                      onChange={(e) => {
+                                        setEditBusinessHours(prev => prev.map(h => h.day === day.id ? { ...h, start: e.target.value } : h));
+                                      }}
+                                      className="h-8 text-xs"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">Fim</Label>
+                                    <Input 
+                                      type="time" 
+                                      value={hours.end}
+                                      onChange={(e) => {
+                                        setEditBusinessHours(prev => prev.map(h => h.day === day.id ? { ...h, end: e.target.value } : h));
+                                      }}
+                                      className="h-8 text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </TabsContent>
