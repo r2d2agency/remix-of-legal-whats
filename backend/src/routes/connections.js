@@ -481,9 +481,7 @@ router.patch('/:id', async (req, res) => {
            business_hours = COALESCE($17::jsonb, business_hours),
            updated_at = NOW()
        WHERE ${whereClause}
-       RETURNING *`,
-      params
-    );
+        RETURNING *`,
       params
     );
 
