@@ -9,9 +9,9 @@ import * as uazapiProvider from './uazapi-provider.js';
 function isWithinBusinessHours(start, end, days) {
   if (!start || !end || !days || !Array.isArray(days)) return true;
 
-  const now = new Date();
-  // Adjust to timezone if needed, but for now we'll use server time or assume America/Sao_Paulo if possible
-  // In many cases, we just use the current hour/minute
+  // Use America/Sao_Paulo as default timezone
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  
   const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, ...
   
   if (!days.includes(currentDay)) return false;
