@@ -43,9 +43,7 @@ interface Connection {
   away_message?: string;
   out_of_office_message_enabled?: boolean;
   out_of_office_message?: string;
-  business_hours_start?: string;
-  business_hours_end?: string;
-  business_days?: number[];
+  business_hours?: { day: number; start: string; end: string; enabled: boolean }[];
   created_at: string;
 }
 
