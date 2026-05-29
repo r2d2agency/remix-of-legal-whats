@@ -37,22 +37,21 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
     // 1. Skip if message is from me or is a group
     if (!remoteJid || remoteJid.includes('@g.us') || remoteJid.includes('@temp.g.us') || remoteJid.includes('-')) return;
 
+    // 2. Away Message Check (Independente do horário de trabalho)
+    if (connection.away_message_enabled && connection.away_message) {
+      console.log(`[AutoReply] Sending away message to ${remoteJid}`);
+      await sendAutoReply(connection, remoteJid, connection.away_message);
+      return; // Se enviou a de ausência, não precisa checar fora do horário
+    }
 
-    // 2. Out of Office Check (Priority)
+    // 3. Out of Office Check (Fora do horário de trabalho)
     if (connection.out_of_office_message_enabled && connection.out_of_office_message) {
       const withinHours = isWithinBusinessHours(connection.business_hours);
       
       if (!withinHours) {
         console.log(`[AutoReply] Sending out of office message to ${remoteJid}`);
         await sendAutoReply(connection, remoteJid, connection.out_of_office_message);
-        return; // Don't send away message if we already sent out of office
       }
-    }
-
-    // 3. Away Message Check
-    if (connection.away_message_enabled && connection.away_message) {
-      console.log(`[AutoReply] Sending away message to ${remoteJid}`);
-      await sendAutoReply(connection, remoteJid, connection.away_message);
     }
   } catch (error) {
     console.error('[AutoReply] Error handling auto-replies:', error.message);
