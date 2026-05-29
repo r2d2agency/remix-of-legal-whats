@@ -3049,7 +3049,7 @@ async function transcribeWithGemini(audioBuffer, mimeType, apiKey, model) {
     const geminiModel = model || 'gemini-1.5-flash';
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/${geminiModel}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
