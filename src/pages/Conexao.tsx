@@ -1085,9 +1085,7 @@ const handleGetQRCode = async (connection: Connection) => {
         away_message: editAwayMessage,
         out_of_office_message_enabled: editOutOfOfficeEnabled,
         out_of_office_message: editOutOfOfficeMessage,
-        business_hours_start: editBusinessHoursStart,
-        business_hours_end: editBusinessHoursEnd,
-        business_days: editBusinessDays,
+        business_hours: editBusinessHours,
       };
       
       if (isWapi) {
