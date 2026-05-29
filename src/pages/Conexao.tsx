@@ -2556,6 +2556,7 @@ const handleGetQRCode = async (connection: Connection) => {
                             </div>
                           );
                         })}
+                        </div>
                       </div>
                     </div>
                   </TabsContent>
