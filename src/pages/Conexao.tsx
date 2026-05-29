@@ -17,6 +17,9 @@ import { WebhookDiagnosticPanel } from "@/components/conexao/WebhookDiagnosticPa
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
 import { ConnectionAIAgentDialog } from "@/components/conexao/ConnectionAIAgentDialog";
 import { useAuth } from "@/contexts/AuthContext";
