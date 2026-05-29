@@ -22,10 +22,9 @@ const AI_MODELS = {
     { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Alta capacidade' },
   ],
   gemini: [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Rápido e equilibrado' },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Alta capacidade' },
-    { id: 'gemini-3.1-flash', name: 'Gemini 3.1 Flash (Recomendado)', description: 'Última geração, rápido e eficiente' },
-    { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', description: 'Última geração, máxima capacidade' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Recomendado)', description: 'Rápido e equilibrado' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Alta capacidade' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Nova geração experimental' },
   ],
   openrouter: [
     { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', description: 'Via OpenRouter - Multimodal poderoso' },
@@ -119,7 +118,7 @@ export function AIConfigPanel() {
 
   const getDefaultModel = (provider: string) => {
     if (provider === 'openai') return 'gpt-4o-mini';
-    if (provider === 'gemini') return 'gemini-2.5-flash';
+    if (provider === 'gemini') return 'gemini-1.5-flash';
     if (provider === 'openrouter') return 'openai/gpt-4o-mini';
     return '';
   };

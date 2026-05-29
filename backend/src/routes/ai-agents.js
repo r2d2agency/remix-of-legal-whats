@@ -815,9 +815,7 @@ async function getAgentAIConfig(agent, organizationId) {
 
   return {
     provider: org.ai_provider || agent.ai_provider,
-    model: ['gemini-1.0-pro', 'gemini-pro', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'].includes(agent.ai_model || org.ai_model)
-      ? 'gemini-2.5-flash'
-      : (agent.ai_model || org.ai_model || (org.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash')),
+    model: agent.ai_model || org.ai_model || (org.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash'),
     apiKey: org.ai_api_key,
   };
 }
@@ -2367,10 +2365,9 @@ router.get('/config/models', authenticate, async (req, res) => {
       { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Econômico' }
     ],
     gemini: [
-      { id: 'gemini-3.1-flash', name: 'Gemini 3.1 Flash (Recomendado)', description: 'Última geração, rápido e eficiente' },
-      { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', description: 'Última geração, máxima capacidade' },
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Rápido e equilibrado' },
-      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Alta capacidade' },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Recomendado)', description: 'Rápido e equilibrado' },
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Alta capacidade' },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Nova geração experimental' },
     ],
     openrouter: [
       { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', description: 'Multimodal poderoso' },
