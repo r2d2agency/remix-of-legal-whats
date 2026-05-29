@@ -1109,7 +1109,6 @@ const handleGetQRCode = async (connection: Connection) => {
           ? result 
           : c
       ));
-      ));
 
       toast.success('Conexão atualizada!');
       setEditDialogOpen(false);
