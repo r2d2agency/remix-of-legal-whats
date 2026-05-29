@@ -2562,6 +2562,10 @@ const handleGetQRCode = async (connection: Connection) => {
                 </div>
               </ScrollArea>
             </Tabs>
+                  </TabsContent>
+                </div>
+              </ScrollArea>
+            </Tabs>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                 Cancelar
