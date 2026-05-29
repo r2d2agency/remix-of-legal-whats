@@ -2365,9 +2365,10 @@ router.get('/config/models', authenticate, async (req, res) => {
       { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Econômico' }
     ],
     gemini: [
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Rápido, estável e multimodal' },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Geração atual rápida e multimodal' },
+      { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash-Lite', description: 'Econômico e rápido' },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (Legado)', description: 'Versão estável anterior' },
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Máxima capacidade de raciocínio' },
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Nova geração rápida e capaz' },
     ],
     openrouter: [
       { id: 'openai/gpt-4o', name: 'OpenAI GPT-4o', description: 'Multimodal poderoso' },
