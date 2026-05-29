@@ -799,13 +799,20 @@ async function handleWebhook(req, res, routeMeta = {}) {
     try {
       if (eventType === 'message_received' && persistence && !persistence.skipped && persistence.conversationId) {
         const message = extractMessageData(payload);
-        if (!message.fromMe && message.content && typeof message.content === 'string') {
-           console.log(`[UAZAPI Webhook] Attempting to continue flow for conversation ${persistence.conversationId}`);
-           const cont = await continueActiveFlow(persistence.conversationId, message.content);
-           console.log(`[UAZAPI Webhook] Flow continuation result: ${cont.continued ? 'Success' : 'Not continued'}`);
-           
-          if (!cont.continued) {
-            await checkAndTriggerFlow(connection, persistence.conversationId, message.content);
+        if (!message.fromMe) {
+          // Auto-replies (Away / Out of Office)
+          handleAutoReplies(connection, message.remoteJid, message.content || '').catch(err => {
+            console.error('[UAZAPI] Auto-reply error:', err.message);
+          });
+
+          if (message.content && typeof message.content === 'string') {
+            console.log(`[UAZAPI Webhook] Attempting to continue flow for conversation ${persistence.conversationId}`);
+            const cont = await continueActiveFlow(persistence.conversationId, message.content);
+            console.log(`[UAZAPI Webhook] Flow continuation result: ${cont.continued ? 'Success' : 'Not continued'}`);
+            
+            if (!cont.continued) {
+              await checkAndTriggerFlow(connection, persistence.conversationId, message.content);
+            }
           }
         }
       }
