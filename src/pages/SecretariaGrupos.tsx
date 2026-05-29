@@ -806,7 +806,7 @@ export default function SecretariaGrupos() {
                           <>
                             <SelectItem value="gemini-3.1-flash">Gemini 3.1 Flash (Recomendado)</SelectItem>
                             <SelectItem value="gemini-3.1-pro">Gemini 3.1 Pro</SelectItem>
-                            <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                            <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
                             <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
                           </>
                         )}

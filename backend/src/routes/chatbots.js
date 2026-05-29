@@ -606,7 +606,7 @@ router.get('/ai/models', async (req, res) => {
     gemini: [
       { id: 'gemini-3.1-flash', name: 'Gemini 3.1 Flash (Recomendado)', description: 'Última geração, rápido e eficiente' },
       { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', description: 'Última geração, máxima capacidade' },
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Rápido e equilibrado' },
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Rápido e equilibrado' },
       { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Alta capacidade' },
     ],
     openai: [
