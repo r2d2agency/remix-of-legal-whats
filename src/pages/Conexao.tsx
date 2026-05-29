@@ -39,8 +39,6 @@ interface Connection {
   meta_waba_id?: string;
   meta_webhook_verify_token?: string;
   meta_token?: string;
-  away_message_enabled?: boolean;
-  away_message?: string;
   out_of_office_message_enabled?: boolean;
   out_of_office_message?: string;
   business_hours?: { day: number; start: string; end: string; enabled: boolean }[];
@@ -133,8 +131,6 @@ const Conexao = () => {
   const [editMetaPhoneNumberId, setEditMetaPhoneNumberId] = useState("");
   const [editMetaWabaId, setEditMetaWabaId] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
-  const [editAwayMessageEnabled, setEditAwayMessageEnabled] = useState(false);
-  const [editAwayMessage, setEditAwayMessage] = useState("");
   const [editOutOfOfficeEnabled, setEditOutOfOfficeEnabled] = useState(false);
   const [editOutOfOfficeMessage, setEditOutOfOfficeMessage] = useState("");
   const [editBusinessHours, setEditBusinessHours] = useState<{ day: number; start: string; end: string; enabled: boolean }[]>([]);
@@ -1036,8 +1032,6 @@ const handleGetQRCode = async (connection: Connection) => {
     setEditMetaToken('');
     setEditMetaPhoneNumberId(connection.meta_phone_number_id || '');
     setEditMetaWabaId(connection.meta_waba_id || '');
-    setEditAwayMessageEnabled(connection.away_message_enabled || false);
-    setEditAwayMessage(connection.away_message || "");
     setEditOutOfOfficeEnabled(connection.out_of_office_message_enabled || false);
     setEditOutOfOfficeMessage(connection.out_of_office_message || "");
     
@@ -1081,8 +1075,6 @@ const handleGetQRCode = async (connection: Connection) => {
     try {
       const body: any = { 
         name: editName,
-        away_message_enabled: editAwayMessageEnabled,
-        away_message: editAwayMessage,
         out_of_office_message_enabled: editOutOfOfficeEnabled,
         out_of_office_message: editOutOfOfficeMessage,
         business_hours: editBusinessHours,
@@ -2453,27 +2445,6 @@ const handleGetQRCode = async (connection: Connection) => {
 
                   <TabsContent value="automacoes" className="mt-0 space-y-6">
                     <div className="space-y-4">
-                      <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <Label className="text-sm font-semibold">Mensagem de Ausência</Label>
-                            <p className="text-xs text-muted-foreground">Enviada quando você não está disponível</p>
-                          </div>
-                          <Switch 
-                            checked={editAwayMessageEnabled} 
-                            onCheckedChange={setEditAwayMessageEnabled} 
-                          />
-                        </div>
-                        {editAwayMessageEnabled && (
-                          <Textarea 
-                            placeholder="Olá! No momento não podemos atender. Deixe sua mensagem e retornaremos em breve."
-                            value={editAwayMessage}
-                            onChange={(e) => setEditAwayMessage(e.target.value)}
-                            className="text-xs min-h-[80px]"
-                          />
-                        )}
-                      </div>
-
                       <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
                         <div className="flex items-center justify-between">
                           <div className="space-y-0.5">
