@@ -12,6 +12,7 @@ import { emitLeadEvent } from '../lib/event-bus.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 import { detectSalesSeoLead, updateSalesSeoEvolution } from '../lib/sales-seo-service.js';
+import { handleAutoReplies } from '../lib/auto-reply-service.js';
 
 
 const router = Router();
