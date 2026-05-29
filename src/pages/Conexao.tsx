@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
 import { ConnectionAIAgentDialog } from "@/components/conexao/ConnectionAIAgentDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1235,7 +1236,7 @@ const handleGetQRCode = async (connection: Connection) => {
                   Nova Conexão
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Nova Conexão WhatsApp</DialogTitle>
                 <DialogDescription>
@@ -2068,7 +2069,7 @@ const handleGetQRCode = async (connection: Connection) => {
             setPairingPhone('');
           }
         }}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <QrCode className="h-5 w-5 text-primary" />
@@ -2275,286 +2276,289 @@ const handleGetQRCode = async (connection: Connection) => {
             }
           }}
         >
-          <DialogContent className="max-w-md">
-            <DialogHeader>
+          <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0">
+            <DialogHeader className="p-6 pb-2">
               <DialogTitle>Editar Conexão</DialogTitle>
               <DialogDescription>
-                {editingConnection?.provider === 'meta'
-                  ? 'Atualize os dados da sua conexão Meta Cloud API.'
-                  : editingConnection && (editingConnection.provider === 'wapi' || !!editingConnection.instance_id)
-                  ? 'Atualize os dados da sua conexão W-API.'
-                  : 'Dê um nome amigável para sua conexão.'}
+                Configure os detalhes técnicos e automações da sua conexão.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Nome Amigável</Label>
-                <Input 
-                  placeholder="Ex: WhatsApp Principal, Vendas, Suporte..."
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Este nome será exibido no chat e em toda a plataforma
-                </p>
-              </div>
-              
-               {/* W-API and UAZAPI specific fields */}
-               {editingConnection && (editingConnection.provider === 'wapi' || isUazapiConnection(editingConnection) || !!editingConnection.instance_id) && (
-                <>
-                   {!isUazapiConnection(editingConnection) && (
-                     <div className="space-y-2">
-                       <Label>Instance ID</Label>
-                       <Input 
-                         placeholder="Seu Instance ID"
-                         value={editInstanceId}
-                         onChange={(e) => setEditInstanceId(e.target.value)}
-                       />
-                     </div>
-                   )}
-                   
-                   {isUazapiConnection(editingConnection) && (
-                     <div className="space-y-4 rounded-lg border border-primary/20 p-4 bg-primary/5">
-                       <div className="flex items-center gap-2 mb-1">
-                         <Settings2 className="h-4 w-4 text-primary" />
-                         <h4 className="font-semibold text-sm">Configuração de Webhook UAZAPI</h4>
-                       </div>
-                       <div className="space-y-2">
-                         <Label className="text-xs">URL do Webhook</Label>
-                         <div className="flex items-center gap-2">
-                           <code className="text-[10px] bg-background px-2 py-1 rounded border flex-1 break-all">
-                             {DEFAULT_UAZAPI_WEBHOOK_URL}
-                           </code>
-                           <Button
-                             variant="outline"
-                             size="icon"
-                             className="h-8 w-8"
-                             onClick={() => {
-                               navigator.clipboard.writeText(DEFAULT_UAZAPI_WEBHOOK_URL);
-                               toast.success('URL copiada!');
-                             }}
-                           >
-                             <Copy className="h-3 w-3" />
-                           </Button>
-                         </div>
-                       </div>
-                       <Button 
-                         className="w-full mt-2" 
-                         variant="default"
-                         size="sm"
-                         onClick={() => handleConfigureUazapiWebhooks(editingConnection)}
-                         disabled={configuringUazapiWebhooks === editingConnection.id}
-                       >
-                         {configuringUazapiWebhooks === editingConnection.id ? (
-                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                         ) : (
-                           <RefreshCw className="h-4 w-4 mr-2" />
-                         )}
-                         Ativar Webhook Automaticamente
-                       </Button>
-                       <p className="text-[10px] text-muted-foreground mt-2 italic">
-                         Dica: A ativação automática envia a URL acima diretamente para o servidor UAZAPI.
-                       </p>
-                     </div>
-                   )}
-                  <div className="space-y-2">
-                    <Label>Token (deixe em branco para manter o atual)</Label>
-                    <Input 
-                      type="password"
-                      placeholder="Novo token (opcional)"
-                      value={editWapiToken}
-                      onChange={(e) => setEditWapiToken(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Por segurança, o token atual não é exibido.
-                    </p>
-                  </div>
-                </>
-              )}
 
-              <Separator className="my-4" />
-              
-              <div className="space-y-4">
-                <h4 className="font-semibold text-sm flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-primary" />
-                  Mensagens Automáticas
-                </h4>
-                
-                <div className="space-y-4 rounded-lg border p-3 bg-muted/20">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm">Mensagem de Ausência</Label>
-                      <p className="text-[10px] text-muted-foreground">Enviada quando você não está disponível</p>
-                    </div>
-                    <Switch 
-                      checked={editAwayMessageEnabled} 
-                      onCheckedChange={setEditAwayMessageEnabled} 
-                    />
-                  </div>
-                  {editAwayMessageEnabled && (
-                    <Textarea 
-                      placeholder="Olá! No momento não podemos atender. Deixe sua mensagem e retornaremos em breve."
-                      value={editAwayMessage}
-                      onChange={(e) => setEditAwayMessage(e.target.value)}
-                      className="text-xs min-h-[80px]"
-                    />
-                  )}
-                </div>
-
-                <div className="space-y-4 rounded-lg border p-3 bg-muted/20">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm">Mensagem Fora de Horário</Label>
-                      <p className="text-[10px] text-muted-foreground">Enviada fora do horário de trabalho definido</p>
-                    </div>
-                    <Switch 
-                      checked={editOutOfOfficeEnabled} 
-                      onCheckedChange={setEditOutOfOfficeEnabled} 
-                    />
-                  </div>
-                  {editOutOfOfficeEnabled && (
-                    <Textarea 
-                      placeholder="Olá! Nosso horário de atendimento é de segunda a sexta, das 08h às 18h."
-                      value={editOutOfOfficeMessage}
-                      onChange={(e) => setEditOutOfOfficeMessage(e.target.value)}
-                      className="text-xs min-h-[80px]"
-                    />
-                  )}
-                </div>
-
-                <div className="space-y-3 p-3 border rounded-lg bg-muted/10">
-                  <h5 className="text-xs font-semibold flex items-center gap-1">
-                    <History className="h-3 w-3" />
-                    Horário de Trabalho
-                  </h5>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-[10px]">Início</Label>
-                      <Input 
-                        type="time" 
-                        value={editBusinessHoursStart}
-                        onChange={(e) => setEditBusinessHoursStart(e.target.value)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px]">Fim</Label>
-                      <Input 
-                        type="time" 
-                        value={editBusinessHoursEnd}
-                        onChange={(e) => setEditBusinessHoursEnd(e.target.value)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px]">Dias de Trabalho</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { id: 0, label: 'Dom' },
-                        { id: 1, label: 'Seg' },
-                        { id: 2, label: 'Ter' },
-                        { id: 3, label: 'Qua' },
-                        { id: 4, label: 'Qui' },
-                        { id: 5, label: 'Sex' },
-                        { id: 6, label: 'Sáb' }
-                      ].map((day) => (
-                        <div key={day.id} className="flex items-center gap-1">
-                          <Checkbox 
-                            id={`day-${day.id}`} 
-                            checked={editBusinessDays.includes(day.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setEditBusinessDays([...editBusinessDays, day.id]);
-                              } else {
-                                setEditBusinessDays(editBusinessDays.filter(d => d !== day.id));
-                              }
-                            }}
-                          />
-                          <Label htmlFor={`day-${day.id}`} className="text-[10px] cursor-pointer">{day.label}</Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+            <Tabs defaultValue="geral" className="flex-1 flex flex-col overflow-hidden">
+              <div className="px-6 border-b">
+                <TabsList className="w-full justify-start h-auto p-0 bg-transparent gap-6">
+                  <TabsTrigger 
+                    value="geral" 
+                    className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 text-sm font-medium"
+                  >
+                    Geral
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="automacoes" 
+                    className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 text-sm font-medium"
+                  >
+                    Mensagens Automáticas
+                  </TabsTrigger>
+                </TabsList>
               </div>
 
-              {/* Meta API specific fields */}
-              {editingConnection?.provider === 'meta' && (
-                <>
-                  <div className="space-y-2">
-                    <Label>WABA ID</Label>
-                    <Input 
-                      placeholder="WhatsApp Business Account ID"
-                      value={editMetaWabaId}
-                      onChange={(e) => setEditMetaWabaId(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      ID da conta WhatsApp Business no Meta Business Suite
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Phone Number ID</Label>
-                    <Input 
-                      placeholder="ID do número de telefone"
-                      value={editMetaPhoneNumberId}
-                      onChange={(e) => setEditMetaPhoneNumberId(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Encontrado em WhatsApp &gt; API Setup no Meta Developers
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Token de Acesso Permanente</Label>
-                    {editingConnection.meta_token && !editMetaToken && (
-                      <div className="flex items-center gap-2 p-2 rounded bg-muted text-xs font-mono">
-                        <span>{'•'.repeat(20)}{editingConnection.meta_token.slice(-6)}</span>
-                        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditMetaToken(editingConnection.meta_token || '')}>
-                          Alterar
-                        </Button>
-                      </div>
-                    )}
-                    {(!editingConnection.meta_token || editMetaToken !== '') && (
-                      <Input 
-                        type="password"
-                        placeholder={editingConnection.meta_token ? "Novo token" : "EAAxxxxxxx..."}
-                        value={editMetaToken}
-                        onChange={(e) => setEditMetaToken(e.target.value)}
-                      />
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {editingConnection.meta_token ? 'Token salvo. Clique em Alterar para substituir.' : 'Insira o token permanente do Meta Business Suite.'}
-                    </p>
-                  </div>
-                  {editingConnection.meta_webhook_verify_token && (
+              <ScrollArea className="flex-1 overflow-y-auto">
+                <div className="p-6">
+                  <TabsContent value="geral" className="mt-0 space-y-4">
                     <div className="space-y-2">
-                      <Label>Webhook Verify Token</Label>
-                      <div className="flex gap-2">
-                        <Input 
-                          readOnly
-                          value={editingConnection.meta_webhook_verify_token}
-                          className="font-mono text-xs"
-                        />
-                        <Button 
-                          variant="outline" 
-                          size="icon"
-                          onClick={() => {
-                            navigator.clipboard.writeText(editingConnection.meta_webhook_verify_token!);
-                            toast.success('Verify Token copiado!');
-                          }}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Label>Nome Amigável</Label>
+                      <Input 
+                        placeholder="Ex: WhatsApp Principal, Vendas, Suporte..."
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                      />
                       <p className="text-xs text-muted-foreground">
-                        Use este token ao configurar o webhook no Meta Developers
+                        Este nome será exibido no chat e em toda a plataforma
                       </p>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
+                    
+                    {/* W-API and UAZAPI specific fields */}
+                    {editingConnection && (editingConnection.provider === 'wapi' || isUazapiConnection(editingConnection) || !!editingConnection.instance_id) && (
+                      <div className="space-y-4">
+                        {!isUazapiConnection(editingConnection) && (
+                          <div className="space-y-2">
+                            <Label>Instance ID</Label>
+                            <Input 
+                              placeholder="Seu Instance ID"
+                              value={editInstanceId}
+                              onChange={(e) => setEditInstanceId(e.target.value)}
+                            />
+                          </div>
+                        )}
+                        
+                        {isUazapiConnection(editingConnection) && (
+                          <div className="space-y-4 rounded-lg border border-primary/20 p-4 bg-primary/5">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Settings2 className="h-4 w-4 text-primary" />
+                              <h4 className="font-semibold text-sm">Configuração de Webhook UAZAPI</h4>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs">URL do Webhook</Label>
+                              <div className="flex items-center gap-2">
+                                <code className="text-[10px] bg-background px-2 py-1 rounded border flex-1 break-all">
+                                  {DEFAULT_UAZAPI_WEBHOOK_URL}
+                                </code>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(DEFAULT_UAZAPI_WEBHOOK_URL);
+                                    toast.success('URL copiada!');
+                                  }}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            <Button 
+                              className="w-full mt-2" 
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleConfigureUazapiWebhooks(editingConnection)}
+                              disabled={configuringUazapiWebhooks === editingConnection.id}
+                            >
+                              {configuringUazapiWebhooks === editingConnection.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                              )}
+                              Ativar Webhook Automaticamente
+                            </Button>
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          <Label>Token (deixe em branco para manter o atual)</Label>
+                          <Input 
+                            type="password"
+                            placeholder="Novo token (opcional)"
+                            value={editWapiToken}
+                            onChange={(e) => setEditWapiToken(e.target.value)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Por segurança, o token atual não é exibido.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Meta API specific fields */}
+                    {editingConnection?.provider === 'meta' && (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>WABA ID</Label>
+                          <Input 
+                            placeholder="WhatsApp Business Account ID"
+                            value={editMetaWabaId}
+                            onChange={(e) => setEditMetaWabaId(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Phone Number ID</Label>
+                          <Input 
+                            placeholder="ID do número de telefone"
+                            value={editMetaPhoneNumberId}
+                            onChange={(e) => setEditMetaPhoneNumberId(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Token de Acesso Permanente</Label>
+                          {editingConnection.meta_token && !editMetaToken && (
+                            <div className="flex items-center gap-2 p-2 rounded bg-muted text-xs font-mono">
+                              <span>{'•'.repeat(20)}{editingConnection.meta_token.slice(-6)}</span>
+                              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditMetaToken(editingConnection.meta_token || '')}>
+                                Alterar
+                              </Button>
+                            </div>
+                          )}
+                          {(!editingConnection.meta_token || editMetaToken !== '') && (
+                            <Input 
+                              type="password"
+                              placeholder={editingConnection.meta_token ? "Novo token" : "EAAxxxxxxx..."}
+                              value={editMetaToken}
+                              onChange={(e) => setEditMetaToken(e.target.value)}
+                            />
+                          )}
+                        </div>
+                        {editingConnection.meta_webhook_verify_token && (
+                          <div className="space-y-2">
+                            <Label>Webhook Verify Token</Label>
+                            <div className="flex gap-2">
+                              <Input 
+                                readOnly
+                                value={editingConnection.meta_webhook_verify_token}
+                                className="font-mono text-xs"
+                              />
+                              <Button 
+                                variant="outline" 
+                                size="icon"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(editingConnection.meta_webhook_verify_token!);
+                                  toast.success('Verify Token copiado!');
+                                }}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="automacoes" className="mt-0 space-y-6">
+                    <div className="space-y-4">
+                      <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-sm font-semibold">Mensagem de Ausência</Label>
+                            <p className="text-xs text-muted-foreground">Enviada quando você não está disponível</p>
+                          </div>
+                          <Switch 
+                            checked={editAwayMessageEnabled} 
+                            onCheckedChange={setEditAwayMessageEnabled} 
+                          />
+                        </div>
+                        {editAwayMessageEnabled && (
+                          <Textarea 
+                            placeholder="Olá! No momento não podemos atender. Deixe sua mensagem e retornaremos em breve."
+                            value={editAwayMessage}
+                            onChange={(e) => setEditAwayMessage(e.target.value)}
+                            className="text-xs min-h-[80px]"
+                          />
+                        )}
+                      </div>
+
+                      <div className="space-y-4 rounded-lg border p-4 bg-muted/20">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-sm font-semibold">Mensagem Fora de Horário</Label>
+                            <p className="text-xs text-muted-foreground">Enviada fora do horário de trabalho definido</p>
+                          </div>
+                          <Switch 
+                            checked={editOutOfOfficeEnabled} 
+                            onCheckedChange={setEditOutOfOfficeEnabled} 
+                          />
+                        </div>
+                        {editOutOfOfficeEnabled && (
+                          <Textarea 
+                            placeholder="Olá! Nosso horário de atendimento é de segunda a sexta, das 08h às 18h."
+                            value={editOutOfOfficeMessage}
+                            onChange={(e) => setEditOutOfOfficeMessage(e.target.value)}
+                            className="text-xs min-h-[80px]"
+                          />
+                        )}
+                      </div>
+
+                      <div className="space-y-4 p-4 border rounded-lg bg-muted/10">
+                        <h5 className="text-sm font-semibold flex items-center gap-2">
+                          <History className="h-4 w-4 text-primary" />
+                          Horário de Trabalho
+                        </h5>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs">Início</Label>
+                            <Input 
+                              type="time" 
+                              value={editBusinessHoursStart}
+                              onChange={(e) => setEditBusinessHoursStart(e.target.value)}
+                              className="h-9 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Fim</Label>
+                            <Input 
+                              type="time" 
+                              value={editBusinessHoursEnd}
+                              onChange={(e) => setEditBusinessHoursEnd(e.target.value)}
+                              className="h-9 text-xs"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label className="text-xs">Dias de Trabalho</Label>
+                          <div className="flex flex-wrap gap-3">
+                            {[
+                              { id: 1, label: 'Seg' },
+                              { id: 2, label: 'Ter' },
+                              { id: 3, label: 'Qua' },
+                              { id: 4, label: 'Qui' },
+                              { id: 5, label: 'Sex' },
+                              { id: 10, divider: true },
+                              { id: 6, label: 'Sáb' },
+                              { id: 0, label: 'Dom' }
+                            ].map((day) => day.divider ? (
+                              <div key={day.id} className="w-full h-[1px] bg-border my-1 hidden sm:block" />
+                            ) : (
+                              <div key={day.id} className="flex items-center gap-2">
+                                <Checkbox 
+                                  id={`day-${day.id}`} 
+                                  checked={editBusinessDays.includes(day.id!)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setEditBusinessDays([...editBusinessDays, day.id!]);
+                                    } else {
+                                      setEditBusinessDays(editBusinessDays.filter(d => d !== day.id));
+                                    }
+                                  }}
+                                />
+                                <Label htmlFor={`day-${day.id}`} className="text-xs cursor-pointer">{day.label}</Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </div>
+              </ScrollArea>
+            </Tabs>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                 Cancelar
