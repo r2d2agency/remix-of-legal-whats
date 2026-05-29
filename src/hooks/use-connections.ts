@@ -9,6 +9,13 @@ export interface Connection {
   status: string;
   provider?: string;
   instance_id?: string;
+  away_message_enabled?: boolean;
+  away_message?: string;
+  out_of_office_message_enabled?: boolean;
+  out_of_office_message?: string;
+  business_hours_start?: string;
+  business_hours_end?: string;
+  business_days?: number[];
 }
 
 interface AccessGroup {
