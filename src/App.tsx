@@ -80,7 +80,7 @@ function FaviconUpdater() {
         const newLink = document.createElement('link');
         newLink.rel = 'icon';
         newLink.href = branding.favicon;
-        document.head.appendChild(newLink);
+const RelatorioMarcas = lazy(() => import("./pages/RelatorioMarcas"));
       }
     }
   }, [branding.favicon]);
