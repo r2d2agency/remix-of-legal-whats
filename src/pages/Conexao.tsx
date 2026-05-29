@@ -35,6 +35,13 @@ interface Connection {
   meta_waba_id?: string;
   meta_webhook_verify_token?: string;
   meta_token?: string;
+  away_message_enabled?: boolean;
+  away_message?: string;
+  out_of_office_message_enabled?: boolean;
+  out_of_office_message?: string;
+  business_hours_start?: string;
+  business_hours_end?: string;
+  business_days?: number[];
   created_at: string;
 }
 
