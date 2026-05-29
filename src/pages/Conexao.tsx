@@ -1029,6 +1029,13 @@ const handleGetQRCode = async (connection: Connection) => {
     setEditMetaToken('');
     setEditMetaPhoneNumberId(connection.meta_phone_number_id || '');
     setEditMetaWabaId(connection.meta_waba_id || '');
+    setEditAwayMessageEnabled(connection.away_message_enabled || false);
+    setEditAwayMessage(connection.away_message || "");
+    setEditOutOfOfficeEnabled(connection.out_of_office_message_enabled || false);
+    setEditOutOfOfficeMessage(connection.out_of_office_message || "");
+    setEditBusinessHoursStart(connection.business_hours_start || "08:00");
+    setEditBusinessHoursEnd(connection.business_hours_end || "18:00");
+    setEditBusinessDays(connection.business_days || [1, 2, 3, 4, 5]);
     setEditDialogOpen(true);
   };
 
