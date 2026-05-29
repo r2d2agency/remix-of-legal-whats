@@ -2180,6 +2180,13 @@ async function handleMessageUpsert(connection, data) {
           }
         }
 
+        // Auto-replies (Away / Out of Office)
+        if (!fromMe) {
+          handleAutoReplies(connection, rawRemoteJid, content).catch(err => {
+            console.error('[Evolution] Auto-reply error:', err.message);
+          });
+        }
+
         // AI agent processing - supports text, audio, image, document, video, sticker
         if (!fromMe && !flowHandled) {
           const aiSupportedTypes = ['text', 'image', 'audio', 'video', 'document', 'sticker'];
