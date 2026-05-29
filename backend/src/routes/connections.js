@@ -421,18 +421,33 @@ router.patch('/:id', async (req, res) => {
       show_groups,
       meta_token,
       meta_phone_number_id,
-      meta_waba_id
+      meta_waba_id,
+      away_message,
+      away_message_enabled,
+      working_hours_enabled,
+      working_hours,
+      out_of_hours_message
     } = req.body;
 
     const org = await getUserOrganization(req.userId);
 
     // Allow update if user owns the connection OR belongs to same organization
-    let whereClause = 'id = $13 AND user_id = $14';
-    let params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, meta_token, meta_phone_number_id, meta_waba_id, id, req.userId];
+    let whereClause = 'id = $18 AND user_id = $19';
+    let params = [
+      provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, 
+      meta_token, meta_phone_number_id, meta_waba_id, 
+      away_message, away_message_enabled, working_hours_enabled, working_hours, out_of_hours_message,
+      id, req.userId
+    ];
 
     if (org) {
-      whereClause = 'id = $13 AND organization_id = $14';
-      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, meta_token, meta_phone_number_id, meta_waba_id, id, org.organization_id];
+      whereClause = 'id = $18 AND organization_id = $19';
+      params = [
+        provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, 
+        meta_token, meta_phone_number_id, meta_waba_id, 
+        away_message, away_message_enabled, working_hours_enabled, working_hours, out_of_hours_message,
+        id, org.organization_id
+      ];
     }
 
     const result = await query(
@@ -449,6 +464,11 @@ router.patch('/:id', async (req, res) => {
            meta_token = COALESCE($10, meta_token),
            meta_phone_number_id = COALESCE($11, meta_phone_number_id),
            meta_waba_id = COALESCE($12, meta_waba_id),
+           away_message = COALESCE($13, away_message),
+           away_message_enabled = COALESCE($14, away_message_enabled),
+           working_hours_enabled = COALESCE($15, working_hours_enabled),
+           working_hours = COALESCE($16, working_hours),
+           out_of_hours_message = COALESCE($17, out_of_hours_message),
            updated_at = NOW()
        WHERE ${whereClause}
        RETURNING *`,
