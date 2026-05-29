@@ -2446,7 +2446,97 @@ const handleGetQRCode = async (connection: Connection) => {
                     <p className="text-xs text-muted-foreground">
                       {editingConnection.meta_token ? 'Token salvo. Clique em Alterar para substituir.' : 'Insira o token permanente do Meta Business Suite.'}
                     </p>
-                  </div>
+
+              <Separator className="my-2" />
+              
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="away-message">
+                  <AccordionTrigger className="text-sm font-medium">Mensagem de Ausência</AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="away-enabled" className="cursor-pointer">Ativar Mensagem de Ausência</Label>
+                      <Switch 
+                        id="away-enabled"
+                        checked={editAwayMessageEnabled}
+                        onCheckedChange={setEditAwayMessageEnabled}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Mensagem</Label>
+                      <Textarea 
+                        placeholder="Ex: Olá! No momento não podemos atender. Deixe sua mensagem e retornaremos em breve."
+                        value={editAwayMessage}
+                        onChange={(e) => setEditAwayMessage(e.target.value)}
+                        className="min-h-[100px]"
+                        disabled={!editAwayMessageEnabled}
+                      />
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="working-hours">
+                  <AccordionTrigger className="text-sm font-medium">Horário de Trabalho</AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="hours-enabled" className="cursor-pointer">Ativar Filtro por Horário</Label>
+                      <Switch 
+                        id="hours-enabled"
+                        checked={editWorkingHoursEnabled}
+                        onCheckedChange={setEditWorkingHoursEnabled}
+                      />
+                    </div>
+                    
+                    <div className={editWorkingHoursEnabled ? "space-y-4" : "space-y-4 opacity-50 pointer-events-none"}>
+                      <div className="space-y-2">
+                        <Label>Dias da Semana</Label>
+                        <div className="flex flex-wrap gap-1">
+                          {DAY_NAMES.map(day => (
+                            <Button
+                              key={day.id}
+                              variant={editWorkingHours.work_days.includes(day.id) ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleEditWorkingDay(day.id)}
+                              className="h-8 w-10 p-0 text-[10px]"
+                            >
+                              {day.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs">Início</Label>
+                          <Input
+                            type="time"
+                            value={editWorkingHours.work_start}
+                            onChange={(e) => setEditWorkingHours((prev: any) => ({ ...prev, work_start: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Fim</Label>
+                          <Input
+                            type="time"
+                            value={editWorkingHours.work_end}
+                            onChange={(e) => setEditWorkingHours((prev: any) => ({ ...prev, work_end: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Mensagem Fora do Horário</Label>
+                        <Textarea 
+                          placeholder="Ex: Olá! Nosso horário de atendimento é de segunda a sexta, das 08h às 18h. Retornaremos sua mensagem assim que possível."
+                          value={editOutOfHoursMessage}
+                          onChange={(e) => setEditOutOfHoursMessage(e.target.value)}
+                          className="min-h-[100px]"
+                        />
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
                   {editingConnection.meta_webhook_verify_token && (
                     <div className="space-y-2">
                       <Label>Webhook Verify Token</Label>
