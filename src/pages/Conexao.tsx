@@ -21,6 +21,9 @@ import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDia
 import { ConnectionAIAgentDialog } from "@/components/conexao/ConnectionAIAgentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConnections as useConnectionsHook } from "@/hooks/use-connections";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface Connection {
   id: string;
@@ -35,6 +38,11 @@ interface Connection {
   meta_waba_id?: string;
   meta_webhook_verify_token?: string;
   meta_token?: string;
+  away_message?: string;
+  away_message_enabled?: boolean;
+  working_hours_enabled?: boolean;
+  working_hours?: any;
+  out_of_hours_message?: string;
   created_at: string;
 }
 
@@ -56,7 +64,17 @@ const isWapiConnection = (connection: Pick<Connection, 'provider' | 'instance_id
   connection.provider === 'wapi' ||
   (!!connection.instance_id && connection.provider !== 'uazapi' && connection.provider !== 'meta');
 
- const DEFAULT_UAZAPI_WEBHOOK_URL = "https://whats.gleego.com.br/api/uazapi/webhook";
+const DEFAULT_UAZAPI_WEBHOOK_URL = "https://whats.gleego.com.br/api/uazapi/webhook";
+
+const DAY_NAMES = [
+  { id: 0, label: 'Dom' },
+  { id: 1, label: 'Seg' },
+  { id: 2, label: 'Ter' },
+  { id: 3, label: 'Qua' },
+  { id: 4, label: 'Qui' },
+  { id: 5, label: 'Sex' },
+  { id: 6, label: 'Sáb' },
+];
  
 const Conexao = () => {
   const { user, isLoading: authLoading } = useAuth();
@@ -124,6 +142,15 @@ const Conexao = () => {
   const [editMetaPhoneNumberId, setEditMetaPhoneNumberId] = useState("");
   const [editMetaWabaId, setEditMetaWabaId] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editAwayMessage, setEditAwayMessage] = useState("");
+  const [editAwayMessageEnabled, setEditAwayMessageEnabled] = useState(false);
+  const [editWorkingHoursEnabled, setEditWorkingHoursEnabled] = useState(false);
+  const [editWorkingHours, setEditWorkingHours] = useState<any>({
+    work_days: [1, 2, 3, 4, 5],
+    work_start: '08:00',
+    work_end: '18:00',
+  });
+  const [editOutOfHoursMessage, setEditOutOfHoursMessage] = useState("");
   const [diagnosticConnection, setDiagnosticConnection] = useState<Connection | null>(null);
   
   // Lead distribution state
@@ -1022,6 +1049,15 @@ const handleGetQRCode = async (connection: Connection) => {
     setEditMetaToken('');
     setEditMetaPhoneNumberId(connection.meta_phone_number_id || '');
     setEditMetaWabaId(connection.meta_waba_id || '');
+    setEditAwayMessage(connection.away_message || '');
+    setEditAwayMessageEnabled(connection.away_message_enabled || false);
+    setEditWorkingHoursEnabled(connection.working_hours_enabled || false);
+    setEditWorkingHours(connection.working_hours || {
+      work_days: [1, 2, 3, 4, 5],
+      work_start: '08:00',
+      work_end: '18:00',
+    });
+    setEditOutOfHoursMessage(connection.out_of_hours_message || '');
     setEditDialogOpen(true);
   };
 
@@ -1052,7 +1088,14 @@ const handleGetQRCode = async (connection: Connection) => {
 
     setSavingEdit(true);
     try {
-      const body: Record<string, string> = { name: editName };
+      const body: Record<string, any> = { 
+        name: editName,
+        away_message: editAwayMessage,
+        away_message_enabled: editAwayMessageEnabled,
+        working_hours_enabled: editWorkingHoursEnabled,
+        working_hours: editWorkingHours,
+        out_of_hours_message: editOutOfHoursMessage
+      };
       
       if (isWapi) {
         body.instance_id = editInstanceId;
@@ -1080,6 +1123,11 @@ const handleGetQRCode = async (connection: Connection) => {
               ...c, 
               name: editName, 
               instance_id: editInstanceId,
+              away_message: editAwayMessage,
+              away_message_enabled: editAwayMessageEnabled,
+              working_hours_enabled: editWorkingHoursEnabled,
+              working_hours: editWorkingHours,
+              out_of_hours_message: editOutOfHoursMessage,
               ...(isMeta ? { meta_phone_number_id: editMetaPhoneNumberId, meta_waba_id: editMetaWabaId } : {}),
             } 
           : c
@@ -1093,6 +1141,15 @@ const handleGetQRCode = async (connection: Connection) => {
     } finally {
       setSavingEdit(false);
     }
+  };
+
+  const toggleEditWorkingDay = (dayId: number) => {
+    setEditWorkingHours((prev: any) => ({
+      ...prev,
+      work_days: prev.work_days.includes(dayId)
+        ? prev.work_days.filter((d: number) => d !== dayId)
+        : [...prev.work_days, dayId].sort(),
+    }));
   };
 
   const fetchWebhookEvents = useCallback(async (connection: Connection) => {
@@ -2390,7 +2447,97 @@ const handleGetQRCode = async (connection: Connection) => {
                     <p className="text-xs text-muted-foreground">
                       {editingConnection.meta_token ? 'Token salvo. Clique em Alterar para substituir.' : 'Insira o token permanente do Meta Business Suite.'}
                     </p>
-                  </div>
+
+              <Separator className="my-2" />
+              
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="away-message">
+                  <AccordionTrigger className="text-sm font-medium">Mensagem de Ausência</AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="away-enabled" className="cursor-pointer">Ativar Mensagem de Ausência</Label>
+                      <Switch 
+                        id="away-enabled"
+                        checked={editAwayMessageEnabled}
+                        onCheckedChange={setEditAwayMessageEnabled}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Mensagem</Label>
+                      <Textarea 
+                        placeholder="Ex: Olá! No momento não podemos atender. Deixe sua mensagem e retornaremos em breve."
+                        value={editAwayMessage}
+                        onChange={(e) => setEditAwayMessage(e.target.value)}
+                        className="min-h-[100px]"
+                        disabled={!editAwayMessageEnabled}
+                      />
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="working-hours">
+                  <AccordionTrigger className="text-sm font-medium">Horário de Trabalho</AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="hours-enabled" className="cursor-pointer">Ativar Filtro por Horário</Label>
+                      <Switch 
+                        id="hours-enabled"
+                        checked={editWorkingHoursEnabled}
+                        onCheckedChange={setEditWorkingHoursEnabled}
+                      />
+                    </div>
+                    
+                    <div className={editWorkingHoursEnabled ? "space-y-4" : "space-y-4 opacity-50 pointer-events-none"}>
+                      <div className="space-y-2">
+                        <Label>Dias da Semana</Label>
+                        <div className="flex flex-wrap gap-1">
+                          {DAY_NAMES.map(day => (
+                            <Button
+                              key={day.id}
+                              variant={editWorkingHours.work_days.includes(day.id) ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleEditWorkingDay(day.id)}
+                              className="h-8 w-10 p-0 text-[10px]"
+                            >
+                              {day.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs">Início</Label>
+                          <Input
+                            type="time"
+                            value={editWorkingHours.work_start}
+                            onChange={(e) => setEditWorkingHours((prev: any) => ({ ...prev, work_start: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Fim</Label>
+                          <Input
+                            type="time"
+                            value={editWorkingHours.work_end}
+                            onChange={(e) => setEditWorkingHours((prev: any) => ({ ...prev, work_end: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Mensagem Fora do Horário</Label>
+                        <Textarea 
+                          placeholder="Ex: Olá! Nosso horário de atendimento é de segunda a sexta, das 08h às 18h. Retornaremos sua mensagem assim que possível."
+                          value={editOutOfHoursMessage}
+                          onChange={(e) => setEditOutOfHoursMessage(e.target.value)}
+                          className="min-h-[100px]"
+                        />
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
                   {editingConnection.meta_webhook_verify_token && (
                     <div className="space-y-2">
                       <Label>Webhook Verify Token</Label>
