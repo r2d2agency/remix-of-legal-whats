@@ -472,9 +472,7 @@ router.patch('/:id', async (req, res) => {
            away_message = COALESCE($14, away_message),
            out_of_office_message_enabled = COALESCE($15, out_of_office_message_enabled),
            out_of_office_message = COALESCE($16, out_of_office_message),
-           business_hours_start = COALESCE($17, business_hours_start),
-           business_hours_end = COALESCE($18, business_hours_end),
-           business_days = COALESCE($19, business_days),
+            business_hours = COALESCE($17::jsonb, business_hours),
            updated_at = NOW()
        WHERE ${whereClause}
        RETURNING *`,
