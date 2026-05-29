@@ -64,6 +64,7 @@ import VerificarDocumento from "./pages/VerificarDocumento";
 import Teleatendimento from "./pages/Teleatendimento";
 import MarinaTestChat from "./pages/MarinaTestChat";
 import NotFound from "./pages/NotFound";
+import RelatorioMarcas from "./pages/RelatorioMarcas";
 
 const queryClient = new QueryClient();
 
