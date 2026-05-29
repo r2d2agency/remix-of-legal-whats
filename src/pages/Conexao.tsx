@@ -64,7 +64,17 @@ const isWapiConnection = (connection: Pick<Connection, 'provider' | 'instance_id
   connection.provider === 'wapi' ||
   (!!connection.instance_id && connection.provider !== 'uazapi' && connection.provider !== 'meta');
 
- const DEFAULT_UAZAPI_WEBHOOK_URL = "https://whats.gleego.com.br/api/uazapi/webhook";
+const DEFAULT_UAZAPI_WEBHOOK_URL = "https://whats.gleego.com.br/api/uazapi/webhook";
+
+const DAY_NAMES = [
+  { id: 0, label: 'Dom' },
+  { id: 1, label: 'Seg' },
+  { id: 2, label: 'Ter' },
+  { id: 3, label: 'Qua' },
+  { id: 4, label: 'Qui' },
+  { id: 5, label: 'Sex' },
+  { id: 6, label: 'Sáb' },
+];
  
 const Conexao = () => {
   const { user, isLoading: authLoading } = useAuth();
