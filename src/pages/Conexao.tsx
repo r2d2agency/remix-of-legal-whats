@@ -17,6 +17,9 @@ import { WebhookDiagnosticPanel } from "@/components/conexao/WebhookDiagnosticPa
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
 import { ConnectionAIAgentDialog } from "@/components/conexao/ConnectionAIAgentDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +38,13 @@ interface Connection {
   meta_waba_id?: string;
   meta_webhook_verify_token?: string;
   meta_token?: string;
+  away_message_enabled?: boolean;
+  away_message?: string;
+  out_of_office_message_enabled?: boolean;
+  out_of_office_message?: string;
+  business_hours_start?: string;
+  business_hours_end?: string;
+  business_days?: number[];
   created_at: string;
 }
 
@@ -124,6 +134,13 @@ const Conexao = () => {
   const [editMetaPhoneNumberId, setEditMetaPhoneNumberId] = useState("");
   const [editMetaWabaId, setEditMetaWabaId] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editAwayMessageEnabled, setEditAwayMessageEnabled] = useState(false);
+  const [editAwayMessage, setEditAwayMessage] = useState("");
+  const [editOutOfOfficeEnabled, setEditOutOfOfficeEnabled] = useState(false);
+  const [editOutOfOfficeMessage, setEditOutOfOfficeMessage] = useState("");
+  const [editBusinessHoursStart, setEditBusinessHoursStart] = useState("08:00");
+  const [editBusinessHoursEnd, setEditBusinessHoursEnd] = useState("18:00");
+  const [editBusinessDays, setEditBusinessDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [diagnosticConnection, setDiagnosticConnection] = useState<Connection | null>(null);
   
   // Lead distribution state
@@ -1022,6 +1039,13 @@ const handleGetQRCode = async (connection: Connection) => {
     setEditMetaToken('');
     setEditMetaPhoneNumberId(connection.meta_phone_number_id || '');
     setEditMetaWabaId(connection.meta_waba_id || '');
+    setEditAwayMessageEnabled(connection.away_message_enabled || false);
+    setEditAwayMessage(connection.away_message || "");
+    setEditOutOfOfficeEnabled(connection.out_of_office_message_enabled || false);
+    setEditOutOfOfficeMessage(connection.out_of_office_message || "");
+    setEditBusinessHoursStart(connection.business_hours_start || "08:00");
+    setEditBusinessHoursEnd(connection.business_hours_end || "18:00");
+    setEditBusinessDays(connection.business_days || [1, 2, 3, 4, 5]);
     setEditDialogOpen(true);
   };
 
@@ -1052,7 +1076,16 @@ const handleGetQRCode = async (connection: Connection) => {
 
     setSavingEdit(true);
     try {
-      const body: Record<string, string> = { name: editName };
+      const body: any = { 
+        name: editName,
+        away_message_enabled: editAwayMessageEnabled,
+        away_message: editAwayMessage,
+        out_of_office_message_enabled: editOutOfOfficeEnabled,
+        out_of_office_message: editOutOfOfficeMessage,
+        business_hours_start: editBusinessHoursStart,
+        business_hours_end: editBusinessHoursEnd,
+        business_days: editBusinessDays,
+      };
       
       if (isWapi) {
         body.instance_id = editInstanceId;
@@ -1069,19 +1102,14 @@ const handleGetQRCode = async (connection: Connection) => {
         }
       }
 
-      await api(`/api/connections/${editingConnection.id}`, {
+      const result = await api<Connection>(`/api/connections/${editingConnection.id}`, {
         method: 'PATCH',
         body,
       });
 
       setConnections(prev => prev.map(c => 
         c.id === editingConnection.id 
-          ? { 
-              ...c, 
-              name: editName, 
-              instance_id: editInstanceId,
-              ...(isMeta ? { meta_phone_number_id: editMetaPhoneNumberId, meta_waba_id: editMetaWabaId } : {}),
-            } 
+          ? result 
           : c
       ));
 
@@ -2343,6 +2371,114 @@ const handleGetQRCode = async (connection: Connection) => {
                   </div>
                 </>
               )}
+
+              <Separator className="my-4" />
+              
+              <div className="space-y-4">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-primary" />
+                  Mensagens Automáticas
+                </h4>
+                
+                <div className="space-y-4 rounded-lg border p-3 bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm">Mensagem de Ausência</Label>
+                      <p className="text-[10px] text-muted-foreground">Enviada quando você não está disponível</p>
+                    </div>
+                    <Switch 
+                      checked={editAwayMessageEnabled} 
+                      onCheckedChange={setEditAwayMessageEnabled} 
+                    />
+                  </div>
+                  {editAwayMessageEnabled && (
+                    <Textarea 
+                      placeholder="Olá! No momento não podemos atender. Deixe sua mensagem e retornaremos em breve."
+                      value={editAwayMessage}
+                      onChange={(e) => setEditAwayMessage(e.target.value)}
+                      className="text-xs min-h-[80px]"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-4 rounded-lg border p-3 bg-muted/20">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm">Mensagem Fora de Horário</Label>
+                      <p className="text-[10px] text-muted-foreground">Enviada fora do horário de trabalho definido</p>
+                    </div>
+                    <Switch 
+                      checked={editOutOfOfficeEnabled} 
+                      onCheckedChange={setEditOutOfOfficeEnabled} 
+                    />
+                  </div>
+                  {editOutOfOfficeEnabled && (
+                    <Textarea 
+                      placeholder="Olá! Nosso horário de atendimento é de segunda a sexta, das 08h às 18h."
+                      value={editOutOfOfficeMessage}
+                      onChange={(e) => setEditOutOfOfficeMessage(e.target.value)}
+                      className="text-xs min-h-[80px]"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-3 p-3 border rounded-lg bg-muted/10">
+                  <h5 className="text-xs font-semibold flex items-center gap-1">
+                    <History className="h-3 w-3" />
+                    Horário de Trabalho
+                  </h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-[10px]">Início</Label>
+                      <Input 
+                        type="time" 
+                        value={editBusinessHoursStart}
+                        onChange={(e) => setEditBusinessHoursStart(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px]">Fim</Label>
+                      <Input 
+                        type="time" 
+                        value={editBusinessHoursEnd}
+                        onChange={(e) => setEditBusinessHoursEnd(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px]">Dias de Trabalho</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { id: 0, label: 'Dom' },
+                        { id: 1, label: 'Seg' },
+                        { id: 2, label: 'Ter' },
+                        { id: 3, label: 'Qua' },
+                        { id: 4, label: 'Qui' },
+                        { id: 5, label: 'Sex' },
+                        { id: 6, label: 'Sáb' }
+                      ].map((day) => (
+                        <div key={day.id} className="flex items-center gap-1">
+                          <Checkbox 
+                            id={`day-${day.id}`} 
+                            checked={editBusinessDays.includes(day.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setEditBusinessDays([...editBusinessDays, day.id]);
+                              } else {
+                                setEditBusinessDays(editBusinessDays.filter(d => d !== day.id));
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`day-${day.id}`} className="text-[10px] cursor-pointer">{day.label}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Meta API specific fields */}
               {editingConnection?.provider === 'meta' && (

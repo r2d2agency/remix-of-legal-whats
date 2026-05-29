@@ -50,6 +50,7 @@ import docSignaturesRoutes from './routes/doc-signatures.js';
 import telehealthRoutes from './routes/telehealth.js';
 import linkPreviewRoutes from './routes/link-preview.js';
 import salesSeoRoutes from './routes/sales-seo.js';
+import { handleAutoReplies } from './lib/auto-reply-service.js';
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -640,6 +641,11 @@ app.post('/api/meta/webhook', async (req, res) => {
                 });
                 console.warn(`[Meta Webhook] UNSUPPORTED message type "${msgType}" from ${message.from}. Full payload:`, JSON.stringify(message));
             }
+
+            // Auto-replies (Away / Out of Office)
+            handleAutoReplies(connection, from, content).catch(err => {
+              console.error('[Meta] Auto-reply error:', err.message);
+            });
 
             // Persist a stable internal URL by Meta media id.
             // This avoids 404s when temporary lookaside URLs expire or local files are missing.

@@ -7,6 +7,7 @@ import { pauseNurturingOnReply } from './nurturing.js';
 import { emitLeadEvent } from '../lib/event-bus.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
+import { handleAutoReplies } from '../lib/auto-reply-service.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -702,6 +703,11 @@ router.post('/webhook', async (req, res) => {
       case 'message_received':
         console.log('[W-API Webhook] Calling handleIncomingMessage...');
         await handleIncomingMessage(connection, payload);
+        if (!payload.fromMe) {
+          handleAutoReplies(connection, payload.chat?.id || payload.phone, payload.message?.text || '').catch(err => {
+            console.error('[W-API] Auto-reply error:', err.message);
+          });
+        }
         console.log('[W-API Webhook] handleIncomingMessage completed');
         break;
       case 'message_sent':

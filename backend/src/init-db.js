@@ -238,6 +238,14 @@ DO $$ BEGIN
     -- UAZAPI columns
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_url TEXT;
     ALTER TABLE connections ADD COLUMN IF NOT EXISTS uazapi_token TEXT;
+    -- Away message and business hours
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS away_message_enabled BOOLEAN DEFAULT false;
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS away_message TEXT;
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS out_of_office_message_enabled BOOLEAN DEFAULT false;
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS out_of_office_message TEXT;
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS business_hours_start TIME DEFAULT '08:00';
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS business_hours_end TIME DEFAULT '18:00';
+    ALTER TABLE connections ADD COLUMN IF NOT EXISTS business_days INTEGER[] DEFAULT ARRAY[1,2,3,4,5];
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;

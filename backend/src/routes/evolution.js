@@ -12,6 +12,7 @@ import { emitLeadEvent } from '../lib/event-bus.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 import { detectSalesSeoLead, updateSalesSeoEvolution } from '../lib/sales-seo-service.js';
+import { handleAutoReplies } from '../lib/auto-reply-service.js';
 
 
 const router = Router();
@@ -2177,6 +2178,13 @@ async function handleMessageUpsert(connection, data) {
             const flowTriggered = await checkAndTriggerFlow(connection, conversationId, content);
             if (flowTriggered) flowHandled = true;
           }
+        }
+
+        // Auto-replies (Away / Out of Office)
+        if (!fromMe) {
+          handleAutoReplies(connection, rawRemoteJid, content).catch(err => {
+            console.error('[Evolution] Auto-reply error:', err.message);
+          });
         }
 
         // AI agent processing - supports text, audio, image, document, video, sticker
