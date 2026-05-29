@@ -421,18 +421,37 @@ router.patch('/:id', async (req, res) => {
       show_groups,
       meta_token,
       meta_phone_number_id,
-      meta_waba_id
+      meta_waba_id,
+      away_message_enabled,
+      away_message,
+      out_of_office_message_enabled,
+      out_of_office_message,
+      business_hours_start,
+      business_hours_end,
+      business_days
     } = req.body;
 
     const org = await getUserOrganization(req.userId);
 
     // Allow update if user owns the connection OR belongs to same organization
-    let whereClause = 'id = $13 AND user_id = $14';
-    let params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, meta_token, meta_phone_number_id, meta_waba_id, id, req.userId];
+    let whereClause = 'id = $20 AND user_id = $21';
+    let params = [
+      provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, 
+      meta_token, meta_phone_number_id, meta_waba_id,
+      away_message_enabled, away_message, out_of_office_message_enabled, out_of_office_message,
+      business_hours_start, business_hours_end, business_days,
+      id, req.userId
+    ];
 
     if (org) {
-      whereClause = 'id = $13 AND organization_id = $14';
-      params = [provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, meta_token, meta_phone_number_id, meta_waba_id, id, org.organization_id];
+      whereClause = 'id = $20 AND organization_id = $21';
+      params = [
+        provider, api_url, api_key, instance_name, instance_id, wapi_token, name, status, show_groups, 
+        meta_token, meta_phone_number_id, meta_waba_id,
+        away_message_enabled, away_message, out_of_office_message_enabled, out_of_office_message,
+        business_hours_start, business_hours_end, business_days,
+        id, org.organization_id
+      ];
     }
 
     const result = await query(
@@ -449,6 +468,13 @@ router.patch('/:id', async (req, res) => {
            meta_token = COALESCE($10, meta_token),
            meta_phone_number_id = COALESCE($11, meta_phone_number_id),
            meta_waba_id = COALESCE($12, meta_waba_id),
+           away_message_enabled = COALESCE($13, away_message_enabled),
+           away_message = COALESCE($14, away_message),
+           out_of_office_message_enabled = COALESCE($15, out_of_office_message_enabled),
+           out_of_office_message = COALESCE($16, out_of_office_message),
+           business_hours_start = COALESCE($17, business_hours_start),
+           business_hours_end = COALESCE($18, business_hours_end),
+           business_days = COALESCE($19, business_days),
            updated_at = NOW()
        WHERE ${whereClause}
        RETURNING *`,
