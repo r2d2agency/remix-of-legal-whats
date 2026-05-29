@@ -1108,7 +1108,15 @@ const handleGetQRCode = async (connection: Connection) => {
         body.meta_phone_number_id = editMetaPhoneNumberId;
         body.meta_waba_id = editMetaWabaId;
         if (editMetaToken.trim()) {
-          body.meta_token = editMetaToken;
+  const toggleEditWorkingDay = (dayId: number) => {
+    setEditWorkingHours((prev: any) => ({
+      ...prev,
+      work_days: prev.work_days.includes(dayId)
+        ? prev.work_days.filter((d: number) => d !== dayId)
+        : [...prev.work_days, dayId].sort(),
+    }));
+  };
+  
         }
       }
 
