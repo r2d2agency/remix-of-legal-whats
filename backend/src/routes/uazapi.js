@@ -801,7 +801,7 @@ async function handleWebhook(req, res, routeMeta = {}) {
         const message = extractMessageData(payload);
         if (!message.fromMe) {
           // Auto-replies (Away / Out of Office)
-          handleAutoReplies(connection, message.remoteJid, message.content || '').catch(err => {
+          handleAutoReplies(connection, message.chatId || message.remoteJid, message.content || '').catch(err => {
             console.error('[UAZAPI] Auto-reply error:', err.message);
           });
 
