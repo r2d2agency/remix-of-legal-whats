@@ -34,8 +34,9 @@ function isWithinBusinessHours(start, end, days) {
  */
 export async function handleAutoReplies(connection, remoteJid, messageContent) {
   try {
-    // 1. Skip if message is from me or is a group (unless we want auto-replies for groups too, but usually not)
-    if (remoteJid.includes('@g.us')) return;
+    // 1. Skip if message is from me or is a group
+    if (!remoteJid || remoteJid.includes('@g.us') || remoteJid.includes('@temp.g.us') || remoteJid.includes('-')) return;
+
 
     // 2. Out of Office Check (Priority)
     if (connection.out_of_office_message_enabled && connection.out_of_office_message) {
