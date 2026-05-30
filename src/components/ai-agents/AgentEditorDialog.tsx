@@ -110,6 +110,12 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     enabled: !!user?.organization_id,
   });
 
+  const { data: orgDepartments } = useQuery({
+    queryKey: ['org-departments', user?.organization_id],
+    queryFn: () => api<Array<{ id: string; name: string }>>(`/api/organizations/${user?.organization_id}/departments`),
+    enabled: !!user?.organization_id,
+  });
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -138,6 +144,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     notify_external_phone: '',
     notify_external_summary: true,
     default_user_id: '' as string,
+    default_department_id: '' as string,
     appbarber_api_key: '',
     appbarber_establishment_code: '',
   });
@@ -181,9 +188,10 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           notify_external_enabled: (agent as any).notify_external_enabled || false,
           notify_external_phone: (agent as any).notify_external_phone || '',
           notify_external_summary: (agent as any).notify_external_summary !== false,
-          default_user_id: (agent as any).default_user_id || '',
-          appbarber_api_key: (agent as any).appbarber_api_key || '',
-          appbarber_establishment_code: (agent as any).appbarber_establishment_code || '',
+          default_user_id: agent.default_user_id || '',
+          default_department_id: agent.default_department_id || '',
+          appbarber_api_key: agent.appbarber_api_key || '',
+          appbarber_establishment_code: agent.appbarber_establishment_code || '',
         });
       } else {
         setFormData({
@@ -214,6 +222,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           notify_external_phone: '',
           notify_external_summary: true,
           default_user_id: '',
+          default_department_id: '',
           appbarber_api_key: '',
           appbarber_establishment_code: '',
         });
@@ -692,6 +701,48 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
               {/* Handoff Tab */}
               <TabsContent value="handoff" className="space-y-4 mt-0">
                 <div className="grid gap-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="default_user_id">Responsável Padrão</Label>
+                      <Select
+                        value={formData.default_user_id || 'none'}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, default_user_id: v === 'none' ? '' : v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Ninguém (Fila Geral)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Ninguém (Fila Geral)</SelectItem>
+                          {(orgMembers || []).map((m) => (
+                            <SelectItem key={m.user_id} value={m.user_id}>
+                              {m.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="default_department_id">Departamento Padrão</Label>
+                      <Select
+                        value={formData.default_department_id || 'none'}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, default_department_id: v === 'none' ? '' : v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Nenhum (Todos os Agentes)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum (Todos os Agentes)</SelectItem>
+                          {(orgDepartments || []).map((d) => (
+                            <SelectItem key={d.id} value={d.id}>
+                              {d.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <div className="grid gap-2">
                     <Label htmlFor="handoff_message">Mensagem de Transferência</Label>
                     <Textarea

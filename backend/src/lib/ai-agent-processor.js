@@ -422,7 +422,7 @@ async function processMessageInternal({
       const userId = agent.default_user_id || agent.created_by;
 
       if (tools.length > 0) {
-        const toolExecutor = createToolExecutor(organizationId, userId, agent);
+        const toolExecutor = createToolExecutor(organizationId, userId, agent, session, connection, contactPhone);
         logInfo('ai_agent_processor.tools_registered', {
           sessionId: session.id,
           agentId: agent.id,
@@ -945,6 +945,27 @@ async function sendAgentMessage(connection, contactPhone, text, sessionId, maxRe
 async function buildSystemPrompt(agent, organizationId, contactName, userMessage, aiConfig) {
   let prompt = agent.system_prompt || 'Você é um assistente virtual profissional e prestativo.';
 
+  // Add information about available human agents and departments for transfer
+  try {
+    const [usersResult, deptsResult] = await Promise.all([
+      query(`SELECT id, name FROM users WHERE organization_id = $1 AND is_active = true`, [organizationId]),
+      query(`SELECT id, name FROM departments WHERE organization_id = $1 AND is_active = true`, [organizationId])
+    ]);
+
+    if (usersResult.rows.length > 0 || deptsResult.rows.length > 0) {
+      prompt += `\n\n[INFORMAÇÕES DE TRANSFERÊNCIA]`;
+      if (usersResult.rows.length > 0) {
+        prompt += `\nUsuários internos disponíveis para transferência: ${usersResult.rows.map(u => u.name).join(', ')}`;
+      }
+      if (deptsResult.rows.length > 0) {
+        prompt += `\nDepartamentos disponíveis para transferência: ${deptsResult.rows.map(d => d.name).join(', ')}`;
+      }
+      prompt += `\nSe o cliente pedir para falar com um humano ou alguém específico destes nomes/deptos, use a ferramenta transfer_to_human.`;
+    }
+  } catch (e) {
+    // Ignore db errors for prompt building
+  }
+
   // Include agent description as additional context/instructions
   if (agent.description && agent.description.trim()) {
     prompt += `\n\n${agent.description.trim()}`;
@@ -1192,6 +1213,11 @@ async function buildToolsForAgent(agent, capabilities, organizationId) {
     }
   }
 
+  // Always allow transfer to human if requested by capabilities or if it's a core function
+  if (capabilities.includes('respond_messages')) {
+    tools.push(buildTransferTool());
+  }
+
   return tools;
 }
 
@@ -1298,6 +1324,24 @@ function buildScheduleMeetingsTool() {
           notes: { type: 'string' },
         },
         required: ['title', 'date'],
+      },
+    },
+  };
+}
+
+function buildTransferTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'transfer_to_human',
+      description: 'Transfere o atendimento para um atendente humano. Use quando o cliente solicitar explicitamente ou quando o problema for complexo demais.',
+      parameters: {
+        type: 'object',
+        properties: {
+          reason: { type: 'string', description: 'Motivo da transferência' },
+          target_user_name: { type: 'string', description: 'Nome do usuário interno para quem transferir (opcional)' },
+          target_department_name: { type: 'string', description: 'Nome do departamento/grupo para quem transferir (opcional)' },
+        },
       },
     },
   };
@@ -1747,9 +1791,11 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
 
 
 
-function createToolExecutor(organizationId, userId, agent) {
+function createToolExecutor(organizationId, userId, agent, session, connection, contactPhone) {
   return async (toolName, args) => {
     switch (toolName) {
+      case 'transfer_to_human':
+        return executeTransferToHuman(session, agent, connection, contactPhone, args);
       case 'create_deal':
         return executeCreateDeal(organizationId, userId, args);
       case 'manage_tasks':
@@ -1846,6 +1892,46 @@ async function executeSummarizeHistory(args) {
     key_points: (args.key_points || '').split('|').map(s => s.trim()).filter(Boolean),
     customer_sentiment: args.customer_sentiment,
   });
+}
+
+async function executeTransferToHuman(session, agent, connection, contactPhone, args) {
+  try {
+    const organizationId = agent.organization_id;
+    let targetUserId = null;
+    let targetDepartmentId = null;
+
+    if (args.target_user_name) {
+      const userResult = await query(
+        `SELECT id, name FROM users WHERE organization_id = $1 AND (name ILIKE $2 OR email ILIKE $2) AND is_active = true LIMIT 1`,
+        [organizationId, `%${args.target_user_name}%`]
+      );
+      if (userResult.rows.length > 0) {
+        targetUserId = userResult.rows[0].id;
+      }
+    }
+
+    if (args.target_department_name) {
+      const deptResult = await query(
+        `SELECT id, name FROM departments WHERE organization_id = $1 AND name ILIKE $2 AND is_active = true LIMIT 1`,
+        [organizationId, `%${args.target_department_name}%`]
+      );
+      if (deptResult.rows.length > 0) {
+        targetDepartmentId = deptResult.rows[0].id;
+      }
+    }
+
+    // Call handoff with resolved IDs or default agent settings
+    await handleHandoff(session, {
+      ...agent,
+      default_user_id: targetUserId || agent.default_user_id,
+      default_department_id: targetDepartmentId || agent.default_department_id,
+    }, connection, contactPhone, args.reason || 'solicitado_pela_ia');
+
+    return `Transferência concluída${targetUserId ? ' para ' + args.target_user_name : ''}${targetDepartmentId ? ' (depto: ' + args.target_department_name + ')' : ''}. O atendimento pela IA foi encerrado.`;
+  } catch (error) {
+    logError('ai_agent_processor.execute_transfer_error', error);
+    return `Erro ao processar transferência: ${error.message}`;
+  }
 }
 
 async function resolveUserInOrg(organizationId, nameOrEmail) {
