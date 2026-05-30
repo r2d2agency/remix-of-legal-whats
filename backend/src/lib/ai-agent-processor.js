@@ -422,7 +422,7 @@ async function processMessageInternal({
       const userId = agent.default_user_id || agent.created_by;
 
       if (tools.length > 0) {
-        const toolExecutor = createToolExecutor(organizationId, userId, agent);
+        const toolExecutor = createToolExecutor(organizationId, userId, agent, session, connection, contactPhone);
         logInfo('ai_agent_processor.tools_registered', {
           sessionId: session.id,
           agentId: agent.id,
