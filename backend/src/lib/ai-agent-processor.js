@@ -1873,6 +1873,46 @@ async function executeSummarizeHistory(args) {
   });
 }
 
+async function executeTransferToHuman(session, agent, connection, contactPhone, args) {
+  try {
+    const organizationId = agent.organization_id;
+    let targetUserId = null;
+    let targetDepartmentId = null;
+
+    if (args.target_user_name) {
+      const userResult = await query(
+        `SELECT id, name FROM users WHERE organization_id = $1 AND (name ILIKE $2 OR email ILIKE $2) AND is_active = true LIMIT 1`,
+        [organizationId, `%${args.target_user_name}%`]
+      );
+      if (userResult.rows.length > 0) {
+        targetUserId = userResult.rows[0].id;
+      }
+    }
+
+    if (args.target_department_name) {
+      const deptResult = await query(
+        `SELECT id, name FROM departments WHERE organization_id = $1 AND name ILIKE $2 AND is_active = true LIMIT 1`,
+        [organizationId, `%${args.target_department_name}%`]
+      );
+      if (deptResult.rows.length > 0) {
+        targetDepartmentId = deptResult.rows[0].id;
+      }
+    }
+
+    // Call handoff with resolved IDs or default agent settings
+    await handleHandoff(session, {
+      ...agent,
+      default_user_id: targetUserId || agent.default_user_id,
+      default_department_id: targetDepartmentId || agent.default_department_id,
+    }, connection, contactPhone, args.reason || 'solicitado_pela_ia');
+
+    return `Transferência concluída${targetUserId ? ' para ' + args.target_user_name : ''}${targetDepartmentId ? ' (depto: ' + args.target_department_name + ')' : ''}. O atendimento pela IA foi encerrado.`;
+  } catch (error) {
+    logError('ai_agent_processor.execute_transfer_error', error);
+    return `Erro ao processar transferência: ${error.message}`;
+  }
+}
+
 async function resolveUserInOrg(organizationId, nameOrEmail) {
   if (!nameOrEmail) return null;
   const result = await query(`
