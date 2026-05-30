@@ -138,6 +138,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     notify_external_phone: '',
     notify_external_summary: true,
     default_user_id: '' as string,
+    default_department_id: '' as string,
     appbarber_api_key: '',
     appbarber_establishment_code: '',
   });
