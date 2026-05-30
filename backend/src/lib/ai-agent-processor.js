@@ -1192,6 +1192,11 @@ async function buildToolsForAgent(agent, capabilities, organizationId) {
     }
   }
 
+  // Always allow transfer to human if requested by capabilities or if it's a core function
+  if (capabilities.includes('respond_messages')) {
+    tools.push(buildTransferTool());
+  }
+
   return tools;
 }
 
