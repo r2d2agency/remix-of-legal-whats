@@ -701,6 +701,48 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
               {/* Handoff Tab */}
               <TabsContent value="handoff" className="space-y-4 mt-0">
                 <div className="grid gap-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="default_user_id">Responsável Padrão</Label>
+                      <Select
+                        value={formData.default_user_id || 'none'}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, default_user_id: v === 'none' ? '' : v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Ninguém (Fila Geral)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Ninguém (Fila Geral)</SelectItem>
+                          {(orgMembers || []).map((m) => (
+                            <SelectItem key={m.user_id} value={m.user_id}>
+                              {m.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="default_department_id">Departamento Padrão</Label>
+                      <Select
+                        value={formData.default_department_id || 'none'}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, default_department_id: v === 'none' ? '' : v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Nenhum (Todos os Agentes)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum (Todos os Agentes)</SelectItem>
+                          {(orgDepartments || []).map((d) => (
+                            <SelectItem key={d.id} value={d.id}>
+                              {d.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <div className="grid gap-2">
                     <Label htmlFor="handoff_message">Mensagem de Transferência</Label>
                     <Textarea
