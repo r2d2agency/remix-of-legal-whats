@@ -1308,6 +1308,24 @@ function buildScheduleMeetingsTool() {
   };
 }
 
+function buildTransferTool() {
+  return {
+    type: 'function',
+    function: {
+      name: 'transfer_to_human',
+      description: 'Transfere o atendimento para um atendente humano. Use quando o cliente solicitar explicitamente ou quando o problema for complexo demais.',
+      parameters: {
+        type: 'object',
+        properties: {
+          reason: { type: 'string', description: 'Motivo da transferência' },
+          target_user_name: { type: 'string', description: 'Nome do usuário interno para quem transferir (opcional)' },
+          target_department_name: { type: 'string', description: 'Nome do departamento/grupo para quem transferir (opcional)' },
+        },
+      },
+    },
+  };
+}
+
 function buildGoogleCalendarTool() {
   return {
     type: 'function',
