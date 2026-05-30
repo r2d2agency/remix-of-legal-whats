@@ -945,6 +945,27 @@ async function sendAgentMessage(connection, contactPhone, text, sessionId, maxRe
 async function buildSystemPrompt(agent, organizationId, contactName, userMessage, aiConfig) {
   let prompt = agent.system_prompt || 'Você é um assistente virtual profissional e prestativo.';
 
+  // Add information about available human agents and departments for transfer
+  try {
+    const [usersResult, deptsResult] = await Promise.all([
+      query(`SELECT id, name FROM users WHERE organization_id = $1 AND is_active = true`, [organizationId]),
+      query(`SELECT id, name FROM departments WHERE organization_id = $1 AND is_active = true`, [organizationId])
+    ]);
+
+    if (usersResult.rows.length > 0 || deptsResult.rows.length > 0) {
+      prompt += `\n\n[INFORMAÇÕES DE TRANSFERÊNCIA]`;
+      if (usersResult.rows.length > 0) {
+        prompt += `\nUsuários internos disponíveis para transferência: ${usersResult.rows.map(u => u.name).join(', ')}`;
+      }
+      if (deptsResult.rows.length > 0) {
+        prompt += `\nDepartamentos disponíveis para transferência: ${deptsResult.rows.map(d => d.name).join(', ')}`;
+      }
+      prompt += `\nSe o cliente pedir para falar com um humano ou alguém específico destes nomes/deptos, use a ferramenta transfer_to_human.`;
+    }
+  } catch (e) {
+    // Ignore db errors for prompt building
+  }
+
   // Include agent description as additional context/instructions
   if (agent.description && agent.description.trim()) {
     prompt += `\n\n${agent.description.trim()}`;
