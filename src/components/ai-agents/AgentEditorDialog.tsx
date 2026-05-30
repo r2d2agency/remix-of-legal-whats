@@ -110,6 +110,12 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
     enabled: !!user?.organization_id,
   });
 
+  const { data: orgDepartments } = useQuery({
+    queryKey: ['org-departments', user?.organization_id],
+    queryFn: () => api<Array<{ id: string; name: string }>>(`/api/organizations/${user?.organization_id}/departments`),
+    enabled: !!user?.organization_id,
+  });
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
