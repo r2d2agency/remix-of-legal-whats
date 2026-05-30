@@ -1770,9 +1770,11 @@ async function executeAppBarberToolDirect(toolName, args, agent) {
 
 
 
-function createToolExecutor(organizationId, userId, agent) {
+function createToolExecutor(organizationId, userId, agent, session, connection, contactPhone) {
   return async (toolName, args) => {
     switch (toolName) {
+      case 'transfer_to_human':
+        return executeTransferToHuman(session, agent, connection, contactPhone, args);
       case 'create_deal':
         return executeCreateDeal(organizationId, userId, args);
       case 'manage_tasks':
