@@ -182,9 +182,10 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           notify_external_enabled: (agent as any).notify_external_enabled || false,
           notify_external_phone: (agent as any).notify_external_phone || '',
           notify_external_summary: (agent as any).notify_external_summary !== false,
-          default_user_id: (agent as any).default_user_id || '',
-          appbarber_api_key: (agent as any).appbarber_api_key || '',
-          appbarber_establishment_code: (agent as any).appbarber_establishment_code || '',
+          default_user_id: agent.default_user_id || '',
+          default_department_id: agent.default_department_id || '',
+          appbarber_api_key: agent.appbarber_api_key || '',
+          appbarber_establishment_code: agent.appbarber_establishment_code || '',
         });
       } else {
         setFormData({
@@ -215,6 +216,7 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
           notify_external_phone: '',
           notify_external_summary: true,
           default_user_id: '',
+          default_department_id: '',
           appbarber_api_key: '',
           appbarber_establishment_code: '',
         });
