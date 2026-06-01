@@ -73,7 +73,7 @@ router.put('/config', async (req, res) => {
       notify_external_enabled, notify_external_phone,
       notify_members_whatsapp, default_connection_id,
       followup_enabled, followup_hours,
-      daily_digest_enabled, daily_digest_hour,
+      daily_digest_enabled, daily_digest_hour, daily_digest_minute,
       auto_reply_enabled, auto_reply_message,
       excluded_senders,
     } = req.body;
