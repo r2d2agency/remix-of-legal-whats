@@ -146,8 +146,9 @@ export async function dispatchLeadEvent(event) {
         break;
       case 'message_sent':
       case 'follow_up_sent':
-        // Currently informational only — recorded for audit.
+        await handleMessageSent(event);
         break;
+
       default:
         logInfo(`[event-bus] no handler for ${event.event_type}`);
     }
