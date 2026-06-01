@@ -167,7 +167,7 @@ function SidebarContentComponent({ isExpanded, isSuperadmin, onNavigate }: Sideb
   const [openSections, setOpenSections] = useState<string[]>(["Atendimento"]);
 
   // Helper to check if user has admin-level role
-  const isAdminRole = (role?: string) => ['owner', 'admin', 'manager'].includes(role || '');
+  const isAdminRole = (role?: string) => ['owner', 'admin', 'manager', 'supervisor'].includes(role || '');
   const isOwnerRole = (role?: string) => role === 'owner';
   const userIsAdmin = isSuperadmin || isAdminRole(user?.role);
   const userIsOwner = isSuperadmin || isOwnerRole(user?.role);

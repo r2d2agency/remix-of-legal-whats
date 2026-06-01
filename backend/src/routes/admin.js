@@ -599,7 +599,7 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
   try {
     // Get all plans with their modules
     const plansResult = await query(
-      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_projects, has_lead_gleego, has_doc_signatures FROM plans`
+      `SELECT id, name, has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_projects, has_lead_gleego, has_doc_signatures, has_ghost, has_supervisor FROM plans`
     );
 
     let syncedCount = 0;
@@ -622,6 +622,8 @@ router.post('/plans/sync-all', requireSuperadmin, async (req, res) => {
         projects: plan.has_projects ?? false,
         lead_gleego: plan.has_lead_gleego ?? false,
         doc_signatures: plan.has_doc_signatures ?? false,
+        ghost: plan.has_ghost ?? false,
+        supervisor: plan.has_supervisor ?? false
       };
 
       console.log(`[sync-all] Plan "${plan.name}" (${plan.id}) modules:`, modulesEnabled);
@@ -995,7 +997,7 @@ router.patch('/organizations/:id', requireSuperadmin, async (req, res) => {
     let modulesEnabled = null;
     if (plan_id && sync_modules !== false) {
       const planResult = await query(
-        `SELECT has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_lead_gleego FROM plans WHERE id = $1`,
+        `SELECT has_campaigns, has_asaas_integration, has_whatsapp_groups, has_scheduled_messages, has_chatbots, has_chat, has_crm, has_ai_agents, has_departments, has_lead_scoring, has_ai_summary, has_group_secretary, has_projects, has_lead_gleego, has_doc_signatures, has_ghost, has_supervisor FROM plans WHERE id = $1`,
         [plan_id]
       );
       if (planResult.rows.length > 0) {
@@ -1008,7 +1010,16 @@ router.patch('/organizations/:id', requireSuperadmin, async (req, res) => {
           chatbots: plan.has_chatbots ?? true,
           chat: plan.has_chat ?? true,
           crm: plan.has_crm ?? true,
+          ai_agents: plan.has_ai_agents ?? true,
+          departments: plan.has_departments ?? true,
+          lead_scoring: plan.has_lead_scoring ?? true,
+          ai_summary: plan.has_ai_summary ?? true,
+          group_secretary: plan.has_group_secretary ?? false,
+          projects: plan.has_projects ?? false,
           lead_gleego: plan.has_lead_gleego ?? false,
+          doc_signatures: plan.has_doc_signatures ?? false,
+          ghost: plan.has_ghost ?? false,
+          supervisor: plan.has_supervisor ?? false
         };
       }
     }

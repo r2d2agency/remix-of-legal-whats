@@ -46,7 +46,7 @@ interface OrganizationMember {
   user_id: string;
   name: string;
   email: string;
-  role: 'owner' | 'admin' | 'manager' | 'agent';
+  role: 'owner' | 'admin' | 'manager' | 'agent' | 'supervisor';
   is_active?: boolean;
   assigned_connections: AssignedConnection[];
   assigned_departments: AssignedDepartment[];
@@ -85,8 +85,9 @@ interface OrgDepartment {
 const roleLabels = {
   owner: { label: 'Proprietário', icon: Crown, color: 'bg-amber-500' },
   admin: { label: 'Admin', icon: Shield, color: 'bg-blue-500' },
-  manager: { label: 'Supervisor', icon: Briefcase, color: 'bg-green-500' },
-  agent: { label: 'Agente', icon: User, color: 'bg-gray-500' }
+  manager: { label: 'Gerente', icon: Briefcase, color: 'bg-green-500' },
+  agent: { label: 'Agente', icon: User, color: 'bg-gray-500' },
+  supervisor: { label: 'Supervisor IA', icon: Shield, color: 'bg-indigo-500' }
 };
 
 export default function Organizacoes() {
@@ -1126,8 +1127,9 @@ export default function Organizacoes() {
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="admin">Admin - Gerencia tudo</SelectItem>
-                                        <SelectItem value="manager">Supervisor - Apenas visualização</SelectItem>
-                                        <SelectItem value="agent">Agente - Acesso básico</SelectItem>
+                                        <SelectItem value="manager">Gerente - Gestão de equipe</SelectItem>
+                                        <SelectItem value="supervisor">Supervisor IA - Auditoria e Monitoramento</SelectItem>
+                                        <SelectItem value="agent">Agente - Vendedor / Atendente</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -1855,8 +1857,9 @@ export default function Organizacoes() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="admin">Admin - Gerencia tudo</SelectItem>
-                      <SelectItem value="manager">Supervisor - Visualização avançada</SelectItem>
-                      <SelectItem value="agent">Agente - Acesso básico</SelectItem>
+                      <SelectItem value="manager">Gerente - Gestão de equipe</SelectItem>
+                      <SelectItem value="supervisor">Supervisor IA - Auditoria e Monitoramento</SelectItem>
+                      <SelectItem value="agent">Agente - Vendedor / Atendente</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
