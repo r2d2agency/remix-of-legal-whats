@@ -2147,7 +2147,8 @@ router.post('/conversations/:id/messages', authenticate, async (req, res) => {
           message_type,
           media_url,
           filename,
-          duration
+          duration,
+          media_mimetype
         );
 
         if (result.success) {

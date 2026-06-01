@@ -493,7 +493,7 @@ export async function disconnect(connection) {
 /**
  * Send message (unified)
  */
-export async function sendMessage(connection, phone, content, messageType, mediaUrl, filename = null, duration = null) {
+export async function sendMessage(connection, phone, content, messageType, mediaUrl, filename = null, duration = null, mimetype = null) {
   const provider = detectProvider(connection);
   const startedAt = Date.now();
 
@@ -517,7 +517,8 @@ export async function sendMessage(connection, phone, content, messageType, media
         mediaUrl,
         filename,
         null,
-        duration
+        duration,
+        mimetype
       );
       logInfo('whatsapp.send_message_uazapi_result', {
         connection_id: connection.id,
@@ -597,6 +598,7 @@ export async function sendMessage(connection, phone, content, messageType, media
         number: phone,
         audio: mediaUrl,
         delay: 1200,
+        seconds: duration ? Math.floor(Number(duration)) : undefined,
       };
     } else {
       // image, video, document
