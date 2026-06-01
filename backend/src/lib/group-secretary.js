@@ -670,7 +670,9 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
     );
     const config = configResult.rows[0] || {};
     const aiConfig = await getAIConfig(organizationId, config);
-    if (!aiConfig || !aiConfig.apiKey) return null;
+    if (!aiConfig || !aiConfig.apiKey) {
+      throw new Error('Configuração de IA não encontrada. Configure a API Key na aba Configurações ou na Organização.');
+    }
 
     // Get team members for context
     const membersResult = await query(
