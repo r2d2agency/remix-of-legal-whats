@@ -724,27 +724,16 @@ export default function SupervisorIA() {
             <Dialog open={editMemberDialogOpen} onOpenChange={setEditMemberDialogOpen}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Editar Membro: {editingMember?.name}</DialogTitle>
-                  <CardDescription>Ajuste o papel e as conexões monitoradas para este vendedor.</CardDescription>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Monitor className="h-5 w-5 text-primary" />
+                    Mapear Vendedor: {editingMember?.name}
+                  </DialogTitle>
+                  <CardDescription>Defina as conexões e funis que o Supervisor IA deve monitorar para este usuário.</CardDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label>Papel na Organização</Label>
-                    <Select value={editMemberRole} onValueChange={setEditMemberRole}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um papel" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="agent">Agente (Vendedor)</SelectItem>
-                        <SelectItem value="manager">Gerente</SelectItem>
-                        <SelectItem value="supervisor">Supervisor IA</SelectItem>
-                        <SelectItem value="admin">Administrador</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Conexões Atribuídas</Label>
-                    <div className="border rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto bg-muted/20">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Conexões de WhatsApp</Label>
+                    <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
                       {(orgConnections || []).map((conn: any) => (
                         <div key={conn.id} className="flex items-center space-x-2">
                           <Checkbox 
@@ -771,14 +760,57 @@ export default function SupervisorIA() {
                       )}
                     </div>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Funis do Kanban</Label>
+                    <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
+                      {(funnels || []).map((f: any) => (
+                        <div key={f.id} className="flex items-center space-x-2">
+                          <Checkbox 
+                            id={`member-funnel-${f.id}`}
+                            checked={editMemberFunnels.includes(f.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setEditMemberFunnels([...editMemberFunnels, f.id]);
+                              } else {
+                                setEditMemberFunnels(editMemberFunnels.filter(id => id !== f.id));
+                              }
+                            }}
+                          />
+                          <label 
+                            htmlFor={`member-funnel-${f.id}`}
+                            className="text-sm font-medium leading-none cursor-pointer"
+                          >
+                            {f.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Papel (Permissão)</Label>
+                    <Select value={editMemberRole} onValueChange={setEditMemberRole}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="agent">Agente (Vendedor)</SelectItem>
+                        <SelectItem value="manager">Gerente</SelectItem>
+                        <SelectItem value="supervisor">Supervisor IA</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button variant="ghost" onClick={() => setEditMemberDialogOpen(false)}>Cancelar</Button>
                   <Button 
                     onClick={handleSaveMember}
                     disabled={updateMemberMutation.isPending}
+                    className="gap-2"
                   >
-                    {updateMemberMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+                    <Save className="h-4 w-4" />
+                    {updateMemberMutation.isPending ? "Salvando..." : "Salvar Mapeamento"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
