@@ -455,10 +455,12 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
     mimetype: mimetype || undefined,
   };
 
-  if (seconds) {
+  if (seconds !== null && seconds !== undefined) {
     const s = Math.floor(Number(seconds));
-    body.seconds = s;
-    body.duration = s;
+    if (!isNaN(s)) {
+      body.seconds = s;
+      body.duration = s;
+    }
   }
 
   if (caption) body.text = caption;

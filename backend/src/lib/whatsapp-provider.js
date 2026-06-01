@@ -598,7 +598,7 @@ export async function sendMessage(connection, phone, content, messageType, media
         number: phone,
         audio: mediaUrl,
         delay: 1200,
-        seconds: duration ? Math.floor(Number(duration)) : undefined,
+        seconds: (duration !== null && duration !== undefined && !isNaN(Number(duration))) ? Math.floor(Number(duration)) : undefined,
       };
     } else {
       // image, video, document
