@@ -7,17 +7,28 @@ import * as whatsappProvider from './lib/whatsapp-provider.js';
  */
 export async function executeSecretaryDigest() {
   try {
+    // Get current time in Sao Paulo
     const now = new Date();
-    const currentHour = now.getHours();
+    const saoPauloTime = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    }).formatToParts(now);
 
-    // Get configs with daily digest enabled and matching digest hour
+    const currentHour = parseInt(saoPauloTime.find(p => p.type === 'hour').value);
+    const currentMinute = parseInt(saoPauloTime.find(p => p.type === 'minute').value);
+
+    // Get configs with daily digest enabled and matching digest hour/minute
+    // If daily_digest_minute is NULL, we assume 0 for backward compatibility
     const configResult = await query(`
       SELECT * FROM group_secretary_config 
       WHERE is_active = true 
         AND daily_digest_enabled = true
         AND daily_digest_hour = $1
+        AND COALESCE(daily_digest_minute, 0) = $2
         AND (notify_external_phone IS NOT NULL OR notify_members_whatsapp = true)
-    `, [currentHour]);
+    `, [currentHour, currentMinute]);
 
     if (configResult.rows.length === 0) return;
 
