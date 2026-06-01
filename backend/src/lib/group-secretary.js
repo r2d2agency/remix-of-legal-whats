@@ -640,23 +640,25 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
        WHERE c.id = $1 AND conn.organization_id = $2`,
       [conversationId, organizationId]
     );
-    if (convResult.rows.length === 0) return null;
+    if (convResult.rows.length === 0) throw new Error('Conversa não encontrada');
     const conv = convResult.rows[0];
 
     // Get recent messages
     const messagesResult = await query(
-      `SELECT m.content, m.sender_name, m.from_me, m.created_at, m.media_type
-       FROM messages m
+      `SELECT m.content, m.sender_name, m.from_me, m.timestamp as created_at, m.message_type
+       FROM chat_messages m
        WHERE m.conversation_id = $1 
-         AND m.created_at >= NOW() - INTERVAL '1 hour' * $2
+         AND m.timestamp >= NOW() - INTERVAL '1 hour' * $2
          AND m.content IS NOT NULL AND m.content != ''
-         AND m.media_type IN ('text', 'extendedTextMessage', 'conversation')
-       ORDER BY m.created_at ASC
+         AND m.message_type IN ('text', 'extendedTextMessage', 'conversation', 'chat')
+       ORDER BY m.timestamp ASC
        LIMIT 500`,
       [conversationId, hours]
     );
 
-    if (messagesResult.rows.length < 3) return null;
+    if (messagesResult.rows.length < 3) {
+      throw new Error(`Não há mensagens suficientes no período selecionado (${messagesResult.rows.length} encontradas). São necessárias pelo menos 3 mensagens de texto.`);
+    }
 
     const messages = messagesResult.rows;
     const participants = [...new Set(messages.map(m => m.sender_name).filter(Boolean))];
@@ -668,7 +670,9 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
     );
     const config = configResult.rows[0] || {};
     const aiConfig = await getAIConfig(organizationId, config);
-    if (!aiConfig || !aiConfig.apiKey) return null;
+    if (!aiConfig || !aiConfig.apiKey) {
+      throw new Error('Configuração de IA não encontrada. Configure a API Key na aba Configurações ou na Organização.');
+    }
 
     // Get team members for context
     const membersResult = await query(
@@ -720,7 +724,9 @@ MENSAGENS:
 ${messageLog}`;
 
     const aiResult = await callAI(aiConfig, systemPrompt, userPrompt);
-    if (!aiResult) return null;
+    if (!aiResult) {
+      throw new Error('A IA não retornou um resultado válido para a ata. Tente novamente mais tarde.');
+    }
 
     // Save to database
     const periodStart = messages[0]?.created_at;
@@ -752,6 +758,6 @@ ${messageLog}`;
     return insertResult.rows[0];
   } catch (error) {
     logError('group_secretary.meeting_minutes_error', error);
-    return null;
+    throw error; // Rethrow to let the router handle it
   }
 }
