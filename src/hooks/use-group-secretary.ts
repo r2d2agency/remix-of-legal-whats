@@ -20,6 +20,7 @@ export interface SecretaryConfig {
   followup_hours?: number;
   daily_digest_enabled?: boolean;
     daily_digest_hour?: number;
+    daily_digest_minute?: number;
     daily_digest_type?: 'detailed' | 'analytical';
   auto_reply_enabled?: boolean;
   auto_reply_message?: string;

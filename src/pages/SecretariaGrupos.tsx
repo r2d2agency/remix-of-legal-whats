@@ -36,7 +36,7 @@ export default function SecretariaGrupos() {
     notify_external_enabled: false, notify_external_phone: '',
     notify_members_whatsapp: false, default_connection_id: null,
     followup_enabled: false, followup_hours: 4,
-    daily_digest_enabled: false, daily_digest_hour: 8, daily_digest_type: 'detailed',
+    daily_digest_enabled: false, daily_digest_hour: 8, daily_digest_minute: 0, daily_digest_type: 'detailed',
     auto_reply_enabled: false, auto_reply_message: '',
     excluded_senders: [],
   });
@@ -648,19 +648,39 @@ export default function SecretariaGrupos() {
                   {config.daily_digest_enabled && (
                     <div className="space-y-1.5">
                       <Label>Horário do envio</Label>
-                      <Select
-                        value={String(config.daily_digest_hour ?? 8)}
-                        onValueChange={(v) => setConfig((c) => ({ ...c, daily_digest_hour: parseInt(v) }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from({ length: 24 }, (_, i) => (
-                            <SelectItem key={i} value={String(i)}>{String(i).padStart(2, '0')}:00</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <Select
+                            value={String(config.daily_digest_hour ?? 8)}
+                            onValueChange={(v) => setConfig((c) => ({ ...c, daily_digest_hour: parseInt(v) }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Hora" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 24 }, (_, i) => (
+                                <SelectItem key={i} value={String(i)}>{String(i).padStart(2, '0')}h</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <span className="text-muted-foreground">:</span>
+                        <div className="flex-1">
+                          <Select
+                            value={String(config.daily_digest_minute ?? 0)}
+                            onValueChange={(v) => setConfig((c) => ({ ...c, daily_digest_minute: parseInt(v) }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Minuto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
+                                <SelectItem key={m} value={String(m)}>{String(m).padStart(2, '0')}m</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                     </div>
                   )}
                   {config.daily_digest_enabled && (

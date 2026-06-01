@@ -1031,8 +1031,8 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
 
-    // Secretary daily digest - checks every hour (matches digest_hour config)
-    cron.schedule('0 * * * *', async () => {
+    // Secretary daily digest - checks every minute (matches digest_hour and digest_minute config)
+    cron.schedule('* * * * *', async () => {
       try {
         await executeSecretaryDigest();
       } catch (error) {
