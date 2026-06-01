@@ -645,13 +645,13 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
 
     // Get recent messages
     const messagesResult = await query(
-      `SELECT m.content, m.sender_name, m.from_me, m.created_at, m.media_type
-       FROM messages m
+      `SELECT m.content, m.sender_name, m.from_me, m.timestamp as created_at, m.message_type
+       FROM chat_messages m
        WHERE m.conversation_id = $1 
-         AND m.created_at >= NOW() - INTERVAL '1 hour' * $2
+         AND m.timestamp >= NOW() - INTERVAL '1 hour' * $2
          AND m.content IS NOT NULL AND m.content != ''
-         AND m.media_type IN ('text', 'extendedTextMessage', 'conversation')
-       ORDER BY m.created_at ASC
+         AND m.message_type IN ('text', 'extendedTextMessage', 'conversation')
+       ORDER BY m.timestamp ASC
        LIMIT 500`,
       [conversationId, hours]
     );
