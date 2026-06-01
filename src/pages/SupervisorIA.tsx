@@ -64,7 +64,19 @@ export default function SupervisorIA() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [period, setPeriod] = useState("30d");
+  const [selectedFunnel, setSelectedFunnel] = useState<string>("all");
   const queryClient = useQueryClient();
+
+  // Fetch Funnels for filters
+  const { data: funnels } = useQuery({
+    queryKey: ['supervisor-funnels'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/api/crm/funnels`, {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      return res.json();
+    }
+  });
 
   // Check module permission
   const isEnabled = user?.modules_enabled?.supervisor === true || user?.is_superadmin;
@@ -83,9 +95,10 @@ export default function SupervisorIA() {
 
   // Fetch Stats
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['supervisor-stats', period],
+    queryKey: ['supervisor-stats', period, selectedFunnel],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/supervisor/stats?period=${period}`, {
+      const funnelParam = selectedFunnel !== 'all' ? `&funnelId=${selectedFunnel}` : '';
+      const res = await fetch(`${API_URL}/supervisor/stats?period=${period}${funnelParam}`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       return res.json();
@@ -269,9 +282,22 @@ export default function SupervisorIA() {
           </div>
           
           <div className="flex items-center gap-2">
+            <Select value={selectedFunnel} onValueChange={setSelectedFunnel}>
+              <SelectTrigger className="w-[180px]">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Filtrar por Funil" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Funis</SelectItem>
+                {(funnels || []).map((f: any) => (
+                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Select value={period} onValueChange={setPeriod}>
               <SelectTrigger className="w-[150px]">
-                <Filter className="h-4 w-4 mr-2" />
+                <Clock className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Período" />
               </SelectTrigger>
               <SelectContent>
@@ -355,7 +381,39 @@ export default function SupervisorIA() {
                         value={localSettings?.reactivation_days || ""}
                         onChange={(e) => setLocalSettings({...localSettings, reactivation_days: parseInt(e.target.value)})}
                       />
+                    <div className="grid gap-2">
+                      <Label>Funis Monitorados</Label>
+                      <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto">
+                        {(funnels || []).map((f: any) => (
+                          <div key={f.id} className="flex items-center space-x-2">
+                            <Checkbox 
+                              id={`funnel-${f.id}`}
+                              checked={!localSettings?.monitored_funnels || localSettings.monitored_funnels.includes(f.id)}
+                              onCheckedChange={(checked) => {
+                                const current = localSettings?.monitored_funnels || funnels.map((fun: any) => fun.id);
+                                let next;
+                                if (checked) {
+                                  next = [...current, f.id];
+                                } else {
+                                  next = current.filter((id: string) => id !== f.id);
+                                }
+                                setLocalSettings({...localSettings, monitored_funnels: next});
+                              }}
+                            />
+                            <label 
+                              htmlFor={`funnel-${f.id}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              {f.name}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Se nenhum funil for selecionado, todos serão monitorados.
+                      </p>
                     </div>
+
                     
                     <Button 
                       variant="secondary" 
