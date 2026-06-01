@@ -427,11 +427,55 @@ export default function SupervisorIA() {
               </CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="audits" className="mt-6">
+            <Card>
+              <CardContent className="p-0">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium">Lead</th>
+                      <th className="px-4 py-3 text-left font-medium">Vendedor</th>
+                      <th className="px-4 py-3 text-left font-medium">Data Análise</th>
+                      <th className="px-4 py-3 text-left font-medium">Status</th>
+                      <th className="px-4 py-3 text-left font-medium">Motivo</th>
+                      <th className="px-4 py-3 text-left font-medium">Urgência</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {audits?.map((audit: any) => (
+                      <tr key={audit.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 font-medium">{audit.lead_name}</td>
+                        <td className="px-4 py-3">{audit.seller_name}</td>
+                        <td className="px-4 py-3">{new Date(audit.analysis_date).toLocaleString()}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline">{audit.status_found}</Badge>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">{audit.reason}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant={audit.urgency === 'high' ? 'destructive' : 'secondary'}>
+                            {audit.urgency}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                    {audits?.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="text-center py-10 text-muted-foreground">
+                          Nenhuma auditoria realizada ainda.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
     </MainLayout>
   );
 }
+
 
 function StatCard({ title, value, icon: Icon, color }: any) {
   const colors: any = {
