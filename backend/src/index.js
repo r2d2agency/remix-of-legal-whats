@@ -1076,6 +1076,21 @@ initDatabase().then((ok) => {
         console.error('⏳ [CRON] Error checking wait_reply timeouts:', error);
       }
     });
+
+    // Supervisor IA Daily Audit - runs at 19:00
+    cron.schedule('0 19 * * *', async () => {
+      try {
+        const { executeDailyAudit } = await import('./supervisor-audit-scheduler.js');
+        await executeDailyAudit();
+      } catch (error) {
+        console.error('🛡️ [CRON] Error executing supervisor daily audit:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+    console.log('🛡️ Supervisor IA daily audit scheduled - runs at 19:00 daily');
+
+    });
     console.log('⏳ Wait reply timeout checker started - checks every minute');
   });
 });
