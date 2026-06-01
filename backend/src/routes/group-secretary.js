@@ -424,14 +424,12 @@ router.post('/meeting-minutes/generate', async (req, res) => {
       generatedBy: req.userId,
     });
 
-    if (!result) {
-      return res.status(400).json({ error: 'Não foi possível gerar a ata. Verifique se há mensagens no período e se a IA está configurada.' });
-    }
-
     res.json(result);
   } catch (error) {
     console.error('Generate meeting minutes error:', error);
-    res.status(500).json({ error: 'Erro ao gerar ata de reunião' });
+    res.status(error.status || 500).json({ 
+      error: error.message || 'Erro ao gerar ata de reunião' 
+    });
   }
 });
 
