@@ -656,7 +656,9 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
       [conversationId, hours]
     );
 
-    if (messagesResult.rows.length < 3) return null;
+    if (messagesResult.rows.length < 3) {
+      throw new Error(`Não há mensagens suficientes no período selecionado (${messagesResult.rows.length} encontradas). São necessárias pelo menos 3 mensagens de texto.`);
+    }
 
     const messages = messagesResult.rows;
     const participants = [...new Set(messages.map(m => m.sender_name).filter(Boolean))];
