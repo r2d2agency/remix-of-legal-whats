@@ -470,7 +470,43 @@ export default function SupervisorIA() {
               </CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="charges" className="mt-6">
+            <div className="grid grid-cols-1 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Central de Cobranças</CardTitle>
+                  <CardDescription>Gerencie pendências e envie lembretes para os vendedores</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 border-b">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-medium">Vendedor</th>
+                        <th className="px-4 py-3 text-center font-medium">Leads em Atraso</th>
+                        <th className="px-4 py-3 text-center font-medium">Pendências</th>
+                        <th className="px-4 py-3 text-right font-medium">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {sellers?.map((seller: any) => (
+                        <tr key={seller.id}>
+                          <td className="px-4 py-3 font-medium">{seller.name}</td>
+                          <td className="px-4 py-3 text-center text-red-500 font-bold">{seller.no_approach}</td>
+                          <td className="px-4 py-3 text-center">{seller.total_leads}</td>
+                          <td className="px-4 py-3 text-right">
+                            <Button size="sm" variant="outline" className="mr-2">Histórico</Button>
+                            <Button size="sm">Cobrar Agora</Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
         </Tabs>
+
       </div>
     </MainLayout>
   );
