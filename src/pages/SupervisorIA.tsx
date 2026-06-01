@@ -92,6 +92,18 @@ export default function SupervisorIA() {
     }
   });
 
+  // Fetch Audits
+  const { data: audits, isLoading: auditsLoading } = useQuery({
+    queryKey: ['supervisor-audits'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/supervisor/audits`, {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      return res.json();
+    }
+  });
+
+
   const updateSettingsMutation = useMutation({
     mutationFn: async (newSettings: any) => {
       const res = await fetch(`${API_URL}/supervisor/settings`, {
