@@ -640,7 +640,7 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
        WHERE c.id = $1 AND conn.organization_id = $2`,
       [conversationId, organizationId]
     );
-    if (convResult.rows.length === 0) return null;
+    if (convResult.rows.length === 0) throw new Error('Conversa não encontrada');
     const conv = convResult.rows[0];
 
     // Get recent messages
