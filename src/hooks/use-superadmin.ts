@@ -62,6 +62,7 @@ interface Organization {
   plan_price?: number;
   expires_at: string | null;
   member_count?: number;
+  modules_enabled?: Record<string, boolean>;
   created_at: string;
 }
 
