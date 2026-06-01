@@ -1127,8 +1127,9 @@ export default function Organizacoes() {
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="admin">Admin - Gerencia tudo</SelectItem>
-                                        <SelectItem value="manager">Supervisor - Apenas visualização</SelectItem>
-                                        <SelectItem value="agent">Agente - Acesso básico</SelectItem>
+                                        <SelectItem value="manager">Gerente - Gestão de equipe</SelectItem>
+                                        <SelectItem value="supervisor">Supervisor IA - Auditoria e Monitoramento</SelectItem>
+                                        <SelectItem value="agent">Agente - Vendedor / Atendente</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
