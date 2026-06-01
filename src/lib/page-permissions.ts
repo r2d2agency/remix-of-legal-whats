@@ -24,6 +24,7 @@ export const PAGE_PERMISSIONS = [
   { key: 'revenue_intelligence', label: 'Revenue Intel', section: 'CRM', icon: 'Brain' },
   { key: 'modulo_fantasma', label: 'Módulo Fantasma', section: 'CRM', icon: 'Ghost' },
   { key: 'crm_configuracoes', label: 'Configurações CRM', section: 'CRM', icon: 'Settings' },
+  { key: 'supervisor_ia', label: 'Supervisor IA', section: 'CRM', icon: 'Shield' },
   
   // Disparos
   { key: 'listas', label: 'Listas', section: 'Disparos', icon: 'Users' },
