@@ -161,7 +161,7 @@ export default function SupervisorIA() {
 
   // Fetch Connections for Sellers
   const { data: orgConnections } = useQuery({
-    queryKey: ['supervisor-org-connections'],
+    queryKey: ['supervisor-org-connections', user?.organization_id],
     queryFn: async () => {
       const res = await fetch(`${API_URL}/api/organizations/${user?.organization_id}/connections`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
