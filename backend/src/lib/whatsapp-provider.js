@@ -519,7 +519,8 @@ export async function sendMessage(connection, phone, content, messageType, media
         null, // messageId para edição
         (() => {
           if (duration === null || duration === undefined) return 1;
-          const clean = String(duration).replace(/[^\d.]/g, '');
+          const clean = String(duration).replace(/[^\d.]/g, '').trim();
+          if (!clean || clean === '.') return 1;
           const num = parseFloat(clean);
           return (!isNaN(num) && num > 0) ? Math.floor(num) : 1;
         })(),
