@@ -72,11 +72,20 @@ export default function SupervisorIA() {
   const [selectedFunnel, setSelectedFunnel] = useState<string>("all");
   const queryClient = useQueryClient();
 
-  // Dialog states for member editing
+  // Dialog states for member management
   const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
   const [editMemberRole, setEditMemberRole] = useState<string>('agent');
   const [editMemberConnectionIds, setEditMemberConnectionIds] = useState<string[]>([]);
+  
+  const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
+  const [newMember, setNewMember] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'agent',
+    connection_ids: [] as string[]
+  });
 
   // Fetch Funnels for filters
   const { data: funnels } = useQuery({
