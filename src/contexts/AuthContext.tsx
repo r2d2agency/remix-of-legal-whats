@@ -16,6 +16,7 @@ interface ModulesEnabled {
   projects: boolean;
   lead_gleego: boolean;
   doc_signatures: boolean;
+  supervisor: boolean;
 }
 
 // Page-level permissions from permission templates
@@ -26,6 +27,7 @@ interface User {
   email: string;
   name: string;
   role?: string;
+  is_superadmin?: boolean;
   organization_id?: string;
   modules_enabled?: ModulesEnabled;
   has_connections?: boolean;
@@ -65,6 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     projects: false,
     lead_gleego: false,
     doc_signatures: false,
+    supervisor: false,
   };
 
   const refreshUser = async () => {

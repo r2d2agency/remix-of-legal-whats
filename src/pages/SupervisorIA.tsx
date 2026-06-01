@@ -23,7 +23,14 @@ import {
   DollarSign,
   Save,
   Eye,
-  History
+  History,
+  Lock,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "lucide-react";
 import { 
   BarChart, 
@@ -48,8 +55,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
+import { useNavigate } from "react-router-dom";
+
 export default function SupervisorIA() {
-  const { user } = useAuth();
+  const { user, isLoading: isLoadingUser } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [period, setPeriod] = useState("30d");
   const queryClient = useQueryClient();
