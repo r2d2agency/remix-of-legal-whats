@@ -724,7 +724,9 @@ MENSAGENS:
 ${messageLog}`;
 
     const aiResult = await callAI(aiConfig, systemPrompt, userPrompt);
-    if (!aiResult) return null;
+    if (!aiResult) {
+      throw new Error('A IA não retornou um resultado válido para a ata. Tente novamente mais tarde.');
+    }
 
     // Save to database
     const periodStart = messages[0]?.created_at;
