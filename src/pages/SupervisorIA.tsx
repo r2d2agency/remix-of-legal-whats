@@ -531,6 +531,38 @@ export default function SupervisorIA() {
 
 
           <TabsContent value="dashboard" className="space-y-6 mt-6">
+            {/* Quick Setup Help for new users */}
+            {(!stats || stats.total_leads === 0) && (
+              <Card className="border-primary/50 bg-primary/5">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    <CardTitle className="text-lg">Bem-vindo ao Supervisor IA!</CardTitle>
+                  </div>
+                  <CardDescription>
+                    O Supervisor IA monitora automaticamente seu CRM. Siga os passos abaixo para começar:
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">1</div>
+                    <p className="font-semibold text-sm">Defina os Vendedores</p>
+                    <p className="text-xs text-muted-foreground">Acesse <strong>CRM > Organizações</strong> e certifique-se que seus vendedores têm papel de "Agente" ou "Gerente".</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">2</div>
+                    <p className="font-semibold text-sm">Atribua Conexões</p>
+                    <p className="text-xs text-muted-foreground">O IA só monitora vendedores que possuem conexões de WhatsApp atribuídas a eles nas configurações de membros.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">3</div>
+                    <p className="font-semibold text-sm">Configure o SLA</p>
+                    <p className="text-xs text-muted-foreground">Clique no botão <strong>Regras SLA</strong> acima para definir os tempos de resposta ideais para sua operação.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* KPI Grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <StatCard title="Total Leads" value={stats?.total_leads} icon={Users} color="blue" />
