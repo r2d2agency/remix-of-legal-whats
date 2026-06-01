@@ -202,12 +202,14 @@ export default function SupervisorIA() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
+          <TabsList className="grid w-full grid-cols-5 lg:w-[750px]">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="sellers">Vendedores</TabsTrigger>
             <TabsTrigger value="alerts">Alertas</TabsTrigger>
+            <TabsTrigger value="audits">Auditoria</TabsTrigger>
             <TabsTrigger value="charges">Cobranças</TabsTrigger>
           </TabsList>
+
 
           <TabsContent value="dashboard" className="space-y-6 mt-6">
             {/* KPI Grid */}
