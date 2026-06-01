@@ -260,6 +260,15 @@ export default function SupervisorIA() {
                         onChange={(e) => setLocalSettings({...localSettings, payment_sla_days: parseInt(e.target.value)})}
                       />
                     </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="reactivation">Reativação de Leads Perdidos (dias)</Label>
+                      <Input 
+                        id="reactivation"
+                        type="number" 
+                        value={localSettings?.reactivation_days || ""}
+                        onChange={(e) => setLocalSettings({...localSettings, reactivation_days: parseInt(e.target.value)})}
+                      />
+                    </div>
                     
                     <Button 
                       variant="secondary" 
