@@ -199,7 +199,7 @@ const upload = multer({
 
 // Upload single file
 router.post('/', authenticate, (req, res) => {
-  upload.single('file')(req, res, (err) => {
+  upload.single('file')(req, res, async (err) => {
     try {
       if (err) {
         const msg = err?.message || 'Erro ao fazer upload';
@@ -210,19 +210,53 @@ router.post('/', authenticate, (req, res) => {
         return res.status(400).json({ error: 'Nenhum arquivo enviado' });
       }
 
+      let filename = req.file.filename;
+      let mimetype = req.file.mimetype;
+      let size = req.file.size;
+
+      // WhatsApp Compatibility: Convert WebM/Opus to OGG/Opus using FFmpeg
+      if (mimetype === 'audio/webm' || filename.endsWith('.webm')) {
+        const inputPath = path.join(uploadsDir, filename);
+        const outputFilename = filename.replace(/\.webm$/, '') + '.ogg';
+        const outputPath = path.join(uploadsDir, outputFilename);
+
+        try {
+          console.log(`[Audio] Converting ${filename} to OGG/Opus for WhatsApp compatibility...`);
+          
+          // -c:a libopus: Use Opus codec
+          // -b:a 64k: Good bitrate for voice
+          // -application voip: Optimized for voice
+          await execPromise(`ffmpeg -i "${inputPath}" -c:a libopus -b:a 64k -application voip "${outputPath}"`);
+          
+          if (fs.existsSync(outputPath)) {
+            const stats = fs.statSync(outputPath);
+            filename = outputFilename;
+            mimetype = 'audio/ogg';
+            size = stats.size;
+            
+            // Clean up original webm file
+            fs.unlinkSync(inputPath);
+            console.log(`[Audio] Conversion successful: ${filename} (${size} bytes)`);
+          }
+        } catch (convErr) {
+          console.error('[Audio] Conversion failed, using original file:', convErr.message);
+          // If conversion fails, we keep the original webm file
+        }
+      }
+
       // Build the public URL - use backend domain, not frontend
       const baseUrl = String(process.env.API_BASE_URL || '').trim().replace(/\/+$/, '');
       const fileUrl = baseUrl
-        ? `${baseUrl}/uploads/${req.file.filename}`
-        : `/uploads/${req.file.filename}`;
+        ? `${baseUrl}/uploads/${filename}`
+        : `/uploads/${filename}`;
 
       res.json({
         success: true,
         file: {
-          filename: req.file.filename,
+          filename: filename,
           originalName: req.file.originalname,
-          mimetype: req.file.mimetype,
-          size: req.file.size,
+          mimetype: mimetype,
+          size: size,
           url: fileUrl,
         }
       });
