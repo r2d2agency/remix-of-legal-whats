@@ -791,12 +791,13 @@ export function ChatArea({
   const handleSendAudio = async () => {
     if (!audioBlob) return;
     try {
-      const file = new File([audioBlob], `audio.ogg`, { type: 'audio/ogg; codecs=opus' });
+      const file = new File([audioBlob], `audio.ogg`, { type: 'audio/ogg' });
       setUploadStatus({ active: true, current: 1, total: 1, fileName: 'Áudio' });
       const url = await uploadFile(file);
       if (url) { 
-        const validDuration = typeof duration === 'number' && !isNaN(duration) ? Math.floor(duration) : 0;
-        await onSendMessage('', 'audio', url, undefined, file.type, validDuration); 
+        const validDuration = typeof duration === 'number' && !isNaN(duration) && duration > 0 ? Math.floor(duration) : 1;
+        await onSendMessage('', 'audio', url, undefined, 'audio/ogg', validDuration); 
+
 
         toast.success("Áudio enviado!"); 
       }
