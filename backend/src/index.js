@@ -844,6 +844,8 @@ app.use('/api/doc-signatures', docSignaturesRoutes);
 app.use('/api/telehealth', telehealthRoutes);
 app.use('/api/sales-seo', salesSeoRoutes);
 app.use('/api/link-preview', linkPreviewRoutes);
+app.use('/api/supervisor', supervisorRoutes);
+
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
