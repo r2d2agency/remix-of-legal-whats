@@ -24,7 +24,8 @@ import {
   Save,
   Eye,
   History,
-  Lock
+  Lock,
+  Sparkles
 } from "lucide-react";
 import { 
   Table, 
