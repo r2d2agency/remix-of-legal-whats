@@ -14,7 +14,6 @@ import {
   Clock, 
   CheckCircle2, 
   XCircle, 
-
   RefreshCw,
   Search,
   Filter,
@@ -27,7 +26,11 @@ import {
   Eye,
   History,
   Lock,
-  Sparkles
+  Sparkles,
+  Link2,
+  User,
+  Trash2,
+  Briefcase
 } from "lucide-react";
 import { 
   Table, 
@@ -52,7 +55,7 @@ import {
   Line
 } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { API_URL, getAuthToken } from "@/lib/api";
+import { API_URL, getAuthToken, api } from "@/lib/api";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -62,12 +65,18 @@ import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 
 export default function SupervisorIA() {
-  const { user, isLoading: isLoadingUser } = useAuth();
+  const { user, isLoading: isLoadingUser, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [period, setPeriod] = useState("30d");
   const [selectedFunnel, setSelectedFunnel] = useState<string>("all");
   const queryClient = useQueryClient();
+
+  // Dialog states for member editing
+  const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<any>(null);
+  const [editMemberRole, setEditMemberRole] = useState<string>('agent');
+  const [editMemberConnectionIds, setEditMemberConnectionIds] = useState<string[]>([]);
 
   // Fetch Funnels for filters
   const { data: funnels } = useQuery({
@@ -83,18 +92,6 @@ export default function SupervisorIA() {
   // Check module permission
   const isEnabled = user?.modules_enabled?.supervisor === true || user?.is_superadmin;
   
-  if (!isEnabled && !isLoadingUser) {
-    return (
-      <MainLayout>
-        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-          <Lock className="h-12 w-12 text-muted-foreground" />
-          <h2 className="text-xl font-semibold">Módulo não contratado</h2>
-          <p className="text-muted-foreground">O Supervisor IA não está ativo para sua organização.</p>
-        </div>
-      </MainLayout>
-    );
-  }
-
   // Fetch Stats
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['supervisor-stats', period, selectedFunnel],
@@ -118,7 +115,7 @@ export default function SupervisorIA() {
     }
   });
 
-  // Fetch Sellers
+  // Fetch Sellers/Members
   const { data: sellers, isLoading: sellersLoading } = useQuery({
     queryKey: ['supervisor-sellers'],
     queryFn: async () => {
@@ -251,12 +248,60 @@ export default function SupervisorIA() {
     }
   });
 
+  // Member Management Mutations
+  const updateMemberMutation = useMutation({
+    mutationFn: async ({ memberId, data }: { memberId: string, data: any }) => {
+      return await api(`/api/organizations/${user?.organization_id}/members/${memberId}`, {
+        method: 'PUT',
+        body: data,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisor-sellers'] });
+      toast.success('Membro atualizado com sucesso!');
+      setEditMemberDialogOpen(false);
+      refreshUser();
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao atualizar membro');
+    }
+  });
+
+  const handleEditMember = (seller: any) => {
+    setEditingMember(seller);
+    setEditMemberRole(seller.org_role || 'agent');
+    setEditMemberConnectionIds(seller.connections || []);
+    setEditMemberDialogOpen(true);
+  };
+
+  const handleSaveMember = () => {
+    if (!editingMember) return;
+    updateMemberMutation.mutate({
+      memberId: editingMember.id,
+      data: {
+        role: editMemberRole,
+        connection_ids: editMemberConnectionIds,
+      }
+    });
+  };
 
   const handlePreview = () => {
     if (localSettings) {
       previewMutation.mutate(localSettings);
     }
   };
+
+  if (!isEnabled && !isLoadingUser) {
+    return (
+      <MainLayout>
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+          <Lock className="h-12 w-12 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Módulo não contratado</h2>
+          <p className="text-muted-foreground">O Supervisor IA não está ativo para sua organização.</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   const COLORS = ['#22c55e', '#eab308', '#ef4444'];
   const PIE_DATA = [
@@ -514,11 +559,22 @@ export default function SupervisorIA() {
 
           <TabsContent value="config" className="space-y-6 mt-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Configurar Vendedores a Analisar</CardTitle>
-                <CardDescription>
-                  Identifique os vendedores e as conexões que o Supervisor IA deve monitorar.
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Gerenciar Vendedores e Conexões</CardTitle>
+                  <CardDescription>
+                    Configure os papéis e as conexões de WhatsApp que o Supervisor IA deve monitorar.
+                  </CardDescription>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => navigate('/organizacoes')}
+                  className="gap-2"
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                  Ir para Organizações
+                </Button>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -541,10 +597,19 @@ export default function SupervisorIA() {
                           </TableRow>
                         ) : (sellers || []).map((seller: any) => (
                           <TableRow key={seller.id}>
-                            <TableCell className="font-medium">{seller.name}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
+                                  {seller.name.charAt(0)}
+                                </div>
+                                {seller.name}
+                              </div>
+                            </TableCell>
                             <TableCell>
                               <Badge variant="secondary" className="capitalize">
-                                {seller.org_role === 'supervisor' ? 'Supervisor' : 'Vendedor'}
+                                {seller.org_role === 'supervisor' ? 'Supervisor' : 
+                                 seller.org_role === 'manager' ? 'Gerente' : 
+                                 seller.org_role === 'agent' ? 'Agente' : seller.org_role}
                               </Badge>
                             </TableCell>
                             <TableCell>
@@ -563,13 +628,13 @@ export default function SupervisorIA() {
                             </TableCell>
                             <TableCell className="text-right">
                               <Button 
-                                variant="outline" 
+                                variant="ghost" 
                                 size="sm" 
-                                onClick={() => navigate('/organizacoes')}
+                                onClick={() => handleEditMember(seller)}
                                 className="gap-2"
                               >
-                                <Users className="h-4 w-4" />
-                                Configurar Membro
+                                <SettingsIcon className="h-4 w-4" />
+                                Editar
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -577,21 +642,85 @@ export default function SupervisorIA() {
                       </TableBody>
                     </Table>
                   </div>
-                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-md flex gap-3">
-                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
-                    <div className="text-sm text-amber-800">
-                      <p className="font-semibold">Como o Supervisor IA monitora seus vendedores:</p>
+
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-md flex gap-3 dark:bg-blue-900/10 dark:border-blue-800">
+                    <Shield className="h-5 w-5 text-blue-600 shrink-0" />
+                    <div className="text-sm text-blue-800 dark:text-blue-300">
+                      <p className="font-semibold text-blue-900 dark:text-blue-200">Dica de Configuração:</p>
                       <ul className="list-disc ml-5 mt-1 space-y-1">
-                        <li>Ele identifica membros com papéis de <strong>Agente</strong>, <strong>Gerente</strong> ou <strong>Supervisor</strong>.</li>
-                        <li>Apenas vendedores com <strong>Conexões de WhatsApp atribuídas</strong> são monitorados.</li>
-                        <li>O IA analisa o tempo de resposta e atividades registradas no Kanban.</li>
-                        <li>Para alterar papéis ou atribuir conexões, use o botão <strong>Configurar Membro</strong> acima ou acesse o menu <strong>CRM &gt; Organizações</strong>.</li>
+                        <li>O Supervisor IA monitora membros com papéis de <strong>Agente</strong>, <strong>Gerente</strong> ou <strong>Supervisor</strong>.</li>
+                        <li>Apenas membros com <strong>Conexões de WhatsApp</strong> atribuídas serão analisados.</li>
+                        <li>Ações de membros em negociações do Kanban (notas, alterações de fase) também contam para o SLA.</li>
                       </ul>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Member Edit Dialog */}
+            <Dialog open={editMemberDialogOpen} onOpenChange={setEditMemberDialogOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Editar Membro: {editingMember?.name}</DialogTitle>
+                  <CardDescription>Ajuste o papel e as conexões monitoradas para este vendedor.</CardDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Papel na Organização</Label>
+                    <Select value={editMemberRole} onValueChange={setEditMemberRole}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um papel" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="agent">Agente (Vendedor)</SelectItem>
+                        <SelectItem value="manager">Gerente</SelectItem>
+                        <SelectItem value="supervisor">Supervisor IA</SelectItem>
+                        <SelectItem value="admin">Administrador</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Conexões Atribuídas</Label>
+                    <div className="border rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto bg-muted/20">
+                      {(orgConnections || []).map((conn: any) => (
+                        <div key={conn.id} className="flex items-center space-x-2">
+                          <Checkbox 
+                            id={`member-conn-${conn.id}`}
+                            checked={editMemberConnectionIds.includes(conn.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setEditMemberConnectionIds([...editMemberConnectionIds, conn.id]);
+                              } else {
+                                setEditMemberConnectionIds(editMemberConnectionIds.filter(id => id !== conn.id));
+                              }
+                            }}
+                          />
+                          <label 
+                            htmlFor={`member-conn-${conn.id}`}
+                            className="text-sm font-medium leading-none cursor-pointer"
+                          >
+                            {conn.name} {conn.phone_number && `(${conn.phone_number})`}
+                          </label>
+                        </div>
+                      ))}
+                      {(orgConnections || []).length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-2">Nenhuma conexão de WhatsApp encontrada.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setEditMemberDialogOpen(false)}>Cancelar</Button>
+                  <Button 
+                    onClick={handleSaveMember}
+                    disabled={updateMemberMutation.isPending}
+                  >
+                    {updateMemberMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
 
