@@ -41,6 +41,7 @@ interface Plan {
   has_projects: boolean;
   has_lead_gleego: boolean;
   has_doc_signatures: boolean;
+  has_supervisor: boolean;
   doc_signatures_limit: number;
   price: number;
   billing_period: string;
@@ -132,6 +133,7 @@ export function useSuperadmin() {
     has_projects?: boolean;
     has_lead_gleego?: boolean;
     has_doc_signatures?: boolean;
+    has_supervisor?: boolean;
     doc_signatures_limit?: number;
     price: number;
     billing_period: string;
@@ -393,6 +395,7 @@ export function useSuperadmin() {
     owner_password?: string;
     plan_id?: string;
     expires_at?: string;
+    modules_enabled?: Record<string, boolean>;
   }): Promise<Organization | null> => {
     setLoading(true);
     setError(null);
@@ -423,6 +426,7 @@ export function useSuperadmin() {
     logo_url?: string;
     plan_id?: string;
     expires_at?: string;
+    modules_enabled?: Record<string, boolean>;
   }): Promise<Organization | null> => {
     setLoading(true);
     setError(null);

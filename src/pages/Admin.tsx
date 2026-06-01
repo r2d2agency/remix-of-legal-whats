@@ -70,6 +70,7 @@ interface Plan {
   has_projects: boolean;
   has_lead_gleego: boolean;
   has_doc_signatures: boolean;
+  has_supervisor?: boolean;
   doc_signatures_limit: number;
   price: number;
   billing_period: string;
@@ -111,6 +112,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [editingOrgModules, setEditingOrgModules] = useState<Record<string, boolean>>({});
   
   // W-API token
   const [wapiToken, setWapiToken] = useState('');
@@ -187,6 +189,7 @@ export default function Admin() {
   const [newPlanGhost, setNewPlanGhost] = useState(false);
   const [newPlanProjects, setNewPlanProjects] = useState(false);
   const [newPlanLeadGleego, setNewPlanLeadGleego] = useState(false);
+  const [newPlanSupervisor, setNewPlanSupervisor] = useState(false);
   const [newPlanDocSignatures, setNewPlanDocSignatures] = useState(false);
   const [newPlanDocSignaturesLimit, setNewPlanDocSignaturesLimit] = useState('0');
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
@@ -451,6 +454,7 @@ export default function Admin() {
       has_ghost: newPlanGhost,
       has_projects: newPlanProjects,
       has_lead_gleego: newPlanLeadGleego,
+      has_supervisor: newPlanSupervisor,
       has_doc_signatures: newPlanDocSignatures,
       doc_signatures_limit: parseInt(newPlanDocSignaturesLimit) || 0,
       price: parseFloat(newPlanPrice) || 0,
@@ -492,6 +496,7 @@ export default function Admin() {
     setNewPlanGhost(false);
     setNewPlanProjects(false);
     setNewPlanLeadGleego(false);
+    setNewPlanSupervisor(false);
     setNewPlanDocSignatures(false);
     setNewPlanDocSignaturesLimit('0');
     setNewPlanPeriod('monthly');
@@ -2188,6 +2193,48 @@ export default function Admin() {
                 </div>
               )}
             </div>
+            
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">Módulos Ativos (Substituição de Plano)</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[250px] overflow-y-auto pr-2">
+                <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-xs">Supervisor IA</span>
+                  </div>
+                  <Switch 
+                    checked={editingOrgModules?.supervisor || false}
+                    onCheckedChange={(checked) => setEditingOrgModules({...editingOrgModules, supervisor: checked})}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-xs">CRM</span>
+                  </div>
+                  <Switch 
+                    checked={editingOrgModules?.crm || false}
+                    onCheckedChange={(checked) => setEditingOrgModules({...editingOrgModules, crm: checked})}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-xs">Chatbots</span>
+                  </div>
+                  <Switch 
+                    checked={editingOrgModules?.chatbots || false}
+                    onCheckedChange={(checked) => setEditingOrgModules({...editingOrgModules, chatbots: checked})}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-xs">Campanhas</span>
+                  </div>
+                  <Switch 
+                    checked={editingOrgModules?.campaigns || false}
+                    onCheckedChange={(checked) => setEditingOrgModules({...editingOrgModules, campaigns: checked})}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOrgDialogOpen(false)}>
@@ -2399,6 +2446,14 @@ export default function Admin() {
                     id="edit-doc-signatures"
                     checked={editingPlan?.has_doc_signatures || false}
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan!, has_doc_signatures: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-supervisor">Supervisor IA</Label>
+                  <Switch
+                    id="edit-supervisor"
+                    checked={editingPlan?.has_supervisor || false}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan!, has_supervisor: v })}
                   />
                 </div>
                 {editingPlan?.has_doc_signatures && (
@@ -2627,6 +2682,7 @@ export default function Admin() {
                             <SelectItem value="owner">Proprietário</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                             <SelectItem value="agent">Agente</SelectItem>
+                            <SelectItem value="supervisor">Supervisor IA</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>

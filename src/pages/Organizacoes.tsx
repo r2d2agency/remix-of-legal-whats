@@ -149,6 +149,7 @@ export default function Organizacoes() {
     projects: false,
     lead_gleego: false,
     shared_conversations: false,
+    supervisor: false,
   });
   const [leadGleegoApiKey, setLeadGleegoApiKey] = useState('');
   const [leadGleegoApiKeyMasked, setLeadGleegoApiKeyMasked] = useState('');
@@ -263,6 +264,7 @@ export default function Organizacoes() {
         projects: modules.projects ?? false,
         lead_gleego: modules.lead_gleego ?? false,
         shared_conversations: modules.shared_conversations ?? false,
+        supervisor: modules.supervisor ?? false,
       });
     } catch (error) {
       console.error('Error loading modules:', error);

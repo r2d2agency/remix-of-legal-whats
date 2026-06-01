@@ -24,6 +24,13 @@ router.get('/stats', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
+    // Check module permission
+    const orgData = await query('SELECT modules_enabled FROM organizations WHERE id = $1', [org.organization_id]);
+    const modules = orgData.rows[0]?.modules_enabled || {};
+    if (!modules.supervisor) {
+      return res.status(403).json({ error: 'Supervisor module not enabled for this organization' });
+    }
+
     const { period, sellerId, teamId, tag, channel, funnelId, status } = req.query;
 
     let whereClause = `WHERE d.organization_id = $1`;
@@ -179,6 +186,11 @@ router.get('/sellers', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
+    // Check if user has supervisor role
+    if (org.role !== 'owner' && org.role !== 'admin' && org.role !== 'supervisor') {
+      return res.status(403).json({ error: 'Only owners, admins or supervisors can view performance' });
+    }
+
     const sellerQuery = `
       SELECT 
         u.id, u.name,
@@ -186,12 +198,14 @@ router.get('/sellers', async (req, res) => {
         COUNT(d.id) FILTER (WHERE d.status = 'won') as conversions,
         COUNT(d.id) FILTER (WHERE d.first_seller_message_at IS NULL) as no_approach,
         AVG(EXTRACT(EPOCH FROM (d.first_seller_message_at - d.created_at))) as avg_response_time,
-        (COUNT(d.id) FILTER (WHERE d.status = 'won')::float / NULLIF(COUNT(d.id), 0)) * 100 as conversion_rate
+        (COUNT(d.id) FILTER (WHERE d.status = 'won')::float / NULLIF(COUNT(d.id), 0)) * 100 as conversion_rate,
+        om.role as org_role,
+        (SELECT json_agg(connection_id) FROM connection_members WHERE user_id = u.id) as connections
       FROM users u
       JOIN organization_members om ON om.user_id = u.id
       LEFT JOIN crm_deals d ON d.owner_id = u.id AND d.organization_id = $1
-      WHERE om.organization_id = $1
-      GROUP BY u.id, u.name
+      WHERE om.organization_id = $1 AND (om.role = 'agent' OR om.role = 'supervisor')
+      GROUP BY u.id, u.name, om.role
       ORDER BY conversion_rate DESC NULLS LAST
     `;
 
