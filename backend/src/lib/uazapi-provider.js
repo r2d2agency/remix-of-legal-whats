@@ -456,10 +456,13 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
   };
 
   if (seconds !== null && seconds !== undefined) {
-    const s = Math.floor(Number(seconds));
-    if (!isNaN(s)) {
-      body.seconds = s;
-      body.duration = s;
+    const rawSeconds = String(seconds);
+    if (rawSeconds !== "N/A" && rawSeconds.trim() !== "") {
+      const s = Math.floor(Number(seconds));
+      if (!isNaN(s)) {
+        body.seconds = s;
+        body.duration = s;
+      }
     }
   }
 
