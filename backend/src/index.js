@@ -1076,6 +1076,7 @@ initDatabase().then((ok) => {
         console.error('⏳ [CRON] Error checking wait_reply timeouts:', error);
       }
     });
+    console.log('⏳ Wait reply timeout checker started - checks every minute');
 
     // Supervisor IA Daily Audit - runs at 19:00
     cron.schedule('0 19 * * *', async () => {
