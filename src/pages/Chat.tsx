@@ -526,7 +526,8 @@ const Chat = () => {
     type: string = 'text',
     mediaUrl?: string,
     quotedMessageId?: string,
-    mediaMimetype?: string
+    mediaMimetype?: string,
+    duration?: number
   ) => {
     if (!selectedConversation) return;
 
@@ -538,6 +539,7 @@ const Chat = () => {
         media_url: mediaUrl,
         media_mimetype: mediaMimetype,
         quoted_message_id: quotedMessageId,
+        duration,
       });
       
       setMessages(prev => [...prev, newMessage]);

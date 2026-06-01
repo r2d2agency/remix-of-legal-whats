@@ -127,7 +127,7 @@ interface ChatAreaProps {
   isAdmin?: boolean;
   userRole?: string;
   onSyncHistory?: (days: number) => Promise<void>;
-  onSendMessage: (content: string, type?: string, mediaUrl?: string, quotedMessageId?: string, mediaMimetype?: string) => Promise<void>;
+  onSendMessage: (content: string, type?: string, mediaUrl?: string, quotedMessageId?: string, mediaMimetype?: string, duration?: number) => Promise<void>;
   onForwardMessage?: (targetConversationId: string, message: ChatMessage) => Promise<void>;
   onLoadMore: () => void;
   hasMore: boolean;
@@ -794,7 +794,7 @@ export function ChatArea({
       const file = new File([audioBlob], `audio.ogg`, { type: 'audio/ogg; codecs=opus' });
       setUploadStatus({ active: true, current: 1, total: 1, fileName: 'Áudio' });
       const url = await uploadFile(file);
-      if (url) { await onSendMessage('', 'audio', url, undefined, file.type); toast.success("Áudio enviado!"); }
+      if (url) { await onSendMessage('', 'audio', url, undefined, file.type, duration); toast.success("Áudio enviado!"); }
       clearAudio();
     } catch { toast.error("Erro ao enviar áudio"); }
     finally { setUploadStatus(null); resetProgress(); }

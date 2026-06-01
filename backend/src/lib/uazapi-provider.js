@@ -439,7 +439,7 @@ export async function downloadMedia(baseUrl, token, messageId) {
 /**
  * Envia mídia (image, video, audio, document)
  */
-export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, filename) {
+export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, filename, mimetype, seconds) {
   const typeMap = {
     image: 'image',
     video: 'video',
@@ -452,7 +452,14 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
     number: normalizePhone(phone),
     type: typeMap[type] || 'document',
     file: mediaUrl,
+    mimetype: mimetype || undefined,
   };
+
+  if (seconds) {
+    const s = Math.floor(Number(seconds));
+    body.seconds = s;
+    body.duration = s;
+  }
 
   if (caption) body.text = caption;
   if (filename) body.docName = filename;
@@ -944,7 +951,7 @@ export async function sendContact(baseUrl, token, phone, contactName, contactPho
 /**
  * Sender unificado (compatível com whatsapp-provider.js)
  */
- export async function sendMessage(baseUrl, token, phone, content, messageType, mediaUrl, filename = null, messageId = null) {
+ export async function sendMessage(baseUrl, token, phone, content, messageType, mediaUrl, filename = null, messageId = null, seconds = null, mimetype = null) {
   if (messageType === 'text' || !messageType) {
    return sendText(baseUrl, token, phone, content, messageId);
   }
@@ -971,5 +978,5 @@ export async function sendContact(baseUrl, token, phone, contactName, contactPho
       return { success: false, error: 'Invalid interactive menu data' };
     }
   }
-  return sendMedia(baseUrl, token, phone, mediaUrl, messageType, content, filename);
+  return sendMedia(baseUrl, token, phone, mediaUrl, messageType, content, filename, mimetype, seconds);
 }
