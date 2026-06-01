@@ -758,6 +758,6 @@ ${messageLog}`;
     return insertResult.rows[0];
   } catch (error) {
     logError('group_secretary.meeting_minutes_error', error);
-    return null;
+    throw error; // Rethrow to let the router handle it
   }
 }
