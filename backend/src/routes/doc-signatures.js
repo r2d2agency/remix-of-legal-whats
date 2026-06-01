@@ -1645,7 +1645,7 @@ router.post('/:id/send-whatsapp', async (req, res) => {
         );
         if (convResult.rows.length > 0) {
           await query(
-            `INSERT INTO messages (conversation_id, content, message_type, from_me, status) VALUES ($1, $2, 'text', true, 'sent')`,
+            `INSERT INTO chat_messages (conversation_id, content, message_type, from_me, status) VALUES ($1, $2, 'text', true, 'sent')`,
             [convResult.rows[0].id, message]
           );
           await query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [convResult.rows[0].id]);
