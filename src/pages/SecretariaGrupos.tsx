@@ -36,7 +36,7 @@ export default function SecretariaGrupos() {
     notify_external_enabled: false, notify_external_phone: '',
     notify_members_whatsapp: false, default_connection_id: null,
     followup_enabled: false, followup_hours: 4,
-    daily_digest_enabled: false, daily_digest_hour: 8, daily_digest_type: 'detailed',
+    daily_digest_enabled: false, daily_digest_hour: 8, daily_digest_minute: 0, daily_digest_type: 'detailed',
     auto_reply_enabled: false, auto_reply_message: '',
     excluded_senders: [],
   });
