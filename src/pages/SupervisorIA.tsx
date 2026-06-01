@@ -877,7 +877,7 @@ export default function SupervisorIA() {
                   <div className="space-y-2">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">1</div>
                     <p className="font-semibold text-sm">Defina os Vendedores</p>
-                    <p className="text-xs text-muted-foreground">Acesse <strong>CRM {"->"} Organizações</strong> e certifique-se que seus vendedores têm papel de "Agente" ou "Gerente".</p>
+                    <p className="text-xs text-muted-foreground">Acesse a aba <strong>Configurar Vendedores</strong> e certifique-se que seus vendedores têm o papel correto e conexões atribuídas.</p>
                   </div>
                   <div className="space-y-2">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">2</div>
