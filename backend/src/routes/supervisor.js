@@ -89,8 +89,14 @@ router.get('/semaphore', async (req, res) => {
     const settings = settingsResult.rows[0] || {
       new_lead_sla_minutes: 30,
       no_followup_sla_hours: 24,
-      no_response_sla_days: 2
+      no_response_sla_days: 2,
+      monitored_funnels: null
     };
+
+    let monitoredFunnelsClause = '';
+    if (settings.monitored_funnels && settings.monitored_funnels.length > 0) {
+      monitoredFunnelsClause = ` AND funnel_id = ANY($2)`;
+    }
 
     const semaphoreQuery = `
       SELECT 
@@ -111,10 +117,10 @@ router.get('/semaphore', async (req, res) => {
           ELSE 'GREEN'
         END as semaphore_color
       FROM crm_deals
-      WHERE organization_id = $1 AND status = 'open'
+      WHERE organization_id = $1 AND status = 'open'${monitoredFunnelsClause}
     `;
 
-    const result = await query(semaphoreQuery, [org.organization_id]);
+    const result = await query(semaphoreQuery, settings.monitored_funnels && settings.monitored_funnels.length > 0 ? [org.organization_id, settings.monitored_funnels] : [org.organization_id]);
     
     const summary = {
       GREEN: result.rows.filter(r => r.semaphore_color === 'GREEN').length,
@@ -254,14 +260,14 @@ router.post('/settings', async (req, res) => {
     const org = await getUserOrg(req.userId);
     const { 
       new_lead_sla_minutes, no_followup_sla_hours, no_response_sla_days,
-      reactivation_days, proposal_sla_hours, payment_sla_days 
+      reactivation_days, proposal_sla_hours, payment_sla_days, monitored_funnels 
     } = req.body;
 
     const result = await query(
       `INSERT INTO supervisor_settings (
         organization_id, new_lead_sla_minutes, no_followup_sla_hours, no_response_sla_days,
-        reactivation_days, proposal_sla_hours, payment_sla_days
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        reactivation_days, proposal_sla_hours, payment_sla_days, monitored_funnels
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (organization_id) DO UPDATE SET
         new_lead_sla_minutes = EXCLUDED.new_lead_sla_minutes,
         no_followup_sla_hours = EXCLUDED.no_followup_sla_hours,
@@ -269,9 +275,10 @@ router.post('/settings', async (req, res) => {
         reactivation_days = EXCLUDED.reactivation_days,
         proposal_sla_hours = EXCLUDED.proposal_sla_hours,
         payment_sla_days = EXCLUDED.payment_sla_days,
+        monitored_funnels = EXCLUDED.monitored_funnels,
         updated_at = NOW()
       RETURNING *`,
-      [org.organization_id, new_lead_sla_minutes, no_followup_sla_hours, no_response_sla_days, reactivation_days, proposal_sla_hours, payment_sla_days]
+      [org.organization_id, new_lead_sla_minutes, no_followup_sla_hours, no_response_sla_days, reactivation_days, proposal_sla_hours, payment_sla_days, monitored_funnels]
     );
     res.json(result.rows[0]);
   } catch (error) {
