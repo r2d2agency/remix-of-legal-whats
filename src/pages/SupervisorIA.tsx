@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Shield, 
   Users, 
@@ -13,6 +14,7 @@ import {
   Clock, 
   CheckCircle2, 
   XCircle, 
+
   RefreshCw,
   Search,
   Filter,
@@ -381,6 +383,7 @@ export default function SupervisorIA() {
                         value={localSettings?.reactivation_days || ""}
                         onChange={(e) => setLocalSettings({...localSettings, reactivation_days: parseInt(e.target.value)})}
                       />
+                    </div>
                     <div className="grid gap-2">
                       <Label>Funis Monitorados</Label>
                       <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto">
