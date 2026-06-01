@@ -455,7 +455,11 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
     mimetype: mimetype || undefined,
   };
 
-  if (seconds) body.seconds = Math.floor(Number(seconds));
+  if (seconds) {
+    const s = Math.floor(Number(seconds));
+    body.seconds = s;
+    body.duration = s;
+  }
 
   if (caption) body.text = caption;
   if (filename) body.docName = filename;
