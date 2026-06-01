@@ -30,7 +30,8 @@ import {
   Link2,
   User,
   Trash2,
-  Briefcase
+  Briefcase,
+  Plus
 } from "lucide-react";
 import { 
   Table, 
