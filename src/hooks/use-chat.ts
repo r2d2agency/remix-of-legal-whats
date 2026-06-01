@@ -457,6 +457,7 @@ export const useChat = () => {
     media_mimetype?: string;
     quoted_message_id?: string;
     is_forwarded?: boolean;
+    duration?: number;
   }): Promise<ChatMessage> => {
     const data = await api<ChatMessage>(`/api/chat/conversations/${conversationId}/messages`, {
       method: 'POST',
