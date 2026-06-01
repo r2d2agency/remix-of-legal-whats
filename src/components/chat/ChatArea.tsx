@@ -795,8 +795,9 @@ export function ChatArea({
       setUploadStatus({ active: true, current: 1, total: 1, fileName: 'Áudio' });
       const url = await uploadFile(file);
       if (url) { 
-        const validDuration = typeof duration === 'number' && !isNaN(duration) ? duration : 0;
+        const validDuration = typeof duration === 'number' && !isNaN(duration) ? Math.floor(duration) : 0;
         await onSendMessage('', 'audio', url, undefined, file.type, validDuration); 
+
         toast.success("Áudio enviado!"); 
       }
       clearAudio();

@@ -517,7 +517,7 @@ export async function sendMessage(connection, phone, content, messageType, media
         mediaUrl,
         filename,
         null,
-        duration,
+        (duration !== null && duration !== undefined && !isNaN(Number(duration))) ? Math.floor(Number(duration)) : null,
         mimetype
       );
       logInfo('whatsapp.send_message_uazapi_result', {
