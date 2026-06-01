@@ -265,4 +265,95 @@ router.post('/settings', async (req, res) => {
   }
 });
 
+
+// Get Teams
+router.get('/teams', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const result = await query(
+      `SELECT id, name FROM crm_user_groups WHERE organization_id = $1 ORDER BY name`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create Charge
+router.post('/charge', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const { type, targetId, notes } = req.body;
+    
+    if (type === 'individual') {
+      await query(
+        `INSERT INTO supervisor_charges (organization_id, target_user_id, charged_by, type, notes)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [org.organization_id, targetId, req.userId, type, notes]
+      );
+      
+      // Update deadlines for this seller's deals that are in RED or YELLOW
+      // We'll give them 4 more hours for follow-up as a "reset" after being charged
+      await query(
+        `UPDATE crm_deals 
+         SET next_followup_at = NOW() + INTERVAL '4 hours', updated_at = NOW()
+         WHERE organization_id = $1 AND owner_id = $2 AND status = 'open'`,
+        [org.organization_id, targetId]
+      );
+
+    } else if (type === 'team') {
+      await query(
+        `INSERT INTO supervisor_charges (organization_id, target_team_id, charged_by, type, notes)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [org.organization_id, targetId, req.userId, type, notes]
+      );
+
+      // Update deadlines for all deals in this team
+      await query(
+        `UPDATE crm_deals 
+         SET next_followup_at = NOW() + INTERVAL '4 hours', updated_at = NOW()
+         WHERE organization_id = $1 AND group_id = $2 AND status = 'open'`,
+        [org.organization_id, targetId]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    logError('Error creating supervisor charge:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get Charges History
+router.get('/charges', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+
+    const result = await query(
+      `SELECT 
+        c.*, 
+        u.name as target_user_name,
+        g.name as target_team_name,
+        cb.name as charged_by_name
+       FROM supervisor_charges c
+       LEFT JOIN users u ON u.id = c.target_user_id
+       LEFT JOIN crm_user_groups g ON g.id = c.target_team_id
+       LEFT JOIN users cb ON cb.id = c.charged_by
+       WHERE c.organization_id = $1
+       ORDER BY c.created_at DESC
+       LIMIT 100`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

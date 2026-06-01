@@ -107,8 +107,31 @@ export default function SupervisorIA() {
     }
   });
 
+  // Fetch Teams
+  const { data: teams } = useQuery({
+    queryKey: ['supervisor-teams'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/supervisor/teams`, {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      return res.json();
+    }
+  });
+
+  // Fetch Charges History
+  const { data: chargesHistory, isLoading: chargesLoading } = useQuery({
+    queryKey: ['supervisor-charges'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/supervisor/charges`, {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      return res.json();
+    }
+  });
 
   const [localSettings, setLocalSettings] = useState<any>(null);
+  const [chargeNote, setChargeNote] = useState("");
+  const [selectedTarget, setSelectedTarget] = useState<any>(null);
 
   useEffect(() => {
     if (settings) {
@@ -149,6 +172,29 @@ export default function SupervisorIA() {
       toast.success("Configurações de SLA atualizadas com sucesso");
     }
   });
+
+  // Charge Mutation
+  const chargeMutation = useMutation({
+    mutationFn: async ({ type, targetId, notes }: any) => {
+      const res = await fetch(`${API_URL}/supervisor/charge`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}` 
+        },
+        body: JSON.stringify({ type, targetId, notes })
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisor-charges'] });
+      queryClient.invalidateQueries({ queryKey: ['supervisor-semaphore'] });
+      toast.success("Cobrança registrada e prazos atualizados");
+      setChargeNote("");
+      setSelectedTarget(null);
+    }
+  });
+
 
   const handlePreview = () => {
     if (localSettings) {
@@ -624,38 +670,180 @@ export default function SupervisorIA() {
             </Card>
           </TabsContent>
           <TabsContent value="charges" className="mt-6">
-            <div className="grid grid-cols-1 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Central de Cobranças</CardTitle>
-                  <CardDescription>Gerencie pendências e envie lembretes para os vendedores</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50 border-b">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-medium">Vendedor</th>
-                        <th className="px-4 py-3 text-center font-medium">Leads em Atraso</th>
-                        <th className="px-4 py-3 text-center font-medium">Pendências</th>
-                        <th className="px-4 py-3 text-right font-medium">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {sellers?.map((seller: any) => (
-                        <tr key={seller.id}>
-                          <td className="px-4 py-3 font-medium">{seller.name}</td>
-                          <td className="px-4 py-3 text-center text-red-500 font-bold">{seller.no_approach}</td>
-                          <td className="px-4 py-3 text-center">{seller.total_leads}</td>
-                          <td className="px-4 py-3 text-right">
-                            <Button size="sm" variant="outline" className="mr-2">Histórico</Button>
-                            <Button size="sm">Cobrar Agora</Button>
-                          </td>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div>
+                      <CardTitle>Central de Cobranças</CardTitle>
+                      <CardDescription>Gerencie pendências e envie lembretes</CardDescription>
+                    </div>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button className="gap-2">
+                          <Users className="h-4 w-4" />
+                          Cobrar Equipe
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Cobrança Coletiva (Equipe)</DialogTitle>
+                          <CardDescription>Esta ação enviará uma cobrança para todos os membros da equipe selecionada e resetará os prazos de follow-up.</CardDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label>Selecione a Equipe</Label>
+                            <Select onValueChange={(val) => setSelectedTarget({ id: val, type: 'team' })}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione uma equipe" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {teams?.map((team: any) => (
+                                  <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Observação (Opcional)</Label>
+                            <Input 
+                              placeholder="Ex: Reforçar abordagem de leads novos..." 
+                              value={chargeNote}
+                              onChange={(e) => setChargeNote(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button 
+                            variant="destructive" 
+                            className="w-full"
+                            disabled={!selectedTarget || chargeMutation.isPending}
+                            onClick={() => chargeMutation.mutate({ 
+                              type: 'team', 
+                              targetId: selectedTarget.id, 
+                              notes: chargeNote 
+                            })}
+                          >
+                            {chargeMutation.isPending ? "Processando..." : "Confirmar Cobrança de Equipe"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 border-b">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-medium">Vendedor</th>
+                          <th className="px-4 py-3 text-center font-medium">Leads em Atraso</th>
+                          <th className="px-4 py-3 text-center font-medium">Pendências</th>
+                          <th className="px-4 py-3 text-right font-medium">Ações</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </CardContent>
-              </Card>
+                      </thead>
+                      <tbody className="divide-y">
+                        {sellers?.map((seller: any) => (
+                          <tr key={seller.id} className="hover:bg-muted/30 transition-colors">
+                            <td className="px-4 py-3 font-medium">
+                              <div className="flex items-center gap-2">
+                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold">
+                                  {seller.name.charAt(0)}
+                                </div>
+                                {seller.name}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <Badge variant={seller.no_approach > 0 ? "destructive" : "outline"} className={seller.no_approach > 0 ? "animate-pulse" : ""}>
+                                {seller.no_approach}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-center text-muted-foreground">{seller.total_leads}</td>
+                            <td className="px-4 py-3 text-right">
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" variant="secondary" className="gap-2">
+                                    <DollarSign className="h-3 w-3" />
+                                    Cobrar
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Cobrar Vendedor: {seller.name}</DialogTitle>
+                                    <CardDescription>Registre uma cobrança individual para este vendedor.</CardDescription>
+                                  </DialogHeader>
+                                  <div className="space-y-4 py-4">
+                                    <div className="bg-muted/50 p-3 rounded-lg flex justify-between items-center">
+                                      <span className="text-sm font-medium">Leads em atraso:</span>
+                                      <Badge variant="destructive">{seller.no_approach}</Badge>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Observação</Label>
+                                      <Input 
+                                        placeholder="Motivo da cobrança..." 
+                                        value={chargeNote}
+                                        onChange={(e) => setChargeNote(e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+                                  <DialogFooter>
+                                    <Button 
+                                      className="w-full"
+                                      disabled={chargeMutation.isPending}
+                                      onClick={() => chargeMutation.mutate({ 
+                                        type: 'individual', 
+                                        targetId: seller.id, 
+                                        notes: chargeNote 
+                                      })}
+                                    >
+                                      {chargeMutation.isPending ? "Registrando..." : "Enviar Cobrança Individual"}
+                                    </Button>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <History className="h-4 w-4 text-primary" />
+                      Histórico Recente
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {chargesHistory?.map((charge: any) => (
+                      <div key={charge.id} className="relative pl-4 pb-4 border-l last:pb-0">
+                        <div className="absolute left-[-5px] top-0 h-2 w-2 rounded-full bg-primary" />
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(charge.created_at).toLocaleString()}
+                        </p>
+                        <p className="text-sm font-semibold mt-1">
+                          {charge.type === 'team' ? `Equipe: ${charge.target_team_name}` : `Vendedor: ${charge.target_user_name}`}
+                        </p>
+                        {charge.notes && (
+                          <p className="text-xs text-muted-foreground mt-1 bg-muted p-2 rounded">
+                            "{charge.notes}"
+                          </p>
+                        )}
+                        <p className="text-[10px] mt-1 text-primary/70 uppercase font-bold tracking-wider">
+                          Por: {charge.charged_by_name}
+                        </p>
+                      </div>
+                    ))}
+                    {chargesHistory?.length === 0 && (
+                      <div className="text-center py-6 text-muted-foreground text-sm">
+                        Nenhuma cobrança registrada.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
