@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,10 @@ import {
   ChevronRight,
   UserCheck,
   MessageSquare,
-  DollarSign
+  DollarSign,
+  Save,
+  Eye,
+  History
 } from "lucide-react";
 import { 
   BarChart, 
@@ -42,6 +45,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export default function SupervisorIA() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -104,6 +108,29 @@ export default function SupervisorIA() {
   });
 
 
+  const [localSettings, setLocalSettings] = useState<any>(null);
+
+  useEffect(() => {
+    if (settings) {
+      setLocalSettings(settings);
+    }
+  }, [settings]);
+
+  // Preview Mutation
+  const previewMutation = useMutation({
+    mutationFn: async (tempSettings: any) => {
+      const res = await fetch(`${API_URL}/supervisor/preview-settings`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}` 
+        },
+        body: JSON.stringify(tempSettings)
+      });
+      return res.json();
+    }
+  });
+
   const updateSettingsMutation = useMutation({
     mutationFn: async (newSettings: any) => {
       const res = await fetch(`${API_URL}/supervisor/settings`, {
@@ -118,9 +145,16 @@ export default function SupervisorIA() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supervisor-settings'] });
-      toast.success("Configurações atualizadas com sucesso");
+      queryClient.invalidateQueries({ queryKey: ['supervisor-semaphore'] });
+      toast.success("Configurações de SLA atualizadas com sucesso");
     }
   });
+
+  const handlePreview = () => {
+    if (localSettings) {
+      previewMutation.mutate(localSettings);
+    }
+  };
 
   const COLORS = ['#22c55e', '#eab308', '#ef4444'];
   const PIE_DATA = [
@@ -128,6 +162,12 @@ export default function SupervisorIA() {
     { name: 'Amarelo', value: semaphore?.YELLOW || 0 },
     { name: 'Vermelho', value: semaphore?.RED || 0 },
   ];
+
+  const PREVIEW_DATA = previewMutation.data ? [
+    { name: 'Verde', value: previewMutation.data.GREEN || 0 },
+    { name: 'Amarelo', value: previewMutation.data.YELLOW || 0 },
+    { name: 'Vermelho', value: previewMutation.data.RED || 0 },
+  ] : null;
 
   return (
     <MainLayout>
@@ -155,42 +195,155 @@ export default function SupervisorIA() {
               </SelectContent>
             </Select>
 
-            <Dialog>
+            <Dialog onOpenChange={(open) => { if (open) setLocalSettings(settings); }}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="icon">
+                <Button variant="outline" className="gap-2">
                   <SettingsIcon className="h-4 w-4" />
+                  Regras SLA
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
                 <DialogHeader>
-                  <DialogTitle>Regras de Monitoramento</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-primary" />
+                    Configurar Regras de SLA
+                  </DialogTitle>
+                  <CardDescription>
+                    Ajuste os tempos de resposta e monitoramento. As mudanças afetam o semáforo em tempo real.
+                  </CardDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label>Lead novo sem abordagem após (minutos)</Label>
-                    <Input 
-                      type="number" 
-                      defaultValue={settings?.new_lead_sla_minutes || 30} 
-                      onChange={(e) => updateSettingsMutation.mutate({ ...settings, new_lead_sla_minutes: parseInt(e.target.value) })}
-                    />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                  <div className="space-y-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="new_lead">Lead novo sem abordagem (minutos)</Label>
+                      <Input 
+                        id="new_lead"
+                        type="number" 
+                        value={localSettings?.new_lead_sla_minutes || ""} 
+                        onChange={(e) => setLocalSettings({...localSettings, new_lead_sla_minutes: parseInt(e.target.value)})}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="no_followup">Lead sem follow-up (horas)</Label>
+                      <Input 
+                        id="no_followup"
+                        type="number" 
+                        value={localSettings?.no_followup_sla_hours || ""}
+                        onChange={(e) => setLocalSettings({...localSettings, no_followup_sla_hours: parseInt(e.target.value)})}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="no_response">Lead sem resposta (dias)</Label>
+                      <Input 
+                        id="no_response"
+                        type="number" 
+                        value={localSettings?.no_response_sla_days || ""}
+                        onChange={(e) => setLocalSettings({...localSettings, no_response_sla_days: parseInt(e.target.value)})}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="proposal">Aguardando proposta (horas)</Label>
+                      <Input 
+                        id="proposal"
+                        type="number" 
+                        value={localSettings?.proposal_sla_hours || ""}
+                        onChange={(e) => setLocalSettings({...localSettings, proposal_sla_hours: parseInt(e.target.value)})}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="payment">Aguardando pagamento (dias)</Label>
+                      <Input 
+                        id="payment"
+                        type="number" 
+                        value={localSettings?.payment_sla_days || ""}
+                        onChange={(e) => setLocalSettings({...localSettings, payment_sla_days: parseInt(e.target.value)})}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="reactivation">Reativação de Leads Perdidos (dias)</Label>
+                      <Input 
+                        id="reactivation"
+                        type="number" 
+                        value={localSettings?.reactivation_days || ""}
+                        onChange={(e) => setLocalSettings({...localSettings, reactivation_days: parseInt(e.target.value)})}
+                      />
+                    </div>
+                    
+                    <Button 
+                      variant="secondary" 
+                      className="w-full gap-2" 
+                      onClick={handlePreview}
+                      disabled={previewMutation.isPending}
+                    >
+                      <Eye className="h-4 w-4" />
+                      {previewMutation.isPending ? "Calculando..." : "Pré-visualizar Impacto"}
+                    </Button>
                   </div>
-                  <div className="grid gap-2">
-                    <Label>Lead sem follow-up após (horas)</Label>
-                    <Input 
-                      type="number" 
-                      defaultValue={settings?.no_followup_sla_hours || 24}
-                      onChange={(e) => updateSettingsMutation.mutate({ ...settings, no_followup_sla_hours: parseInt(e.target.value) })}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Lead sem resposta há (dias)</Label>
-                    <Input 
-                      type="number" 
-                      defaultValue={settings?.no_response_sla_days || 2}
-                      onChange={(e) => updateSettingsMutation.mutate({ ...settings, no_response_sla_days: parseInt(e.target.value) })}
-                    />
+
+                  <div className="bg-muted/30 rounded-lg p-4 flex flex-col items-center justify-center border">
+                    <h4 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      Impacto no Semáforo
+                    </h4>
+                    
+                    <div className="h-[180px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={PREVIEW_DATA || PIE_DATA}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={45}
+                            outerRadius={65}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {(PREVIEW_DATA || PIE_DATA).map((entry, index) => (
+                              <Cell key={`cell-preview-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 w-full mt-2">
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-green-500">{(PREVIEW_DATA || PIE_DATA)[0].value}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">Verde</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-yellow-500">{(PREVIEW_DATA || PIE_DATA)[1].value}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">Amarelo</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-red-500">{(PREVIEW_DATA || PIE_DATA)[2].value}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">Vermelho</div>
+                      </div>
+                    </div>
+
+                    {PREVIEW_DATA && (
+                      <div className="mt-4 text-[11px] text-center text-muted-foreground">
+                        Exibindo projeção baseada nas novas regras.
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <DialogTrigger asChild>
+                    <Button variant="ghost">Cancelar</Button>
+                  </DialogTrigger>
+                  <Button 
+                    className="gap-2" 
+                    onClick={() => updateSettingsMutation.mutate(localSettings)}
+                    disabled={updateSettingsMutation.isPending}
+                  >
+                    <Save className="h-4 w-4" />
+                    {updateSettingsMutation.isPending ? "Salvando..." : "Salvar e Aplicar"}
+                  </Button>
+                </DialogFooter>
               </DialogContent>
             </Dialog>
             
@@ -538,4 +691,4 @@ function StatCard({ title, value, icon: Icon, color }: any) {
   );
 }
 
-const cn = (...classes: any[]) => classes.filter(Boolean).join(' ');
+
