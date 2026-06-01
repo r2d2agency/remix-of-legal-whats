@@ -455,16 +455,19 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
     mimetype: mimetype || undefined,
   };
 
-  if (seconds !== null && seconds !== undefined) {
-    const rawSeconds = String(seconds);
-    if (rawSeconds !== "N/A" && rawSeconds.trim() !== "") {
-      const s = Math.floor(Number(seconds));
-      if (!isNaN(s) && s > 0) {
-        body.seconds = s;
-        body.duration = s;
+  // Forçar duração válida para áudio e vídeo para evitar erros de processamento na API
+  if (type === 'audio' || type === 'video') {
+    let s = 1; // default
+    if (seconds !== null && seconds !== undefined) {
+      const num = Number(String(seconds).replace("N/A", "").trim());
+      if (!isNaN(num) && num > 0) {
+        s = Math.floor(num);
       }
     }
+    body.seconds = s;
+    body.duration = s;
   }
+
 
   if (caption) body.text = caption;
   if (filename) body.docName = filename;

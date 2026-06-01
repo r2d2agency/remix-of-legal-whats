@@ -517,7 +517,8 @@ export async function sendMessage(connection, phone, content, messageType, media
         mediaUrl,
         filename,
         null,
-        (duration !== null && duration !== undefined && !isNaN(Number(duration))) ? Math.floor(Number(duration)) : null,
+        (duration !== null && duration !== undefined && !isNaN(Number(duration)) && Number(duration) > 0) ? Math.floor(Number(duration)) : 1,
+
         mimetype
       );
       logInfo('whatsapp.send_message_uazapi_result', {
@@ -598,7 +599,7 @@ export async function sendMessage(connection, phone, content, messageType, media
         number: phone,
         audio: mediaUrl,
         delay: 1200,
-        seconds: (duration !== null && duration !== undefined && !isNaN(Number(duration))) ? Math.floor(Number(duration)) : undefined,
+        seconds: (duration !== null && duration !== undefined && !isNaN(Number(duration)) && Number(duration) > 0) ? Math.floor(Number(duration)) : 1,
       };
     } else {
       // image, video, document
