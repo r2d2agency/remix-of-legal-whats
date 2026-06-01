@@ -2193,6 +2193,48 @@ export default function Admin() {
                 </div>
               )}
             </div>
+            
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">Módulos Ativos (Substituição de Plano)</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[250px] overflow-y-auto pr-2">
+                <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-xs">Supervisor IA</span>
+                  </div>
+                  <Switch 
+                    checked={editingOrgModules?.supervisor || false}
+                    onCheckedChange={(checked) => setEditingOrgModules({...editingOrgModules, supervisor: checked})}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-xs">CRM</span>
+                  </div>
+                  <Switch 
+                    checked={editingOrgModules?.crm || false}
+                    onCheckedChange={(checked) => setEditingOrgModules({...editingOrgModules, crm: checked})}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-xs">Chatbots</span>
+                  </div>
+                  <Switch 
+                    checked={editingOrgModules?.chatbots || false}
+                    onCheckedChange={(checked) => setEditingOrgModules({...editingOrgModules, chatbots: checked})}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-2 border rounded-md">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-xs">Campanhas</span>
+                  </div>
+                  <Switch 
+                    checked={editingOrgModules?.campaigns || false}
+                    onCheckedChange={(checked) => setEditingOrgModules({...editingOrgModules, campaigns: checked})}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOrgDialogOpen(false)}>
@@ -2640,6 +2682,7 @@ export default function Admin() {
                             <SelectItem value="owner">Proprietário</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                             <SelectItem value="agent">Agente</SelectItem>
+                            <SelectItem value="supervisor">Supervisor IA</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
