@@ -146,8 +146,9 @@ export async function dispatchLeadEvent(event) {
         break;
       case 'message_sent':
       case 'follow_up_sent':
-        // Currently informational only — recorded for audit.
+        await handleMessageSent(event);
         break;
+
       default:
         logInfo(`[event-bus] no handler for ${event.event_type}`);
     }
@@ -275,10 +276,31 @@ async function handleLeadReplied(event) {
     [event.deal_id]
   );
   await query(
-    `UPDATE crm_deals SET last_activity_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    `UPDATE crm_deals 
+     SET last_activity_at = NOW(), 
+         last_customer_message_at = NOW(),
+         updated_at = NOW() 
+     WHERE id = $1`,
     [event.deal_id]
   );
 }
+
+/**
+ * Update supervisor tracking when seller sends a message.
+ */
+async function handleMessageSent(event) {
+  if (!event.deal_id) return;
+  await query(
+    `UPDATE crm_deals 
+     SET last_seller_message_at = NOW(),
+         first_seller_message_at = COALESCE(first_seller_message_at, NOW()),
+         last_activity_at = NOW(),
+         updated_at = NOW()
+     WHERE id = $1`,
+    [event.deal_id]
+  );
+}
+
 
 /**
  * Move the deal to next_stage_on_timeout (or next_stage_id) and let

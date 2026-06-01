@@ -51,6 +51,8 @@ import telehealthRoutes from './routes/telehealth.js';
 import linkPreviewRoutes from './routes/link-preview.js';
 import salesSeoRoutes from './routes/sales-seo.js';
 import { handleAutoReplies } from './lib/auto-reply-service.js';
+import supervisorRoutes from './routes/supervisor.js';
+
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
 import { executeCampaignMessages } from './campaign-scheduler.js';
@@ -842,6 +844,8 @@ app.use('/api/doc-signatures', docSignaturesRoutes);
 app.use('/api/telehealth', telehealthRoutes);
 app.use('/api/sales-seo', salesSeoRoutes);
 app.use('/api/link-preview', linkPreviewRoutes);
+app.use('/api/supervisor', supervisorRoutes);
+
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -1071,6 +1075,21 @@ initDatabase().then((ok) => {
       } catch (error) {
         console.error('⏳ [CRON] Error checking wait_reply timeouts:', error);
       }
+    });
+
+    // Supervisor IA Daily Audit - runs at 19:00
+    cron.schedule('0 19 * * *', async () => {
+      try {
+        const { executeDailyAudit } = await import('./supervisor-audit-scheduler.js');
+        await executeDailyAudit();
+      } catch (error) {
+        console.error('🛡️ [CRON] Error executing supervisor daily audit:', error);
+      }
+    }, {
+      timezone: 'America/Sao_Paulo'
+    });
+    console.log('🛡️ Supervisor IA daily audit scheduled - runs at 19:00 daily');
+
     });
     console.log('⏳ Wait reply timeout checker started - checks every minute');
   });

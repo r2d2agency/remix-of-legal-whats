@@ -339,6 +339,56 @@ CREATE TABLE IF NOT EXISTS access_group_connections (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (access_group_id, connection_id)
 );
+
+-- Supervisor IA Settings
+CREATE TABLE IF NOT EXISTS supervisor_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    new_lead_sla_minutes INTEGER DEFAULT 30,
+    no_followup_sla_hours INTEGER DEFAULT 24,
+    no_response_sla_days INTEGER DEFAULT 2,
+    reactivation_days INTEGER DEFAULT 30,
+    proposal_sla_hours INTEGER DEFAULT 4,
+    payment_sla_days INTEGER DEFAULT 3,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(organization_id)
+);
+
+-- Supervisor IA Audits
+CREATE TABLE IF NOT EXISTS supervisor_audits (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    deal_id UUID REFERENCES crm_deals(id) ON DELETE CASCADE NOT NULL,
+    owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    analysis_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    status_found VARCHAR(50),
+    reason TEXT,
+    suggested_action TEXT,
+    urgency VARCHAR(20),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Supervisor IA Charges
+CREATE TABLE IF NOT EXISTS supervisor_charges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    charged_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add monitoring columns to crm_deals
+DO $$ BEGIN
+    ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS last_seller_message_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS last_customer_message_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS first_seller_message_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS proposal_sent_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS payment_pending_at TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS next_followup_at TIMESTAMP WITH TIME ZONE;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
 `;
 
 // ============================================
