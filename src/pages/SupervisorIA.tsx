@@ -30,7 +30,8 @@ import {
   Link2,
   User,
   Trash2,
-  Briefcase
+  Briefcase,
+  Plus
 } from "lucide-react";
 import { 
   Table, 
@@ -72,11 +73,20 @@ export default function SupervisorIA() {
   const [selectedFunnel, setSelectedFunnel] = useState<string>("all");
   const queryClient = useQueryClient();
 
-  // Dialog states for member editing
+  // Dialog states for member management
   const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
   const [editMemberRole, setEditMemberRole] = useState<string>('agent');
   const [editMemberConnectionIds, setEditMemberConnectionIds] = useState<string[]>([]);
+  
+  const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
+  const [newMember, setNewMember] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'agent',
+    connection_ids: [] as string[]
+  });
 
   // Fetch Funnels for filters
   const { data: funnels } = useQuery({
@@ -161,7 +171,7 @@ export default function SupervisorIA() {
 
   // Fetch Connections for Sellers
   const { data: orgConnections } = useQuery({
-    queryKey: ['supervisor-org-connections'],
+    queryKey: ['supervisor-org-connections', user?.organization_id],
     queryFn: async () => {
       const res = await fetch(`${API_URL}/api/organizations/${user?.organization_id}/connections`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
@@ -264,6 +274,39 @@ export default function SupervisorIA() {
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao atualizar membro');
+    }
+  });
+
+  const createMemberMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await api(`/api/organizations/${user?.organization_id}/members`, {
+        method: 'POST',
+        body: data,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisor-sellers'] });
+      toast.success('Membro convidado com sucesso!');
+      setAddMemberDialogOpen(false);
+      setNewMember({ name: '', email: '', password: '', role: 'agent', connection_ids: [] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao convidar membro');
+    }
+  });
+
+  const deleteMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      return await api(`/api/organizations/${user?.organization_id}/members/${memberId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisor-sellers'] });
+      toast.success('Membro removido com sucesso!');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao remover membro');
     }
   });
 
@@ -566,15 +609,92 @@ export default function SupervisorIA() {
                     Configure os papéis e as conexões de WhatsApp que o Supervisor IA deve monitorar.
                   </CardDescription>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => navigate('/organizacoes')}
-                  className="gap-2"
-                >
-                  <SettingsIcon className="h-4 w-4" />
-                  Ir para Organizações
-                </Button>
+                <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Novo Vendedor
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Convidar Novo Vendedor</DialogTitle>
+                      <CardDescription>Crie um acesso para um novo membro da sua equipe.</CardDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Nome Completo</Label>
+                        <Input 
+                          placeholder="Ex: João Silva" 
+                          value={newMember.name}
+                          onChange={(e) => setNewMember({...newMember, name: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>E-mail</Label>
+                        <Input 
+                          type="email" 
+                          placeholder="joao@empresa.com" 
+                          value={newMember.email}
+                          onChange={(e) => setNewMember({...newMember, email: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Senha Temporária</Label>
+                        <Input 
+                          type="password" 
+                          placeholder="********" 
+                          value={newMember.password}
+                          onChange={(e) => setNewMember({...newMember, password: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Papel</Label>
+                        <Select value={newMember.role} onValueChange={(val) => setNewMember({...newMember, role: val})}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="agent">Agente (Vendedor)</SelectItem>
+                            <SelectItem value="manager">Gerente</SelectItem>
+                            <SelectItem value="supervisor">Supervisor IA</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Conexões de WhatsApp</Label>
+                        <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
+                          {(orgConnections || []).map((conn: any) => (
+                            <div key={conn.id} className="flex items-center space-x-2">
+                              <Checkbox 
+                                id={`new-member-conn-${conn.id}`}
+                                checked={newMember.connection_ids.includes(conn.id)}
+                                onCheckedChange={(checked) => {
+                                  const current = newMember.connection_ids;
+                                  if (checked) {
+                                    setNewMember({...newMember, connection_ids: [...current, conn.id]});
+                                  } else {
+                                    setNewMember({...newMember, connection_ids: current.filter(id => id !== conn.id)});
+                                  }
+                                }}
+                              />
+                              <label htmlFor={`new-member-conn-${conn.id}`} className="text-sm cursor-pointer">{conn.name}</label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="ghost" onClick={() => setAddMemberDialogOpen(false)}>Cancelar</Button>
+                      <Button 
+                        onClick={() => createMemberMutation.mutate(newMember)}
+                        disabled={createMemberMutation.isPending || !newMember.email || !newMember.password}
+                      >
+                        {createMemberMutation.isPending ? "Convidando..." : "Convidar e Salvar"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -602,7 +722,10 @@ export default function SupervisorIA() {
                                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
                                   {seller.name.charAt(0)}
                                 </div>
-                                {seller.name}
+                                <div>
+                                  <div>{seller.name}</div>
+                                  <div className="text-[10px] text-muted-foreground">{seller.email}</div>
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell>
@@ -627,15 +750,28 @@ export default function SupervisorIA() {
                               </div>
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => handleEditMember(seller)}
-                                className="gap-2"
-                              >
-                                <SettingsIcon className="h-4 w-4" />
-                                Editar
-                              </Button>
+                              <div className="flex justify-end gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleEditMember(seller)}
+                                  className="h-8 px-2"
+                                >
+                                  <SettingsIcon className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => {
+                                    if (confirm(`Remover ${seller.name} da organização?`)) {
+                                      deleteMemberMutation.mutate(seller.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -741,7 +877,7 @@ export default function SupervisorIA() {
                   <div className="space-y-2">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">1</div>
                     <p className="font-semibold text-sm">Defina os Vendedores</p>
-                    <p className="text-xs text-muted-foreground">Acesse <strong>CRM {"->"} Organizações</strong> e certifique-se que seus vendedores têm papel de "Agente" ou "Gerente".</p>
+                    <p className="text-xs text-muted-foreground">Acesse a aba <strong>Configurar Vendedores</strong> e certifique-se que seus vendedores têm o papel correto e conexões atribuídas.</p>
                   </div>
                   <div className="space-y-2">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">2</div>
