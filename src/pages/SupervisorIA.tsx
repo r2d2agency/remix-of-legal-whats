@@ -609,15 +609,92 @@ export default function SupervisorIA() {
                     Configure os papéis e as conexões de WhatsApp que o Supervisor IA deve monitorar.
                   </CardDescription>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => navigate('/organizacoes')}
-                  className="gap-2"
-                >
-                  <SettingsIcon className="h-4 w-4" />
-                  Ir para Organizações
-                </Button>
+                <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Novo Vendedor
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Convidar Novo Vendedor</DialogTitle>
+                      <CardDescription>Crie um acesso para um novo membro da sua equipe.</CardDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Nome Completo</Label>
+                        <Input 
+                          placeholder="Ex: João Silva" 
+                          value={newMember.name}
+                          onChange={(e) => setNewMember({...newMember, name: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>E-mail</Label>
+                        <Input 
+                          type="email" 
+                          placeholder="joao@empresa.com" 
+                          value={newMember.email}
+                          onChange={(e) => setNewMember({...newMember, email: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Senha Temporária</Label>
+                        <Input 
+                          type="password" 
+                          placeholder="********" 
+                          value={newMember.password}
+                          onChange={(e) => setNewMember({...newMember, password: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Papel</Label>
+                        <Select value={newMember.role} onValueChange={(val) => setNewMember({...newMember, role: val})}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="agent">Agente (Vendedor)</SelectItem>
+                            <SelectItem value="manager">Gerente</SelectItem>
+                            <SelectItem value="supervisor">Supervisor IA</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Conexões de WhatsApp</Label>
+                        <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
+                          {(orgConnections || []).map((conn: any) => (
+                            <div key={conn.id} className="flex items-center space-x-2">
+                              <Checkbox 
+                                id={`new-member-conn-${conn.id}`}
+                                checked={newMember.connection_ids.includes(conn.id)}
+                                onCheckedChange={(checked) => {
+                                  const current = newMember.connection_ids;
+                                  if (checked) {
+                                    setNewMember({...newMember, connection_ids: [...current, conn.id]});
+                                  } else {
+                                    setNewMember({...newMember, connection_ids: current.filter(id => id !== conn.id)});
+                                  }
+                                }}
+                              />
+                              <label htmlFor={`new-member-conn-${conn.id}`} className="text-sm cursor-pointer">{conn.name}</label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="ghost" onClick={() => setAddMemberDialogOpen(false)}>Cancelar</Button>
+                      <Button 
+                        onClick={() => createMemberMutation.mutate(newMember)}
+                        disabled={createMemberMutation.isPending || !newMember.email || !newMember.password}
+                      >
+                        {createMemberMutation.isPending ? "Convidando..." : "Convidar e Salvar"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -645,7 +722,10 @@ export default function SupervisorIA() {
                                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
                                   {seller.name.charAt(0)}
                                 </div>
-                                {seller.name}
+                                <div>
+                                  <div>{seller.name}</div>
+                                  <div className="text-[10px] text-muted-foreground">{seller.email}</div>
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell>
@@ -670,15 +750,28 @@ export default function SupervisorIA() {
                               </div>
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => handleEditMember(seller)}
-                                className="gap-2"
-                              >
-                                <SettingsIcon className="h-4 w-4" />
-                                Editar
-                              </Button>
+                              <div className="flex justify-end gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleEditMember(seller)}
+                                  className="h-8 px-2"
+                                >
+                                  <SettingsIcon className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => {
+                                    if (confirm(`Remover ${seller.name} da organização?`)) {
+                                      deleteMemberMutation.mutate(seller.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
