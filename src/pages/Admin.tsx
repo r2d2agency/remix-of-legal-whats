@@ -2405,6 +2405,14 @@ export default function Admin() {
                     onCheckedChange={(v) => setEditingPlan({ ...editingPlan!, has_doc_signatures: v })}
                   />
                 </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <Label htmlFor="edit-supervisor">Supervisor IA</Label>
+                  <Switch
+                    id="edit-supervisor"
+                    checked={editingPlan?.has_supervisor || false}
+                    onCheckedChange={(v) => setEditingPlan({ ...editingPlan!, has_supervisor: v })}
+                  />
+                </div>
                 {editingPlan?.has_doc_signatures && (
                   <div className="rounded-lg border p-3 ml-4">
                     <Label htmlFor="edit-doc-sig-limit" className="text-sm">Limite mensal de documentos</Label>
