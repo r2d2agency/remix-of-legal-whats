@@ -316,6 +316,7 @@ export default function SupervisorIA() {
     setEditingMember(seller);
     setEditMemberRole(seller.org_role || 'agent');
     setEditMemberConnectionIds(seller.connections || []);
+    setEditMemberFunnels(seller.monitored_funnels || []);
     setEditMemberDialogOpen(true);
   };
 
@@ -326,6 +327,7 @@ export default function SupervisorIA() {
       data: {
         role: editMemberRole,
         connection_ids: editMemberConnectionIds,
+        monitored_funnels: editMemberFunnels,
       }
     });
   };
