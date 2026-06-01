@@ -373,8 +373,10 @@ CREATE TABLE IF NOT EXISTS supervisor_audits (
 CREATE TABLE IF NOT EXISTS supervisor_charges (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    target_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    target_team_id UUID REFERENCES crm_user_groups(id) ON DELETE CASCADE,
     charged_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    type VARCHAR(20) NOT NULL, -- 'individual' or 'team'
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
