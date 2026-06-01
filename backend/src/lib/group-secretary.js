@@ -650,7 +650,7 @@ export async function generateMeetingMinutes({ organizationId, conversationId, h
        WHERE m.conversation_id = $1 
          AND m.timestamp >= NOW() - INTERVAL '1 hour' * $2
          AND m.content IS NOT NULL AND m.content != ''
-         AND m.message_type IN ('text', 'extendedTextMessage', 'conversation')
+         AND m.message_type IN ('text', 'extendedTextMessage', 'conversation', 'chat')
        ORDER BY m.timestamp ASC
        LIMIT 500`,
       [conversationId, hours]
