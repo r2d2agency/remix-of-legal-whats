@@ -1089,8 +1089,5 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
     console.log('🛡️ Supervisor IA daily audit scheduled - runs at 19:00 daily');
-
-    });
-    console.log('⏳ Wait reply timeout checker started - checks every minute');
   });
 });
