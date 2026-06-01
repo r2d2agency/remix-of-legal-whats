@@ -31,7 +31,8 @@ import {
   User,
   Trash2,
   Briefcase,
-  Plus
+  Plus,
+  Monitor
 } from "lucide-react";
 import { 
   Table, 
