@@ -459,15 +459,25 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
   if (type === 'audio' || type === 'video') {
     let s = 1; // default
     if (seconds !== null && seconds !== undefined) {
-      // Remove "N/A" and any other non-numeric garbage
-      const cleanValue = String(seconds).replace(/[^\d.]/g, '');
-      const num = parseFloat(cleanValue);
-      if (!isNaN(num) && num > 0) {
-        s = Math.floor(num);
+      // Clean up string: keep digits and dots, remove everything else
+      const cleanValue = String(seconds).replace(/[^\d.]/g, '').trim();
+      
+      // If we have a valid numeric string
+      if (cleanValue && cleanValue !== '.') {
+        const num = parseFloat(cleanValue);
+        if (!isNaN(num) && num > 0) {
+          s = Math.floor(num);
+        }
       }
     }
     body.seconds = s;
     body.duration = s;
+    // Log duration cleanup for diagnostics
+    logInfo('uazapi.send_media_duration_cleanup', { 
+      original: seconds, 
+      cleaned: s, 
+      type 
+    });
   }
 
   if (caption) body.text = caption;

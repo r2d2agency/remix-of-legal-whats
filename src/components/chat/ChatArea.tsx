@@ -1587,7 +1587,7 @@ export function ChatArea({
               <Mic className="h-5 w-5 text-primary" /><span className="text-sm font-medium">Áudio gravado</span>
               <span className="text-sm font-mono text-muted-foreground">{formatDuration(duration)}</span>
             </div>
-            <Button size="icon" className="h-10 w-10 flex-shrink-0" onClick={handleSendAudio} disabled={sending || isUploading}>
+            <Button size="icon" className="h-10 w-10 flex-shrink-0" onClick={handleSendAudio} disabled={sending || isUploading || !audioBlob}>
               {(sending || isUploading) ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             </Button>
           </div>
