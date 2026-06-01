@@ -519,10 +519,14 @@ export async function sendMessage(connection, phone, content, messageType, media
         null, // messageId para edição
         (() => {
           if (duration === null || duration === undefined) return 1;
-          const clean = String(duration).replace(/[^\d.]/g, '').trim();
+          const rawSeconds = String(duration).trim().toUpperCase();
+          if (rawSeconds === 'N/A' || rawSeconds === 'UNDEFINED' || rawSeconds === 'NULL' || rawSeconds === '') {
+            return 0;
+          }
+          const clean = rawSeconds.replace(/[^\d.]/g, '');
           if (!clean || clean === '.') return 1;
           const num = parseFloat(clean);
-          return (!isNaN(num) && num > 0) ? Math.floor(num) : 1;
+          return (!isNaN(num) && num >= 0) ? Math.floor(num) : 1;
         })(),
         mimetype
       );
