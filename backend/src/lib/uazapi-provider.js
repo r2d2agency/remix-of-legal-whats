@@ -451,7 +451,7 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
   const body = {
     number: normalizePhone(phone),
     type: typeMap[type] || 'document',
-    file: mediaUrl,
+    url: mediaUrl,
     mimetype: mimetype || undefined,
   };
 

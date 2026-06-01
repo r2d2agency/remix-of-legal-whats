@@ -516,14 +516,13 @@ export async function sendMessage(connection, phone, content, messageType, media
         messageType,
         mediaUrl,
         filename,
-        null,
+        null, // messageId para edição
         (() => {
           if (duration === null || duration === undefined) return 1;
           const clean = String(duration).replace(/[^\d.]/g, '');
           const num = parseFloat(clean);
           return (!isNaN(num) && num > 0) ? Math.floor(num) : 1;
         })(),
-
         mimetype
       );
       logInfo('whatsapp.send_message_uazapi_result', {
