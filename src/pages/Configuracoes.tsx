@@ -477,6 +477,9 @@ const Configuracoes = () => {
                 </CardContent>
               </Card>
 
+              {/* System and Update */}
+              <SystemUpdateCard />
+
               {/* General Settings */}
               <Card className="animate-fade-in shadow-card">
                 <CardHeader>
