@@ -31,7 +31,8 @@ import {
   User,
   Trash2,
   Briefcase,
-  Plus
+  Plus,
+  Monitor
 } from "lucide-react";
 import { 
   Table, 
@@ -195,6 +196,7 @@ export default function SupervisorIA() {
   const [localSettings, setLocalSettings] = useState<any>(null);
   const [chargeNote, setChargeNote] = useState("");
   const [selectedTarget, setSelectedTarget] = useState<any>(null);
+  const [editMemberFunnels, setEditMemberFunnels] = useState<string[]>([]);
 
   useEffect(() => {
     if (settings) {
@@ -314,6 +316,7 @@ export default function SupervisorIA() {
     setEditingMember(seller);
     setEditMemberRole(seller.org_role || 'agent');
     setEditMemberConnectionIds(seller.connections || []);
+    setEditMemberFunnels(seller.monitored_funnels || []);
     setEditMemberDialogOpen(true);
   };
 
@@ -324,6 +327,7 @@ export default function SupervisorIA() {
       data: {
         role: editMemberRole,
         connection_ids: editMemberConnectionIds,
+        monitored_funnels: editMemberFunnels,
       }
     });
   };
@@ -604,97 +608,11 @@ export default function SupervisorIA() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Gerenciar Vendedores e Conexões</CardTitle>
+                  <CardTitle>Configuração de Monitoramento</CardTitle>
                   <CardDescription>
-                    Configure os papéis e as conexões de WhatsApp que o Supervisor IA deve monitorar.
+                    Selecione quais usuários e conexões o Supervisor IA deve monitorar ativamente.
                   </CardDescription>
                 </div>
-                <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="gap-2">
-                      <Plus className="h-4 w-4" />
-                      Novo Vendedor
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Convidar Novo Vendedor</DialogTitle>
-                      <CardDescription>Crie um acesso para um novo membro da sua equipe.</CardDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label>Nome Completo</Label>
-                        <Input 
-                          placeholder="Ex: João Silva" 
-                          value={newMember.name}
-                          onChange={(e) => setNewMember({...newMember, name: e.target.value})}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>E-mail</Label>
-                        <Input 
-                          type="email" 
-                          placeholder="joao@empresa.com" 
-                          value={newMember.email}
-                          onChange={(e) => setNewMember({...newMember, email: e.target.value})}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Senha Temporária</Label>
-                        <Input 
-                          type="password" 
-                          placeholder="********" 
-                          value={newMember.password}
-                          onChange={(e) => setNewMember({...newMember, password: e.target.value})}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Papel</Label>
-                        <Select value={newMember.role} onValueChange={(val) => setNewMember({...newMember, role: val})}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="agent">Agente (Vendedor)</SelectItem>
-                            <SelectItem value="manager">Gerente</SelectItem>
-                            <SelectItem value="supervisor">Supervisor IA</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Conexões de WhatsApp</Label>
-                        <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
-                          {(orgConnections || []).map((conn: any) => (
-                            <div key={conn.id} className="flex items-center space-x-2">
-                              <Checkbox 
-                                id={`new-member-conn-${conn.id}`}
-                                checked={newMember.connection_ids.includes(conn.id)}
-                                onCheckedChange={(checked) => {
-                                  const current = newMember.connection_ids;
-                                  if (checked) {
-                                    setNewMember({...newMember, connection_ids: [...current, conn.id]});
-                                  } else {
-                                    setNewMember({...newMember, connection_ids: current.filter(id => id !== conn.id)});
-                                  }
-                                }}
-                              />
-                              <label htmlFor={`new-member-conn-${conn.id}`} className="text-sm cursor-pointer">{conn.name}</label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="ghost" onClick={() => setAddMemberDialogOpen(false)}>Cancelar</Button>
-                      <Button 
-                        onClick={() => createMemberMutation.mutate(newMember)}
-                        disabled={createMemberMutation.isPending || !newMember.email || !newMember.password}
-                      >
-                        {createMemberMutation.isPending ? "Convidando..." : "Convidar e Salvar"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -703,9 +621,9 @@ export default function SupervisorIA() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Vendedor</TableHead>
-                          <TableHead>Papel</TableHead>
-                          <TableHead>Conexões Atribuídas</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Monitoramento Ativo</TableHead>
+                          <TableHead className="text-right">Configurar</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -715,66 +633,73 @@ export default function SupervisorIA() {
                               Carregando vendedores...
                             </TableCell>
                           </TableRow>
-                        ) : (sellers || []).map((seller: any) => (
-                          <TableRow key={seller.id}>
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
-                                  {seller.name.charAt(0)}
+                        ) : (sellers || []).map((seller: any) => {
+                          const isMonitoring = seller.connections?.length > 0;
+                          return (
+                            <TableRow key={seller.id}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
+                                    {seller.name.charAt(0)}
+                                  </div>
+                                  <div>
+                                    <div>{seller.name}</div>
+                                    <div className="text-[10px] text-muted-foreground">{seller.email}</div>
+                                  </div>
                                 </div>
-                                <div>
-                                  <div>{seller.name}</div>
-                                  <div className="text-[10px] text-muted-foreground">{seller.email}</div>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary" className="capitalize">
-                                {seller.org_role === 'supervisor' ? 'Supervisor' : 
-                                 seller.org_role === 'manager' ? 'Gerente' : 
-                                 seller.org_role === 'agent' ? 'Agente' : seller.org_role}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {(orgConnections || [])
-                                  .filter((conn: any) => seller.connections?.includes(conn.id))
-                                  .map((conn: any) => (
-                                    <Badge key={conn.id} variant="outline" className="text-[10px]">
-                                      {conn.name}
-                                    </Badge>
-                                  ))}
-                                {(!seller.connections || seller.connections.length === 0) && (
-                                  <span className="text-xs text-muted-foreground italic">Sem conexões</span>
+                              </TableCell>
+                              <TableCell>
+                                {isMonitoring ? (
+                                  <Badge className="bg-green-500/10 text-green-600 hover:bg-green-500/20 border-green-200 gap-1.5 py-1">
+                                    <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                                    Monitoramento Ativo
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-muted-foreground gap-1.5 py-1">
+                                    <span className="h-2 w-2 rounded-full bg-slate-300" />
+                                    Inativo
+                                  </Badge>
                                 )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex flex-wrap gap-1">
+                                    {(orgConnections || [])
+                                      .filter((conn: any) => seller.connections?.includes(conn.id))
+                                      .map((conn: any) => (
+                                        <Badge key={conn.id} variant="secondary" className="text-[10px] bg-blue-50 text-blue-700 border-blue-100">
+                                          {conn.name}
+                                        </Badge>
+                                      ))}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {(funnels || [])
+                                      .filter((f: any) => seller.monitored_funnels?.includes(f.id))
+                                      .map((f: any) => (
+                                        <Badge key={f.id} variant="outline" className="text-[10px] bg-slate-50">
+                                          Funil: {f.name}
+                                        </Badge>
+                                      ))}
+                                  </div>
+                                  {!isMonitoring && (
+                                    <span className="text-xs text-muted-foreground italic">Nenhuma conexão vinculada</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
                                 <Button 
-                                  variant="ghost" 
+                                  variant="outline" 
                                   size="sm" 
                                   onClick={() => handleEditMember(seller)}
-                                  className="h-8 px-2"
+                                  className="h-8 gap-2"
                                 >
-                                  <SettingsIcon className="h-4 w-4" />
+                                  <Monitor className="h-4 w-4" />
+                                  Mapear
                                 </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => {
-                                    if (confirm(`Remover ${seller.name} da organização?`)) {
-                                      deleteMemberMutation.mutate(seller.id);
-                                    }
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
@@ -782,11 +707,12 @@ export default function SupervisorIA() {
                   <div className="bg-blue-50 border border-blue-200 p-4 rounded-md flex gap-3 dark:bg-blue-900/10 dark:border-blue-800">
                     <Shield className="h-5 w-5 text-blue-600 shrink-0" />
                     <div className="text-sm text-blue-800 dark:text-blue-300">
-                      <p className="font-semibold text-blue-900 dark:text-blue-200">Dica de Configuração:</p>
+                      <p className="font-semibold text-blue-900 dark:text-blue-200">Como funciona o Mapeamento:</p>
                       <ul className="list-disc ml-5 mt-1 space-y-1">
-                        <li>O Supervisor IA monitora membros com papéis de <strong>Agente</strong>, <strong>Gerente</strong> ou <strong>Supervisor</strong>.</li>
-                        <li>Apenas membros com <strong>Conexões de WhatsApp</strong> atribuídas serão analisados.</li>
-                        <li>Ações de membros em negociações do Kanban (notas, alterações de fase) também contam para o SLA.</li>
+                        <li><strong>Vendedor:</strong> Usuários já cadastrados na sua organização.</li>
+                        <li><strong>Conexões:</strong> Quais números de WhatsApp este vendedor utiliza.</li>
+                        <li><strong>Funis:</strong> Quais funis do Kanban o Supervisor deve observar para este vendedor.</li>
+                        <li>O monitoramento fica <strong>Ativo</strong> assim que você vincula ao menos uma conexão.</li>
                       </ul>
                     </div>
                   </div>
@@ -798,27 +724,16 @@ export default function SupervisorIA() {
             <Dialog open={editMemberDialogOpen} onOpenChange={setEditMemberDialogOpen}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Editar Membro: {editingMember?.name}</DialogTitle>
-                  <CardDescription>Ajuste o papel e as conexões monitoradas para este vendedor.</CardDescription>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Monitor className="h-5 w-5 text-primary" />
+                    Mapear Vendedor: {editingMember?.name}
+                  </DialogTitle>
+                  <CardDescription>Defina as conexões e funis que o Supervisor IA deve monitorar para este usuário.</CardDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label>Papel na Organização</Label>
-                    <Select value={editMemberRole} onValueChange={setEditMemberRole}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um papel" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="agent">Agente (Vendedor)</SelectItem>
-                        <SelectItem value="manager">Gerente</SelectItem>
-                        <SelectItem value="supervisor">Supervisor IA</SelectItem>
-                        <SelectItem value="admin">Administrador</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Conexões Atribuídas</Label>
-                    <div className="border rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto bg-muted/20">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Conexões de WhatsApp</Label>
+                    <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
                       {(orgConnections || []).map((conn: any) => (
                         <div key={conn.id} className="flex items-center space-x-2">
                           <Checkbox 
@@ -845,14 +760,57 @@ export default function SupervisorIA() {
                       )}
                     </div>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Funis do Kanban</Label>
+                    <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
+                      {(funnels || []).map((f: any) => (
+                        <div key={f.id} className="flex items-center space-x-2">
+                          <Checkbox 
+                            id={`member-funnel-${f.id}`}
+                            checked={editMemberFunnels.includes(f.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setEditMemberFunnels([...editMemberFunnels, f.id]);
+                              } else {
+                                setEditMemberFunnels(editMemberFunnels.filter(id => id !== f.id));
+                              }
+                            }}
+                          />
+                          <label 
+                            htmlFor={`member-funnel-${f.id}`}
+                            className="text-sm font-medium leading-none cursor-pointer"
+                          >
+                            {f.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Papel (Permissão)</Label>
+                    <Select value={editMemberRole} onValueChange={setEditMemberRole}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="agent">Agente (Vendedor)</SelectItem>
+                        <SelectItem value="manager">Gerente</SelectItem>
+                        <SelectItem value="supervisor">Supervisor IA</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button variant="ghost" onClick={() => setEditMemberDialogOpen(false)}>Cancelar</Button>
                   <Button 
                     onClick={handleSaveMember}
                     disabled={updateMemberMutation.isPending}
+                    className="gap-2"
                   >
-                    {updateMemberMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+                    <Save className="h-4 w-4" />
+                    {updateMemberMutation.isPending ? "Salvando..." : "Salvar Mapeamento"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
