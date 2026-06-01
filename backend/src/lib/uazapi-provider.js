@@ -459,7 +459,7 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
     const rawSeconds = String(seconds);
     if (rawSeconds !== "N/A" && rawSeconds.trim() !== "") {
       const s = Math.floor(Number(seconds));
-      if (!isNaN(s)) {
+      if (!isNaN(s) && s > 0) {
         body.seconds = s;
         body.duration = s;
       }
