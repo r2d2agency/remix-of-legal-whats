@@ -111,6 +111,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [editingOrgModules, setEditingOrgModules] = useState<Record<string, boolean>>({});
   
   // W-API token
   const [wapiToken, setWapiToken] = useState('');

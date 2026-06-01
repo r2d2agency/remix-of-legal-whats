@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,9 +49,25 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 export default function SupervisorIA() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [period, setPeriod] = useState("30d");
   const queryClient = useQueryClient();
+
+  // Check module permission
+  const isEnabled = user?.modules_enabled?.supervisor === true || user?.is_superadmin;
+  
+  if (!isEnabled && !isLoadingUser) {
+    return (
+      <MainLayout>
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+          <Lock className="h-12 w-12 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Módulo não contratado</h2>
+          <p className="text-muted-foreground">O Supervisor IA não está ativo para sua organização.</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   // Fetch Stats
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -116,6 +133,18 @@ export default function SupervisorIA() {
       });
       return res.json();
     }
+  });
+
+  // Fetch Connections for Sellers
+  const { data: orgConnections } = useQuery({
+    queryKey: ['supervisor-org-connections'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/api/organizations/${user?.organization_id}/connections`, {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      return res.json();
+    },
+    enabled: !!user?.organization_id
   });
 
   // Fetch Charges History
@@ -407,7 +436,87 @@ export default function SupervisorIA() {
             <TabsTrigger value="alerts">Alertas</TabsTrigger>
             <TabsTrigger value="audits">Auditoria</TabsTrigger>
             <TabsTrigger value="charges">Cobranças</TabsTrigger>
+            <TabsTrigger value="config">Configurar Vendedores</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="config" className="space-y-6 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configurar Vendedores a Analisar</CardTitle>
+                <CardDescription>
+                  Identifique os vendedores e as conexões que o Supervisor IA deve monitorar.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Vendedor</TableHead>
+                          <TableHead>Papel</TableHead>
+                          <TableHead>Conexões Atribuídas</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {sellersLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                              Carregando vendedores...
+                            </TableCell>
+                          </TableRow>
+                        ) : (sellers || []).map((seller: any) => (
+                          <TableRow key={seller.id}>
+                            <TableCell className="font-medium">{seller.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="capitalize">
+                                {seller.org_role === 'supervisor' ? 'Supervisor' : 'Vendedor'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {(orgConnections || [])
+                                  .filter((conn: any) => seller.connections?.includes(conn.id))
+                                  .map((conn: any) => (
+                                    <Badge key={conn.id} variant="outline" className="text-[10px]">
+                                      {conn.name}
+                                    </Badge>
+                                  ))}
+                                {(!seller.connections || seller.connections.length === 0) && (
+                                  <span className="text-xs text-muted-foreground italic">Sem conexões</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => navigate('/organizacoes')}
+                                title="Editar atribuições em Organizações"
+                              >
+                                <SettingsIcon className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-md flex gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                    <div className="text-sm text-amber-800">
+                      <p className="font-semibold">Nota Importante:</p>
+                      <p>
+                        Para gerenciar quem são os vendedores (papel "Agente" ou "Supervisor") e quais conexões de WhatsApp cada um atende, acesse o menu <strong>CRM &gt; Organizações</strong>.
+                        O Supervisor IA analisa automaticamente os membros com esses papéis que possuam conexões atribuídas.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
 
           <TabsContent value="dashboard" className="space-y-6 mt-6">

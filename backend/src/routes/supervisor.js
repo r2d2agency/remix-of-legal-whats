@@ -24,6 +24,13 @@ router.get('/stats', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
 
+    // Check module permission
+    const orgData = await query('SELECT modules_enabled FROM organizations WHERE id = $1', [org.organization_id]);
+    const modules = orgData.rows[0]?.modules_enabled || {};
+    if (!modules.supervisor) {
+      return res.status(403).json({ error: 'Supervisor module not enabled for this organization' });
+    }
+
     const { period, sellerId, teamId, tag, channel, funnelId, status } = req.query;
 
     let whereClause = `WHERE d.organization_id = $1`;
@@ -178,6 +185,11 @@ router.get('/sellers', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
+
+    // Check if user has supervisor role
+    if (org.role !== 'owner' && org.role !== 'admin' && org.role !== 'supervisor') {
+      return res.status(403).json({ error: 'Only owners, admins or supervisors can view performance' });
+    }
 
     const sellerQuery = `
       SELECT 

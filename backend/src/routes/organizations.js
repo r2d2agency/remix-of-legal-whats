@@ -294,7 +294,8 @@ router.get('/:id([0-9a-fA-F-]{36})/modules', async (req, res) => {
       scheduled_messages: true,
        chatbots: true,
        chat: true,
-       crm: true
+       crm: true,
+       supervisor: false
     };
     
     res.json(result.rows[0].modules_enabled || defaultModules);
