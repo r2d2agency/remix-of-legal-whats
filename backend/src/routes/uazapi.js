@@ -505,8 +505,16 @@ async function persistIncomingMessage(connection, payload) {
         msgIdForDownload
       );
       if (dl?.success) {
+        const baseUrl = String(process.env.API_BASE_URL || '').trim().replace(/\/+$/, '');
         if (dl.url) {
-          message.mediaUrl = dl.url;
+          // Se a URL já for completa e externa (não for um path local), usamos ela.
+          // Caso contrário, garantimos que seja absoluta se for um path do servidor.
+          if (dl.url.startsWith('http')) {
+            message.mediaUrl = dl.url;
+          } else {
+            const cleanPath = dl.url.startsWith('/') ? dl.url : `/uploads/${dl.url}`;
+            message.mediaUrl = baseUrl ? `${baseUrl}${cleanPath}` : cleanPath;
+          }
           if (!message.mediaMimetype && dl.mimetype) message.mediaMimetype = dl.mimetype;
         } else if (dl.buffer || dl.base64) {
           const buf = dl.buffer || Buffer.from(dl.base64, 'base64');
@@ -528,7 +536,9 @@ async function persistIncomingMessage(connection, payload) {
           const uploadsDir = path.join(process.cwd(), 'uploads');
           if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
           fs.writeFileSync(path.join(uploadsDir, fname), buf);
-          message.mediaUrl = `/uploads/${fname}`;
+          
+          const localPath = `/uploads/${fname}`;
+          message.mediaUrl = baseUrl ? `${baseUrl}${localPath}` : localPath;
           if (!message.mediaMimetype) message.mediaMimetype = mt;
         } else {
           message.mediaUrl = null;
