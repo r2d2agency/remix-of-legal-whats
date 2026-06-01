@@ -107,8 +107,31 @@ export default function SupervisorIA() {
     }
   });
 
+  // Fetch Teams
+  const { data: teams } = useQuery({
+    queryKey: ['supervisor-teams'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/supervisor/teams`, {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      return res.json();
+    }
+  });
+
+  // Fetch Charges History
+  const { data: chargesHistory, isLoading: chargesLoading } = useQuery({
+    queryKey: ['supervisor-charges'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/supervisor/charges`, {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      return res.json();
+    }
+  });
 
   const [localSettings, setLocalSettings] = useState<any>(null);
+  const [chargeNote, setChargeNote] = useState("");
+  const [selectedTarget, setSelectedTarget] = useState<any>(null);
 
   useEffect(() => {
     if (settings) {
@@ -149,6 +172,29 @@ export default function SupervisorIA() {
       toast.success("Configurações de SLA atualizadas com sucesso");
     }
   });
+
+  // Charge Mutation
+  const chargeMutation = useMutation({
+    mutationFn: async ({ type, targetId, notes }: any) => {
+      const res = await fetch(`${API_URL}/supervisor/charge`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}` 
+        },
+        body: JSON.stringify({ type, targetId, notes })
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisor-charges'] });
+      queryClient.invalidateQueries({ queryKey: ['supervisor-semaphore'] });
+      toast.success("Cobrança registrada e prazos atualizados");
+      setChargeNote("");
+      setSelectedTarget(null);
+    }
+  });
+
 
   const handlePreview = () => {
     if (localSettings) {
