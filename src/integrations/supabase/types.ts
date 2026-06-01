@@ -14,7 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      secretary_configs: {
+      group_secretary_config: {
         Row: {
           ai_model: string | null
           ai_provider: string | null
@@ -25,6 +25,7 @@ export type Database = {
           created_at: string | null
           daily_digest_enabled: boolean | null
           daily_digest_hour: number | null
+          daily_digest_minute: number | null
           daily_digest_type: string | null
           default_connection_id: string | null
           excluded_senders: string[] | null
@@ -51,6 +52,7 @@ export type Database = {
           created_at?: string | null
           daily_digest_enabled?: boolean | null
           daily_digest_hour?: number | null
+          daily_digest_minute?: number | null
           daily_digest_type?: string | null
           default_connection_id?: string | null
           excluded_senders?: string[] | null
@@ -77,6 +79,7 @@ export type Database = {
           created_at?: string | null
           daily_digest_enabled?: boolean | null
           daily_digest_hour?: number | null
+          daily_digest_minute?: number | null
           daily_digest_type?: string | null
           default_connection_id?: string | null
           excluded_senders?: string[] | null
