@@ -196,6 +196,7 @@ export default function SupervisorIA() {
   const [localSettings, setLocalSettings] = useState<any>(null);
   const [chargeNote, setChargeNote] = useState("");
   const [selectedTarget, setSelectedTarget] = useState<any>(null);
+  const [editMemberFunnels, setEditMemberFunnels] = useState<string[]>([]);
 
   useEffect(() => {
     if (settings) {
