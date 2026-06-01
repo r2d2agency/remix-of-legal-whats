@@ -8,7 +8,7 @@ DO $$
 BEGIN
   -- Create enum if it doesn't exist
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN
-    CREATE TYPE app_role AS ENUM ('owner', 'admin', 'manager', 'agent', 'user');
+    CREATE TYPE app_role AS ENUM ('owner', 'admin', 'manager', 'agent', 'supervisor', 'user');
   ELSE
     -- Ensure all expected values exist (supports older schemas)
     BEGIN
@@ -25,6 +25,10 @@ BEGIN
 
     BEGIN
       ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'agent';
+    EXCEPTION WHEN duplicate_object THEN NULL; END;
+
+    BEGIN
+      ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'supervisor';
     EXCEPTION WHEN duplicate_object THEN NULL; END;
 
     BEGIN
@@ -95,6 +99,7 @@ DO $$ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_ghost BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_projects BOOLEAN DEFAULT false;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_lead_gleego BOOLEAN DEFAULT false;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS has_supervisor BOOLEAN DEFAULT false;
     ALTER TABLE organizations ADD COLUMN IF NOT EXISTS integration_settings jsonb DEFAULT '{}';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_phone VARCHAR(50);
 EXCEPTION
