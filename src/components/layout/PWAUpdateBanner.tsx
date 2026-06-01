@@ -53,27 +53,24 @@ export function PWAUpdateBanner() {
     return () => { if (interval) clearInterval(interval); };
   }, []);
 
-  // Poll for app-level changes via version check
+  // Periodically check for updates
   useEffect(() => {
-    const checkVersion = async () => {
+    const checkUpdate = async () => {
       try {
-        const res = await fetch(`/?_v=${Date.now()}`, {
-          cache: "no-store",
-          headers: { Accept: "text/html" },
-        });
-        if (!res.ok) return;
-        const html = await res.text();
-        if (html.includes("/assets/") && !html.includes(BUILD_ID)) {
-          const reg = await navigator.serviceWorker.getRegistration();
-          if (reg) reg.update();
+        if (!("serviceWorker" in navigator)) return;
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          // console.log("[PWA] Checking for updates...");
+          await reg.update();
         }
-      } catch {
-        // Network error — ignore
+      } catch (err) {
+        // console.error("[PWA] Update check failed:", err);
       }
     };
 
-    const versionInterval = setInterval(checkVersion, 60 * 1000);
-    return () => clearInterval(versionInterval);
+    // Check every 5 minutes instead of 1 minute to be less aggressive but reliable
+    const interval = setInterval(checkUpdate, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleUpdate = useCallback(() => {
