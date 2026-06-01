@@ -14,7 +14,6 @@ import {
   Clock, 
   CheckCircle2, 
   XCircle, 
-
   RefreshCw,
   Search,
   Filter,
@@ -27,7 +26,11 @@ import {
   Eye,
   History,
   Lock,
-  Sparkles
+  Sparkles,
+  Link2,
+  User,
+  Trash2,
+  Briefcase
 } from "lucide-react";
 import { 
   Table, 
@@ -52,7 +55,7 @@ import {
   Line
 } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { API_URL, getAuthToken } from "@/lib/api";
+import { API_URL, getAuthToken, api } from "@/lib/api";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -62,12 +65,18 @@ import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 
 export default function SupervisorIA() {
-  const { user, isLoading: isLoadingUser } = useAuth();
+  const { user, isLoading: isLoadingUser, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [period, setPeriod] = useState("30d");
   const [selectedFunnel, setSelectedFunnel] = useState<string>("all");
   const queryClient = useQueryClient();
+
+  // Dialog states for member editing
+  const [editMemberDialogOpen, setEditMemberDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<any>(null);
+  const [editMemberRole, setEditMemberRole] = useState<string>('agent');
+  const [editMemberConnectionIds, setEditMemberConnectionIds] = useState<string[]>([]);
 
   // Fetch Funnels for filters
   const { data: funnels } = useQuery({
@@ -83,18 +92,6 @@ export default function SupervisorIA() {
   // Check module permission
   const isEnabled = user?.modules_enabled?.supervisor === true || user?.is_superadmin;
   
-  if (!isEnabled && !isLoadingUser) {
-    return (
-      <MainLayout>
-        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
-          <Lock className="h-12 w-12 text-muted-foreground" />
-          <h2 className="text-xl font-semibold">Módulo não contratado</h2>
-          <p className="text-muted-foreground">O Supervisor IA não está ativo para sua organização.</p>
-        </div>
-      </MainLayout>
-    );
-  }
-
   // Fetch Stats
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['supervisor-stats', period, selectedFunnel],
@@ -118,7 +115,7 @@ export default function SupervisorIA() {
     }
   });
 
-  // Fetch Sellers
+  // Fetch Sellers/Members
   const { data: sellers, isLoading: sellersLoading } = useQuery({
     queryKey: ['supervisor-sellers'],
     queryFn: async () => {
@@ -251,12 +248,60 @@ export default function SupervisorIA() {
     }
   });
 
+  // Member Management Mutations
+  const updateMemberMutation = useMutation({
+    mutationFn: async ({ memberId, data }: { memberId: string, data: any }) => {
+      return await api(`/api/organizations/${user?.organization_id}/members/${memberId}`, {
+        method: 'PUT',
+        body: data,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisor-sellers'] });
+      toast.success('Membro atualizado com sucesso!');
+      setEditMemberDialogOpen(false);
+      refreshUser();
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao atualizar membro');
+    }
+  });
+
+  const handleEditMember = (seller: any) => {
+    setEditingMember(seller);
+    setEditMemberRole(seller.org_role || 'agent');
+    setEditMemberConnectionIds(seller.connections || []);
+    setEditMemberDialogOpen(true);
+  };
+
+  const handleSaveMember = () => {
+    if (!editingMember) return;
+    updateMemberMutation.mutate({
+      memberId: editingMember.id,
+      data: {
+        role: editMemberRole,
+        connection_ids: editMemberConnectionIds,
+      }
+    });
+  };
 
   const handlePreview = () => {
     if (localSettings) {
       previewMutation.mutate(localSettings);
     }
   };
+
+  if (!isEnabled && !isLoadingUser) {
+    return (
+      <MainLayout>
+        <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+          <Lock className="h-12 w-12 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Módulo não contratado</h2>
+          <p className="text-muted-foreground">O Supervisor IA não está ativo para sua organização.</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   const COLORS = ['#22c55e', '#eab308', '#ef4444'];
   const PIE_DATA = [
