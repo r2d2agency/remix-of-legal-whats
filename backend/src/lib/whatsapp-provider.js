@@ -517,7 +517,12 @@ export async function sendMessage(connection, phone, content, messageType, media
         mediaUrl,
         filename,
         null,
-        (duration !== null && duration !== undefined && !isNaN(Number(duration)) && Number(duration) > 0) ? Math.floor(Number(duration)) : 1,
+        (() => {
+          if (duration === null || duration === undefined) return 1;
+          const clean = String(duration).replace(/[^\d.]/g, '');
+          const num = parseFloat(clean);
+          return (!isNaN(num) && num > 0) ? Math.floor(num) : 1;
+        })(),
 
         mimetype
       );
@@ -599,7 +604,12 @@ export async function sendMessage(connection, phone, content, messageType, media
         number: phone,
         audio: mediaUrl,
         delay: 1200,
-        seconds: (duration !== null && duration !== undefined && !isNaN(Number(duration)) && Number(duration) > 0) ? Math.floor(Number(duration)) : 1,
+        seconds: (() => {
+          if (duration === null || duration === undefined) return 1;
+          const clean = String(duration).replace(/[^\d.]/g, '');
+          const num = parseFloat(clean);
+          return (!isNaN(num) && num > 0) ? Math.floor(num) : 1;
+        })(),
       };
     } else {
       // image, video, document

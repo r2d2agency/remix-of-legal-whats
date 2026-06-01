@@ -459,7 +459,9 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
   if (type === 'audio' || type === 'video') {
     let s = 1; // default
     if (seconds !== null && seconds !== undefined) {
-      const num = Number(String(seconds).replace("N/A", "").trim());
+      // Remove "N/A" and any other non-numeric garbage
+      const cleanValue = String(seconds).replace(/[^\d.]/g, '');
+      const num = parseFloat(cleanValue);
       if (!isNaN(num) && num > 0) {
         s = Math.floor(num);
       }
