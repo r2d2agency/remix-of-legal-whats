@@ -443,7 +443,7 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
   const typeMap = {
     image: 'image',
     video: 'video',
-    audio: 'audio',
+    audio: 'ptt', // Usar ptt para mensagens de áudio gravadas no chat
     document: 'document',
     sticker: 'sticker',
   };
@@ -451,7 +451,7 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
   const body = {
     number: normalizePhone(phone),
     type: typeMap[type] || 'document',
-    url: mediaUrl,
+    file: mediaUrl, // Corrigido de 'url' para 'file' conforme docs.uazapi.com
     mimetype: mimetype || undefined,
   };
 
@@ -470,14 +470,11 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
     body.duration = s;
   }
 
-
   if (caption) body.text = caption;
   if (filename) body.docName = filename;
 
-  // Áudio como nota de voz (PTT) por padrão
-  if (type === 'audio') {
-    body.ptt = true;
-  }
+  // Se o tipo for audio, garantir que use o tipo correto para nota de voz se desejado
+  // No typeMap acima já definimos audio -> ptt
 
   const r = await uazapiFetch(baseUrl, '/send/media', {
     method: 'POST',

@@ -463,7 +463,9 @@ function extractMessageData(payload) {
   // mediaUrl final: marcamos com placeholder especial para o persist resolver.
   // (precisa do connection.uazapi_url para montar o proxy de download). 
   // Priorizamos o download via endpoint decifrado se o mediaObj existir e não houver uma URL pública clara.
-  const needsProxy = !!(mediaObj && (!rawMediaUrl || String(rawMediaUrl).includes('.enc') || String(rawMediaUrl).includes('mmg.whatsapp.net')));
+  // mediaUrl final: marcamos com placeholder especial para o persist resolver.
+  // Priorizamos o download via endpoint decifrado para garantir persistência e evitar erros 404 de URLs temporárias.
+  const needsProxy = !!(mediaObj && (!rawMediaUrl || String(rawMediaUrl).includes('.enc') || String(rawMediaUrl).includes('mmg.whatsapp.net') || String(rawMediaUrl).includes('uazapi.com/files')));
   const mediaUrl = needsProxy ? `__UAZAPI_DOWNLOAD__:${messageId}` : (rawMediaUrl || null);
   return {
     chatId,
