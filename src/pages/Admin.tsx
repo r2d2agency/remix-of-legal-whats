@@ -91,6 +91,7 @@ interface Organization {
   plan_price?: number;
   expires_at: string | null;
   member_count?: number;
+  modules_enabled?: Record<string, boolean>;
   created_at: string;
 }
 
@@ -621,7 +622,8 @@ export default function Admin() {
       name: editOrgName,
       logo_url: editOrgLogo || undefined,
       plan_id: editOrgPlan || undefined,
-      expires_at: editOrgExpires?.toISOString()
+      expires_at: editOrgExpires?.toISOString(),
+      modules_enabled: editingOrgModules
     });
 
     if (updated) {
@@ -650,6 +652,16 @@ export default function Admin() {
     setEditOrgLogo(org.logo_url || '');
     setEditOrgPlan(org.plan_id || '');
     setEditOrgExpires(org.expires_at ? new Date(org.expires_at) : undefined);
+    setEditingOrgModules(org.modules_enabled || {
+      campaigns: true,
+      billing: true,
+      groups: true,
+      scheduled_messages: true,
+      chatbots: true,
+      chat: true,
+      crm: true,
+      supervisor: false
+    });
     setEditOrgDialogOpen(true);
   };
 
