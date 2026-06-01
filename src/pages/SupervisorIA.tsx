@@ -24,14 +24,16 @@ import {
   Save,
   Eye,
   History,
-  Lock,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
+  Lock
 } from "lucide-react";
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
 import { 
   BarChart, 
   Bar, 

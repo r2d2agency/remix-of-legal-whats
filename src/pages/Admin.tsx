@@ -188,6 +188,7 @@ export default function Admin() {
   const [newPlanGhost, setNewPlanGhost] = useState(false);
   const [newPlanProjects, setNewPlanProjects] = useState(false);
   const [newPlanLeadGleego, setNewPlanLeadGleego] = useState(false);
+  const [newPlanSupervisor, setNewPlanSupervisor] = useState(false);
   const [newPlanDocSignatures, setNewPlanDocSignatures] = useState(false);
   const [newPlanDocSignaturesLimit, setNewPlanDocSignaturesLimit] = useState('0');
   const [newPlanPeriod, setNewPlanPeriod] = useState('monthly');
@@ -452,6 +453,7 @@ export default function Admin() {
       has_ghost: newPlanGhost,
       has_projects: newPlanProjects,
       has_lead_gleego: newPlanLeadGleego,
+      has_supervisor: newPlanSupervisor,
       has_doc_signatures: newPlanDocSignatures,
       doc_signatures_limit: parseInt(newPlanDocSignaturesLimit) || 0,
       price: parseFloat(newPlanPrice) || 0,
@@ -493,6 +495,7 @@ export default function Admin() {
     setNewPlanGhost(false);
     setNewPlanProjects(false);
     setNewPlanLeadGleego(false);
+    setNewPlanSupervisor(false);
     setNewPlanDocSignatures(false);
     setNewPlanDocSignaturesLimit('0');
     setNewPlanPeriod('monthly');
