@@ -104,7 +104,9 @@ const getNavSections = (hasConnections: boolean): NavSection[] => [
       { name: "Revenue Intel", href: "/revenue-intelligence", icon: Brain, pageKey: 'revenue_intelligence', adminOnly: true },
       { name: "Fantasma", href: "/modulo-fantasma", icon: Ghost, pageKey: 'modulo_fantasma', ownerOnly: true, moduleKey: 'ghost' },
       { name: "Análise SEO e Vendas", href: "/sales-seo", icon: TargetIcon, pageKey: 'sales_seo', adminOnly: true },
+      { name: "Supervisor IA", href: "/supervisor-ia", icon: Shield, pageKey: 'supervisor_ia', adminOnly: true },
       { name: "Configurações", href: "/crm/configuracoes", icon: Settings, pageKey: 'crm_configuracoes', adminOnly: true },
+
     ],
   },
   {
