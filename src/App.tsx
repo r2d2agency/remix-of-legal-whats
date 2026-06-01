@@ -164,7 +164,9 @@ const App = () => (
             <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
             <Route path="/assinaturas" element={<ProtectedRoute><Assinaturas /></ProtectedRoute>} />
             <Route path="/teleatendimento" element={<ProtectedRoute><Teleatendimento /></ProtectedRoute>} />
+            <Route path="/supervisor-ia" element={<ProtectedRoute><SupervisorIA /></ProtectedRoute>} />
             <Route path="/testbarber" element={<ProtectedRoute><MarinaTestChat /></ProtectedRoute>} />
+
             <Route path="/marina-test" element={<ProtectedRoute><MarinaTestChat /></ProtectedRoute>} />
             <Route path="/api-docs" element={<ApiDocumentation />} />
             <Route path="/f/:slug" element={<PublicFormPage />} />
