@@ -25,6 +25,7 @@ import { NotificationConnectionSettings } from "@/components/settings/Notificati
 import { ThemeCustomizer } from "@/components/admin/ThemeCustomizer";
 import { GoogleCalendarPanel } from "@/components/crm/GoogleCalendarPanel";
 import { api as apiCall } from "@/lib/api";
+import { SystemUpdateCard } from "@/components/settings/SystemUpdateCard";
 
 const Configuracoes = () => {
   const { user } = useAuth();
