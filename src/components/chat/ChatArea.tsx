@@ -789,23 +789,47 @@ export function ChatArea({
 
   // Audio
   const handleSendAudio = async () => {
-    if (!audioBlob) return;
+    if (!audioBlob) {
+      console.warn("handleSendAudio: No audio blob available");
+      return;
+    }
+
     try {
       const cleanMimeType = audioBlob.type.split(';')[0] || 'audio/ogg';
-      const file = new File([audioBlob], `audio.ogg`, { type: cleanMimeType });
+      
+      // Determine correct extension based on mime type
+      let extension = 'ogg';
+      if (cleanMimeType.includes('webm')) extension = 'webm';
+      else if (cleanMimeType.includes('mp4')) extension = 'm4a';
+      else if (cleanMimeType.includes('mpeg')) extension = 'mp3';
+      else if (cleanMimeType.includes('wav')) extension = 'wav';
+
+      const fileName = `audio-${Date.now()}.${extension}`;
+      const file = new File([audioBlob], fileName, { type: cleanMimeType });
+      
+      console.log(`[Audio] Sending audio: ${fileName} (${cleanMimeType})`);
+      
       setUploadStatus({ active: true, current: 1, total: 1, fileName: 'Áudio' });
       const url = await uploadFile(file);
+      
       if (url) { 
+        // Ensure duration is a valid number
         const validDuration = typeof duration === 'number' && !isNaN(duration) && duration > 0 ? Math.floor(duration) : 1;
+        
+        console.log(`[Audio] Uploaded successfully. URL: ${url}, Duration: ${validDuration}s`);
+        
         await onSendMessage('', 'audio', url, undefined, cleanMimeType, validDuration); 
-
-
-
         toast.success("Áudio enviado!"); 
       }
       clearAudio();
-    } catch { toast.error("Erro ao enviar áudio"); }
-    finally { setUploadStatus(null); resetProgress(); }
+    } catch (error) { 
+      console.error("[Audio] Error sending audio:", error);
+      toast.error("Erro ao enviar áudio"); 
+    }
+    finally { 
+      setUploadStatus(null); 
+      resetProgress(); 
+    }
   };
 
   const handleStartRecording = async () => {

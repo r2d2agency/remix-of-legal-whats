@@ -458,20 +458,35 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
   // Forçar duração válida para áudio e vídeo para evitar erros de processamento na API
   if (type === 'audio' || type === 'video') {
     let s = 1; // default
+    
     if (seconds !== null && seconds !== undefined) {
-      // Clean up string: keep digits and dots, remove everything else
-      const cleanValue = String(seconds).replace(/[^\d.]/g, '').trim();
+      // Handle special cases from user's report ("N/A", "", etc)
+      const rawSeconds = String(seconds).trim().toUpperCase();
       
-      // If we have a valid numeric string
-      if (cleanValue && cleanValue !== '.') {
-        const num = parseFloat(cleanValue);
-        if (!isNaN(num) && num > 0) {
-          s = Math.floor(num);
+      if (rawSeconds === 'N/A' || rawSeconds === 'UNDEFINED' || rawSeconds === 'NULL' || rawSeconds === '') {
+        s = 0;
+        logWarn('uazapi.send_media_duration_invalid', { original: seconds, fallback: s });
+      } else {
+        // Clean up string: keep digits and dots, remove everything else
+        const cleanValue = rawSeconds.replace(/[^\d.]/g, '');
+        
+        // If we have a valid numeric string
+        if (cleanValue && cleanValue !== '.') {
+          const num = parseFloat(cleanValue);
+          if (!isNaN(num) && num >= 0) {
+            s = Math.floor(num);
+          } else {
+            s = 0;
+          }
+        } else {
+          s = 0;
         }
       }
     }
+    
     body.seconds = s;
     body.duration = s;
+    
     // Log duration cleanup for diagnostics
     logInfo('uazapi.send_media_duration_cleanup', { 
       original: seconds, 

@@ -203,7 +203,8 @@ export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, sav
       const audioBlob = await audioResponse.blob();
 
       const formData = new FormData();
-      formData.append('audio', audioBlob, 'audio.ogg');
+      const ext = audioBlob.type.includes('webm') ? 'webm' : 'ogg';
+      formData.append('audio', audioBlob, `audio.${ext}`);
       if (messageId) formData.append('messageId', messageId);
 
       const token = getAuthToken();
