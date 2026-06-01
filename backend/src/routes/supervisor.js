@@ -33,6 +33,12 @@ router.get('/stats', async (req, res) => {
 
     const { period, sellerId, teamId, tag, channel, funnelId, status } = req.query;
 
+    const settingsResult = await query(
+      `SELECT monitored_funnels FROM supervisor_settings WHERE organization_id = $1`,
+      [org.organization_id]
+    );
+    const monitoredFunnels = settingsResult.rows[0]?.monitored_funnels;
+
     let whereClause = `WHERE d.organization_id = $1`;
     const params = [org.organization_id];
 
@@ -40,10 +46,15 @@ router.get('/stats', async (req, res) => {
       params.push(sellerId);
       whereClause += ` AND d.owner_id = $${params.length}`;
     }
-    if (funnelId) {
+
+    if (funnelId && funnelId !== 'all') {
       params.push(funnelId);
       whereClause += ` AND d.funnel_id = $${params.length}`;
+    } else if (monitoredFunnels && monitoredFunnels.length > 0) {
+      params.push(monitoredFunnels);
+      whereClause += ` AND d.funnel_id = ANY($${params.length})`;
     }
+
     if (status) {
       params.push(status);
       whereClause += ` AND d.status = $${params.length}`;
@@ -89,8 +100,14 @@ router.get('/semaphore', async (req, res) => {
     const settings = settingsResult.rows[0] || {
       new_lead_sla_minutes: 30,
       no_followup_sla_hours: 24,
-      no_response_sla_days: 2
+      no_response_sla_days: 2,
+      monitored_funnels: null
     };
+
+    let monitoredFunnelsClause = '';
+    if (settings.monitored_funnels && settings.monitored_funnels.length > 0) {
+      monitoredFunnelsClause = ` AND funnel_id = ANY($2)`;
+    }
 
     const semaphoreQuery = `
       SELECT 
@@ -98,23 +115,23 @@ router.get('/semaphore', async (req, res) => {
         CASE 
           WHEN status != 'open' THEN 'GREEN'
           -- RED CRITERIA
-          WHEN first_seller_message_at IS NULL AND created_at < NOW() - INTERVAL '${settings.new_lead_sla_minutes} minutes' THEN 'RED'
+          WHEN first_seller_message_at IS NULL AND last_activity_at IS NULL AND created_at < NOW() - INTERVAL '${settings.new_lead_sla_minutes} minutes' THEN 'RED'
           WHEN next_followup_at < NOW() - INTERVAL '1 hour' THEN 'RED'
           WHEN last_customer_message_at > last_seller_message_at AND last_customer_message_at < NOW() - INTERVAL '${settings.no_response_sla_days} days' THEN 'RED'
           WHEN payment_pending_at IS NOT NULL AND payment_pending_at < NOW() - INTERVAL '${settings.payment_sla_days} days' THEN 'RED'
           -- YELLOW CRITERIA
-          WHEN first_seller_message_at IS NULL AND created_at < NOW() - INTERVAL '${settings.new_lead_sla_minutes / 2} minutes' THEN 'YELLOW'
+          WHEN first_seller_message_at IS NULL AND last_activity_at IS NULL AND created_at < NOW() - INTERVAL '${settings.new_lead_sla_minutes / 2} minutes' THEN 'YELLOW'
           WHEN next_followup_at BETWEEN NOW() AND NOW() + INTERVAL '2 hours' THEN 'YELLOW'
-          WHEN last_activity_at < NOW() - INTERVAL '12 hours' THEN 'YELLOW'
+          WHEN COALESCE(last_activity_at, created_at) < NOW() - INTERVAL '12 hours' THEN 'YELLOW'
           WHEN proposal_sent_at IS NULL AND created_at < NOW() - INTERVAL '${settings.proposal_sla_hours} hours' AND status = 'open' THEN 'YELLOW'
           -- GREEN
           ELSE 'GREEN'
         END as semaphore_color
       FROM crm_deals
-      WHERE organization_id = $1 AND status = 'open'
+      WHERE organization_id = $1 AND status = 'open'${monitoredFunnelsClause}
     `;
 
-    const result = await query(semaphoreQuery, [org.organization_id]);
+    const result = await query(semaphoreQuery, settings.monitored_funnels && settings.monitored_funnels.length > 0 ? [org.organization_id, settings.monitored_funnels] : [org.organization_id]);
     
     const summary = {
       GREEN: result.rows.filter(r => r.semaphore_color === 'GREEN').length,
@@ -149,14 +166,14 @@ router.post('/preview-settings', async (req, res) => {
         CASE 
           WHEN status != 'open' THEN 'GREEN'
           -- RED CRITERIA
-          WHEN first_seller_message_at IS NULL AND created_at < NOW() - INTERVAL '${settings.new_lead_sla_minutes} minutes' THEN 'RED'
+          WHEN first_seller_message_at IS NULL AND last_activity_at IS NULL AND created_at < NOW() - INTERVAL '${settings.new_lead_sla_minutes} minutes' THEN 'RED'
           WHEN next_followup_at < NOW() - INTERVAL '1 hour' THEN 'RED'
           WHEN last_customer_message_at > last_seller_message_at AND last_customer_message_at < NOW() - INTERVAL '${settings.no_response_sla_days} days' THEN 'RED'
           WHEN payment_pending_at IS NOT NULL AND payment_pending_at < NOW() - INTERVAL '${settings.payment_sla_days} days' THEN 'RED'
           -- YELLOW CRITERIA
-          WHEN first_seller_message_at IS NULL AND created_at < NOW() - INTERVAL '${settings.new_lead_sla_minutes / 2} minutes' THEN 'YELLOW'
+          WHEN first_seller_message_at IS NULL AND last_activity_at IS NULL AND created_at < NOW() - INTERVAL '${settings.new_lead_sla_minutes / 2} minutes' THEN 'YELLOW'
           WHEN next_followup_at BETWEEN NOW() AND NOW() + INTERVAL '2 hours' THEN 'YELLOW'
-          WHEN last_activity_at < NOW() - INTERVAL '12 hours' THEN 'YELLOW'
+          WHEN COALESCE(last_activity_at, created_at) < NOW() - INTERVAL '12 hours' THEN 'YELLOW'
           WHEN proposal_sent_at IS NULL AND created_at < NOW() - INTERVAL '${settings.proposal_sla_hours} hours' AND status = 'open' THEN 'YELLOW'
           -- GREEN
           ELSE 'GREEN'
@@ -196,15 +213,15 @@ router.get('/sellers', async (req, res) => {
         u.id, u.name,
         COUNT(d.id) as total_leads,
         COUNT(d.id) FILTER (WHERE d.status = 'won') as conversions,
-        COUNT(d.id) FILTER (WHERE d.first_seller_message_at IS NULL) as no_approach,
-        AVG(EXTRACT(EPOCH FROM (d.first_seller_message_at - d.created_at))) as avg_response_time,
+        COUNT(d.id) FILTER (WHERE d.first_seller_message_at IS NULL AND d.status = 'open') as no_approach,
+        AVG(EXTRACT(EPOCH FROM (COALESCE(d.first_seller_message_at, d.last_activity_at) - d.created_at))) as avg_response_time,
         (COUNT(d.id) FILTER (WHERE d.status = 'won')::float / NULLIF(COUNT(d.id), 0)) * 100 as conversion_rate,
         om.role as org_role,
-        (SELECT json_agg(connection_id) FROM connection_members WHERE user_id = u.id) as connections
+        (SELECT json_agg(cm.connection_id) FROM connection_members cm WHERE cm.user_id = u.id) as connections
       FROM users u
       JOIN organization_members om ON om.user_id = u.id
       LEFT JOIN crm_deals d ON d.owner_id = u.id AND d.organization_id = $1
-      WHERE om.organization_id = $1 AND (om.role = 'agent' OR om.role = 'supervisor')
+      WHERE om.organization_id = $1 AND (om.role = 'agent' OR om.role = 'manager' OR om.role = 'supervisor')
       GROUP BY u.id, u.name, om.role
       ORDER BY conversion_rate DESC NULLS LAST
     `;
@@ -254,14 +271,14 @@ router.post('/settings', async (req, res) => {
     const org = await getUserOrg(req.userId);
     const { 
       new_lead_sla_minutes, no_followup_sla_hours, no_response_sla_days,
-      reactivation_days, proposal_sla_hours, payment_sla_days 
+      reactivation_days, proposal_sla_hours, payment_sla_days, monitored_funnels 
     } = req.body;
 
     const result = await query(
       `INSERT INTO supervisor_settings (
         organization_id, new_lead_sla_minutes, no_followup_sla_hours, no_response_sla_days,
-        reactivation_days, proposal_sla_hours, payment_sla_days
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        reactivation_days, proposal_sla_hours, payment_sla_days, monitored_funnels
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (organization_id) DO UPDATE SET
         new_lead_sla_minutes = EXCLUDED.new_lead_sla_minutes,
         no_followup_sla_hours = EXCLUDED.no_followup_sla_hours,
@@ -269,9 +286,10 @@ router.post('/settings', async (req, res) => {
         reactivation_days = EXCLUDED.reactivation_days,
         proposal_sla_hours = EXCLUDED.proposal_sla_hours,
         payment_sla_days = EXCLUDED.payment_sla_days,
+        monitored_funnels = EXCLUDED.monitored_funnels,
         updated_at = NOW()
       RETURNING *`,
-      [org.organization_id, new_lead_sla_minutes, no_followup_sla_hours, no_response_sla_days, reactivation_days, proposal_sla_hours, payment_sla_days]
+      [org.organization_id, new_lead_sla_minutes, no_followup_sla_hours, no_response_sla_days, reactivation_days, proposal_sla_hours, payment_sla_days, monitored_funnels]
     );
     res.json(result.rows[0]);
   } catch (error) {
