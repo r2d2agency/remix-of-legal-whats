@@ -267,6 +267,39 @@ export default function SupervisorIA() {
     }
   });
 
+  const createMemberMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await api(`/api/organizations/${user?.organization_id}/members`, {
+        method: 'POST',
+        body: data,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisor-sellers'] });
+      toast.success('Membro convidado com sucesso!');
+      setAddMemberDialogOpen(false);
+      setNewMember({ name: '', email: '', password: '', role: 'agent', connection_ids: [] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao convidar membro');
+    }
+  });
+
+  const deleteMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      return await api(`/api/organizations/${user?.organization_id}/members/${memberId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supervisor-sellers'] });
+      toast.success('Membro removido com sucesso!');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao remover membro');
+    }
+  });
+
   const handleEditMember = (seller: any) => {
     setEditingMember(seller);
     setEditMemberRole(seller.org_role || 'agent');
