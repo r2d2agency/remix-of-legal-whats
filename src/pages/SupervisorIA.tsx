@@ -563,12 +563,13 @@ export default function SupervisorIA() {
                             </TableCell>
                             <TableCell className="text-right">
                               <Button 
-                                variant="ghost" 
+                                variant="outline" 
                                 size="sm" 
                                 onClick={() => navigate('/organizacoes')}
-                                title="Editar atribuições em Organizações"
+                                className="gap-2"
                               >
-                                <SettingsIcon className="h-4 w-4" />
+                                <Users className="h-4 w-4" />
+                                Configurar Membro
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -579,11 +580,13 @@ export default function SupervisorIA() {
                   <div className="bg-amber-50 border border-amber-200 p-4 rounded-md flex gap-3">
                     <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
                     <div className="text-sm text-amber-800">
-                      <p className="font-semibold">Nota Importante:</p>
-                      <p>
-                        Para gerenciar quem são os vendedores (papel "Agente" ou "Supervisor") e quais conexões de WhatsApp cada um atende, acesse o menu <strong>CRM &gt; Organizações</strong>.
-                        O Supervisor IA analisa automaticamente os membros com esses papéis que possuam conexões atribuídas.
-                      </p>
+                      <p className="font-semibold">Como o Supervisor IA monitora seus vendedores:</p>
+                      <ul className="list-disc ml-5 mt-1 space-y-1">
+                        <li>Ele identifica membros com papéis de <strong>Agente</strong>, <strong>Gerente</strong> ou <strong>Supervisor</strong>.</li>
+                        <li>Apenas vendedores com <strong>Conexões de WhatsApp atribuídas</strong> são monitorados.</li>
+                        <li>O IA analisa o tempo de resposta e atividades registradas no Kanban.</li>
+                        <li>Para alterar papéis ou atribuir conexões, use o botão <strong>Configurar Membro</strong> acima ou acesse o menu <strong>CRM &gt; Organizações</strong>.</li>
+                      </ul>
                     </div>
                   </div>
                 </div>
