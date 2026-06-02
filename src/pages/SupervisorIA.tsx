@@ -129,13 +129,22 @@ export default function SupervisorIA() {
 
   // Fetch Sellers/Members
   const { data: sellers, isLoading: sellersLoading } = useQuery({
-    queryKey: ['supervisor-sellers'],
+    queryKey: ['supervisor-sellers', user?.organization_id],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/supervisor/sellers`, {
+      // Get all members who have monitored_funnels or connection_ids in their metadata
+      const res = await fetch(`${API_URL}/api/organizations/${user?.organization_id}/members`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
-      return res.json();
-    }
+      const allMembers = await res.json();
+      
+      // Filter only those who are being monitored (sellers/agents)
+      // or return all if we want to show everyone in this list
+      return (Array.isArray(allMembers) ? allMembers : []).filter((m: any) => 
+        (m.monitored_funnels && m.monitored_funnels.length > 0) || 
+        (m.connection_ids && m.connection_ids.length > 0)
+      );
+    },
+    enabled: !!user?.organization_id
   });
 
   // Fetch Settings
@@ -352,8 +361,8 @@ export default function SupervisorIA() {
 
   const handleEditMember = (seller: any) => {
     setEditingMember(seller);
-    setEditMemberRole(seller.org_role || 'agent');
-    setEditMemberConnectionIds(seller.connections || []);
+    setEditMemberRole(seller.role || 'agent');
+    setEditMemberConnectionIds(seller.connection_ids || []);
     setEditMemberFunnels(seller.monitored_funnels || []);
     setEditMemberDialogOpen(true);
   };
@@ -802,16 +811,16 @@ export default function SupervisorIA() {
                             </TableCell>
                           </TableRow>
                         ) : (sellers || []).map((seller: any) => {
-                          const isMonitoring = seller.connections?.length > 0;
+                          const isMonitoring = (seller.connection_ids?.length > 0) || (seller.monitored_funnels?.length > 0);
                           return (
                             <TableRow key={seller.id}>
                               <TableCell className="font-medium">
                                 <div className="flex items-center gap-2">
                                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
-                                    {seller.name.charAt(0)}
+                                    {seller.name?.charAt(0) || seller.email?.charAt(0) || '?'}
                                   </div>
                                   <div>
-                                    <div>{seller.name}</div>
+                                    <div>{seller.name || 'Sem nome'}</div>
                                     <div className="text-[10px] text-muted-foreground">{seller.email}</div>
                                   </div>
                                 </div>
