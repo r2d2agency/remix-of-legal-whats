@@ -131,18 +131,12 @@ export default function SupervisorIA() {
   const { data: sellers, isLoading: sellersLoading } = useQuery({
     queryKey: ['supervisor-sellers', user?.organization_id],
     queryFn: async () => {
-      // Get all members who have monitored_funnels or connection_ids in their metadata
-      const res = await fetch(`${API_URL}/api/organizations/${user?.organization_id}/members`, {
+      // Read from the dedicated supervisor mapping table
+      const res = await fetch(`${API_URL}/supervisor/monitored-sellers`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
-      const allMembers = await res.json();
-      
-      // Filter only those who are being monitored (sellers/agents)
-      // or return all if we want to show everyone in this list
-      return (Array.isArray(allMembers) ? allMembers : []).filter((m: any) => 
-        (m.monitored_funnels && m.monitored_funnels.length > 0) || 
-        (m.connection_ids && m.connection_ids.length > 0)
-      );
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
     },
     enabled: !!user?.organization_id
   });
