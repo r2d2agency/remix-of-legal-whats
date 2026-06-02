@@ -545,7 +545,15 @@ router.post('/run-audit', async (req, res) => {
     const orgData = await query('SELECT modules_enabled FROM organizations WHERE id = $1', [org.organization_id]);
     const modules = orgData.rows[0]?.modules_enabled || {};
     if (!modules.supervisor) {
-      return res.status(403).json({ error: 'Módulo Supervisor IA não está ativado' });
+      // Auto-enable for privileged users (owner/admin/superadmin) so they don't need
+      // to flip a toggle in another screen before running their first audit.
+      const canAutoEnable = isSuperadmin || ['owner', 'admin', 'administrator'].includes(String(org.role || '').toLowerCase());
+      if (!canAutoEnable) {
+        return res.status(403).json({ error: 'Módulo Supervisor IA não está ativado. Peça a um administrador para ativá-lo em Configurações > Módulos.' });
+      }
+      const newModules = { ...modules, supervisor: true };
+      await query('UPDATE organizations SET modules_enabled = $1 WHERE id = $2', [JSON.stringify(newModules), org.organization_id]);
+      logInfo('[Supervisor] Auto-enabled supervisor module', { orgId: org.organization_id, userId: req.userId });
     }
 
     const settings = await query('SELECT 1 FROM supervisor_settings WHERE organization_id = $1', [org.organization_id]);
