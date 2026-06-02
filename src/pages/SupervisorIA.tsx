@@ -301,12 +301,17 @@ export default function SupervisorIA() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supervisor-sellers'] });
-      toast.success('Membro convidado com sucesso!');
+      toast.success('Usuário mapeado para supervisão com sucesso!');
       setAddMemberDialogOpen(false);
       setNewMember({ name: '', email: '', password: '', role: 'agent', connection_ids: [], monitored_funnels: [] });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Erro ao convidar membro');
+      console.error("Erro ao adicionar supervisão:", error);
+      if (error.message?.toLowerCase().includes("admin")) {
+        toast.error("Erro de permissão: Certifique-se de ter permissões de administrador.");
+      } else {
+        toast.error(error.message || 'Erro ao adicionar supervisão');
+      }
     }
   });
 
