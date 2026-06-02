@@ -595,6 +595,20 @@ export default function SecretariaGrupos() {
                     />
                   </div>
                   {config.notify_external_enabled && (
+                    <div className="flex items-center justify-between pl-6 py-2 border-l-2 border-primary/20 ml-2">
+                      <div>
+                        <Label className="text-sm">Notificações Individuais (Número Fixo)</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Se desativado, este número receberá apenas o resumo diário (se habilitado)
+                        </p>
+                      </div>
+                      <Switch
+                        checked={config.individual_notifications_enabled !== false}
+                        onCheckedChange={(v) => setConfig((c) => ({ ...c, individual_notifications_enabled: v }))}
+                      />
+                    </div>
+                  )}
+                  {config.notify_external_enabled && (
                     <div className="space-y-1.5">
                       <Label className="flex items-center gap-1">
                         <Phone className="h-3.5 w-3.5" />
