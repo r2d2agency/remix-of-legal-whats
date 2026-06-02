@@ -9,6 +9,7 @@
 import { query } from '../db.js';
 import { logInfo, logError } from '../logger.js';
 import * as whatsappProvider from './whatsapp-provider.js';
+import { recordSecretaryEvent } from './group-secretary-diagnostic.js';
 
 /**
  * Analyze a group message with AI to detect requests and identify mentioned members
@@ -21,6 +22,8 @@ export async function analyzeGroupMessage({
   senderPhone,
   groupName,
   mentionedJids = [],
+  messageId = null,
+  provider = 'unknown',
 }) {
   const startTime = Date.now();
 
@@ -31,7 +34,14 @@ export async function analyzeGroupMessage({
       [organizationId]
     );
 
-    if (configResult.rows.length === 0) return null;
+    if (configResult.rows.length === 0) {
+      recordSecretaryEvent({
+        organizationId, provider, messageId, conversationId, groupName, senderName,
+        stage: 'skipped', level: 'warn',
+        message: 'Secretária não está ativa para esta organização',
+      });
+      return null;
+    }
     const config = configResult.rows[0];
 
     // 2. Check if sender is excluded (team members whose messages should be ignored)
@@ -47,6 +57,10 @@ export async function analyzeGroupMessage({
         });
         if (isExcluded) {
           logInfo('group_secretary', `Sender ${senderName} (phone: ${phoneToCheck}) is in excluded_senders list, skipping`);
+          recordSecretaryEvent({
+            organizationId, provider, messageId, conversationId, groupName, senderName,
+            stage: 'skipped', message: `Remetente está na lista de excluídos (${phoneToCheck})`,
+          });
           return null;
         }
       }
@@ -60,6 +74,10 @@ export async function analyzeGroupMessage({
       );
       const remoteJid = convResult.rows[0]?.remote_jid;
       if (remoteJid && !config.group_jids.includes(remoteJid)) {
+        recordSecretaryEvent({
+          organizationId, provider, messageId, conversationId, groupName, senderName,
+          stage: 'skipped', message: `Grupo ${remoteJid} não está na lista monitorada`,
+        });
         return null; // Group not monitored
       }
     }
@@ -73,7 +91,14 @@ export async function analyzeGroupMessage({
       [organizationId]
     );
 
-    if (membersResult.rows.length === 0) return null;
+    if (membersResult.rows.length === 0) {
+      recordSecretaryEvent({
+        organizationId, provider, messageId, conversationId, groupName, senderName,
+        stage: 'skipped', level: 'warn',
+        message: 'Nenhum membro cadastrado na Secretária IA',
+      });
+      return null;
+    }
 
     const members = membersResult.rows;
 
@@ -81,6 +106,11 @@ export async function analyzeGroupMessage({
     const aiConfig = await getAIConfig(organizationId, config);
     if (!aiConfig || !aiConfig.apiKey) {
       logInfo('group_secretary', 'No AI config available, skipping analysis');
+      recordSecretaryEvent({
+        organizationId, provider, messageId, conversationId, groupName, senderName,
+        stage: 'skipped', level: 'error',
+        message: 'Sem chave de IA configurada (secretária ou organização)',
+      });
       return null;
     }
 
@@ -183,14 +213,44 @@ Remetente: ${senderName || 'Desconhecido'}
 Mensagem: "${processedMessage}"`;
 
     // 6. Call AI
-    const aiResult = await callAI(aiConfig, systemPrompt, userPrompt);
-    if (!aiResult) return null;
+    recordSecretaryEvent({
+      organizationId, provider, messageId, conversationId, groupName, senderName,
+      stage: 'ai_called',
+      message: `Chamando IA (${aiConfig.provider}/${aiConfig.model})`,
+      details: { content: String(messageContent || '').slice(0, 200) },
+    });
+    let aiResult;
+    try {
+      aiResult = await callAI(aiConfig, systemPrompt, userPrompt);
+    } catch (aiErr) {
+      recordSecretaryEvent({
+        organizationId, provider, messageId, conversationId, groupName, senderName,
+        stage: 'error', level: 'error',
+        message: 'Erro na chamada da IA',
+        error: aiErr?.message || String(aiErr),
+      });
+      throw aiErr;
+    }
+    if (!aiResult) {
+      recordSecretaryEvent({
+        organizationId, provider, messageId, conversationId, groupName, senderName,
+        stage: 'error', level: 'error',
+        message: 'IA retornou resposta vazia ou inválida',
+      });
+      return null;
+    }
 
     const processingTime = Date.now() - startTime;
 
     // 7. Check confidence threshold
     if (!aiResult.is_request || aiResult.confidence < (config.min_confidence || 0.6)) {
       logInfo('group_secretary', `Message below threshold: confidence=${aiResult.confidence}, is_request=${aiResult.is_request}`);
+      recordSecretaryEvent({
+        organizationId, provider, messageId, conversationId, groupName, senderName,
+        stage: 'no_detection',
+        message: `Mensagem ignorada (is_request=${aiResult.is_request}, confiança=${aiResult.confidence}, mínimo=${config.min_confidence || 0.6})`,
+        details: { reason: aiResult.reason },
+      });
       return null;
     }
 
@@ -359,6 +419,19 @@ Mensagem: "${processedMessage}"`;
 
     logInfo('group_secretary', `Detection: request="${aiResult.detected_request}", users=${matchedMembers.map(m=>m.user_name).join(',')||'none'}, priority=${priority}, confidence=${aiResult.confidence}, time=${processingTime}ms`);
 
+    recordSecretaryEvent({
+      organizationId, provider, messageId, conversationId, groupName, senderName,
+      stage: 'detected',
+      message: `✅ Detectado: ${aiResult.detected_request}`,
+      details: {
+        matched: matchedMembers.map(m => m.user_name),
+        priority,
+        confidence: aiResult.confidence,
+        sentiment,
+        processing_ms: processingTime,
+      },
+    });
+
     return {
       isRequest: true,
       detectedRequest: aiResult.detected_request,
@@ -372,6 +445,12 @@ Mensagem: "${processedMessage}"`;
     };
   } catch (error) {
     logError('group_secretary.analyze_error', error);
+    recordSecretaryEvent({
+      organizationId, provider, messageId, conversationId, groupName, senderName,
+      stage: 'error', level: 'error',
+      message: 'Erro inesperado durante análise',
+      error: error?.message || String(error),
+    });
     return null;
   }
 }

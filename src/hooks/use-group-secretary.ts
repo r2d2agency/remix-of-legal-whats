@@ -126,6 +126,22 @@ export interface MonitoredGroup {
   connection_name: string;
 }
 
+export interface DiagnosticEvent {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'warn' | 'error';
+  organizationId: string;
+  provider: string;
+  stage: string;
+  messageId?: string | null;
+  conversationId?: string | null;
+  groupName?: string | null;
+  senderName?: string | null;
+  message?: string;
+  details?: Record<string, any>;
+  error?: string;
+}
+
 export const useGroupSecretary = () => {
   const [loading, setLoading] = useState(false);
 
@@ -216,6 +232,20 @@ export const useGroupSecretary = () => {
     return data;
   }, []);
 
+  const getDiagnosticEvents = useCallback(async (filters: { provider?: string; stage?: string; limit?: number } = {}): Promise<DiagnosticEvent[]> => {
+    const params = new URLSearchParams();
+    if (filters.provider) params.set('provider', filters.provider);
+    if (filters.stage) params.set('stage', filters.stage);
+    if (filters.limit) params.set('limit', String(filters.limit));
+    const qs = params.toString();
+    const data = await api<{ events: DiagnosticEvent[] }>(`/api/group-secretary/diagnostic${qs ? `?${qs}` : ''}`);
+    return data.events || [];
+  }, []);
+
+  const clearDiagnosticEvents = useCallback(async (): Promise<void> => {
+    await api('/api/group-secretary/diagnostic', { method: 'DELETE' });
+  }, []);
+
   return {
     loading,
     setLoading,
@@ -233,5 +263,7 @@ export const useGroupSecretary = () => {
     getMeetingMinutes,
     deleteMeetingMinutes,
     sendDigestNow,
+    getDiagnosticEvents,
+    clearDiagnosticEvents,
   };
 };

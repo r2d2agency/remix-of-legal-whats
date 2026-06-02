@@ -22,6 +22,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { useGroupSecretary, type SecretaryConfig, type SecretaryMember, type SecretaryLog, type SecretaryStats, type AvailableUser, type MonitoredGroup, type MeetingMinutes } from "@/hooks/use-group-secretary";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import SecretaryDiagnosticPanel from "@/components/secretaria/SecretaryDiagnosticPanel";
 
 export default function SecretariaGrupos() {
   const {
@@ -220,6 +221,10 @@ export default function SecretariaGrupos() {
             <TabsTrigger value="minutes" className="gap-1">
               <FileText className="h-3.5 w-3.5" />
               Atas
+            </TabsTrigger>
+            <TabsTrigger value="diagnostic" className="gap-1">
+              <Shield className="h-3.5 w-3.5" />
+              Auditoria
             </TabsTrigger>
           </TabsList>
 
@@ -1330,6 +1335,11 @@ export default function SecretariaGrupos() {
                 })}
               </div>
             )}
+          </TabsContent>
+
+          {/* DIAGNOSTIC / AUDIT TAB */}
+          <TabsContent value="diagnostic" className="space-y-4">
+            <SecretaryDiagnosticPanel />
           </TabsContent>
         </Tabs>
 

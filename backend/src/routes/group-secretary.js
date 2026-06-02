@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { generateMeetingMinutes } from '../lib/group-secretary.js';
 import { executeSecretaryDigest } from '../secretary-digest-scheduler.js';
+import { getSecretaryEvents, clearSecretaryEvents } from '../lib/group-secretary-diagnostic.js';
 
 const router = Router();
 router.use(authenticate);
@@ -515,6 +516,40 @@ router.post('/digest/send-now', async (req, res) => {
   } catch (error) {
     console.error('Manual digest error:', error);
     res.status(500).json({ error: error.message || 'Erro ao gerar relatório manual' });
+  }
+});
+
+// Diagnostic events buffer (in-memory)
+router.get('/diagnostic', async (req, res) => {
+  try {
+    const org = await getUserOrgWithFlags(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+    const { provider, stage, limit } = req.query;
+    const events = getSecretaryEvents({
+      organizationId: org.organization_id,
+      provider: provider || undefined,
+      stage: stage || undefined,
+      limit: limit ? parseInt(limit) : 200,
+    });
+    res.json({ events });
+  } catch (error) {
+    console.error('Get secretary diagnostic error:', error);
+    res.status(500).json({ error: 'Erro ao buscar diagnóstico' });
+  }
+});
+
+router.delete('/diagnostic', async (req, res) => {
+  try {
+    const org = await getUserOrgWithFlags(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+    if (!canManageSecretary(org.role, org.is_superadmin)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+    clearSecretaryEvents({ organizationId: org.organization_id });
+    res.json({ cleared: true });
+  } catch (error) {
+    console.error('Clear secretary diagnostic error:', error);
+    res.status(500).json({ error: 'Erro ao limpar diagnóstico' });
   }
 });
 
