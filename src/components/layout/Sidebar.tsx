@@ -471,7 +471,7 @@ export function Sidebar() {
   return (
     <>
       {/* Mobile/Tablet Menu Button - visible until xl breakpoint */}
-      <div className="fixed top-3 left-3 z-[80] xl:hidden" style={{ isolation: 'isolate' }}>
+      <div className="fixed top-14 left-3 z-[80] xl:hidden" style={{ isolation: 'isolate' }}>
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button 
