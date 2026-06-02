@@ -490,4 +490,32 @@ router.delete('/meeting-minutes/:id', async (req, res) => {
   }
 });
 
+// Manually trigger the daily digest report for current org
+router.post('/digest/send-now', async (req, res) => {
+  try {
+    const org = await getUserOrgWithFlags(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+    if (!canManageSecretary(org.role, org.is_superadmin)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+    const result = await executeSecretaryDigest({
+      organizationId: org.organization_id,
+      force: true,
+    });
+    if (!result || result.sent === 0) {
+      const reasons = {
+        no_config: 'Nenhuma configuração de relatório encontrada para sua organização.',
+        no_external_phone: 'Configure um número externo para envio do relatório.',
+        no_connected_connection: 'Nenhuma conexão WhatsApp ativa encontrada para enviar o relatório.',
+      };
+      const msg = reasons[result?.reason] || reasons[result?.error] || result?.error || 'Não foi possível enviar o relatório.';
+      return res.status(400).json({ error: msg });
+    }
+    res.json({ success: true, sent: result.sent });
+  } catch (error) {
+    console.error('Manual digest error:', error);
+    res.status(500).json({ error: error.message || 'Erro ao gerar relatório manual' });
+  }
+});
+
 export default router;
