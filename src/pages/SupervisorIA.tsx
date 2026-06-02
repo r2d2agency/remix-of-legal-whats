@@ -280,10 +280,12 @@ export default function SupervisorIA() {
   // Member Management Mutations
   const updateMemberMutation = useMutation({
     mutationFn: async ({ memberId, data }: { memberId: string, data: any }) => {
-      // Use PATCH and the user_id (which is usually the memberId passed here if it's the organization member endpoint)
-      return await api(`/api/organizations/${user?.organization_id}/members/${memberId}`, {
+      return await api(`/supervisor/monitored-sellers/${memberId}`, {
         method: 'PATCH',
-        body: data,
+        body: {
+          connection_ids: data.connection_ids || [],
+          funnel_ids: data.monitored_funnels || data.funnel_ids || [],
+        },
       });
     },
     onSuccess: () => {
@@ -300,26 +302,16 @@ export default function SupervisorIA() {
 
   const createMemberMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Find the member ID from allOrgMembers since we have the email
       const member = (Array.isArray(allOrgMembers) ? allOrgMembers : []).find((m: any) => m.email === data.email);
-      
-      if (member) {
-        // Use PATCH instead of PUT, and use member.user_id if available, otherwise member.id
-        const targetId = member.user_id || member.id;
-        return await api(`/api/organizations/${user?.organization_id}/members/${targetId}`, {
-          method: 'PATCH',
-          body: {
-            connection_ids: data.connection_ids,
-            monitored_funnels: data.monitored_funnels,
-            role: member.role || 'agent'
-          },
-        });
-      }
-
-      // If user is not in org, then we use POST (inviting new member)
-      return await api(`/api/organizations/${user?.organization_id}/members`, {
+      if (!member) throw new Error('Usuário não encontrado na organização');
+      const targetUserId = member.user_id || member.id;
+      return await api(`/supervisor/monitored-sellers`, {
         method: 'POST',
-        body: data,
+        body: {
+          user_id: targetUserId,
+          connection_ids: data.connection_ids || [],
+          funnel_ids: data.monitored_funnels || [],
+        },
       });
     },
     onSuccess: () => {
@@ -331,9 +323,9 @@ export default function SupervisorIA() {
     onError: (error: any) => {
       console.error("Erro ao adicionar supervisão:", error);
       if (error.status === 403) {
-        toast.error("Erro de permissão: Apenas administradores podem gerenciar membros.");
+        toast.error("Sem permissão para configurar o Supervisor IA.");
       } else if (error.status === 404) {
-        toast.error("Erro 404: Endpoint de membro não encontrado ou ID inválido.");
+        toast.error("Endpoint não encontrado.");
       } else {
         toast.error(error.message || 'Erro ao adicionar supervisão');
       }
@@ -342,7 +334,7 @@ export default function SupervisorIA() {
 
   const deleteMemberMutation = useMutation({
     mutationFn: async (memberId: string) => {
-      return await api(`/api/organizations/${user?.organization_id}/members/${memberId}`, {
+      return await api(`/supervisor/monitored-sellers/${memberId}`, {
         method: 'DELETE',
       });
     },
