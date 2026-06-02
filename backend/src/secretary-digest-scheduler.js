@@ -30,6 +30,9 @@ export async function executeSecretaryDigest({ organizationId = null, force = fa
           AND COALESCE(daily_digest_minute, 0) = $2
           AND (notify_external_phone IS NOT NULL OR notify_members_whatsapp = true)
       `, [currentHour, currentMinute]);
+      if (configResult.rows.length > 0) {
+        console.log(`📊 [DIGEST] Cron match @ ${currentHour}:${String(currentMinute).padStart(2,'0')} SP — ${configResult.rows.length} org(s)`);
+      }
     }
 
     if (configResult.rows.length === 0) {
@@ -55,7 +58,9 @@ export async function executeSecretaryDigest({ organizationId = null, force = fa
         `, [config.organization_id]);
 
         const stats = logsResult.rows[0];
-        if (parseInt(stats.total) === 0 && !force) continue;
+        // NOTE: we no longer skip when total=0 — the narrative summary may still
+        // contain useful info, and the user expects to receive the daily report
+        // every day at the scheduled time, even with zero detections.
 
         // Get pending tasks from secretary
         const pendingResult = await query(`
