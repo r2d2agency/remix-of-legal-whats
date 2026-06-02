@@ -466,6 +466,20 @@ export const useChat = () => {
     return data;
   }, []);
 
+  const retryMediaDownload = useCallback(async (messageId: string): Promise<{ success: boolean; media_url?: string; media_mimetype?: string; content?: string }> => {
+    try {
+      const data = await api<{ success: boolean; media_url?: string; media_mimetype?: string; content?: string }>(
+        `/api/chat/messages/${messageId}/retry-download`,
+        { method: 'POST' }
+      );
+      return data;
+    } catch (err) {
+      console.error('Error retrying media download:', err);
+      throw err;
+    }
+  }, []);
+
+
   // Tags
   const getTags = useCallback(async (): Promise<ConversationTag[]> => {
     const data = await api<ConversationTag[]>('/api/chat/tags');
