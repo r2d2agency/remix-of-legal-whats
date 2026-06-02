@@ -686,12 +686,16 @@ export default function SupervisorIA() {
                             onValueChange={(val) => {
                               const selected = (Array.isArray(allOrgMembers) ? allOrgMembers : []).find((m: any) => m.email === val);
                               if (selected) {
+                                setSelectedMemberForNew(selected);
                                 setNewMember({
                                   ...newMember,
                                   email: selected.email,
-                                  name: selected.name || selected.email
+                                  name: selected.name || selected.email,
+                                  // Pre-select connections they already have
+                                  connection_ids: selected.assigned_connections?.map((c: any) => c.id || c) || []
                                 });
                               } else {
+                                setSelectedMemberForNew(null);
                                 setNewMember({ ...newMember, email: val });
                               }
                             }}
