@@ -1782,6 +1782,26 @@ export default function Organizacoes() {
                           )}
                         </div>
 
+                        {/* Supervisor IA */}
+                        <div className="flex items-center justify-between rounded-lg border p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-10 w-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                              <Shield className="h-5 w-5 text-indigo-500" />
+                            </div>
+                            <div>
+                              <p className="font-medium">Supervisor IA</p>
+                              <p className="text-sm text-muted-foreground">
+                                Auditoria automática de SLA, monitoramento de vendedores e alertas inteligentes
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={modulesEnabled.supervisor}
+                            onCheckedChange={(checked) => setModulesEnabled(prev => ({ ...prev, supervisor: checked }))}
+                            disabled={!canManageOrg}
+                          />
+                        </div>
+
                         {/* Shared Conversations */}
                         <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 p-4">
                           <div className="flex items-center gap-4">
