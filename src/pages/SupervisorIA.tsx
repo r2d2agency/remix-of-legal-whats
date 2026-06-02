@@ -957,8 +957,13 @@ export default function SupervisorIA() {
                         
                         // Se for um agente/gerente comum, filtramos pelas conexões atribuídas
                         if (editingMember && !['admin', 'owner'].includes(editingMember.role)) {
-                          const assignedIds = new Set(editingMember.assigned_connections?.map((c: any) => c.id || c) || []);
-                          availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                          const assigned = editingMember.assigned_connections;
+                          // Only filter if there's an explicit assignment list; otherwise
+                          // show every connection of the organization (no restriction)
+                          if (Array.isArray(assigned) && assigned.length > 0) {
+                            const assignedIds = new Set(assigned.map((c: any) => c.id || c));
+                            availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                          }
                         }
 
                         if (availableConnections.length === 0) {
