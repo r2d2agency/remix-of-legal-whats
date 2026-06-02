@@ -918,7 +918,7 @@ export function ChatArea({
 
       {/* Header */}
       <div className={cn("border-b bg-card flex-shrink-0 transition-all duration-300", 
-        isMobile ? "flex items-center gap-2 px-2 py-2 pt-16" : cn("flex items-center justify-between", showHeaderInfo ? "p-4" : "p-2"))}>
+        isMobile ? "flex items-center gap-2 pl-16 pr-2 py-2 pt-16" : cn("flex items-center justify-between", showHeaderInfo ? "p-4" : "p-2"))}>
         <div className={cn("flex items-center gap-2 min-w-0 flex-1", isMobile && "overflow-hidden")}>
           {isMobile && onMobileBack && (
             <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={onMobileBack}><ArrowLeft className="h-5 w-5" /></Button>
