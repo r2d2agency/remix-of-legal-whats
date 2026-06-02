@@ -376,10 +376,25 @@ export function ChatMessageBubble({
               <AudioPlayer src={mediaUrl} mimetype={msg.media_mimetype || undefined} isFromMe={msg.from_me} messageId={msg.id} savedTranscript={msg.transcript} />
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-sm opacity-70 mb-2 p-3 rounded-lg bg-background/30">
-              <Mic className="h-4 w-4" />
-              <span>Áudio não disponível</span>
+            <div className="flex flex-col gap-2 p-3 rounded-lg bg-background/30">
+              <div className="flex items-center gap-2 text-sm opacity-70">
+                <Mic className="h-4 w-4" />
+                <span>Áudio não disponível</span>
+              </div>
+              {onRetryMediaDownload && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-[10px] w-full mt-1 border-primary/20 bg-background/50 hover:bg-background"
+                  onClick={handleRetry}
+                  disabled={isRetrying}
+                >
+                  {isRetrying ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                  Tentar recuperar áudio
+                </Button>
+              )}
             </div>
+
           )
         )}
 
