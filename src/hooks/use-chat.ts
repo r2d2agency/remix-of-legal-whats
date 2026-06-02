@@ -780,6 +780,8 @@ export const useChat = () => {
     // Messages
     getMessages,
     sendMessage,
+    retryMediaDownload,
+
     editMessage,
     deleteMessage: deleteMessageFn,
     pinMessage,
