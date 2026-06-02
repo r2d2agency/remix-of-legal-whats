@@ -17,7 +17,9 @@ import {
   Send,
   Forward,
   UserPlus,
+  Loader2,
 } from "lucide-react";
+
  import { format, isBefore, subHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -27,12 +29,26 @@ import { AudioPlayer } from "./AudioPlayer";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { LinkPreview } from "./LinkPreview";
+import { RefreshCw } from "lucide-react";
 
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi;
+
+const isWaMediaError = (content: string | null) => {
+  if (!content) return false;
+  const c = content.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return (
+    c.includes("audio nao esta mais disponivel") || 
+    c.includes("midia nao esta mais disponivel") ||
+    c.includes("não está mais disponível") ||
+    c.includes("peça para reenvialo") ||
+    c.includes("peca para reenvialo")
+  );
+};
 
 function extractUrls(text: string): string[] {
   return text.match(URL_REGEX) || [];
 }
+
 
 function renderTextWithLinks(text: string, searchQuery: string, highlightText: (t: string, q: string) => React.ReactNode): React.ReactNode {
   const parts = text.split(URL_REGEX);
@@ -79,11 +95,13 @@ interface ChatMessageBubbleProps {
   onDeleteMessage?: (messageId: string) => Promise<boolean>;
   onPinMessage?: (messageId: string | null) => Promise<boolean>;
   isPinned?: boolean;
+  onRetryMediaDownload?: (messageId: string) => Promise<boolean>;
   highlightText: (text: string, query: string) => React.ReactNode;
   getDocumentDisplayName: (msg: ChatMessage, resolvedUrl?: string | null) => string;
   looksLikeFilename: (value: string) => boolean;
   messageRef: (el: HTMLDivElement | null) => void;
 }
+
 
 const messageStatusIcon = (status: string) => {
   switch (status) {
@@ -116,12 +134,32 @@ export function ChatMessageBubble({
   onDeleteMessage,
   onPinMessage,
   isPinned,
+  onRetryMediaDownload,
   highlightText,
   getDocumentDisplayName,
   looksLikeFilename,
   messageRef,
 }: ChatMessageBubbleProps) {
   const mediaUrl = resolveMediaUrl(msg.media_url);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    if (!onRetryMediaDownload || isRetrying) return;
+    setIsRetrying(true);
+    try {
+      const ok = await onRetryMediaDownload(msg.message_id || msg.id);
+      if (ok) {
+        toast.success("Mídia recuperada com sucesso!");
+      } else {
+        toast.error("Não foi possível recuperar a mídia.");
+      }
+    } catch (err) {
+      toast.error("Erro ao tentar recuperar mídia.");
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
 
   const handleDownload = async (e: React.MouseEvent, url: string, fileName: string) => {
     // If it's already a blob or data URL, let the default behavior happen
@@ -340,10 +378,25 @@ export function ChatMessageBubble({
               <AudioPlayer src={mediaUrl} mimetype={msg.media_mimetype || undefined} isFromMe={msg.from_me} messageId={msg.id} savedTranscript={msg.transcript} />
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-sm opacity-70 mb-2 p-3 rounded-lg bg-background/30">
-              <Mic className="h-4 w-4" />
-              <span>Áudio não disponível</span>
+            <div className="flex flex-col gap-2 p-3 rounded-lg bg-background/30">
+              <div className="flex items-center gap-2 text-sm opacity-70">
+                <Mic className="h-4 w-4" />
+                <span>Áudio não disponível</span>
+              </div>
+              {onRetryMediaDownload && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-[10px] w-full mt-1 border-primary/20 bg-background/50 hover:bg-background"
+                  onClick={handleRetry}
+                  disabled={isRetrying}
+                >
+                  {isRetrying ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                  Tentar recuperar áudio
+                </Button>
+              )}
             </div>
+
           )
         )}
 
@@ -475,8 +528,21 @@ export function ChatMessageBubble({
             {extractUrls(msg.content).slice(0, 1).map((url) => (
               <LinkPreview key={url} url={url} savedPreview={msg.link_preview} />
             ))}
+            {isWaMediaError(msg.content) && onRetryMediaDownload && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-8 text-[10px] w-full mt-2 border-primary/20 bg-background/50 hover:bg-background"
+                onClick={handleRetry}
+                disabled={isRetrying}
+              >
+                {isRetrying ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                Tentar recuperar áudio/mídia
+              </Button>
+            )}
           </>
         ) : null}
+
 
         {/* Timestamp and status */}
         <div className={cn(

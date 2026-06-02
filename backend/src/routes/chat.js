@@ -3,6 +3,10 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as whatsappProvider from '../lib/whatsapp-provider.js';
 import { startAgentSession, stopAgentSession, getActiveAgentSession, pauseSessionForHumanReply, setHumanTakeover, triggerAgentFirstMessage } from '../lib/ai-agent-processor.js';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
+
 
 const router = Router();
 
@@ -4325,4 +4329,132 @@ router.post('/conversations/:id/agent-session/takeover', authenticate, async (re
   }
 });
 
+/**
+ * Retry downloading media for a specific message
+ * This is useful when the provider failed to deliver the media initially
+ */
+router.post('/messages/:messageId/retry-download', authenticate, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    // Find the message and its connection
+    const msgResult = await query(
+      `SELECT m.*, c.id as conn_id, c.provider, c.instance_id, c.wapi_token, c.uazapi_url, c.uazapi_token, c.api_url, c.api_key, c.instance_name
+       FROM chat_messages m
+       JOIN conversations conv ON conv.id = m.conversation_id
+       JOIN connections c ON c.id = conv.connection_id
+       WHERE m.message_id = $1 OR m.id::text = $1
+       LIMIT 1`,
+      [messageId]
+    );
+
+    if (msgResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Mensagem não encontrada' });
+    }
+
+    const msg = msgResult.rows[0];
+    const connection = {
+      id: msg.conn_id,
+      provider: msg.provider,
+      instance_id: msg.instance_id,
+      wapi_token: msg.wapi_token,
+      uazapi_url: msg.uazapi_url,
+      uazapi_token: msg.uazapi_token,
+      api_url: msg.api_url,
+      api_key: msg.api_key,
+      instance_name: msg.instance_name
+    };
+
+    console.log(`[Chat] Retrying download for message ${msg.message_id} via provider ${connection.provider}`);
+
+    const dl = await whatsappProvider.downloadMedia(connection, msg.message_id);
+
+    if (!dl?.success) {
+      return res.status(400).json({ error: dl?.error || 'Falha ao baixar mídia do provedor' });
+    }
+
+    let publicUrl = null;
+    let mimetype = dl.mimetype || msg.media_mimetype;
+
+    if (dl.url) {
+      // If the provider returned a direct URL
+      if (dl.url.startsWith('http')) {
+        publicUrl = dl.url;
+      } else {
+        const baseUrl = String(process.env.API_BASE_URL || '').trim().replace(/\/+$/, '');
+        const cleanPath = dl.url.startsWith('/') ? dl.url : `/uploads/${dl.url}`;
+        publicUrl = baseUrl ? `${baseUrl}${cleanPath}` : cleanPath;
+      }
+    } else if (dl.buffer || dl.base64) {
+      // If the provider returned binary data, save it locally
+      const buf = dl.buffer || Buffer.from(dl.base64, 'base64');
+      const mt = (dl.mimetype || 'application/octet-stream').toLowerCase();
+      
+      const extMap = {
+        'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png',
+        'image/gif': '.gif', 'image/webp': '.webp',
+        'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/3gpp': '.3gp',
+        'audio/ogg': '.ogg', 'audio/mpeg': '.mp3', 'audio/mp4': '.m4a',
+        'audio/wav': '.wav', 'audio/webm': '.webm',
+        'application/pdf': '.pdf',
+      };
+      
+      const ext = extMap[mt] || '.bin';
+      const fname = `${Date.now()}_retry_${crypto.randomBytes(4).toString('hex')}${ext}`;
+      const uploadsDir = path.join(process.cwd(), 'uploads');
+      
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      fs.writeFileSync(path.join(uploadsDir, fname), buf);
+      
+      const baseUrl = String(process.env.API_BASE_URL || '').trim().replace(/\/+$/, '');
+      const localPath = `/uploads/${fname}`;
+      publicUrl = baseUrl ? `${baseUrl}${localPath}` : localPath;
+    }
+
+    if (!publicUrl) {
+      return res.status(400).json({ error: 'Mídia baixada mas sem URL disponível' });
+    }
+
+    // Update the message in the database
+    // Also clear the content if it was an error message
+    let newContent = msg.content;
+    const errorStrings = [
+      'o audio nao esta mais disponivel',
+      'audio nao esta mais disponivel',
+      'midia nao esta mais disponivel',
+      'não está mais disponível'
+    ];
+    
+    const contentLower = String(newContent || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (errorStrings.some(s => contentLower.includes(s))) {
+      if (msg.message_type === 'audio') newContent = '[Áudio]';
+      else if (msg.message_type === 'image') newContent = '[Imagem]';
+      else if (msg.message_type === 'video') newContent = '[Vídeo]';
+      else if (msg.message_type === 'document') newContent = '[Documento]';
+    }
+
+    await query(
+      `UPDATE chat_messages 
+       SET media_url = $1, 
+           media_mimetype = COALESCE($2, media_mimetype),
+           content = $3,
+           updated_at = NOW()
+       WHERE id = $4`,
+      [publicUrl, mimetype, newContent, msg.id]
+    );
+
+    res.json({ 
+      success: true, 
+      media_url: publicUrl, 
+      media_mimetype: mimetype,
+      content: newContent
+    });
+
+  } catch (error) {
+    console.error('Retry download error:', error);
+    res.status(500).json({ error: 'Erro ao reprocessar download de mídia' });
+  }
+});
+
 export default router;
+
