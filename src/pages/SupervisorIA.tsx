@@ -663,7 +663,10 @@ export default function SupervisorIA() {
                       Selecione quais usuários e conexões o Supervisor IA deve monitorar ativamente.
                     </CardDescription>
                   </div>
-                  <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
+                  <Dialog open={addMemberDialogOpen} onOpenChange={(open) => {
+                    setAddMemberDialogOpen(open);
+                    if (!open) setSelectedMemberForNew(null);
+                  }}>
                     <DialogTrigger asChild>
                       <Button className="gap-2">
                         <Plus className="h-4 w-4" />
