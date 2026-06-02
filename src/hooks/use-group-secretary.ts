@@ -16,6 +16,7 @@ export interface SecretaryConfig {
   notify_external_phone?: string;
   notify_members_whatsapp?: boolean;
   default_connection_id?: string | null;
+  individual_notifications_enabled?: boolean;
   followup_enabled?: boolean;
   followup_hours?: number;
   daily_digest_enabled?: boolean;

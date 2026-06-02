@@ -35,6 +35,7 @@ export default function SecretariaGrupos() {
     ai_provider: null, ai_model: null,
     notify_external_enabled: false, notify_external_phone: '',
     notify_members_whatsapp: false, default_connection_id: null,
+    individual_notifications_enabled: true,
     followup_enabled: false, followup_hours: 4,
     daily_digest_enabled: false, daily_digest_hour: 8, daily_digest_minute: 0, daily_digest_type: 'detailed',
     auto_reply_enabled: false, auto_reply_message: '',
@@ -525,6 +526,20 @@ export default function SecretariaGrupos() {
                       onCheckedChange={(v) => setConfig((c) => ({ ...c, notify_members_whatsapp: v }))}
                     />
                   </div>
+                  {config.notify_members_whatsapp && (
+                    <div className="flex items-center justify-between pl-6 py-2 border-l-2 border-primary/20 ml-2">
+                      <div>
+                        <Label className="text-sm">Notificações Individuais</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Se desativado, o membro receberá apenas o resumo diário (se habilitado)
+                        </p>
+                      </div>
+                      <Switch
+                        checked={config.individual_notifications_enabled !== false}
+                        onCheckedChange={(v) => setConfig((c) => ({ ...c, individual_notifications_enabled: v }))}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Default connection */}
@@ -579,6 +594,20 @@ export default function SecretariaGrupos() {
                       onCheckedChange={(v) => setConfig((c) => ({ ...c, notify_external_enabled: v }))}
                     />
                   </div>
+                  {config.notify_external_enabled && (
+                    <div className="flex items-center justify-between pl-6 py-2 border-l-2 border-primary/20 ml-2">
+                      <div>
+                        <Label className="text-sm">Notificações Individuais (Número Fixo)</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Se desativado, este número receberá apenas o resumo diário (se habilitado)
+                        </p>
+                      </div>
+                      <Switch
+                        checked={config.individual_notifications_enabled !== false}
+                        onCheckedChange={(v) => setConfig((c) => ({ ...c, individual_notifications_enabled: v }))}
+                      />
+                    </div>
+                  )}
                   {config.notify_external_enabled && (
                     <div className="space-y-1.5">
                       <Label className="flex items-center gap-1">

@@ -3331,6 +3331,7 @@ DO $$ BEGIN
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS daily_digest_enabled BOOLEAN DEFAULT false;
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS daily_digest_hour INTEGER DEFAULT 8;
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS daily_digest_minute INTEGER DEFAULT 0;
+    ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS individual_notifications_enabled BOOLEAN DEFAULT true;
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS auto_reply_enabled BOOLEAN DEFAULT false;
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS auto_reply_message TEXT;
     ALTER TABLE group_secretary_config ADD COLUMN IF NOT EXISTS excluded_senders TEXT[] DEFAULT '{}';

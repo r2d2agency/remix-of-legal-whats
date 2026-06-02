@@ -6,15 +6,21 @@ import { generateMeetingMinutes } from '../lib/group-secretary.js';
 const router = Router();
 router.use(authenticate);
 
-// Helper: Get user's organization
-async function getUserOrg(userId) {
+// Helper: Get user's organization and permissions
+async function getUserOrgWithFlags(userId) {
   const result = await query(
-    `SELECT om.organization_id, om.role 
+    `SELECT om.organization_id, om.role, u.is_superadmin 
      FROM organization_members om 
+     JOIN users u ON u.id = om.user_id
      WHERE om.user_id = $1 LIMIT 1`,
     [userId]
   );
   return result.rows[0] || null;
+}
+
+function canManageSecretary(role, isSuperadmin) {
+  if (isSuperadmin) return true;
+  return ['owner', 'admin', 'supervisor', 'manager'].includes(role);
 }
 
 // ==========================================
@@ -24,7 +30,7 @@ async function getUserOrg(userId) {
 // Get secretary config
 router.get('/config', async (req, res) => {
   try {
-    const org = await getUserOrg(req.userId);
+    const org = await getUserOrgWithFlags(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
 
     const result = await query(
@@ -60,9 +66,9 @@ router.get('/config', async (req, res) => {
 // Save/update secretary config
 router.put('/config', async (req, res) => {
   try {
-    const org = await getUserOrg(req.userId);
+    const org = await getUserOrgWithFlags(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
-    if (!['owner', 'admin'].includes(org.role)) {
+    if (!canManageSecretary(org.role, org.is_superadmin)) {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
@@ -74,6 +80,7 @@ router.put('/config', async (req, res) => {
       notify_members_whatsapp, default_connection_id,
       followup_enabled, followup_hours,
       daily_digest_enabled, daily_digest_hour, daily_digest_minute,
+      individual_notifications_enabled,
       auto_reply_enabled, auto_reply_message,
       excluded_senders,
     } = req.body;
@@ -90,8 +97,8 @@ router.put('/config', async (req, res) => {
 
     const result = await query(
       `INSERT INTO group_secretary_config 
-       (organization_id, is_active, connection_ids, group_jids, create_crm_task, show_popup_alert, min_confidence, ai_provider, ai_model, ai_api_key, notify_external_enabled, notify_external_phone, notify_members_whatsapp, default_connection_id, followup_enabled, followup_hours, daily_digest_enabled, daily_digest_hour, daily_digest_minute, auto_reply_enabled, auto_reply_message, excluded_senders)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+       (organization_id, is_active, connection_ids, group_jids, create_crm_task, show_popup_alert, min_confidence, ai_provider, ai_model, ai_api_key, notify_external_enabled, notify_external_phone, notify_members_whatsapp, default_connection_id, followup_enabled, followup_hours, daily_digest_enabled, daily_digest_hour, daily_digest_minute, individual_notifications_enabled, auto_reply_enabled, auto_reply_message, excluded_senders)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
        ON CONFLICT (organization_id) DO UPDATE SET
          is_active = EXCLUDED.is_active,
          connection_ids = EXCLUDED.connection_ids,
@@ -111,6 +118,7 @@ router.put('/config', async (req, res) => {
          daily_digest_enabled = EXCLUDED.daily_digest_enabled,
          daily_digest_hour = EXCLUDED.daily_digest_hour,
          daily_digest_minute = EXCLUDED.daily_digest_minute,
+         individual_notifications_enabled = EXCLUDED.individual_notifications_enabled,
          auto_reply_enabled = EXCLUDED.auto_reply_enabled,
          auto_reply_message = EXCLUDED.auto_reply_message,
          excluded_senders = EXCLUDED.excluded_senders,
@@ -126,6 +134,7 @@ router.put('/config', async (req, res) => {
         notify_members_whatsapp ?? false, default_connection_id || null,
         followup_enabled ?? false, followup_hours ?? 4,
         daily_digest_enabled ?? false, daily_digest_hour ?? 8, daily_digest_minute ?? 0,
+        individual_notifications_enabled ?? true,
         auto_reply_enabled ?? false, auto_reply_message || null,
         excluded_senders || '{}',
       ]
@@ -167,9 +176,9 @@ router.get('/members', async (req, res) => {
 // Add/update member
 router.post('/members', async (req, res) => {
   try {
-    const org = await getUserOrg(req.userId);
+    const org = await getUserOrgWithFlags(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
-    if (!['owner', 'admin'].includes(org.role)) {
+    if (!canManageSecretary(org.role, org.is_superadmin)) {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
@@ -199,9 +208,9 @@ router.post('/members', async (req, res) => {
 // Remove member
 router.delete('/members/:memberId', async (req, res) => {
   try {
-    const org = await getUserOrg(req.userId);
+    const org = await getUserOrgWithFlags(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
-    if (!['owner', 'admin'].includes(org.role)) {
+    if (!canManageSecretary(org.role, org.is_superadmin)) {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
@@ -293,9 +302,9 @@ router.get('/groups', async (req, res) => {
 // Update a user's WhatsApp phone (for notification purposes)
 router.put('/members/:userId/phone', async (req, res) => {
   try {
-    const org = await getUserOrg(req.userId);
+    const org = await getUserOrgWithFlags(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
-    if (!['owner', 'admin'].includes(org.role)) {
+    if (!canManageSecretary(org.role, org.is_superadmin)) {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
