@@ -737,6 +737,7 @@ export default function SupervisorIA() {
                             )}
                           </div>
                         </div>
+                      </div>
                       <DialogFooter>
                         <Button variant="ghost" onClick={() => setAddMemberDialogOpen(false)}>Cancelar</Button>
                         <Button 
