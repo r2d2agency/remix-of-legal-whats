@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { detectSalesSeoLead, updateSalesSeoEvolution } from '../lib/sales-seo-service.js';
 import { handleAutoReplies } from '../lib/auto-reply-service.js';
+import { analyzeGroupMessage } from '../lib/group-secretary.js';
 
 const router = Router();
 
@@ -816,6 +817,37 @@ async function handleWebhook(req, res, routeMeta = {}) {
           handleAutoReplies(connection, message.chatId || message.remoteJid, message.content || '').catch(err => {
             console.error('[UAZAPI] Auto-reply error:', err.message);
           });
+
+          // ======= GROUP SECRETARY: AI analysis for group messages =======
+          if (message.isGroup && message.content && connection.organization_id) {
+            try {
+              const msg = payload?.message || payload?.msg || {};
+              const sources = [
+                msg?.extendedTextMessage?.contextInfo?.mentionedJid,
+                msg?.extendedTextMessage?.contextInfo?.mentionedJids,
+                msg?.contextInfo?.mentionedJid,
+                msg?.contextInfo?.mentionedJids,
+                payload?.contextInfo?.mentionedJid,
+                payload?.mentionedJids,
+                payload?.mentionedJid,
+              ];
+              let mentionedJids = [];
+              for (const src of sources) {
+                if (Array.isArray(src) && src.length > 0) { mentionedJids = src; break; }
+              }
+              analyzeGroupMessage({
+                organizationId: connection.organization_id,
+                conversationId: persistence.conversationId,
+                messageContent: message.content,
+                senderName: message.senderName || 'Desconhecido',
+                senderPhone: message.phone || null,
+                groupName: message.groupName || 'Grupo',
+                mentionedJids,
+              }).catch(err => console.error('[UAZAPI][GroupSecretary] Error:', err.message));
+            } catch (gsErr) {
+              console.error('[UAZAPI][GroupSecretary] Setup error:', gsErr.message);
+            }
+          }
 
           if (message.content && typeof message.content === 'string') {
             console.log(`[UAZAPI Webhook] Attempting to continue flow for conversation ${persistence.conversationId}`);
