@@ -79,11 +79,13 @@ interface ChatMessageBubbleProps {
   onDeleteMessage?: (messageId: string) => Promise<boolean>;
   onPinMessage?: (messageId: string | null) => Promise<boolean>;
   isPinned?: boolean;
+  onRetryMediaDownload?: (messageId: string) => Promise<boolean>;
   highlightText: (text: string, query: string) => React.ReactNode;
   getDocumentDisplayName: (msg: ChatMessage, resolvedUrl?: string | null) => string;
   looksLikeFilename: (value: string) => boolean;
   messageRef: (el: HTMLDivElement | null) => void;
 }
+
 
 const messageStatusIcon = (status: string) => {
   switch (status) {
