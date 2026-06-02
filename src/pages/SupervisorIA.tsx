@@ -32,7 +32,8 @@ import {
   Trash2,
   Briefcase,
   Plus,
-  Monitor
+  Monitor,
+  Play
 } from "lucide-react";
 import { 
   Table, 
