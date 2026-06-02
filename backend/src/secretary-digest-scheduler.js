@@ -5,32 +5,38 @@ import * as whatsappProvider from './lib/whatsapp-provider.js';
  * Secretary Daily Digest Scheduler
  * Sends a daily summary of detections to the configured external number
  */
-export async function executeSecretaryDigest() {
+export async function executeSecretaryDigest({ organizationId = null, force = false } = {}) {
   try {
-    // Get current time in Sao Paulo
     const now = new Date();
-    const saoPauloTime = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Sao_Paulo',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: false
-    }).formatToParts(now);
+    let configResult;
+    if (force && organizationId) {
+      configResult = await query(
+        `SELECT * FROM group_secretary_config WHERE organization_id = $1`,
+        [organizationId]
+      );
+    } else {
+      const saoPauloTime = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Sao_Paulo',
+        hour: 'numeric', minute: 'numeric', hour12: false
+      }).formatToParts(now);
+      const currentHour = parseInt(saoPauloTime.find(p => p.type === 'hour').value);
+      const currentMinute = parseInt(saoPauloTime.find(p => p.type === 'minute').value);
+      configResult = await query(`
+        SELECT * FROM group_secretary_config 
+        WHERE is_active = true 
+          AND daily_digest_enabled = true
+          AND daily_digest_hour = $1
+          AND COALESCE(daily_digest_minute, 0) = $2
+          AND (notify_external_phone IS NOT NULL OR notify_members_whatsapp = true)
+      `, [currentHour, currentMinute]);
+    }
 
-    const currentHour = parseInt(saoPauloTime.find(p => p.type === 'hour').value);
-    const currentMinute = parseInt(saoPauloTime.find(p => p.type === 'minute').value);
+    if (configResult.rows.length === 0) {
+      return { sent: 0, reason: 'no_config' };
+    }
 
-    // Get configs with daily digest enabled and matching digest hour/minute
-    // If daily_digest_minute is NULL, we assume 0 for backward compatibility
-    const configResult = await query(`
-      SELECT * FROM group_secretary_config 
-      WHERE is_active = true 
-        AND daily_digest_enabled = true
-        AND daily_digest_hour = $1
-        AND COALESCE(daily_digest_minute, 0) = $2
-        AND (notify_external_phone IS NOT NULL OR notify_members_whatsapp = true)
-    `, [currentHour, currentMinute]);
-
-    if (configResult.rows.length === 0) return;
+    let sentCount = 0;
+    let lastError = null;
 
     for (const config of configResult.rows) {
       try {
@@ -48,7 +54,7 @@ export async function executeSecretaryDigest() {
         `, [config.organization_id]);
 
         const stats = logsResult.rows[0];
-        if (parseInt(stats.total) === 0) continue;
+        if (parseInt(stats.total) === 0 && !force) continue;
 
         // Get pending tasks from secretary
         const pendingResult = await query(`
@@ -96,15 +102,23 @@ export async function executeSecretaryDigest() {
             if (phone) {
               await whatsappProvider.sendMessage(connection, phone, message, 'text', null);
               console.log(`📊 [DIGEST] Sent daily digest to ${phone} for org ${config.organization_id}`);
+              sentCount++;
             }
+          } else {
+            lastError = 'no_connected_connection';
           }
+        } else {
+          lastError = 'no_external_phone';
         }
       } catch (orgErr) {
         console.error(`📊 [DIGEST] Error for org ${config.organization_id}:`, orgErr.message);
+        lastError = orgErr.message;
       }
     }
+    return { sent: sentCount, error: lastError };
   } catch (error) {
     console.error('📊 [DIGEST] Error:', error);
+    return { sent: 0, error: error.message };
   }
 }
 
