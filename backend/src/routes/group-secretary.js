@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { generateMeetingMinutes } from '../lib/group-secretary.js';
+import { executeSecretaryDigest } from '../secretary-digest-scheduler.js';
 
 const router = Router();
 router.use(authenticate);
