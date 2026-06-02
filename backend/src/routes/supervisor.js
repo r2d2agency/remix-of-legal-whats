@@ -534,8 +534,12 @@ router.post('/run-audit', async (req, res) => {
   try {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'No organization' });
-    if (!['owner', 'admin', 'supervisor', 'manager'].includes(org.role)) {
-      return res.status(403).json({ error: 'Apenas owners, admins, supervisores ou gerentes podem executar análise manual' });
+
+    const userRow = await query('SELECT is_superadmin FROM users WHERE id = $1', [req.userId]);
+    const isSuperadmin = userRow.rows[0]?.is_superadmin === true;
+    const allowedRoles = ['owner', 'admin', 'administrator', 'supervisor', 'manager', 'gerente'];
+    if (!isSuperadmin && !allowedRoles.includes(String(org.role || '').toLowerCase())) {
+      return res.status(403).json({ error: `Sem permissão para rodar análise manual (role atual: ${org.role || 'desconhecida'})` });
     }
 
     const orgData = await query('SELECT modules_enabled FROM organizations WHERE id = $1', [org.organization_id]);
