@@ -6,15 +6,21 @@ import { generateMeetingMinutes } from '../lib/group-secretary.js';
 const router = Router();
 router.use(authenticate);
 
-// Helper: Get user's organization
-async function getUserOrg(userId) {
+// Helper: Get user's organization and permissions
+async function getUserOrgWithFlags(userId) {
   const result = await query(
-    `SELECT om.organization_id, om.role 
+    `SELECT om.organization_id, om.role, u.is_superadmin 
      FROM organization_members om 
+     JOIN users u ON u.id = om.user_id
      WHERE om.user_id = $1 LIMIT 1`,
     [userId]
   );
   return result.rows[0] || null;
+}
+
+function canManageSecretary(role, isSuperadmin) {
+  if (isSuperadmin) return true;
+  return ['owner', 'admin', 'supervisor', 'manager'].includes(role);
 }
 
 // ==========================================
