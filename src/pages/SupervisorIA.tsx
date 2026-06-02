@@ -276,6 +276,8 @@ export default function SupervisorIA() {
   // Member Management Mutations
   const updateMemberMutation = useMutation({
     mutationFn: async ({ memberId, data }: { memberId: string, data: any }) => {
+      // For Supervisor IA, we only update specific metadata if the member already exists in the org
+      // We use the organization members endpoint to update their roles/connections
       return await api(`/api/organizations/${user?.organization_id}/members/${memberId}`, {
         method: 'PUT',
         body: data,
@@ -283,7 +285,7 @@ export default function SupervisorIA() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['supervisor-sellers'] });
-      toast.success('Membro atualizado com sucesso!');
+      toast.success('Configurações de supervisão atualizadas!');
       setEditMemberDialogOpen(false);
       refreshUser();
     },
@@ -294,6 +296,24 @@ export default function SupervisorIA() {
 
   const createMemberMutation = useMutation({
     mutationFn: async (data: any) => {
+      // Find the member ID from allOrgMembers since we have the email
+      const member = (Array.isArray(allOrgMembers) ? allOrgMembers : []).find((m: any) => m.email === data.email);
+      
+      if (member) {
+        // If user already exists in organization, we update their metadata/connections 
+        // using the PUT endpoint instead of POST (which is for inviting NEW members)
+        return await api(`/api/organizations/${user?.organization_id}/members/${member.id}`, {
+          method: 'PUT',
+          body: {
+            connection_ids: data.connection_ids,
+            monitored_funnels: data.monitored_funnels,
+            // Keep existing role or default to agent if not set
+            role: member.role || 'agent'
+          },
+        });
+      }
+
+      // If user is not in org, then we use POST (this might be what's throwing the 403/404 if permissions are strict)
       return await api(`/api/organizations/${user?.organization_id}/members`, {
         method: 'POST',
         body: data,
@@ -307,8 +327,8 @@ export default function SupervisorIA() {
     },
     onError: (error: any) => {
       console.error("Erro ao adicionar supervisão:", error);
-      if (error.message?.toLowerCase().includes("admin")) {
-        toast.error("Erro de permissão: Certifique-se de ter permissões de administrador.");
+      if (error.status === 403 || error.message?.toLowerCase().includes("admin")) {
+        toast.error("Erro de permissão: Apenas administradores da organização podem gerenciar membros.");
       } else {
         toast.error(error.message || 'Erro ao adicionar supervisão');
       }
