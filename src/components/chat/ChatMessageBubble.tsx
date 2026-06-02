@@ -528,8 +528,21 @@ export function ChatMessageBubble({
             {extractUrls(msg.content).slice(0, 1).map((url) => (
               <LinkPreview key={url} url={url} savedPreview={msg.link_preview} />
             ))}
+            {isWaMediaError(msg.content) && onRetryMediaDownload && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-8 text-[10px] w-full mt-2 border-primary/20 bg-background/50 hover:bg-background"
+                onClick={handleRetry}
+                disabled={isRetrying}
+              >
+                {isRetrying ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                Tentar recuperar áudio/mídia
+              </Button>
+            )}
           </>
         ) : null}
+
 
         {/* Timestamp and status */}
         <div className={cn(
