@@ -30,7 +30,7 @@ function canManageSecretary(role, isSuperadmin) {
 // Get secretary config
 router.get('/config', async (req, res) => {
   try {
-    const org = await getUserOrg(req.userId);
+    const org = await getUserOrgWithFlags(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
 
     const result = await query(
