@@ -634,6 +634,15 @@ export default function SupervisorIA() {
               </DialogContent>
             </Dialog>
             
+            <Button
+              variant="default"
+              onClick={() => runAuditMutation.mutate()}
+              disabled={runAuditMutation.isPending}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              {runAuditMutation.isPending ? 'Analisando...' : 'Rodar Análise Agora'}
+            </Button>
+
             <Button variant="outline" onClick={() => queryClient.invalidateQueries()}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
