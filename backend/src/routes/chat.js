@@ -3,6 +3,10 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import * as whatsappProvider from '../lib/whatsapp-provider.js';
 import { startAgentSession, stopAgentSession, getActiveAgentSession, pauseSessionForHumanReply, setHumanTakeover, triggerAgentFirstMessage } from '../lib/ai-agent-processor.js';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
+
 
 const router = Router();
 
