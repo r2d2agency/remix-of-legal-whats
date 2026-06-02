@@ -176,9 +176,9 @@ router.get('/members', async (req, res) => {
 // Add/update member
 router.post('/members', async (req, res) => {
   try {
-    const org = await getUserOrg(req.userId);
+    const org = await getUserOrgWithFlags(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
-    if (!['owner', 'admin'].includes(org.role)) {
+    if (!canManageSecretary(org.role, org.is_superadmin)) {
       return res.status(403).json({ error: 'Sem permissão' });
     }
 
