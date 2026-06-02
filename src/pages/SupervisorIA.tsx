@@ -811,7 +811,7 @@ export default function SupervisorIA() {
                               // Caso contrário, se for admin/owner mostra tudo, senão verificamos permissões.
                               if (selectedMemberForNew && !['admin', 'owner'].includes(selectedMemberForNew.role)) {
                                 const assignedFunnels = selectedMemberForNew.assigned_funnels || selectedMemberForNew.funnel_ids;
-                                if (assignedFunnels) {
+                                if (Array.isArray(assignedFunnels) && assignedFunnels.length > 0) {
                                   const assignedIds = new Set(assignedFunnels.map((f: any) => f.id || f));
                                   availableFunnels = availableFunnels.filter((f: any) => assignedIds.has(f.id));
                                 }
@@ -1041,7 +1041,7 @@ export default function SupervisorIA() {
                         // Filtramos os funis pela permissão do membro
                         if (editingMember && !['admin', 'owner'].includes(editingMember.role)) {
                           const assignedFunnels = editingMember.assigned_funnels || editingMember.funnel_ids;
-                          if (assignedFunnels) {
+                          if (Array.isArray(assignedFunnels) && assignedFunnels.length > 0) {
                             const assignedIds = new Set(assignedFunnels.map((f: any) => f.id || f));
                             availableFunnels = availableFunnels.filter((f: any) => assignedIds.has(f.id));
                           }
@@ -1076,19 +1076,9 @@ export default function SupervisorIA() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground">Papel (Permissão)</Label>
-                    <Select value={editMemberRole} onValueChange={setEditMemberRole}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="agent">Agente (Vendedor)</SelectItem>
-                        <SelectItem value="manager">Gerente</SelectItem>
-                        <SelectItem value="supervisor">Supervisor IA</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    O papel do usuário (Agente, Gerente, Supervisor) é definido em <strong>Configurações &gt; Usuários</strong>. Aqui você define apenas o que o Supervisor IA deve monitorar.
+                  </p>
                 </div>
                 <DialogFooter>
                   <Button variant="ghost" onClick={() => setEditMemberDialogOpen(false)}>Cancelar</Button>
