@@ -663,14 +663,19 @@ export default function SupervisorIA() {
                               <SelectValue placeholder="Selecione um usuário..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {(sellers || []).map((s: any) => (
-                                <SelectItem key={s.id} value={s.email}>
-                                  {s.name} ({s.email})
-                                </SelectItem>
-                              ))}
-                              {(sellers || []).length === 0 && (
-                                <div className="p-2 text-xs text-muted-foreground text-center">Nenhum usuário disponível</div>
-                              )}
+                              {(() => {
+                                const monitoredEmails = new Set((sellers || []).map((s: any) => s.email));
+                                const available = (Array.isArray(allOrgMembers) ? allOrgMembers : [])
+                                  .filter((m: any) => m?.email && !monitoredEmails.has(m.email));
+                                if (available.length === 0) {
+                                  return <div className="p-2 text-xs text-muted-foreground text-center">Nenhum usuário disponível</div>;
+                                }
+                                return available.map((m: any) => (
+                                  <SelectItem key={m.id} value={m.email}>
+                                    {m.name || m.email} ({m.email})
+                                  </SelectItem>
+                                ));
+                              })()}
                             </SelectContent>
                           </Select>
                         </div>
