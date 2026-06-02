@@ -1,5 +1,6 @@
 import { query } from './db.js';
 import * as whatsappProvider from './lib/whatsapp-provider.js';
+import { generateGroupsNarrativeSummary } from './lib/group-secretary.js';
 
 /**
  * Secretary Daily Digest Scheduler
@@ -83,7 +84,7 @@ export async function executeSecretaryDigest({ organizationId = null, force = fa
           .map(r => `  • ${r.matched_user_name}: ${r.count} solicitações`)
           .join('\n');
 
-        const message = `📊 *Resumo Diário - Secretária IA*\n` +
+        const headerMessage = `📊 *Resumo Diário - Secretária IA*\n` +
           `📅 ${now.toLocaleDateString('pt-BR')}\n\n` +
           `📌 *Detecções (24h):* ${stats.total}\n` +
           `✅ *Com responsável:* ${stats.matched}\n` +
@@ -91,8 +92,48 @@ export async function executeSecretaryDigest({ organizationId = null, force = fa
           `🟠 *Alta prioridade:* ${stats.high_priority}\n` +
           `😠 *Sentimento negativo:* ${stats.negative_sentiment}\n` +
           `⏳ *Tarefas pendentes:* ${pending}\n` +
-          (topMembers ? `\n👥 *Mais demandados:*\n${topMembers}` : '') +
-          `\n\n_Acesse o sistema para mais detalhes._`;
+          (topMembers ? `\n👥 *Mais demandados:*\n${topMembers}` : '');
+
+        // Generate full narrative summary per group (AI)
+        let narrativeSection = '';
+        try {
+          const narrative = await generateGroupsNarrativeSummary({
+            organizationId: config.organization_id,
+            hours: 24,
+            maxGroups: 8,
+          });
+          if (narrative?.groups && narrative.groups.length > 0) {
+            narrativeSection = '\n\n━━━━━━━━━━━━━━━━━━\n📝 *Resumo Detalhado por Grupo*\n━━━━━━━━━━━━━━━━━━';
+            for (const g of narrative.groups) {
+              let block = `\n\n*📍 ${g.groupName}*`;
+              block += `\n_${g.messageCount} mensagens • ${g.participants.length} participantes_\n`;
+              if (g.summary) block += `\n${g.summary}`;
+              if (g.key_points?.length) {
+                block += `\n\n*Pontos-chave:*\n` + g.key_points.map(p => `• ${p}`).join('\n');
+              }
+              if (g.decisions?.length) {
+                block += `\n\n*Decisões:*\n` + g.decisions.map(d => `✅ ${d}`).join('\n');
+              }
+              if (g.action_items?.length) {
+                block += `\n\n*Ações:*\n` + g.action_items.map(a => {
+                  const resp = a.responsible ? ` — _${a.responsible}_` : '';
+                  const dl = a.deadline ? ` (${a.deadline})` : '';
+                  return `🎯 ${a.task}${resp}${dl}`;
+                }).join('\n');
+              }
+              if (g.highlights?.length) {
+                block += `\n\n*Destaques:*\n` + g.highlights.map(h => `💬 ${h}`).join('\n');
+              }
+              narrativeSection += block;
+            }
+          } else if (narrative?.error === 'no_ai_config') {
+            narrativeSection = '\n\n_⚠️ Configure a IA da organização para receber o resumo narrativo dos grupos._';
+          }
+        } catch (narrErr) {
+          console.error('📊 [DIGEST] Narrative error:', narrErr.message);
+        }
+
+        const fullMessage = headerMessage + narrativeSection + `\n\n_Acesse o sistema para mais detalhes._`;
 
         // Send to external phone
         if (config.notify_external_phone) {
@@ -100,7 +141,13 @@ export async function executeSecretaryDigest({ organizationId = null, force = fa
           if (connection) {
             const phone = config.notify_external_phone.replace(/\D/g, '');
             if (phone) {
-              await whatsappProvider.sendMessage(connection, phone, message, 'text', null);
+              // WhatsApp limit ~4096 chars; split into chunks if needed
+              const chunks = splitMessage(fullMessage, 3500);
+              for (let i = 0; i < chunks.length; i++) {
+                const part = chunks.length > 1 ? `*[Parte ${i + 1}/${chunks.length}]*\n\n${chunks[i]}` : chunks[i];
+                await whatsappProvider.sendMessage(connection, phone, part, 'text', null);
+                if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 1500));
+              }
               console.log(`📊 [DIGEST] Sent daily digest to ${phone} for org ${config.organization_id}`);
               sentCount++;
             }
@@ -137,4 +184,21 @@ async function getDigestConnection(config) {
     );
     return result.rows[0] || null;
   } catch { return null; }
+}
+
+function splitMessage(text, maxLen) {
+  if (text.length <= maxLen) return [text];
+  const chunks = [];
+  const paragraphs = text.split('\n');
+  let current = '';
+  for (const p of paragraphs) {
+    if ((current + '\n' + p).length > maxLen && current) {
+      chunks.push(current);
+      current = p;
+    } else {
+      current = current ? current + '\n' + p : p;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
 }
