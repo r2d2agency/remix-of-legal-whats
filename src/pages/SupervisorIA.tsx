@@ -219,6 +219,7 @@ export default function SupervisorIA() {
   const [chargeNote, setChargeNote] = useState("");
   const [selectedTarget, setSelectedTarget] = useState<any>(null);
   const [editMemberFunnels, setEditMemberFunnels] = useState<string[]>([]);
+  const [selectedMemberForNew, setSelectedMemberForNew] = useState<any>(null);
 
   useEffect(() => {
     if (settings) {
@@ -285,10 +286,9 @@ export default function SupervisorIA() {
   // Member Management Mutations
   const updateMemberMutation = useMutation({
     mutationFn: async ({ memberId, data }: { memberId: string, data: any }) => {
-      // For Supervisor IA, we only update specific metadata if the member already exists in the org
-      // We use the organization members endpoint to update their roles/connections
+      // Use PATCH and the user_id (which is usually the memberId passed here if it's the organization member endpoint)
       return await api(`/api/organizations/${user?.organization_id}/members/${memberId}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: data,
       });
     },
@@ -299,6 +299,7 @@ export default function SupervisorIA() {
       refreshUser();
     },
     onError: (error: any) => {
+      console.error("Erro ao atualizar membro:", error);
       toast.error(error.message || 'Erro ao atualizar membro');
     }
   });
@@ -309,20 +310,19 @@ export default function SupervisorIA() {
       const member = (Array.isArray(allOrgMembers) ? allOrgMembers : []).find((m: any) => m.email === data.email);
       
       if (member) {
-        // If user already exists in organization, we update their metadata/connections 
-        // using the PUT endpoint instead of POST (which is for inviting NEW members)
-        return await api(`/api/organizations/${user?.organization_id}/members/${member.id}`, {
-          method: 'PUT',
+        // Use PATCH instead of PUT, and use member.user_id if available, otherwise member.id
+        const targetId = member.user_id || member.id;
+        return await api(`/api/organizations/${user?.organization_id}/members/${targetId}`, {
+          method: 'PATCH',
           body: {
             connection_ids: data.connection_ids,
             monitored_funnels: data.monitored_funnels,
-            // Keep existing role or default to agent if not set
             role: member.role || 'agent'
           },
         });
       }
 
-      // If user is not in org, then we use POST (this might be what's throwing the 403/404 if permissions are strict)
+      // If user is not in org, then we use POST (inviting new member)
       return await api(`/api/organizations/${user?.organization_id}/members`, {
         method: 'POST',
         body: data,
@@ -336,8 +336,10 @@ export default function SupervisorIA() {
     },
     onError: (error: any) => {
       console.error("Erro ao adicionar supervisão:", error);
-      if (error.status === 403 || error.message?.toLowerCase().includes("admin")) {
-        toast.error("Erro de permissão: Apenas administradores da organização podem gerenciar membros.");
+      if (error.status === 403) {
+        toast.error("Erro de permissão: Apenas administradores podem gerenciar membros.");
+      } else if (error.status === 404) {
+        toast.error("Erro 404: Endpoint de membro não encontrado ou ID inválido.");
       } else {
         toast.error(error.message || 'Erro ao adicionar supervisão');
       }
@@ -661,7 +663,10 @@ export default function SupervisorIA() {
                       Selecione quais usuários e conexões o Supervisor IA deve monitorar ativamente.
                     </CardDescription>
                   </div>
-                  <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
+                  <Dialog open={addMemberDialogOpen} onOpenChange={(open) => {
+                    setAddMemberDialogOpen(open);
+                    if (!open) setSelectedMemberForNew(null);
+                  }}>
                     <DialogTrigger asChild>
                       <Button className="gap-2">
                         <Plus className="h-4 w-4" />
@@ -684,12 +689,16 @@ export default function SupervisorIA() {
                             onValueChange={(val) => {
                               const selected = (Array.isArray(allOrgMembers) ? allOrgMembers : []).find((m: any) => m.email === val);
                               if (selected) {
+                                setSelectedMemberForNew(selected);
                                 setNewMember({
                                   ...newMember,
                                   email: selected.email,
-                                  name: selected.name || selected.email
+                                  name: selected.name || selected.email,
+                                  // Pre-select connections they already have
+                                  connection_ids: selected.assigned_connections?.map((c: any) => c.id || c) || []
                                 });
                               } else {
+                                setSelectedMemberForNew(null);
                                 setNewMember({ ...newMember, email: val });
                               }
                             }}
@@ -716,59 +725,92 @@ export default function SupervisorIA() {
                         </div>
                         
                         <div className="space-y-2">
-                          <Label className="text-xs font-bold uppercase text-muted-foreground">Conexões de WhatsApp</Label>
+                          <Label className="text-xs font-bold uppercase text-muted-foreground">
+                            Conexões de WhatsApp {selectedMemberForNew && "(Filtrado por permissão)"}
+                          </Label>
                           <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
-                            {(orgConnections || []).map((conn: any) => (
-                              <div key={conn.id} className="flex items-center space-x-2">
-                                <Checkbox 
-                                  id={`new-member-conn-${conn.id}`}
-                                  checked={newMember.connection_ids.includes(conn.id)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setNewMember({...newMember, connection_ids: [...newMember.connection_ids, conn.id]});
-                                    } else {
-                                      setNewMember({...newMember, connection_ids: newMember.connection_ids.filter(id => id !== conn.id)});
-                                    }
-                                  }}
-                                />
-                                <label 
-                                  htmlFor={`new-member-conn-${conn.id}`}
-                                  className="text-sm font-medium leading-none cursor-pointer"
-                                >
-                                  {conn.name}
-                                </label>
-                              </div>
-                            ))}
+                            {(() => {
+                              let availableConnections = orgConnections || [];
+                              
+                              // Se um membro foi selecionado e não for admin/owner, filtramos pelas conexões atribuídas a ele
+                              if (selectedMemberForNew && !['admin', 'owner'].includes(selectedMemberForNew.role)) {
+                                const assignedIds = new Set(selectedMemberForNew.assigned_connections?.map((c: any) => c.id || c) || []);
+                                availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                              }
+
+                              if (availableConnections.length === 0) {
+                                return <p className="text-xs text-muted-foreground text-center py-2">Nenhuma conexão disponível para este usuário.</p>;
+                              }
+
+                              return availableConnections.map((conn: any) => (
+                                <div key={conn.id} className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id={`new-member-conn-${conn.id}`}
+                                    checked={newMember.connection_ids.includes(conn.id)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setNewMember({...newMember, connection_ids: [...newMember.connection_ids, conn.id]});
+                                      } else {
+                                        setNewMember({...newMember, connection_ids: newMember.connection_ids.filter(id => id !== conn.id)});
+                                      }
+                                    }}
+                                  />
+                                  <label 
+                                    htmlFor={`new-member-conn-${conn.id}`}
+                                    className="text-sm font-medium leading-none cursor-pointer"
+                                  >
+                                    {conn.name}
+                                  </label>
+                                </div>
+                              ));
+                            })()}
                           </div>
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-xs font-bold uppercase text-muted-foreground">Funis do Kanban</Label>
+                          <Label className="text-xs font-bold uppercase text-muted-foreground">
+                            Funis do Kanban {selectedMemberForNew && "(Filtrado por permissão)"}
+                          </Label>
                           <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
-                            {(funnels || []).map((f: any) => (
-                              <div key={f.id} className="flex items-center space-x-2">
-                                <Checkbox 
-                                  id={`new-member-funnel-${f.id}`}
-                                  checked={newMember.monitored_funnels.includes(f.id)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setNewMember({...newMember, monitored_funnels: [...newMember.monitored_funnels, f.id]});
-                                    } else {
-                                      setNewMember({...newMember, monitored_funnels: newMember.monitored_funnels.filter(id => id !== f.id)});
-                                    }
-                                  }}
-                                />
-                                <label 
-                                  htmlFor={`new-member-funnel-${f.id}`}
-                                  className="text-sm font-medium leading-none cursor-pointer"
-                                >
-                                  {f.name}
-                                </label>
-                              </div>
-                            ))}
-                            {(funnels || []).length === 0 && (
-                              <p className="text-xs text-muted-foreground text-center py-2">Nenhum funil encontrado.</p>
-                            )}
+                            {(() => {
+                              let availableFunnels = funnels || [];
+
+                              // Filtramos os funis. Se o usuário tiver assigned_funnels ou funnel_ids, usamos isso.
+                              // Caso contrário, se for admin/owner mostra tudo, senão verificamos permissões.
+                              if (selectedMemberForNew && !['admin', 'owner'].includes(selectedMemberForNew.role)) {
+                                const assignedFunnels = selectedMemberForNew.assigned_funnels || selectedMemberForNew.funnel_ids;
+                                if (assignedFunnels) {
+                                  const assignedIds = new Set(assignedFunnels.map((f: any) => f.id || f));
+                                  availableFunnels = availableFunnels.filter((f: any) => assignedIds.has(f.id));
+                                }
+                              }
+
+                              if (availableFunnels.length === 0) {
+                                return <p className="text-xs text-muted-foreground text-center py-2">Nenhum funil disponível para este usuário.</p>;
+                              }
+
+                              return availableFunnels.map((f: any) => (
+                                <div key={f.id} className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id={`new-member-funnel-${f.id}`}
+                                    checked={newMember.monitored_funnels.includes(f.id)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setNewMember({...newMember, monitored_funnels: [...newMember.monitored_funnels, f.id]});
+                                      } else {
+                                        setNewMember({...newMember, monitored_funnels: newMember.monitored_funnels.filter(id => id !== f.id)});
+                                      }
+                                    }}
+                                  />
+                                  <label 
+                                    htmlFor={`new-member-funnel-${f.id}`}
+                                    className="text-sm font-medium leading-none cursor-pointer"
+                                  >
+                                    {f.name}
+                                  </label>
+                                </div>
+                              ));
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -909,59 +951,91 @@ export default function SupervisorIA() {
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground">Conexões de WhatsApp</Label>
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">
+                      Conexões de WhatsApp {editingMember && "(Filtrado por permissão)"}
+                    </Label>
                     <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
-                      {(orgConnections || []).map((conn: any) => (
-                        <div key={conn.id} className="flex items-center space-x-2">
-                          <Checkbox 
-                            id={`member-conn-${conn.id}`}
-                            checked={editMemberConnectionIds.includes(conn.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setEditMemberConnectionIds([...editMemberConnectionIds, conn.id]);
-                              } else {
-                                setEditMemberConnectionIds(editMemberConnectionIds.filter(id => id !== conn.id));
-                              }
-                            }}
-                          />
-                          <label 
-                            htmlFor={`member-conn-${conn.id}`}
-                            className="text-sm font-medium leading-none cursor-pointer"
-                          >
-                            {conn.name} {conn.phone_number && `(${conn.phone_number})`}
-                          </label>
-                        </div>
-                      ))}
-                      {(orgConnections || []).length === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-2">Nenhuma conexão de WhatsApp encontrada.</p>
-                      )}
+                      {(() => {
+                        let availableConnections = orgConnections || [];
+                        
+                        // Se for um agente/gerente comum, filtramos pelas conexões atribuídas
+                        if (editingMember && !['admin', 'owner'].includes(editingMember.role)) {
+                          const assignedIds = new Set(editingMember.assigned_connections?.map((c: any) => c.id || c) || []);
+                          availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                        }
+
+                        if (availableConnections.length === 0) {
+                          return <p className="text-xs text-muted-foreground text-center py-2">Nenhuma conexão disponível para este usuário.</p>;
+                        }
+
+                        return availableConnections.map((conn: any) => (
+                          <div key={conn.id} className="flex items-center space-x-2">
+                            <Checkbox 
+                              id={`member-conn-${conn.id}`}
+                              checked={editMemberConnectionIds.includes(conn.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setEditMemberConnectionIds([...editMemberConnectionIds, conn.id]);
+                                } else {
+                                  setEditMemberConnectionIds(editMemberConnectionIds.filter(id => id !== conn.id));
+                                }
+                              }}
+                            />
+                            <label 
+                              htmlFor={`member-conn-${conn.id}`}
+                              className="text-sm font-medium leading-none cursor-pointer"
+                            >
+                              {conn.name} {conn.phone_number && `(${conn.phone_number})`}
+                            </label>
+                          </div>
+                        ));
+                      })()}
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground">Funis do Kanban</Label>
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">
+                      Funis do Kanban {editingMember && "(Filtrado por permissão)"}
+                    </Label>
                     <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
-                      {(funnels || []).map((f: any) => (
-                        <div key={f.id} className="flex items-center space-x-2">
-                          <Checkbox 
-                            id={`member-funnel-${f.id}`}
-                            checked={editMemberFunnels.includes(f.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setEditMemberFunnels([...editMemberFunnels, f.id]);
-                              } else {
-                                setEditMemberFunnels(editMemberFunnels.filter(id => id !== f.id));
-                              }
-                            }}
-                          />
-                          <label 
-                            htmlFor={`member-funnel-${f.id}`}
-                            className="text-sm font-medium leading-none cursor-pointer"
-                          >
-                            {f.name}
-                          </label>
-                        </div>
-                      ))}
+                      {(() => {
+                        let availableFunnels = funnels || [];
+
+                        // Filtramos os funis pela permissão do membro
+                        if (editingMember && !['admin', 'owner'].includes(editingMember.role)) {
+                          const assignedFunnels = editingMember.assigned_funnels || editingMember.funnel_ids;
+                          if (assignedFunnels) {
+                            const assignedIds = new Set(assignedFunnels.map((f: any) => f.id || f));
+                            availableFunnels = availableFunnels.filter((f: any) => assignedIds.has(f.id));
+                          }
+                        }
+
+                        if (availableFunnels.length === 0) {
+                          return <p className="text-xs text-muted-foreground text-center py-2">Nenhum funil disponível para este usuário.</p>;
+                        }
+
+                        return availableFunnels.map((f: any) => (
+                          <div key={f.id} className="flex items-center space-x-2">
+                            <Checkbox 
+                              id={`member-funnel-${f.id}`}
+                              checked={editMemberFunnels.includes(f.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setEditMemberFunnels([...editMemberFunnels, f.id]);
+                                } else {
+                                  setEditMemberFunnels(editMemberFunnels.filter(id => id !== f.id));
+                                }
+                              }}
+                            />
+                            <label 
+                              htmlFor={`member-funnel-${f.id}`}
+                              className="text-sm font-medium leading-none cursor-pointer"
+                            >
+                              {f.name}
+                            </label>
+                          </div>
+                        ));
+                      })()}
                     </div>
                   </div>
 
