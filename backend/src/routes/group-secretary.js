@@ -18,6 +18,9 @@ async function getUserOrgWithFlags(userId) {
   return result.rows[0] || null;
 }
 
+// Backwards-compatible alias used by various endpoints below
+const getUserOrg = getUserOrgWithFlags;
+
 function canManageSecretary(role, isSuperadmin) {
   if (isSuperadmin) return true;
   return ['owner', 'admin', 'supervisor', 'manager'].includes(role);
