@@ -126,6 +126,22 @@ export interface MonitoredGroup {
   connection_name: string;
 }
 
+export interface DiagnosticEvent {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'warn' | 'error';
+  organizationId: string;
+  provider: string;
+  stage: string;
+  messageId?: string | null;
+  conversationId?: string | null;
+  groupName?: string | null;
+  senderName?: string | null;
+  message?: string;
+  details?: Record<string, any>;
+  error?: string;
+}
+
 export const useGroupSecretary = () => {
   const [loading, setLoading] = useState(false);
 
