@@ -1336,6 +1336,11 @@ export default function SecretariaGrupos() {
               </div>
             )}
           </TabsContent>
+
+          {/* DIAGNOSTIC / AUDIT TAB */}
+          <TabsContent value="diagnostic" className="space-y-4">
+            <SecretaryDiagnosticPanel />
+          </TabsContent>
         </Tabs>
 
         {/* ADD MEMBER DIALOG */}
