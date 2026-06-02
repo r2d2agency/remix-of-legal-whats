@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { generateMeetingMinutes } from '../lib/group-secretary.js';
 import { executeSecretaryDigest } from '../secretary-digest-scheduler.js';
+import { getSecretaryEvents, clearSecretaryEvents } from '../lib/group-secretary-diagnostic.js';
 
 const router = Router();
 router.use(authenticate);
