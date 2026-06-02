@@ -323,7 +323,7 @@ Mensagem: "${processedMessage}"`;
     }
 
     // 10c. Notify external WhatsApp number if enabled
-    if (config.notify_external_enabled && config.notify_external_phone) {
+    if (config.notify_external_enabled && config.notify_external_phone && (config.individual_notifications_enabled !== false)) {
       const matchedNames = matchedMembers.map(m => m.user_name).join(', ') || 'Não identificado';
       await notifyExternalNumber({
         organizationId,
