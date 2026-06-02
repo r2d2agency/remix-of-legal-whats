@@ -529,4 +529,34 @@ router.delete('/monitored-sellers/:userId', async (req, res) => {
   }
 });
 
+// POST /api/supervisor/run-audit - manually trigger an audit for the org
+router.post('/run-audit', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    if (!['owner', 'admin', 'supervisor', 'manager'].includes(org.role)) {
+      return res.status(403).json({ error: 'Apenas owners, admins, supervisores ou gerentes podem executar análise manual' });
+    }
+
+    const orgData = await query('SELECT modules_enabled FROM organizations WHERE id = $1', [org.organization_id]);
+    const modules = orgData.rows[0]?.modules_enabled || {};
+    if (!modules.supervisor) {
+      return res.status(403).json({ error: 'Módulo Supervisor IA não está ativado' });
+    }
+
+    const settings = await query('SELECT 1 FROM supervisor_settings WHERE organization_id = $1', [org.organization_id]);
+    if (settings.rows.length === 0) {
+      return res.status(400).json({ error: 'Configure os parâmetros do Supervisor (SLA) antes de rodar a análise.' });
+    }
+
+    const { executeDailyAudit } = await import('../supervisor-audit-scheduler.js');
+    const result = await executeDailyAudit(org.organization_id);
+    logInfo('[Supervisor] Manual audit triggered', { userId: req.userId, orgId: org.organization_id, ...result });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    logError('Error running manual supervisor audit:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
