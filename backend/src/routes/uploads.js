@@ -225,8 +225,11 @@ router.post('/', authenticate, (req, res) => {
           
           // -c:a libopus: Use Opus codec
           // -b:a 64k: Good bitrate for voice
+          // -ar 48000: 48 kHz (Apple requirement)
+          // -ac 1: Mono (Apple requirement)
           // -application voip: Optimized for voice
-          await execPromise(`ffmpeg -i "${inputPath}" -c:a libopus -b:a 64k -application voip "${outputPath}"`);
+          await execPromise(`ffmpeg -i "${inputPath}" -c:a libopus -b:a 64k -ar 48000 -ac 1 -application voip "${outputPath}"`);
+
           
           if (fs.existsSync(outputPath)) {
             const stats = fs.statSync(outputPath);
