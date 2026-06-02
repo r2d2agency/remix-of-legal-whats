@@ -32,7 +32,8 @@ import {
   Trash2,
   Briefcase,
   Plus,
-  Monitor
+  Monitor,
+  Play
 } from "lucide-react";
 import { 
   Table, 
@@ -252,6 +253,28 @@ export default function SupervisorIA() {
       queryClient.invalidateQueries({ queryKey: ['supervisor-settings'] });
       queryClient.invalidateQueries({ queryKey: ['supervisor-semaphore'] });
       toast.success("Configurações de SLA atualizadas com sucesso");
+    }
+  });
+
+  // Manual audit trigger
+  const runAuditMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/supervisor/run-audit`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao executar análise');
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Análise concluída: ${data.dealsProcessed || 0} negócios processados, ${data.findings || 0} alertas gerados.`);
+      queryClient.invalidateQueries({ queryKey: ['supervisor-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['supervisor-semaphore'] });
+      queryClient.invalidateQueries({ queryKey: ['supervisor-audits'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Falha ao executar análise');
     }
   });
 
@@ -633,6 +656,15 @@ export default function SupervisorIA() {
               </DialogContent>
             </Dialog>
             
+            <Button
+              variant="default"
+              onClick={() => runAuditMutation.mutate()}
+              disabled={runAuditMutation.isPending}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              {runAuditMutation.isPending ? 'Analisando...' : 'Rodar Análise Agora'}
+            </Button>
+
             <Button variant="outline" onClick={() => queryClient.invalidateQueries()}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar

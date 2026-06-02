@@ -1,16 +1,22 @@
 import { query } from './db.js';
 import { logInfo, logError } from './logger.js';
 
-export async function executeDailyAudit() {
-  logInfo('[Supervisor] Starting daily audit...');
+export async function executeDailyAudit(organizationId = null) {
+  logInfo(`[Supervisor] Starting daily audit${organizationId ? ` for org ${organizationId}` : ''}...`);
+  let totalFindings = 0;
   try {
-    // Get all open deals
+    const params = [];
+    let where = `WHERE d.status = 'open'`;
+    if (organizationId) {
+      params.push(organizationId);
+      where += ` AND d.organization_id = $${params.length}`;
+    }
     const deals = await query(`
       SELECT d.*, s.new_lead_sla_minutes, s.no_followup_sla_hours, s.no_response_sla_days
       FROM crm_deals d
       JOIN supervisor_settings s ON s.organization_id = d.organization_id
-      WHERE d.status = 'open'
-    `);
+      ${where}
+    `, params);
 
     for (const deal of deals.rows) {
       const findings = [];
@@ -57,11 +63,14 @@ export async function executeDailyAudit() {
           ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [deal.organization_id, deal.id, deal.owner_id, finding.status, finding.reason, finding.action, finding.urgency]
         );
+        totalFindings++;
       }
     }
 
-    logInfo(`[Supervisor] Daily audit complete. Processed ${deals.rows.length} deals.`);
+    logInfo(`[Supervisor] Daily audit complete. Processed ${deals.rows.length} deals, ${totalFindings} findings.`);
+    return { dealsProcessed: deals.rows.length, findings: totalFindings };
   } catch (error) {
     logError('[Supervisor] Daily audit failed', error);
+    throw error;
   }
 }
