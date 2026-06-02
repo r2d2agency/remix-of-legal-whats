@@ -743,6 +743,9 @@ export default function SupervisorIA() {
                         <Button 
                           onClick={() => {
                             if (!newMember.email) return toast.error("Selecione um usuário");
+                            
+                            // Em caso de erro de permissão (ex: apenas admin pode adicionar),
+                            // informamos ao usuário que ele já é admin ou verificamos o papel dele
                             createMemberMutation.mutate(newMember);
                           }}
                           disabled={createMemberMutation.isPending}
