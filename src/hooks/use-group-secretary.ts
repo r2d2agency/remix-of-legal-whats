@@ -208,6 +208,14 @@ export const useGroupSecretary = () => {
     await api(`/api/group-secretary/meeting-minutes/${id}`, { method: 'DELETE' });
   }, []);
 
+  const sendDigestNow = useCallback(async (): Promise<{ success: boolean; sent: number }> => {
+    const data = await api<{ success: boolean; sent: number }>('/api/group-secretary/digest/send-now', {
+      method: 'POST',
+      body: {},
+    });
+    return data;
+  }, []);
+
   return {
     loading,
     setLoading,
@@ -224,5 +232,6 @@ export const useGroupSecretary = () => {
     generateMeetingMinutes,
     getMeetingMinutes,
     deleteMeetingMinutes,
+    sendDigestNow,
   };
 };
