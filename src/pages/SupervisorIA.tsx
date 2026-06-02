@@ -358,7 +358,7 @@ export default function SupervisorIA() {
   const handleSaveMember = () => {
     if (!editingMember) return;
     updateMemberMutation.mutate({
-      memberId: editingMember.id,
+      memberId: editingMember.user_id || editingMember.id,
       data: {
         role: editMemberRole,
         connection_ids: editMemberConnectionIds,
