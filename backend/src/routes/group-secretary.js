@@ -507,6 +507,7 @@ router.post('/digest/send-now', async (req, res) => {
       const reasons = {
         no_config: 'Nenhuma configuração de relatório encontrada para sua organização.',
         no_external_phone: 'Configure um número externo para envio do relatório.',
+        no_recipients: 'Configure um número externo ou cadastre responsáveis com WhatsApp para receber o relatório.',
         no_connected_connection: 'Nenhuma conexão WhatsApp ativa encontrada para enviar o relatório.',
       };
       const msg = reasons[result?.reason] || reasons[result?.error] || result?.error || 'Não foi possível enviar o relatório.';
