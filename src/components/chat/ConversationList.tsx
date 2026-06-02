@@ -434,7 +434,7 @@ export function ConversationList({
   return (
     <div className="flex flex-col h-full border-r bg-card overflow-hidden max-w-full">
       {/* Header */}
-      <div className="p-4 border-b space-y-3 flex-shrink-0">
+      <div className={cn("p-4 border-b space-y-3 flex-shrink-0", isMobile && "pl-16")}>
         <div className="flex items-center justify-between min-w-0">
           <h2 className="font-semibold text-lg flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
