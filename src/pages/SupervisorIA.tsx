@@ -86,7 +86,8 @@ export default function SupervisorIA() {
     email: '',
     password: '',
     role: 'agent',
-    connection_ids: [] as string[]
+    connection_ids: [] as string[],
+    monitored_funnels: [] as string[]
   });
 
   // Fetch Funnels for filters
@@ -302,7 +303,7 @@ export default function SupervisorIA() {
       queryClient.invalidateQueries({ queryKey: ['supervisor-sellers'] });
       toast.success('Membro convidado com sucesso!');
       setAddMemberDialogOpen(false);
-      setNewMember({ name: '', email: '', password: '', role: 'agent', connection_ids: [] });
+      setNewMember({ name: '', email: '', password: '', role: 'agent', connection_ids: [], monitored_funnels: [] });
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao convidar membro');
@@ -647,12 +648,12 @@ export default function SupervisorIA() {
                           <Select 
                             value={newMember.email} 
                             onValueChange={(val) => {
-                              const selected = (sellers || []).find((s: any) => s.email === val);
+                              const selected = (Array.isArray(allOrgMembers) ? allOrgMembers : []).find((m: any) => m.email === val);
                               if (selected) {
                                 setNewMember({
                                   ...newMember,
                                   email: selected.email,
-                                  name: selected.name
+                                  name: selected.name || selected.email
                                 });
                               } else {
                                 setNewMember({ ...newMember, email: val });
@@ -706,7 +707,36 @@ export default function SupervisorIA() {
                             ))}
                           </div>
                         </div>
-                      </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs font-bold uppercase text-muted-foreground">Funis do Kanban</Label>
+                          <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
+                            {(funnels || []).map((f: any) => (
+                              <div key={f.id} className="flex items-center space-x-2">
+                                <Checkbox 
+                                  id={`new-member-funnel-${f.id}`}
+                                  checked={newMember.monitored_funnels.includes(f.id)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setNewMember({...newMember, monitored_funnels: [...newMember.monitored_funnels, f.id]});
+                                    } else {
+                                      setNewMember({...newMember, monitored_funnels: newMember.monitored_funnels.filter(id => id !== f.id)});
+                                    }
+                                  }}
+                                />
+                                <label 
+                                  htmlFor={`new-member-funnel-${f.id}`}
+                                  className="text-sm font-medium leading-none cursor-pointer"
+                                >
+                                  {f.name}
+                                </label>
+                              </div>
+                            ))}
+                            {(funnels || []).length === 0 && (
+                              <p className="text-xs text-muted-foreground text-center py-2">Nenhum funil encontrado.</p>
+                            )}
+                          </div>
+                        </div>
                       <DialogFooter>
                         <Button variant="ghost" onClick={() => setAddMemberDialogOpen(false)}>Cancelar</Button>
                         <Button 
