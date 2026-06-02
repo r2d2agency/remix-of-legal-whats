@@ -607,11 +607,103 @@ export default function SupervisorIA() {
           <TabsContent value="config" className="space-y-6 mt-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Configuração de Monitoramento</CardTitle>
-                  <CardDescription>
-                    Selecione quais usuários e conexões o Supervisor IA deve monitorar ativamente.
-                  </CardDescription>
+                <div className="flex items-center justify-between w-full">
+                  <div>
+                    <CardTitle>Configuração de Monitoramento</CardTitle>
+                    <CardDescription>
+                      Selecione quais usuários e conexões o Supervisor IA deve monitorar ativamente.
+                    </CardDescription>
+                  </div>
+                  <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Adicionar Supervisão
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <User className="h-5 w-5 text-primary" />
+                          Adicionar Novo Vendedor
+                        </DialogTitle>
+                        <CardDescription>Selecione um usuário existente para iniciar o monitoramento.</CardDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label>Usuário</Label>
+                          <Select 
+                            value={newMember.email} 
+                            onValueChange={(val) => {
+                              const selected = (sellers || []).find((s: any) => s.email === val);
+                              if (selected) {
+                                setNewMember({
+                                  ...newMember,
+                                  email: selected.email,
+                                  name: selected.name
+                                });
+                              } else {
+                                setNewMember({ ...newMember, email: val });
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione um usuário..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(sellers || []).map((s: any) => (
+                                <SelectItem key={s.id} value={s.email}>
+                                  {s.name} ({s.email})
+                                </SelectItem>
+                              ))}
+                              {(sellers || []).length === 0 && (
+                                <div className="p-2 text-xs text-muted-foreground text-center">Nenhum usuário disponível</div>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label className="text-xs font-bold uppercase text-muted-foreground">Conexões de WhatsApp</Label>
+                          <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
+                            {(orgConnections || []).map((conn: any) => (
+                              <div key={conn.id} className="flex items-center space-x-2">
+                                <Checkbox 
+                                  id={`new-member-conn-${conn.id}`}
+                                  checked={newMember.connection_ids.includes(conn.id)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setNewMember({...newMember, connection_ids: [...newMember.connection_ids, conn.id]});
+                                    } else {
+                                      setNewMember({...newMember, connection_ids: newMember.connection_ids.filter(id => id !== conn.id)});
+                                    }
+                                  }}
+                                />
+                                <label 
+                                  htmlFor={`new-member-conn-${conn.id}`}
+                                  className="text-sm font-medium leading-none cursor-pointer"
+                                >
+                                  {conn.name}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="ghost" onClick={() => setAddMemberDialogOpen(false)}>Cancelar</Button>
+                        <Button 
+                          onClick={() => {
+                            if (!newMember.email) return toast.error("Selecione um usuário");
+                            createMemberMutation.mutate(newMember);
+                          }}
+                          disabled={createMemberMutation.isPending}
+                        >
+                          {createMemberMutation.isPending ? "Adicionando..." : "Confirmar Supervisão"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </CardHeader>
               <CardContent>
