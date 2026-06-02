@@ -216,6 +216,20 @@ export const useGroupSecretary = () => {
     return data;
   }, []);
 
+  const getDiagnosticEvents = useCallback(async (filters: { provider?: string; stage?: string; limit?: number } = {}): Promise<DiagnosticEvent[]> => {
+    const params = new URLSearchParams();
+    if (filters.provider) params.set('provider', filters.provider);
+    if (filters.stage) params.set('stage', filters.stage);
+    if (filters.limit) params.set('limit', String(filters.limit));
+    const qs = params.toString();
+    const data = await api<{ events: DiagnosticEvent[] }>(`/api/group-secretary/diagnostic${qs ? `?${qs}` : ''}`);
+    return data.events || [];
+  }, []);
+
+  const clearDiagnosticEvents = useCallback(async (): Promise<void> => {
+    await api('/api/group-secretary/diagnostic', { method: 'DELETE' });
+  }, []);
+
   return {
     loading,
     setLoading,
@@ -233,5 +247,7 @@ export const useGroupSecretary = () => {
     getMeetingMinutes,
     deleteMeetingMinutes,
     sendDigestNow,
+    getDiagnosticEvents,
+    clearDiagnosticEvents,
   };
 };
