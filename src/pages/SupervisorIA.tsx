@@ -722,59 +722,92 @@ export default function SupervisorIA() {
                         </div>
                         
                         <div className="space-y-2">
-                          <Label className="text-xs font-bold uppercase text-muted-foreground">Conexões de WhatsApp</Label>
+                          <Label className="text-xs font-bold uppercase text-muted-foreground">
+                            Conexões de WhatsApp {selectedMemberForNew && "(Filtrado por permissão)"}
+                          </Label>
                           <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
-                            {(orgConnections || []).map((conn: any) => (
-                              <div key={conn.id} className="flex items-center space-x-2">
-                                <Checkbox 
-                                  id={`new-member-conn-${conn.id}`}
-                                  checked={newMember.connection_ids.includes(conn.id)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setNewMember({...newMember, connection_ids: [...newMember.connection_ids, conn.id]});
-                                    } else {
-                                      setNewMember({...newMember, connection_ids: newMember.connection_ids.filter(id => id !== conn.id)});
-                                    }
-                                  }}
-                                />
-                                <label 
-                                  htmlFor={`new-member-conn-${conn.id}`}
-                                  className="text-sm font-medium leading-none cursor-pointer"
-                                >
-                                  {conn.name}
-                                </label>
-                              </div>
-                            ))}
+                            {(() => {
+                              let availableConnections = orgConnections || [];
+                              
+                              // Se um membro foi selecionado e não for admin/owner, filtramos pelas conexões atribuídas a ele
+                              if (selectedMemberForNew && !['admin', 'owner'].includes(selectedMemberForNew.role)) {
+                                const assignedIds = new Set(selectedMemberForNew.assigned_connections?.map((c: any) => c.id || c) || []);
+                                availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                              }
+
+                              if (availableConnections.length === 0) {
+                                return <p className="text-xs text-muted-foreground text-center py-2">Nenhuma conexão disponível para este usuário.</p>;
+                              }
+
+                              return availableConnections.map((conn: any) => (
+                                <div key={conn.id} className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id={`new-member-conn-${conn.id}`}
+                                    checked={newMember.connection_ids.includes(conn.id)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setNewMember({...newMember, connection_ids: [...newMember.connection_ids, conn.id]});
+                                      } else {
+                                        setNewMember({...newMember, connection_ids: newMember.connection_ids.filter(id => id !== conn.id)});
+                                      }
+                                    }}
+                                  />
+                                  <label 
+                                    htmlFor={`new-member-conn-${conn.id}`}
+                                    className="text-sm font-medium leading-none cursor-pointer"
+                                  >
+                                    {conn.name}
+                                  </label>
+                                </div>
+                              ));
+                            })()}
                           </div>
                         </div>
 
                         <div className="space-y-2">
-                          <Label className="text-xs font-bold uppercase text-muted-foreground">Funis do Kanban</Label>
+                          <Label className="text-xs font-bold uppercase text-muted-foreground">
+                            Funis do Kanban {selectedMemberForNew && "(Filtrado por permissão)"}
+                          </Label>
                           <div className="border rounded-md p-3 space-y-2 max-h-[150px] overflow-y-auto bg-muted/20">
-                            {(funnels || []).map((f: any) => (
-                              <div key={f.id} className="flex items-center space-x-2">
-                                <Checkbox 
-                                  id={`new-member-funnel-${f.id}`}
-                                  checked={newMember.monitored_funnels.includes(f.id)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setNewMember({...newMember, monitored_funnels: [...newMember.monitored_funnels, f.id]});
-                                    } else {
-                                      setNewMember({...newMember, monitored_funnels: newMember.monitored_funnels.filter(id => id !== f.id)});
-                                    }
-                                  }}
-                                />
-                                <label 
-                                  htmlFor={`new-member-funnel-${f.id}`}
-                                  className="text-sm font-medium leading-none cursor-pointer"
-                                >
-                                  {f.name}
-                                </label>
-                              </div>
-                            ))}
-                            {(funnels || []).length === 0 && (
-                              <p className="text-xs text-muted-foreground text-center py-2">Nenhum funil encontrado.</p>
-                            )}
+                            {(() => {
+                              let availableFunnels = funnels || [];
+
+                              // Filtramos os funis. Se o usuário tiver assigned_funnels ou funnel_ids, usamos isso.
+                              // Caso contrário, se for admin/owner mostra tudo, senão verificamos permissões.
+                              if (selectedMemberForNew && !['admin', 'owner'].includes(selectedMemberForNew.role)) {
+                                const assignedFunnels = selectedMemberForNew.assigned_funnels || selectedMemberForNew.funnel_ids;
+                                if (assignedFunnels) {
+                                  const assignedIds = new Set(assignedFunnels.map((f: any) => f.id || f));
+                                  availableFunnels = availableFunnels.filter((f: any) => assignedIds.has(f.id));
+                                }
+                              }
+
+                              if (availableFunnels.length === 0) {
+                                return <p className="text-xs text-muted-foreground text-center py-2">Nenhum funil disponível para este usuário.</p>;
+                              }
+
+                              return availableFunnels.map((f: any) => (
+                                <div key={f.id} className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id={`new-member-funnel-${f.id}`}
+                                    checked={newMember.monitored_funnels.includes(f.id)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setNewMember({...newMember, monitored_funnels: [...newMember.monitored_funnels, f.id]});
+                                      } else {
+                                        setNewMember({...newMember, monitored_funnels: newMember.monitored_funnels.filter(id => id !== f.id)});
+                                      }
+                                    }}
+                                  />
+                                  <label 
+                                    htmlFor={`new-member-funnel-${f.id}`}
+                                    className="text-sm font-medium leading-none cursor-pointer"
+                                  >
+                                    {f.name}
+                                  </label>
+                                </div>
+                              ));
+                            })()}
                           </div>
                         </div>
                       </div>
