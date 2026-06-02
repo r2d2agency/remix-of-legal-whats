@@ -256,6 +256,28 @@ export default function SupervisorIA() {
     }
   });
 
+  // Manual audit trigger
+  const runAuditMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_URL}/api/supervisor/run-audit`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao executar análise');
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Análise concluída: ${data.dealsProcessed || 0} negócios processados, ${data.findings || 0} alertas gerados.`);
+      queryClient.invalidateQueries({ queryKey: ['supervisor-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['supervisor-semaphore'] });
+      queryClient.invalidateQueries({ queryKey: ['supervisor-audits'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Falha ao executar análise');
+    }
+  });
+
   // Charge Mutation
   const chargeMutation = useMutation({
     mutationFn: async ({ type, targetId, notes }: any) => {
