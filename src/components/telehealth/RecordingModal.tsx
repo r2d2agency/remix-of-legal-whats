@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { AudioWaveform } from '@/components/chat/AudioWaveform';
-import { Mic, Square, Pause, Play, Upload, X, FileText, Image, AlertTriangle, Loader2, Monitor, MicOff } from 'lucide-react';
+import { Mic, Square, Pause, Play, Upload, X, FileText, Image, AlertTriangle, Loader2, Monitor, MicOff, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUpload } from '@/hooks/use-upload';
 import { toast } from 'sonner';
@@ -354,19 +354,32 @@ export function RecordingModal({ open, onClose, onFinish, sessionTitle }: Record
 
           {/* Screen share info */}
           {!isRecording && (audioSource === 'screen' || audioSource === 'both') && (
-            <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-              <Monitor className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-700 dark:text-blue-400">
-                <p className="font-medium">Como funciona:</p>
-                <ol className="list-decimal ml-4 mt-1 space-y-1">
-                  <li>Clique em "Compartilhar e Gravar"</li>
-                  <li>Selecione a aba ou janela do Zoom/Meet</li>
-                  <li><strong>Marque "Compartilhar áudio"</strong> na janela de seleção</li>
-                  <li>O sistema irá capturar todo o áudio da reunião</li>
-                </ol>
-                <p className="mt-2 text-xs opacity-75">
-                  Funciona melhor no Chrome/Edge. Firefox pode ter suporte limitado para captura de áudio do sistema.
-                </p>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <Monitor className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-700 dark:text-blue-400">
+                  <p className="font-medium">Como funciona no Computador:</p>
+                  <ol className="list-decimal ml-4 mt-1 space-y-1">
+                    <li>Clique em "Compartilhar e Gravar"</li>
+                    <li>Selecione a aba ou janela do Zoom/Meet/WhatsApp</li>
+                    <li><strong>Marque "Compartilhar áudio"</strong> na janela de seleção</li>
+                  </ol>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
+                <Smartphone className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5" />
+                <div className="text-sm text-indigo-700 dark:text-indigo-400">
+                  <p className="font-medium">Como gravar ligação no Celular:</p>
+                  <p className="mt-1">
+                    Para gravar uma ligação do <strong>WhatsApp ou Telefone</strong> no celular:
+                  </p>
+                  <ol className="list-decimal ml-4 mt-1 space-y-1">
+                    <li>Ative o <strong>Viva-voz</strong> durante a ligação</li>
+                    <li>Volte aqui e selecione <strong>"Microfone"</strong> como fonte</li>
+                    <li>Inicie a gravação normalmente</li>
+                  </ol>
+                </div>
               </div>
             </div>
           )}
