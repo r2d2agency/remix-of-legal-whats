@@ -1076,19 +1076,9 @@ export default function SupervisorIA() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase text-muted-foreground">Papel (Permissão)</Label>
-                    <Select value={editMemberRole} onValueChange={setEditMemberRole}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="agent">Agente (Vendedor)</SelectItem>
-                        <SelectItem value="manager">Gerente</SelectItem>
-                        <SelectItem value="supervisor">Supervisor IA</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    O papel do usuário (Agente, Gerente, Supervisor) é definido em <strong>Configurações &gt; Usuários</strong>. Aqui você define apenas o que o Supervisor IA deve monitorar.
+                  </p>
                 </div>
                 <DialogFooter>
                   <Button variant="ghost" onClick={() => setEditMemberDialogOpen(false)}>Cancelar</Button>
