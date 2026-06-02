@@ -397,6 +397,48 @@ router.get('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
   }
 });
 
+// Get single member of organization
+router.get('/:id([0-9a-fA-F-]{36})/members/:userId([0-9a-fA-F-]{36})', async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+
+    // Check if user is member
+    const memberCheck = await query(
+      `SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
+      [id, req.userId]
+    );
+    
+    if (memberCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    const result = await query(
+      `SELECT 
+        om.*, 
+        u.name, 
+        u.email,
+        u.whatsapp_phone,
+        COALESCE(om.is_active, true) as is_active,
+        pt.name as template_name,
+        pt.color as template_color
+       FROM organization_members om
+       JOIN users u ON u.id = om.user_id
+       LEFT JOIN permission_templates pt ON pt.id = om.permission_template_id
+       WHERE om.organization_id = $1 AND om.user_id = $2`,
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Membro não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get member error:', error);
+    res.status(500).json({ error: 'Erro ao buscar membro', details: error.message });
+  }
+});
+
 // Add member to organization (creates user if not exists)
 router.post('/:id([0-9a-fA-F-]{36})/members', async (req, res) => {
   try {
