@@ -519,4 +519,38 @@ router.post('/digest/send-now', async (req, res) => {
   }
 });
 
+// Diagnostic events buffer (in-memory)
+router.get('/diagnostic', async (req, res) => {
+  try {
+    const org = await getUserOrgWithFlags(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+    const { provider, stage, limit } = req.query;
+    const events = getSecretaryEvents({
+      organizationId: org.organization_id,
+      provider: provider || undefined,
+      stage: stage || undefined,
+      limit: limit ? parseInt(limit) : 200,
+    });
+    res.json({ events });
+  } catch (error) {
+    console.error('Get secretary diagnostic error:', error);
+    res.status(500).json({ error: 'Erro ao buscar diagnóstico' });
+  }
+});
+
+router.delete('/diagnostic', async (req, res) => {
+  try {
+    const org = await getUserOrgWithFlags(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+    if (!canManageSecretary(org.role, org.is_superadmin)) {
+      return res.status(403).json({ error: 'Sem permissão' });
+    }
+    clearSecretaryEvents({ organizationId: org.organization_id });
+    res.json({ cleared: true });
+  } catch (error) {
+    console.error('Clear secretary diagnostic error:', error);
+    res.status(500).json({ error: 'Erro ao limpar diagnóstico' });
+  }
+});
+
 export default router;
