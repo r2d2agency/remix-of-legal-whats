@@ -811,7 +811,7 @@ export default function SupervisorIA() {
                               // Caso contrário, se for admin/owner mostra tudo, senão verificamos permissões.
                               if (selectedMemberForNew && !['admin', 'owner'].includes(selectedMemberForNew.role)) {
                                 const assignedFunnels = selectedMemberForNew.assigned_funnels || selectedMemberForNew.funnel_ids;
-                                if (assignedFunnels) {
+                                if (Array.isArray(assignedFunnels) && assignedFunnels.length > 0) {
                                   const assignedIds = new Set(assignedFunnels.map((f: any) => f.id || f));
                                   availableFunnels = availableFunnels.filter((f: any) => assignedIds.has(f.id));
                                 }
