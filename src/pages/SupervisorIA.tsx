@@ -1041,7 +1041,7 @@ export default function SupervisorIA() {
                         // Filtramos os funis pela permissão do membro
                         if (editingMember && !['admin', 'owner'].includes(editingMember.role)) {
                           const assignedFunnels = editingMember.assigned_funnels || editingMember.funnel_ids;
-                          if (assignedFunnels) {
+                          if (Array.isArray(assignedFunnels) && assignedFunnels.length > 0) {
                             const assignedIds = new Set(assignedFunnels.map((f: any) => f.id || f));
                             availableFunnels = availableFunnels.filter((f: any) => assignedIds.has(f.id));
                           }
