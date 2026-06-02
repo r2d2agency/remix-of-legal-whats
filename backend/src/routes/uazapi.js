@@ -12,6 +12,7 @@ import path from 'path';
 import { detectSalesSeoLead, updateSalesSeoEvolution } from '../lib/sales-seo-service.js';
 import { handleAutoReplies } from '../lib/auto-reply-service.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
+import { recordSecretaryEvent, getSecretaryEvents, clearSecretaryEvents } from '../lib/group-secretary-diagnostic.js';
 
 const router = Router();
 
@@ -835,6 +836,20 @@ async function handleWebhook(req, res, routeMeta = {}) {
               for (const src of sources) {
                 if (Array.isArray(src) && src.length > 0) { mentionedJids = src; break; }
               }
+              recordSecretaryEvent({
+                organizationId: connection.organization_id,
+                provider: 'uazapi',
+                messageId: message.messageId || null,
+                conversationId: persistence.conversationId,
+                groupName: message.groupName || 'Grupo',
+                senderName: message.senderName || 'Desconhecido',
+                stage: 'webhook_received',
+                message: `Mensagem de grupo recebida via UAZAPI`,
+                details: {
+                  content: String(message.content || '').slice(0, 200),
+                  mentioned: mentionedJids,
+                },
+              });
               analyzeGroupMessage({
                 organizationId: connection.organization_id,
                 conversationId: persistence.conversationId,
@@ -843,9 +858,18 @@ async function handleWebhook(req, res, routeMeta = {}) {
                 senderPhone: message.phone || null,
                 groupName: message.groupName || 'Grupo',
                 mentionedJids,
+                messageId: message.messageId || null,
+                provider: 'uazapi',
               }).catch(err => console.error('[UAZAPI][GroupSecretary] Error:', err.message));
             } catch (gsErr) {
               console.error('[UAZAPI][GroupSecretary] Setup error:', gsErr.message);
+              recordSecretaryEvent({
+                organizationId: connection.organization_id,
+                provider: 'uazapi',
+                stage: 'error', level: 'error',
+                message: 'Erro na preparação da análise (UAZAPI)',
+                error: gsErr?.message || String(gsErr),
+              });
             }
           }
 
