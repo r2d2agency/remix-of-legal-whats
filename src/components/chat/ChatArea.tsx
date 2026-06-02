@@ -1403,7 +1403,20 @@ export function ChatArea({
                    isMobile={isMobile}
                    isSearchResult={searchResults.includes(msg.id)}
                    isCurrentResult={searchResults[currentSearchIndex] === msg.id}
-                   searchQuery={searchQuery}
+                    searchQuery={searchQuery}
+                    onRetryMediaDownload={async (messageId) => {
+                      try {
+                        const result = await retryMediaDownload(messageId);
+                        if (result.success) {
+                          onLoadMore(); // This refreshes the message list
+                          return true;
+                        }
+                        return false;
+                      } catch {
+                        return false;
+                      }
+                    }}
+
                    onReply={setReplyingTo}
                    onForward={onForwardMessage ? (msg) => setForwardingMessage(msg) : undefined}
                    onSendMessage={onSendMessage}
