@@ -193,6 +193,18 @@ export default function SupervisorIA() {
     }
   });
 
+  // Fetch ALL Org Members (for "Adicionar Supervisão" dialog)
+  const { data: allOrgMembers } = useQuery({
+    queryKey: ['supervisor-all-org-members', user?.organization_id],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/api/organizations/${user?.organization_id}/members`, {
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+      });
+      return res.json();
+    },
+    enabled: !!user?.organization_id
+  });
+
   const [localSettings, setLocalSettings] = useState<any>(null);
   const [chargeNote, setChargeNote] = useState("");
   const [selectedTarget, setSelectedTarget] = useState<any>(null);
