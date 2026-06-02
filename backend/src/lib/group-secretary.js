@@ -458,7 +458,7 @@ Mensagem: "${processedMessage}"`;
 /**
  * Get AI configuration (secretary override → org default)
  */
-async function getAIConfig(organizationId, config) {
+export async function getAIConfig(organizationId, config) {
   // Use secretary-specific config if available
   if (config.ai_api_key && config.ai_provider) {
     return {
@@ -839,4 +839,166 @@ ${messageLog}`;
     logError('group_secretary.meeting_minutes_error', error);
     throw error; // Rethrow to let the router handle it
   }
+}
+
+/**
+ * Call AI provider with a larger token budget for narrative outputs.
+ */
+async function callAINarrative(config, systemPrompt, userPrompt) {
+  try {
+    let response;
+    if (config.provider === 'openai') {
+      response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: config.model || 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.4,
+          max_tokens: 1800,
+          response_format: { type: 'json_object' },
+        }),
+      });
+    } else if (config.provider === 'gemini') {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${config.model || 'gemini-2.0-flash'}:generateContent?key=${config.apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+            generationConfig: {
+              temperature: 0.4,
+              maxOutputTokens: 1800,
+              responseMimeType: 'application/json',
+            },
+          }),
+        }
+      );
+    } else {
+      return null;
+    }
+    if (!response.ok) {
+      const txt = await response.text();
+      logError('group_secretary.narrative_ai_call', new Error(`AI ${response.status}: ${txt}`));
+      return null;
+    }
+    const data = await response.json();
+    const content = config.provider === 'openai'
+      ? data.choices?.[0]?.message?.content
+      : data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!content) return null;
+    return JSON.parse(content);
+  } catch (e) {
+    logError('group_secretary.narrative_parse', e);
+    return null;
+  }
+}
+
+/**
+ * Generate AI narrative summaries for each monitored group over the last N hours.
+ * Returns an array of { groupName, summary, key_points, decisions, action_items, participants, messageCount }
+ */
+export async function generateGroupsNarrativeSummary({ organizationId, hours = 24, maxGroups = 10 }) {
+  const configResult = await query(
+    `SELECT * FROM group_secretary_config WHERE organization_id = $1`,
+    [organizationId]
+  );
+  const config = configResult.rows[0] || {};
+  const aiConfig = await getAIConfig(organizationId, config);
+  if (!aiConfig || !aiConfig.apiKey) {
+    return { error: 'no_ai_config', groups: [] };
+  }
+
+  // Find candidate groups: monitored groups with recent messages
+  let groupsQuery = `
+    SELECT c.id, c.group_name, c.remote_jid
+    FROM conversations c
+    JOIN connections conn ON conn.id = c.connection_id
+    WHERE conn.organization_id = $1 AND c.is_group = true
+  `;
+  const params = [organizationId];
+  if (config.group_jids && config.group_jids.length > 0) {
+    params.push(config.group_jids);
+    groupsQuery += ` AND c.remote_jid = ANY($${params.length})`;
+  }
+  if (config.connection_ids && config.connection_ids.length > 0) {
+    params.push(config.connection_ids);
+    groupsQuery += ` AND c.connection_id = ANY($${params.length})`;
+  }
+  groupsQuery += ` ORDER BY c.last_message_at DESC NULLS LAST LIMIT 50`;
+  const groupsResult = await query(groupsQuery, params);
+
+  const results = [];
+  for (const grp of groupsResult.rows) {
+    if (results.length >= maxGroups) break;
+    try {
+      const msgs = await query(
+        `SELECT content, sender_name, timestamp
+         FROM chat_messages
+         WHERE conversation_id = $1
+           AND timestamp >= NOW() - INTERVAL '1 hour' * $2
+           AND content IS NOT NULL AND content != ''
+           AND message_type IN ('text','extendedTextMessage','conversation','chat')
+         ORDER BY timestamp ASC
+         LIMIT 400`,
+        [grp.id, hours]
+      );
+      if (msgs.rows.length < 3) continue;
+      const participants = [...new Set(msgs.rows.map(m => m.sender_name).filter(Boolean))];
+      const log = msgs.rows.map(m => {
+        const t = new Date(m.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        return `[${t}] ${m.sender_name || 'Desconhecido'}: ${m.content}`;
+      }).join('\n');
+
+      const systemPrompt = `Você é uma secretária executiva analisando conversas de grupos de WhatsApp.
+Produza um resumo NARRATIVO e DETALHADO do que foi discutido, no estilo de uma ata, mas em formato corrido e completo.
+
+Retorne SOMENTE JSON válido:
+{
+  "summary": "Resumo narrativo completo em 2 a 4 parágrafos, descrevendo claramente os assuntos discutidos, contexto, posições dos participantes e desdobramentos. NÃO seja superficial.",
+  "key_points": ["Ponto-chave 1", "Ponto-chave 2", "..."],
+  "decisions": ["Decisão tomada 1", "..."],
+  "action_items": [{"task": "Tarefa", "responsible": "Nome ou null", "deadline": "Prazo ou null"}],
+  "highlights": ["Trecho ou citação relevante 1", "..."]
+}
+
+REGRAS:
+- Escreva em português do Brasil
+- Cite nomes de participantes quando relevante
+- Inclua TODOS os temas tratados (não resuma demais)
+- Ignore apenas saudações e mensagens triviais
+- Se não houve decisões ou ações, retorne arrays vazios`;
+
+      const userPrompt = `Grupo: ${grp.group_name || 'Sem nome'}
+Período: últimas ${hours} horas
+Participantes (${participants.length}): ${participants.join(', ')}
+Total de mensagens: ${msgs.rows.length}
+
+MENSAGENS:
+${log}`;
+
+      const ai = await callAINarrative(aiConfig, systemPrompt, userPrompt);
+      if (!ai) continue;
+      results.push({
+        groupName: grp.group_name || 'Grupo',
+        summary: ai.summary || '',
+        key_points: ai.key_points || [],
+        decisions: ai.decisions || [],
+        action_items: ai.action_items || [],
+        highlights: ai.highlights || [],
+        participants,
+        messageCount: msgs.rows.length,
+      });
+    } catch (err) {
+      logError('group_secretary.group_narrative_error', err);
+    }
+  }
+  return { groups: results };
 }
