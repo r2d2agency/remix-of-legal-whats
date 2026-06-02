@@ -157,7 +157,10 @@ export async function executeSecretaryDigest({ organizationId = null, force = fa
         for (const recipient of recipients) {
           for (let i = 0; i < chunks.length; i++) {
             const part = chunks.length > 1 ? `*[Parte ${i + 1}/${chunks.length}]*\n\n${chunks[i]}` : chunks[i];
-            await whatsappProvider.sendMessage(connection, recipient.phone, part, 'text', null);
+            const sendResult = await whatsappProvider.sendMessage(connection, recipient.phone, part, 'text', null);
+            if (!sendResult?.success) {
+              throw new Error(sendResult?.error || `Falha ao enviar relatório para ${recipient.label}`);
+            }
             if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 1500));
           }
 
