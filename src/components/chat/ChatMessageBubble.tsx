@@ -132,12 +132,32 @@ export function ChatMessageBubble({
   onDeleteMessage,
   onPinMessage,
   isPinned,
+  onRetryMediaDownload,
   highlightText,
   getDocumentDisplayName,
   looksLikeFilename,
   messageRef,
 }: ChatMessageBubbleProps) {
   const mediaUrl = resolveMediaUrl(msg.media_url);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    if (!onRetryMediaDownload || isRetrying) return;
+    setIsRetrying(true);
+    try {
+      const ok = await onRetryMediaDownload(msg.message_id || msg.id);
+      if (ok) {
+        toast.success("Mídia recuperada com sucesso!");
+      } else {
+        toast.error("Não foi possível recuperar a mídia.");
+      }
+    } catch (err) {
+      toast.error("Erro ao tentar recuperar mídia.");
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
 
   const handleDownload = async (e: React.MouseEvent, url: string, fileName: string) => {
     // If it's already a blob or data URL, let the default behavior happen
