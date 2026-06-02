@@ -734,6 +734,28 @@ export default function SecretariaGrupos() {
                       </p>
                     </div>
                   )}
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={async () => {
+                        try {
+                          toast.loading("Gerando relatório...", { id: "manual-digest" });
+                          const result = await sendDigestNow();
+                          toast.success(`Relatório enviado! (${result.sent} envio${result.sent === 1 ? '' : 's'})`, { id: "manual-digest" });
+                        } catch (err: any) {
+                          toast.error(err.message || "Erro ao gerar relatório", { id: "manual-digest" });
+                        }
+                      }}
+                    >
+                      Gerar relatório agora
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Envia um resumo das últimas 24h imediatamente para o número configurado.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Números excluídos */}
