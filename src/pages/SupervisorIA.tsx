@@ -923,19 +923,14 @@ export default function SupervisorIA() {
                     O Supervisor IA monitora automaticamente seu CRM. Siga os passos abaixo para começar:
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">1</div>
-                    <p className="font-semibold text-sm">Defina os Vendedores</p>
-                    <p className="text-xs text-muted-foreground">Acesse a aba <strong>Configurar Vendedores</strong> e certifique-se que seus vendedores têm o papel correto e conexões atribuídas.</p>
+                    <p className="font-semibold text-sm">Defina os Vendedores e Conexões</p>
+                    <p className="text-xs text-muted-foreground">Acesse a aba <strong>Configurar Vendedores</strong> para selecionar quais usuários e quais conexões de WhatsApp o IA deve monitorar.</p>
                   </div>
                   <div className="space-y-2">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">2</div>
-                    <p className="font-semibold text-sm">Atribua Conexões</p>
-                    <p className="text-xs text-muted-foreground">O IA só monitora vendedores que possuem conexões de WhatsApp atribuídas a eles nas configurações de membros.</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">3</div>
                     <p className="font-semibold text-sm">Configure o SLA</p>
                     <p className="text-xs text-muted-foreground">Clique no botão <strong>Regras SLA</strong> acima para definir os tempos de resposta ideais para sua operação.</p>
                   </div>
