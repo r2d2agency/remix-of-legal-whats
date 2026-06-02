@@ -526,6 +526,20 @@ export default function SecretariaGrupos() {
                       onCheckedChange={(v) => setConfig((c) => ({ ...c, notify_members_whatsapp: v }))}
                     />
                   </div>
+                  {config.notify_members_whatsapp && (
+                    <div className="flex items-center justify-between pl-6 py-2 border-l-2 border-primary/20 ml-2">
+                      <div>
+                        <Label className="text-sm">Notificações Individuais</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Se desativado, o membro receberá apenas o resumo diário (se habilitado)
+                        </p>
+                      </div>
+                      <Switch
+                        checked={config.individual_notifications_enabled !== false}
+                        onCheckedChange={(v) => setConfig((c) => ({ ...c, individual_notifications_enabled: v }))}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Default connection */}
