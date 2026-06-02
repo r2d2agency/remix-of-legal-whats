@@ -671,7 +671,7 @@ export default function SecretariaGrupos() {
                     <div>
                       <Label>Ativar resumo diário</Label>
                       <p className="text-xs text-muted-foreground">
-                        Envia resumo das detecções para o número externo todo dia
+                        Envia o resumo diário para o número externo e/ou para os responsáveis com WhatsApp cadastrado
                       </p>
                     </div>
                     <Switch
@@ -758,7 +758,7 @@ export default function SecretariaGrupos() {
                       Gerar relatório agora
                     </Button>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Envia um resumo das últimas 24h imediatamente para o número configurado.
+                      Envia um resumo das últimas 24h imediatamente para os destinatários configurados.
                     </p>
                   </div>
                 </div>
