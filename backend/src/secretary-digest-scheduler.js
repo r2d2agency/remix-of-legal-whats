@@ -24,8 +24,7 @@ export async function executeSecretaryDigest({ organizationId = null, force = fa
       const currentMinute = parseInt(saoPauloTime.find(p => p.type === 'minute').value);
       configResult = await query(`
         SELECT * FROM group_secretary_config 
-        WHERE is_active = true 
-          AND daily_digest_enabled = true
+        WHERE daily_digest_enabled = true
           AND daily_digest_hour = $1
           AND COALESCE(daily_digest_minute, 0) = $2
           AND (notify_external_phone IS NOT NULL OR notify_members_whatsapp = true)
@@ -140,27 +139,32 @@ export async function executeSecretaryDigest({ organizationId = null, force = fa
 
         const fullMessage = headerMessage + narrativeSection + `\n\n_Acesse o sistema para mais detalhes._`;
 
-        // Send to external phone
-        if (config.notify_external_phone) {
-          const connection = await getDigestConnection(config);
-          if (connection) {
-            const phone = config.notify_external_phone.replace(/\D/g, '');
-            if (phone) {
-              // WhatsApp limit ~4096 chars; split into chunks if needed
-              const chunks = splitMessage(fullMessage, 3500);
-              for (let i = 0; i < chunks.length; i++) {
-                const part = chunks.length > 1 ? `*[Parte ${i + 1}/${chunks.length}]*\n\n${chunks[i]}` : chunks[i];
-                await whatsappProvider.sendMessage(connection, phone, part, 'text', null);
-                if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 1500));
-              }
-              console.log(`📊 [DIGEST] Sent daily digest to ${phone} for org ${config.organization_id}`);
-              sentCount++;
-            }
-          } else {
-            lastError = 'no_connected_connection';
+        const recipients = await getDigestRecipients(config);
+        if (recipients.length === 0) {
+          lastError = 'no_recipients';
+          console.warn(`📊 [DIGEST] No valid recipients for org ${config.organization_id}`);
+          continue;
+        }
+
+        const connection = await getDigestConnection(config);
+        if (!connection) {
+          lastError = 'no_connected_connection';
+          console.warn(`📊 [DIGEST] No connected WhatsApp connection for org ${config.organization_id}`);
+          continue;
+        }
+
+        const chunks = splitMessage(fullMessage, 3500);
+        for (const recipient of recipients) {
+          for (let i = 0; i < chunks.length; i++) {
+            const part = chunks.length > 1 ? `*[Parte ${i + 1}/${chunks.length}]*\n\n${chunks[i]}` : chunks[i];
+            await whatsappProvider.sendMessage(connection, recipient.phone, part, 'text', null);
+            if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 1500));
           }
-        } else {
-          lastError = 'no_external_phone';
+
+          console.log(
+            `📊 [DIGEST] Sent daily digest to ${recipient.phone} (${recipient.label}) for org ${config.organization_id}`
+          );
+          sentCount++;
         }
       } catch (orgErr) {
         console.error(`📊 [DIGEST] Error for org ${config.organization_id}:`, orgErr.message);
@@ -189,6 +193,37 @@ async function getDigestConnection(config) {
     );
     return result.rows[0] || null;
   } catch { return null; }
+}
+
+async function getDigestRecipients(config) {
+  const recipients = [];
+  const seenPhones = new Set();
+
+  const addRecipient = (phone, label) => {
+    const cleanPhone = String(phone || '').replace(/\D/g, '');
+    if (!cleanPhone || seenPhones.has(cleanPhone)) return;
+    seenPhones.add(cleanPhone);
+    recipients.push({ phone: cleanPhone, label });
+  };
+
+  addRecipient(config.notify_external_phone, 'número externo');
+
+  if (config.notify_members_whatsapp) {
+    const membersResult = await query(
+      `SELECT DISTINCT u.id AS user_id, u.name, u.whatsapp_phone, u.phone
+       FROM group_secretary_members gsm
+       JOIN users u ON u.id = gsm.user_id
+       WHERE gsm.organization_id = $1
+         AND COALESCE(gsm.is_active, true) = true`,
+      [config.organization_id]
+    );
+
+    for (const member of membersResult.rows) {
+      addRecipient(member.whatsapp_phone || member.phone, member.name || 'responsável');
+    }
+  }
+
+  return recipients;
 }
 
 function splitMessage(text, maxLen) {
