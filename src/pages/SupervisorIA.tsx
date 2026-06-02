@@ -731,8 +731,11 @@ export default function SupervisorIA() {
                               
                               // Se um membro foi selecionado e não for admin/owner, filtramos pelas conexões atribuídas a ele
                               if (selectedMemberForNew && !['admin', 'owner'].includes(selectedMemberForNew.role)) {
-                                const assignedIds = new Set(selectedMemberForNew.assigned_connections?.map((c: any) => c.id || c) || []);
-                                availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                                const assigned = selectedMemberForNew.assigned_connections;
+                                if (Array.isArray(assigned) && assigned.length > 0) {
+                                  const assignedIds = new Set(assigned.map((c: any) => c.id || c));
+                                  availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                                }
                               }
 
                               if (availableConnections.length === 0) {
