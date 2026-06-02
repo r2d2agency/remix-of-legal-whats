@@ -219,6 +219,7 @@ export default function SupervisorIA() {
   const [chargeNote, setChargeNote] = useState("");
   const [selectedTarget, setSelectedTarget] = useState<any>(null);
   const [editMemberFunnels, setEditMemberFunnels] = useState<string[]>([]);
+  const [selectedMemberForNew, setSelectedMemberForNew] = useState<any>(null);
 
   useEffect(() => {
     if (settings) {
