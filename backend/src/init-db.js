@@ -386,6 +386,18 @@ CREATE TABLE IF NOT EXISTS supervisor_charges (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Supervisor IA Monitored Sellers (who the supervisor watches + which connections/funnels to scope)
+CREATE TABLE IF NOT EXISTS supervisor_monitored_sellers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+    connection_ids UUID[] DEFAULT '{}',
+    funnel_ids UUID[] DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(organization_id, user_id)
+);
+
 -- Add monitoring columns to crm_deals
 DO $$ BEGIN
     ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS last_seller_message_at TIMESTAMP WITH TIME ZONE;
@@ -394,6 +406,11 @@ DO $$ BEGIN
     ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS proposal_sent_at TIMESTAMP WITH TIME ZONE;
     ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS payment_pending_at TIMESTAMP WITH TIME ZONE;
     ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS next_followup_at TIMESTAMP WITH TIME ZONE;
+EXCEPTION WHEN duplicate_column THEN null; END $$;
+
+-- Add monitored_funnels column to supervisor_settings (legacy fix)
+DO $$ BEGIN
+    ALTER TABLE supervisor_settings ADD COLUMN IF NOT EXISTS monitored_funnels UUID[] DEFAULT '{}';
 EXCEPTION WHEN duplicate_column THEN null; END $$;
 
 `;

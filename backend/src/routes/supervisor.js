@@ -388,4 +388,145 @@ router.get('/charges', async (req, res) => {
   }
 });
 
+// ============================================================
+// Monitored Sellers — dedicated supervisor mapping (decoupled from organization_members)
+// ============================================================
+
+function canManageSupervisor(role, isSuperadmin) {
+  if (isSuperadmin) return true;
+  return ['owner', 'admin', 'supervisor', 'manager'].includes(role);
+}
+
+async function getUserOrgWithFlags(userId) {
+  const result = await query(
+    `SELECT om.organization_id, om.role, u.is_superadmin
+     FROM organization_members om
+     JOIN users u ON u.id = om.user_id
+     WHERE om.user_id = $1
+     LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0];
+}
+
+// List monitored sellers for the org
+router.get('/monitored-sellers', async (req, res) => {
+  try {
+    const ctx = await getUserOrgWithFlags(req.userId);
+    if (!ctx) return res.status(403).json({ error: 'No organization' });
+
+    const result = await query(
+      `SELECT ms.id, ms.user_id, ms.connection_ids, ms.funnel_ids,
+              u.name, u.email, om.role
+       FROM supervisor_monitored_sellers ms
+       JOIN users u ON u.id = ms.user_id
+       LEFT JOIN organization_members om ON om.user_id = ms.user_id AND om.organization_id = ms.organization_id
+       WHERE ms.organization_id = $1
+       ORDER BY u.name`,
+      [ctx.organization_id]
+    );
+
+    // Frontend expects "connections" + "monitored_funnels" fields too — provide both for compatibility
+    const rows = result.rows.map(r => ({
+      ...r,
+      connections: r.connection_ids || [],
+      monitored_funnels: r.funnel_ids || [],
+    }));
+    res.json(rows);
+  } catch (error) {
+    logError('Error listing monitored sellers:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add or update a monitored seller
+router.post('/monitored-sellers', async (req, res) => {
+  try {
+    const ctx = await getUserOrgWithFlags(req.userId);
+    if (!ctx) return res.status(403).json({ error: 'No organization' });
+    if (!canManageSupervisor(ctx.role, ctx.is_superadmin)) {
+      return res.status(403).json({ error: 'Sem permissão para configurar o Supervisor IA' });
+    }
+
+    const { user_id, connection_ids = [], funnel_ids = [], monitored_funnels } = req.body;
+    if (!user_id) return res.status(400).json({ error: 'user_id é obrigatório' });
+
+    // Confirm target user belongs to the same org
+    const target = await query(
+      `SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2`,
+      [ctx.organization_id, user_id]
+    );
+    if (target.rows.length === 0) {
+      return res.status(400).json({ error: 'Usuário não pertence a esta organização' });
+    }
+
+    const funnels = funnel_ids?.length ? funnel_ids : (monitored_funnels || []);
+
+    const result = await query(
+      `INSERT INTO supervisor_monitored_sellers (organization_id, user_id, connection_ids, funnel_ids)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (organization_id, user_id) DO UPDATE SET
+         connection_ids = EXCLUDED.connection_ids,
+         funnel_ids = EXCLUDED.funnel_ids,
+         updated_at = NOW()
+       RETURNING *`,
+      [ctx.organization_id, user_id, connection_ids, funnels]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    logError('Error upserting monitored seller:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update by user_id (PATCH semantics)
+router.patch('/monitored-sellers/:userId', async (req, res) => {
+  try {
+    const ctx = await getUserOrgWithFlags(req.userId);
+    if (!ctx) return res.status(403).json({ error: 'No organization' });
+    if (!canManageSupervisor(ctx.role, ctx.is_superadmin)) {
+      return res.status(403).json({ error: 'Sem permissão para configurar o Supervisor IA' });
+    }
+
+    const { userId } = req.params;
+    const { connection_ids = [], funnel_ids = [], monitored_funnels } = req.body;
+    const funnels = funnel_ids?.length ? funnel_ids : (monitored_funnels || []);
+
+    const result = await query(
+      `INSERT INTO supervisor_monitored_sellers (organization_id, user_id, connection_ids, funnel_ids)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (organization_id, user_id) DO UPDATE SET
+         connection_ids = EXCLUDED.connection_ids,
+         funnel_ids = EXCLUDED.funnel_ids,
+         updated_at = NOW()
+       RETURNING *`,
+      [ctx.organization_id, userId, connection_ids, funnels]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    logError('Error updating monitored seller:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Remove monitored seller
+router.delete('/monitored-sellers/:userId', async (req, res) => {
+  try {
+    const ctx = await getUserOrgWithFlags(req.userId);
+    if (!ctx) return res.status(403).json({ error: 'No organization' });
+    if (!canManageSupervisor(ctx.role, ctx.is_superadmin)) {
+      return res.status(403).json({ error: 'Sem permissão para configurar o Supervisor IA' });
+    }
+    const { userId } = req.params;
+    await query(
+      `DELETE FROM supervisor_monitored_sellers WHERE organization_id = $1 AND user_id = $2`,
+      [ctx.organization_id, userId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    logError('Error deleting monitored seller:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
