@@ -109,7 +109,7 @@ export default function SupervisorIA() {
     queryKey: ['supervisor-stats', period, selectedFunnel],
     queryFn: async () => {
       const funnelParam = selectedFunnel !== 'all' ? `&funnelId=${selectedFunnel}` : '';
-      const res = await fetch(`${API_URL}/supervisor/stats?period=${period}${funnelParam}`, {
+      const res = await fetch(`${API_URL}/api/supervisor/stats?period=${period}${funnelParam}`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       return res.json();
@@ -120,7 +120,7 @@ export default function SupervisorIA() {
   const { data: semaphore, isLoading: semaphoreLoading } = useQuery({
     queryKey: ['supervisor-semaphore'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/supervisor/semaphore`, {
+      const res = await fetch(`${API_URL}/api/supervisor/semaphore`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       return res.json();
@@ -132,7 +132,7 @@ export default function SupervisorIA() {
     queryKey: ['supervisor-sellers', user?.organization_id],
     queryFn: async () => {
       // Read from the dedicated supervisor mapping table
-      const res = await fetch(`${API_URL}/supervisor/monitored-sellers`, {
+      const res = await fetch(`${API_URL}/api/supervisor/monitored-sellers`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       const data = await res.json();
@@ -145,7 +145,7 @@ export default function SupervisorIA() {
   const { data: settings } = useQuery({
     queryKey: ['supervisor-settings'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/supervisor/settings`, {
+      const res = await fetch(`${API_URL}/api/supervisor/settings`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       return res.json();
@@ -156,7 +156,7 @@ export default function SupervisorIA() {
   const { data: audits, isLoading: auditsLoading } = useQuery({
     queryKey: ['supervisor-audits'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/supervisor/audits`, {
+      const res = await fetch(`${API_URL}/api/supervisor/audits`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       return res.json();
@@ -167,7 +167,7 @@ export default function SupervisorIA() {
   const { data: teams } = useQuery({
     queryKey: ['supervisor-teams'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/supervisor/teams`, {
+      const res = await fetch(`${API_URL}/api/supervisor/teams`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       return res.json();
@@ -190,7 +190,7 @@ export default function SupervisorIA() {
   const { data: chargesHistory, isLoading: chargesLoading } = useQuery({
     queryKey: ['supervisor-charges'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/supervisor/charges`, {
+      const res = await fetch(`${API_URL}/api/supervisor/charges`, {
         headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       return res.json();
@@ -224,7 +224,7 @@ export default function SupervisorIA() {
   // Preview Mutation
   const previewMutation = useMutation({
     mutationFn: async (tempSettings: any) => {
-      const res = await fetch(`${API_URL}/supervisor/preview-settings`, {
+      const res = await fetch(`${API_URL}/api/supervisor/preview-settings`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -238,7 +238,7 @@ export default function SupervisorIA() {
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (newSettings: any) => {
-      const res = await fetch(`${API_URL}/supervisor/settings`, {
+      const res = await fetch(`${API_URL}/api/supervisor/settings`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -258,7 +258,7 @@ export default function SupervisorIA() {
   // Charge Mutation
   const chargeMutation = useMutation({
     mutationFn: async ({ type, targetId, notes }: any) => {
-      const res = await fetch(`${API_URL}/supervisor/charge`, {
+      const res = await fetch(`${API_URL}/api/supervisor/charge`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -280,7 +280,7 @@ export default function SupervisorIA() {
   // Member Management Mutations
   const updateMemberMutation = useMutation({
     mutationFn: async ({ memberId, data }: { memberId: string, data: any }) => {
-      return await api(`/supervisor/monitored-sellers/${memberId}`, {
+      return await api(`/api/supervisor/monitored-sellers/${memberId}`, {
         method: 'PATCH',
         body: {
           connection_ids: data.connection_ids || [],
@@ -305,7 +305,7 @@ export default function SupervisorIA() {
       const member = (Array.isArray(allOrgMembers) ? allOrgMembers : []).find((m: any) => m.email === data.email);
       if (!member) throw new Error('Usuário não encontrado na organização');
       const targetUserId = member.user_id || member.id;
-      return await api(`/supervisor/monitored-sellers`, {
+      return await api(`/api/supervisor/monitored-sellers`, {
         method: 'POST',
         body: {
           user_id: targetUserId,
@@ -334,7 +334,7 @@ export default function SupervisorIA() {
 
   const deleteMemberMutation = useMutation({
     mutationFn: async (memberId: string) => {
-      return await api(`/supervisor/monitored-sellers/${memberId}`, {
+      return await api(`/api/supervisor/monitored-sellers/${memberId}`, {
         method: 'DELETE',
       });
     },
