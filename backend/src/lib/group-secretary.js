@@ -458,7 +458,7 @@ Mensagem: "${processedMessage}"`;
 /**
  * Get AI configuration (secretary override → org default)
  */
-async function getAIConfig(organizationId, config) {
+export async function getAIConfig(organizationId, config) {
   // Use secretary-specific config if available
   if (config.ai_api_key && config.ai_provider) {
     return {
