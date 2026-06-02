@@ -285,10 +285,9 @@ export default function SupervisorIA() {
   // Member Management Mutations
   const updateMemberMutation = useMutation({
     mutationFn: async ({ memberId, data }: { memberId: string, data: any }) => {
-      // For Supervisor IA, we only update specific metadata if the member already exists in the org
-      // We use the organization members endpoint to update their roles/connections
+      // Use PATCH and the user_id (which is usually the memberId passed here if it's the organization member endpoint)
       return await api(`/api/organizations/${user?.organization_id}/members/${memberId}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: data,
       });
     },
@@ -299,6 +298,7 @@ export default function SupervisorIA() {
       refreshUser();
     },
     onError: (error: any) => {
+      console.error("Erro ao atualizar membro:", error);
       toast.error(error.message || 'Erro ao atualizar membro');
     }
   });
@@ -309,20 +309,19 @@ export default function SupervisorIA() {
       const member = (Array.isArray(allOrgMembers) ? allOrgMembers : []).find((m: any) => m.email === data.email);
       
       if (member) {
-        // If user already exists in organization, we update their metadata/connections 
-        // using the PUT endpoint instead of POST (which is for inviting NEW members)
-        return await api(`/api/organizations/${user?.organization_id}/members/${member.id}`, {
-          method: 'PUT',
+        // Use PATCH instead of PUT, and use member.user_id if available, otherwise member.id
+        const targetId = member.user_id || member.id;
+        return await api(`/api/organizations/${user?.organization_id}/members/${targetId}`, {
+          method: 'PATCH',
           body: {
             connection_ids: data.connection_ids,
             monitored_funnels: data.monitored_funnels,
-            // Keep existing role or default to agent if not set
             role: member.role || 'agent'
           },
         });
       }
 
-      // If user is not in org, then we use POST (this might be what's throwing the 403/404 if permissions are strict)
+      // If user is not in org, then we use POST (inviting new member)
       return await api(`/api/organizations/${user?.organization_id}/members`, {
         method: 'POST',
         body: data,
@@ -336,8 +335,10 @@ export default function SupervisorIA() {
     },
     onError: (error: any) => {
       console.error("Erro ao adicionar supervisão:", error);
-      if (error.status === 403 || error.message?.toLowerCase().includes("admin")) {
-        toast.error("Erro de permissão: Apenas administradores da organização podem gerenciar membros.");
+      if (error.status === 403) {
+        toast.error("Erro de permissão: Apenas administradores podem gerenciar membros.");
+      } else if (error.status === 404) {
+        toast.error("Erro 404: Endpoint de membro não encontrado ou ID inválido.");
       } else {
         toast.error(error.message || 'Erro ao adicionar supervisão');
       }
