@@ -348,7 +348,18 @@ export default function SupervisorIA() {
   });
 
   const handleEditMember = (seller: any) => {
-    setEditingMember(seller);
+    // Enrich with assigned_connections from allOrgMembers (the sellers endpoint
+    // doesn't return permission/assignment info, which made the connection
+    // filter return empty for non-admin users that actually have connections)
+    const orgMember = (Array.isArray(allOrgMembers) ? allOrgMembers : []).find(
+      (m: any) => m.user_id === seller.user_id || m.id === seller.user_id || m.email === seller.email
+    );
+    setEditingMember({
+      ...seller,
+      role: seller.role || orgMember?.role,
+      assigned_connections: orgMember?.assigned_connections || seller.assigned_connections || [],
+      assigned_funnels: orgMember?.assigned_funnels || seller.assigned_funnels || [],
+    });
     setEditMemberRole(seller.role || 'agent');
     setEditMemberConnectionIds(seller.connection_ids || []);
     setEditMemberFunnels(seller.monitored_funnels || []);
@@ -720,8 +731,11 @@ export default function SupervisorIA() {
                               
                               // Se um membro foi selecionado e não for admin/owner, filtramos pelas conexões atribuídas a ele
                               if (selectedMemberForNew && !['admin', 'owner'].includes(selectedMemberForNew.role)) {
-                                const assignedIds = new Set(selectedMemberForNew.assigned_connections?.map((c: any) => c.id || c) || []);
-                                availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                                const assigned = selectedMemberForNew.assigned_connections;
+                                if (Array.isArray(assigned) && assigned.length > 0) {
+                                  const assignedIds = new Set(assigned.map((c: any) => c.id || c));
+                                  availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                                }
                               }
 
                               if (availableConnections.length === 0) {
@@ -946,8 +960,13 @@ export default function SupervisorIA() {
                         
                         // Se for um agente/gerente comum, filtramos pelas conexões atribuídas
                         if (editingMember && !['admin', 'owner'].includes(editingMember.role)) {
-                          const assignedIds = new Set(editingMember.assigned_connections?.map((c: any) => c.id || c) || []);
-                          availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                          const assigned = editingMember.assigned_connections;
+                          // Only filter if there's an explicit assignment list; otherwise
+                          // show every connection of the organization (no restriction)
+                          if (Array.isArray(assigned) && assigned.length > 0) {
+                            const assignedIds = new Set(assigned.map((c: any) => c.id || c));
+                            availableConnections = availableConnections.filter((conn: any) => assignedIds.has(conn.id));
+                          }
                         }
 
                         if (availableConnections.length === 0) {
