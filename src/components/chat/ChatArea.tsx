@@ -253,7 +253,7 @@ export function ChatArea({
   const [uploadStatus, setUploadStatus] = useState<{ active: boolean; current: number; total: number; fileName: string } | null>(null);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
-   const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, editMessage, deleteMessage: deleteMessageFn, pinMessage, cancelActiveFlow } = useChat();
+   const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, editMessage, deleteMessage: deleteMessageFn, pinMessage, cancelActiveFlow, retryMediaDownload } = useChat();
   const [pinnedMessage, setPinnedMessage] = useState<ChatMessage | null>(null);
   
   const finishWithSummary = useFinishWithSummary();
