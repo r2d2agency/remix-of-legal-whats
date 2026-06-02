@@ -27,12 +27,26 @@ import { AudioPlayer } from "./AudioPlayer";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { LinkPreview } from "./LinkPreview";
+import { RefreshCw } from "lucide-react";
 
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi;
+
+const isWaMediaError = (content: string | null) => {
+  if (!content) return false;
+  const c = content.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return (
+    c.includes("audio nao esta mais disponivel") || 
+    c.includes("midia nao esta mais disponivel") ||
+    c.includes("não está mais disponível") ||
+    c.includes("peça para reenvialo") ||
+    c.includes("peca para reenvialo")
+  );
+};
 
 function extractUrls(text: string): string[] {
   return text.match(URL_REGEX) || [];
 }
+
 
 function renderTextWithLinks(text: string, searchQuery: string, highlightText: (t: string, q: string) => React.ReactNode): React.ReactNode {
   const parts = text.split(URL_REGEX);
