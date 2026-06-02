@@ -348,7 +348,18 @@ export default function SupervisorIA() {
   });
 
   const handleEditMember = (seller: any) => {
-    setEditingMember(seller);
+    // Enrich with assigned_connections from allOrgMembers (the sellers endpoint
+    // doesn't return permission/assignment info, which made the connection
+    // filter return empty for non-admin users that actually have connections)
+    const orgMember = (Array.isArray(allOrgMembers) ? allOrgMembers : []).find(
+      (m: any) => m.user_id === seller.user_id || m.id === seller.user_id || m.email === seller.email
+    );
+    setEditingMember({
+      ...seller,
+      role: seller.role || orgMember?.role,
+      assigned_connections: orgMember?.assigned_connections || seller.assigned_connections || [],
+      assigned_funnels: orgMember?.assigned_funnels || seller.assigned_funnels || [],
+    });
     setEditMemberRole(seller.role || 'agent');
     setEditMemberConnectionIds(seller.connection_ids || []);
     setEditMemberFunnels(seller.monitored_funnels || []);
