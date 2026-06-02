@@ -307,7 +307,7 @@ Mensagem: "${processedMessage}"`;
       }
 
       // 10b. Notify matched member via WhatsApp if enabled
-      if (config.notify_members_whatsapp) {
+      if (config.notify_members_whatsapp && (config.individual_notifications_enabled !== false)) {
         await notifyMatchedMember({
           organizationId,
           matchedUserId: matchedMember.user_id,
