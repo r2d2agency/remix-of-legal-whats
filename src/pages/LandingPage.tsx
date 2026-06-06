@@ -58,6 +58,8 @@ import {
   QrCode,
   Mail,
   MapPin,
+  GitBranch,
+  Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import heroImage from "@/assets/system-preview-crm-kanban.png";
