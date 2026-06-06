@@ -62,6 +62,9 @@ import {
 import { cn } from "@/lib/utils";
 import heroImage from "@/assets/system-preview-crm-kanban.png";
 import gleegoLogo from "@/assets/gleego-logo.png";
+import previewFluxos from "@/assets/preview-fluxos.png.asset.json";
+import previewTele from "@/assets/preview-teleatendimento.png.asset.json";
+import previewAssinaturas from "@/assets/preview-assinaturas.png.asset.json";
 
 const featureCategories = [
   {
