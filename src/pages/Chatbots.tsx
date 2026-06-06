@@ -264,7 +264,7 @@ const Chatbots = () => {
                   : "Nenhum chatbot foi configurado para esta organização"
                 }
               </p>
-              {isAdmin && (
+              {canManageChatbots && (
                 <Button onClick={handleCreate} variant="gradient">
                   <Plus className="h-4 w-4 mr-2" />
                   Criar Chatbot
@@ -292,7 +292,7 @@ const Chatbots = () => {
                     <Switch
                       checked={chatbot.is_active}
                       onCheckedChange={() => handleToggle(chatbot)}
-                      disabled={!isAdmin}
+                      disabled={!canManageChatbots}
                     />
                   </div>
                 </CardHeader>
@@ -333,7 +333,7 @@ const Chatbots = () => {
                   ) : null}
 
                   <div className="flex items-center gap-2 pt-2 border-t">
-                    {isAdmin && (
+                    {canManageChatbots && (
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -344,7 +344,7 @@ const Chatbots = () => {
                         Editar
                       </Button>
                     )}
-                    {isAdmin && (
+                    {canManageChatbots && (
                       <Button 
                         variant="outline" 
                         size="sm"
@@ -362,7 +362,7 @@ const Chatbots = () => {
                     >
                       <BarChart3 className="h-4 w-4" />
                     </Button>
-                    {isAdmin && (
+                    {canManageChatbots && (
                       <Button 
                         variant="outline" 
                         size="sm"
@@ -372,7 +372,7 @@ const Chatbots = () => {
                         <Shield className="h-4 w-4" />
                       </Button>
                     )}
-                    {isAdmin && (
+                    {canManageChatbots && (
                       <Button 
                         variant="outline" 
                         size="sm"
