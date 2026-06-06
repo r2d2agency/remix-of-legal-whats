@@ -641,6 +641,109 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Showcase de Recursos em Destaque */}
+      <ScrollReveal><section className="py-20 px-4 sm:px-6 lg:px-8 border-y bg-muted/10">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-14">
+            <Badge variant="secondary" className="mb-4 px-3 py-1">
+              <Sparkles className="h-3 w-3 mr-1" />
+              Recursos em destaque
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Automação, IA e assinatura digital em{" "}
+              <span className="bg-gradient-to-r from-[hsl(24,92%,55%)] to-[hsl(340,70%,55%)] bg-clip-text text-transparent">
+                uma única plataforma
+              </span>
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Conheça três módulos que estão transformando a operação dos nossos clientes.
+            </p>
+          </div>
+
+          <div className="space-y-16">
+            {[
+              {
+                badge: "Fluxos & Chatbots",
+                icon: GitBranch,
+                title: "Construa fluxos de atendimento visuais",
+                desc: "Editor drag-and-drop com mensagens, menus, condições, ações, transferência humana e respostas com IA. Crie automações completas em minutos, sem código.",
+                bullets: [
+                  "Aguarda resposta com timeout configurável",
+                  "Integração nativa com Agentes de IA",
+                  "Transferência inteligente para atendente",
+                ],
+                img: previewFluxos.url,
+                alt: "Editor visual de fluxos de atendimento",
+                reverse: false,
+              },
+              {
+                badge: "Teleatendimento com IA",
+                icon: Mic,
+                title: "Transcrição, resumo e ata automáticos",
+                desc: "Grave reuniões e ligações, deixe a IA transcrever e gere automaticamente resumo executivo, ata formal, lista de pendências e tarefas com responsáveis.",
+                bullets: [
+                  "Transcrição com diarização (quem falou o quê)",
+                  "Resumo, ata, pendências e ações com 1 clique",
+                  "Auditoria completa de cada sessão",
+                ],
+                img: previewTele.url,
+                alt: "Análise de IA sobre reunião transcrita",
+                reverse: true,
+              },
+              {
+                badge: "Assinatura Digital",
+                icon: PenTool,
+                title: "Assinaturas de documentos com validade jurídica",
+                desc: "Envie contratos para assinatura eletrônica com validade jurídica (MP 2.200-2/2001), trilha de auditoria, geolocalização e verificação por hash SHA-256.",
+                bullets: [
+                  "Acompanhamento em Kanban global",
+                  "Múltiplos signatários por documento",
+                  "Página pública de verificação de autenticidade",
+                ],
+                img: previewAssinaturas.url,
+                alt: "Painel de assinaturas de documentos",
+                reverse: false,
+              },
+            ].map((item, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "grid lg:grid-cols-2 gap-10 items-center",
+                  item.reverse && "lg:[&>*:first-child]:order-2"
+                )}
+              >
+                <div>
+                  <Badge variant="secondary" className="mb-4 px-3 py-1">
+                    <item.icon className="h-3 w-3 mr-1" />
+                    {item.badge}
+                  </Badge>
+                  <h3 className="text-2xl sm:text-3xl font-bold mb-4">{item.title}</h3>
+                  <p className="text-muted-foreground leading-relaxed mb-6">{item.desc}</p>
+                  <ul className="space-y-3">
+                    {item.bullets.map((b, j) => (
+                      <li key={j} className="flex items-start gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                        <span className="text-sm">{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-xl border shadow-2xl bg-card overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-red-500" />
+                      <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                    </div>
+                  </div>
+                  <img src={item.img} alt={item.alt} loading="lazy" className="w-full h-auto" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section></ScrollReveal>
+
       {/* Dores Section */}
       <ScrollReveal><section className="py-20 px-4 sm:px-6 lg:px-8 border-y bg-muted/20">
         <div className="max-w-6xl mx-auto">
