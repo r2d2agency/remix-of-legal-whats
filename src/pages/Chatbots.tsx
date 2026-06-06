@@ -29,7 +29,7 @@ import {
 
 const Chatbots = () => {
   const { getChatbots, toggleChatbot, deleteChatbot, loading } = useChatbots();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedChatbot, setSelectedChatbot] = useState<Chatbot | null>(null);
@@ -42,8 +42,13 @@ const Chatbots = () => {
   const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [permissionsChatbot, setPermissionsChatbot] = useState<Chatbot | null>(null);
 
-  // Check if user has admin permission (owner, admin, or manager)
-  const isAdmin = user?.role === 'owner' || user?.role === 'admin' || user?.role === 'manager';
+  // Check if user can manage chatbots (org admin roles or superadmin)
+  const canManageChatbots = !!user && (
+    user.is_superadmin === true ||
+    user?.role === 'owner' ||
+    user?.role === 'admin' ||
+    user?.role === 'manager'
+  );
 
   const loadChatbots = async () => {
     const data = await getChatbots();
@@ -174,7 +179,7 @@ const Chatbots = () => {
               Gerencie seus chatbots inteligentes com IA e fluxos de decisão
             </p>
           </div>
-          {isAdmin ? (
+          {!authLoading && canManageChatbots ? (
             <Button onClick={handleCreate} variant="gradient">
               <Plus className="h-4 w-4 mr-2" />
               Novo Chatbot
@@ -254,7 +259,7 @@ const Chatbots = () => {
               <Bot className="h-16 w-16 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nenhum chatbot criado</h3>
               <p className="text-muted-foreground text-center mb-4">
-                {isAdmin 
+                {canManageChatbots 
                   ? "Crie seu primeiro chatbot para automatizar o atendimento"
                   : "Nenhum chatbot foi configurado para esta organização"
                 }
