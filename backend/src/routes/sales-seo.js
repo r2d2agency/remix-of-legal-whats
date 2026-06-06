@@ -202,6 +202,16 @@ router.get('/leads', async (req, res) => {
     const org = await getUserOrganization(req.userId);
     if (!org) return res.status(403).json({ error: 'Organização não encontrada' });
 
+    // Mesma regra das analytics: leads >48h sem engajamento deixam de ser "Nova".
+    await query(
+      `UPDATE sales_seo_leads
+       SET evolution_status = 4, updated_at = NOW()
+       WHERE organization_id = $1
+         AND evolution_status = 1
+         AND created_at < NOW() - INTERVAL '48 hours'`,
+      [org.organization_id]
+    );
+
     const { tracker_id, start_date, end_date, limit = 50 } = req.query;
 
     let whereClause = 'l.organization_id = $1';
