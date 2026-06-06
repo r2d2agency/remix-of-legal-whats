@@ -35,6 +35,7 @@ export interface SalesSeoLead {
   entry_message: string;
   evolution_status: number;
   ia_analysis?: string;
+  ia_analyzed_at?: string | null;
   created_at: string;
 }
 

@@ -69,6 +69,7 @@ export default function SalesSEOAnalytics() {
   const [leads, setLeads] = useState<SalesSeoLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [analysisDialog, setAnalysisDialog] = useState<{ open: boolean; lead: SalesSeoLead | null; analysis: any }>({ open: false, lead: null, analysis: null });
   
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newTracker, setNewTracker] = useState({ name: "", phrase: "", connection_ids: [] as string[] });
@@ -146,14 +147,24 @@ export default function SalesSEOAnalytics() {
   const handleAnalyzeIA = async (leadId: string) => {
     setAnalyzingId(leadId);
     try {
-      await analyzeIA(leadId);
+      const res: any = await analyzeIA(leadId);
       toast.success("Análise concluída");
-      fetchData();
+      await fetchData();
+      const updated = leads.find(l => l.id === leadId) || null;
+      setAnalysisDialog({ open: true, lead: updated, analysis: res?.analysis || null });
     } catch (err) {
       toast.error("Erro na análise de IA");
     } finally {
       setAnalyzingId(null);
     }
+  };
+
+  const openAnalysis = (lead: SalesSeoLead) => {
+    let analysis: any = null;
+    try {
+      analysis = typeof lead.ia_analysis === 'string' ? JSON.parse(lead.ia_analysis as any) : lead.ia_analysis;
+    } catch { analysis = { resumo: String(lead.ia_analysis) }; }
+    setAnalysisDialog({ open: true, lead, analysis });
   };
 
   const handleDeleteTracker = async (id: string) => {
@@ -437,31 +448,19 @@ export default function SalesSEOAnalytics() {
                                 {evolutionStatusMap[lead.evolution_status as keyof typeof evolutionStatusMap]?.label}
                               </Badge>
                               {lead.ia_analysis && (
-                                <TooltipUI>
-                                  <TooltipTrigger asChild>
-                                    <Brain className="h-4 w-4 text-primary cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">
-                                    <div className="space-y-2">
-                                      <p className="font-bold border-b pb-1">Análise da IA</p>
-                                      {(() => {
-                                        try {
-                                          const analysis = typeof lead.ia_analysis === 'string' 
-                                            ? JSON.parse(lead.ia_analysis) 
-                                            : lead.ia_analysis;
-                                          return (
-                                            <>
-                                              <p><strong>Resumo:</strong> {analysis.resumo || 'Sem resumo'}</p>
-                                              <p><strong>Oportunidade:</strong> {analysis.oportunidade || 'Não identificada'}</p>
-                                            </>
-                                          );
-                                        } catch {
-                                          return <p>{String(lead.ia_analysis)}</p>;
-                                        }
-                                      })()}
-                                    </div>
-                                  </TooltipContent>
-                                </TooltipUI>
+                                <button
+                                  type="button"
+                                  onClick={() => openAnalysis(lead)}
+                                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                                  title="Ver análise da IA"
+                                >
+                                  <Brain className="h-4 w-4" />
+                                  {lead.ia_analyzed_at && (
+                                    <span className="text-muted-foreground">
+                                      {format(new Date(lead.ia_analyzed_at), "dd/MM HH:mm")}
+                                    </span>
+                                  )}
+                                </button>
                               )}
                             </div>
                           </td>
@@ -472,7 +471,7 @@ export default function SalesSEOAnalytics() {
                                  size="icon" 
                                  onClick={() => handleAnalyzeIA(lead.id)}
                                  disabled={analyzingId === lead.id}
-                                 title="Análise de IA"
+                                 title={lead.ia_analyzed_at ? `Reanalisar (última: ${format(new Date(lead.ia_analyzed_at), "dd/MM HH:mm")})` : "Analisar com IA"}
                                >
                                  {analyzingId === lead.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                                </Button>
@@ -545,6 +544,52 @@ export default function SalesSEOAnalytics() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancelar</Button>
               <Button onClick={handleCreateTracker}>Salvar Rastreador</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={analysisDialog.open} onOpenChange={(o) => setAnalysisDialog(s => ({ ...s, open: o }))}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                Análise da IA
+              </DialogTitle>
+            </DialogHeader>
+            {analysisDialog.lead && (
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{analysisDialog.lead.contact_name || analysisDialog.lead.phone}</span>
+                  {analysisDialog.lead.ia_analyzed_at && (
+                    <span>Analisado em {format(new Date(analysisDialog.lead.ia_analyzed_at), "dd/MM/yyyy HH:mm")}</span>
+                  )}
+                </div>
+                <div className="rounded-md border p-3 space-y-2">
+                  {analysisDialog.analysis?.status && (
+                    <div>
+                      <strong>Status sugerido:</strong>{" "}
+                      <Badge variant="secondary" className={evolutionStatusMap[analysisDialog.analysis.status as keyof typeof evolutionStatusMap]?.color}>
+                        {evolutionStatusMap[analysisDialog.analysis.status as keyof typeof evolutionStatusMap]?.label}
+                      </Badge>
+                    </div>
+                  )}
+                  <p><strong>Resumo:</strong> {analysisDialog.analysis?.resumo || 'Sem resumo'}</p>
+                  <p><strong>Oportunidade:</strong> {analysisDialog.analysis?.oportunidade || 'Não identificada'}</p>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              {analysisDialog.lead && (
+                <Button
+                  variant="outline"
+                  onClick={() => { handleAnalyzeIA(analysisDialog.lead!.id); }}
+                  disabled={analyzingId === analysisDialog.lead.id}
+                >
+                  {analyzingId === analysisDialog.lead.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  Reanalisar
+                </Button>
+              )}
+              <Button onClick={() => setAnalysisDialog(s => ({ ...s, open: false }))}>Fechar</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
