@@ -54,10 +54,10 @@ export default function Fluxos() {
   });
   const [logsExpanded, setLogsExpanded] = useState(false);
 
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { loading, error, getFlows, createFlow, updateFlow, deleteFlow, toggleFlow, duplicateFlow, getCategories, createCategory, deleteCategory, getFlowMembers, saveFlowMembers } = useFlows();
 
-  const isAdmin = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
+  const canManageFlows = !!user && (user.is_superadmin === true || (!!user.role && ['owner', 'admin', 'manager'].includes(user.role)));
 
   useEffect(() => {
     loadData();
@@ -251,7 +251,7 @@ export default function Fluxos() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Buscar fluxos..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 w-64" />
             </div>
-            {isAdmin && (
+            {!authLoading && canManageFlows && (
               <>
                 <Button variant="outline" onClick={() => setCategoryDialogOpen(true)}>
                   <FolderOpen className="h-4 w-4 mr-2" />
@@ -360,7 +360,7 @@ export default function Fluxos() {
               <GitBranch className="h-16 w-16 text-muted-foreground/30 mb-4" />
               <h3 className="text-lg font-medium mb-2">{searchQuery ? 'Nenhum fluxo encontrado' : 'Nenhum fluxo criado'}</h3>
               <p className="text-muted-foreground mb-4">{searchQuery ? 'Tente buscar com outros termos' : 'Crie seu primeiro fluxo visual para automatizar atendimentos'}</p>
-              {!searchQuery && isAdmin && (
+              {!searchQuery && canManageFlows && (
                 <Button onClick={() => setCreateDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Criar Primeiro Fluxo</Button>
               )}
             </CardContent>
@@ -387,7 +387,7 @@ export default function Fluxos() {
                             {flow.description && <CardDescription className="line-clamp-1">{flow.description}</CardDescription>}
                           </div>
                         </div>
-                        <Switch checked={flow.is_active} onCheckedChange={() => handleToggle(flow)} disabled={!isAdmin} />
+                        <Switch checked={flow.is_active} onCheckedChange={() => handleToggle(flow)} disabled={!canManageFlows} />
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -413,7 +413,7 @@ export default function Fluxos() {
                           </div>
                         </div>
                       )}
-                      {isAdmin && (
+                      {canManageFlows && (
                         <div className="flex items-center gap-2 pt-2">
                           <Button className="flex-1" onClick={() => handleOpenEditor(flow)}>
                             <Play className="h-4 w-4 mr-2" />Editar Fluxo
