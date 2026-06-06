@@ -92,6 +92,17 @@ router.get('/analytics', async (req, res) => {
     const org = await getUserOrganization(req.userId);
     if (!org) return res.status(403).json({ error: 'Organização não encontrada' });
 
+    // Auto-reclassificação: leads "Novos" (status=1) com mais de 48h sem engajamento
+    // viram "Perda" (status=4). Garantia de que "Nova" sempre representa janela <=48h.
+    await query(
+      `UPDATE sales_seo_leads
+       SET evolution_status = 4, updated_at = NOW()
+       WHERE organization_id = $1
+         AND evolution_status = 1
+         AND created_at < NOW() - INTERVAL '48 hours'`,
+      [org.organization_id]
+    );
+
     const { start_date, end_date, tracker_id, connection_id } = req.query;
 
     let whereClause = 'l.organization_id = $1';
