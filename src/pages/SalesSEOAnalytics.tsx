@@ -69,6 +69,7 @@ export default function SalesSEOAnalytics() {
   const [leads, setLeads] = useState<SalesSeoLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [analysisDialog, setAnalysisDialog] = useState<{ open: boolean; lead: SalesSeoLead | null; analysis: any }>({ open: false, lead: null, analysis: null });
   
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newTracker, setNewTracker] = useState({ name: "", phrase: "", connection_ids: [] as string[] });
@@ -146,14 +147,24 @@ export default function SalesSEOAnalytics() {
   const handleAnalyzeIA = async (leadId: string) => {
     setAnalyzingId(leadId);
     try {
-      await analyzeIA(leadId);
+      const res: any = await analyzeIA(leadId);
       toast.success("Análise concluída");
-      fetchData();
+      await fetchData();
+      const updated = leads.find(l => l.id === leadId) || null;
+      setAnalysisDialog({ open: true, lead: updated, analysis: res?.analysis || null });
     } catch (err) {
       toast.error("Erro na análise de IA");
     } finally {
       setAnalyzingId(null);
     }
+  };
+
+  const openAnalysis = (lead: SalesSeoLead) => {
+    let analysis: any = null;
+    try {
+      analysis = typeof lead.ia_analysis === 'string' ? JSON.parse(lead.ia_analysis as any) : lead.ia_analysis;
+    } catch { analysis = { resumo: String(lead.ia_analysis) }; }
+    setAnalysisDialog({ open: true, lead, analysis });
   };
 
   const handleDeleteTracker = async (id: string) => {
