@@ -240,6 +240,9 @@ router.get('/leads', async (req, res) => {
     const org = await getUserOrganization(req.userId);
     if (!org) return res.status(403).json({ error: 'Organização não encontrada' });
 
+    // Self-healing: garante coluna ia_analyzed_at
+    await query(`ALTER TABLE sales_seo_leads ADD COLUMN IF NOT EXISTS ia_analyzed_at TIMESTAMPTZ`);
+
     // Mesma regra das analytics: leads >48h sem engajamento deixam de ser "Nova".
     await query(
       `UPDATE sales_seo_leads
