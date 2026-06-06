@@ -18,6 +18,44 @@ async function getUserOrganization(userId) {
   return result.rows[0] || null;
 }
 
+async function getAIConfig(organizationId) {
+  const agentResult = await query(
+    `SELECT ai_provider, ai_model, ai_api_key
+     FROM ai_agents
+     WHERE organization_id = $1
+       AND is_active = true
+       AND ai_api_key IS NOT NULL
+     LIMIT 1`,
+    [organizationId]
+  );
+
+  if (agentResult.rows[0]) {
+    return {
+      provider: agentResult.rows[0].ai_provider || 'openai',
+      model: agentResult.rows[0].ai_model || 'gpt-4o-mini',
+      apiKey: agentResult.rows[0].ai_api_key,
+    };
+  }
+
+  const orgResult = await query(
+    `SELECT ai_provider, ai_model, ai_api_key
+     FROM organizations
+     WHERE id = $1`,
+    [organizationId]
+  );
+
+  const org = orgResult.rows[0];
+  if (!org?.ai_api_key || org.ai_provider === 'none') {
+    return null;
+  }
+
+  return {
+    provider: org.ai_provider || 'openai',
+    model: org.ai_model || 'gpt-4o-mini',
+    apiKey: org.ai_api_key,
+  };
+}
+
 // ==========================================
 // TRACKERS CRUD
 // ==========================================
@@ -292,21 +330,13 @@ router.post('/analyze-ia', async (req, res) => {
       `${m.from_me ? 'Operador' : 'Cliente'} (${new Date(m.timestamp).toLocaleString()}): ${m.content}`
     ).join('\n');
 
-    // 2. Get AI config
-    const aiConfigRes = await query(
-      `SELECT * FROM system_settings WHERE key IN ('openai_api_key', 'openai_model')`
-    );
-    const settings = Object.fromEntries(aiConfigRes.rows.map(r => [r.key, r.value]));
-    
-    if (!settings.openai_api_key) {
-      return res.status(400).json({ error: 'IA não configurada. Configure a API Key no painel Admin.' });
+    // 2. Get AI config from active agent or organization settings
+    const aiConfig = await getAIConfig(org.organization_id);
+    if (!aiConfig?.apiKey) {
+      return res.status(400).json({
+        error: 'IA não configurada para esta organização. Configure um agente ativo com chave de IA ou defina a IA nas configurações da organização.'
+      });
     }
-
-    const aiConfig = {
-      provider: 'openai',
-      apiKey: settings.openai_api_key,
-      model: settings.openai_model || 'gpt-4o-mini'
-    };
 
     const prompt = `Analise a seguinte conversa de WhatsApp que começou com a frase: "${lead.entry_message}".
     Histórico:
