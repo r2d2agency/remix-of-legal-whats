@@ -448,31 +448,19 @@ export default function SalesSEOAnalytics() {
                                 {evolutionStatusMap[lead.evolution_status as keyof typeof evolutionStatusMap]?.label}
                               </Badge>
                               {lead.ia_analysis && (
-                                <TooltipUI>
-                                  <TooltipTrigger asChild>
-                                    <Brain className="h-4 w-4 text-primary cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">
-                                    <div className="space-y-2">
-                                      <p className="font-bold border-b pb-1">Análise da IA</p>
-                                      {(() => {
-                                        try {
-                                          const analysis = typeof lead.ia_analysis === 'string' 
-                                            ? JSON.parse(lead.ia_analysis) 
-                                            : lead.ia_analysis;
-                                          return (
-                                            <>
-                                              <p><strong>Resumo:</strong> {analysis.resumo || 'Sem resumo'}</p>
-                                              <p><strong>Oportunidade:</strong> {analysis.oportunidade || 'Não identificada'}</p>
-                                            </>
-                                          );
-                                        } catch {
-                                          return <p>{String(lead.ia_analysis)}</p>;
-                                        }
-                                      })()}
-                                    </div>
-                                  </TooltipContent>
-                                </TooltipUI>
+                                <button
+                                  type="button"
+                                  onClick={() => openAnalysis(lead)}
+                                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                                  title="Ver análise da IA"
+                                >
+                                  <Brain className="h-4 w-4" />
+                                  {lead.ia_analyzed_at && (
+                                    <span className="text-muted-foreground">
+                                      {format(new Date(lead.ia_analyzed_at), "dd/MM HH:mm")}
+                                    </span>
+                                  )}
+                                </button>
                               )}
                             </div>
                           </td>
@@ -483,7 +471,7 @@ export default function SalesSEOAnalytics() {
                                  size="icon" 
                                  onClick={() => handleAnalyzeIA(lead.id)}
                                  disabled={analyzingId === lead.id}
-                                 title="Análise de IA"
+                                 title={lead.ia_analyzed_at ? `Reanalisar (última: ${format(new Date(lead.ia_analyzed_at), "dd/MM HH:mm")})` : "Analisar com IA"}
                                >
                                  {analyzingId === lead.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                                </Button>
