@@ -306,6 +306,9 @@ router.post('/analyze-ia', async (req, res) => {
     const { lead_id } = req.body;
     if (!lead_id) return res.status(400).json({ error: 'ID do lead é obrigatório' });
 
+    // Self-healing: garante coluna de timestamp da análise
+    await query(`ALTER TABLE sales_seo_leads ADD COLUMN IF NOT EXISTS ia_analyzed_at TIMESTAMPTZ`);
+
     // 1. Get lead and messages
     const leadRes = await query(
       `SELECT l.*, conv.id as conversation_id 
@@ -367,12 +370,13 @@ router.post('/analyze-ia', async (req, res) => {
       `UPDATE sales_seo_leads 
        SET evolution_status = $1, 
            ia_analysis = $2,
+           ia_analyzed_at = NOW(),
            updated_at = NOW()
        WHERE id = $3`,
       [result.status || lead.evolution_status, JSON.stringify(result), lead_id]
     );
 
-    res.json({ success: true, analysis: result });
+    res.json({ success: true, analysis: result, ia_analyzed_at: new Date().toISOString() });
   } catch (error) {
     console.error('IA Analysis error:', error);
     res.status(500).json({ error: 'Erro na análise de IA', details: error.message });
