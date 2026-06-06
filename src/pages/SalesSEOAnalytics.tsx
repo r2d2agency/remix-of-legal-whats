@@ -547,6 +547,52 @@ export default function SalesSEOAnalytics() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={analysisDialog.open} onOpenChange={(o) => setAnalysisDialog(s => ({ ...s, open: o }))}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                Análise da IA
+              </DialogTitle>
+            </DialogHeader>
+            {analysisDialog.lead && (
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{analysisDialog.lead.contact_name || analysisDialog.lead.phone}</span>
+                  {analysisDialog.lead.ia_analyzed_at && (
+                    <span>Analisado em {format(new Date(analysisDialog.lead.ia_analyzed_at), "dd/MM/yyyy HH:mm")}</span>
+                  )}
+                </div>
+                <div className="rounded-md border p-3 space-y-2">
+                  {analysisDialog.analysis?.status && (
+                    <div>
+                      <strong>Status sugerido:</strong>{" "}
+                      <Badge variant="secondary" className={evolutionStatusMap[analysisDialog.analysis.status as keyof typeof evolutionStatusMap]?.color}>
+                        {evolutionStatusMap[analysisDialog.analysis.status as keyof typeof evolutionStatusMap]?.label}
+                      </Badge>
+                    </div>
+                  )}
+                  <p><strong>Resumo:</strong> {analysisDialog.analysis?.resumo || 'Sem resumo'}</p>
+                  <p><strong>Oportunidade:</strong> {analysisDialog.analysis?.oportunidade || 'Não identificada'}</p>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              {analysisDialog.lead && (
+                <Button
+                  variant="outline"
+                  onClick={() => { handleAnalyzeIA(analysisDialog.lead!.id); }}
+                  disabled={analyzingId === analysisDialog.lead.id}
+                >
+                  {analyzingId === analysisDialog.lead.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  Reanalisar
+                </Button>
+              )}
+              <Button onClick={() => setAnalysisDialog(s => ({ ...s, open: false }))}>Fechar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
       </MainLayout>
     </TooltipProvider>
