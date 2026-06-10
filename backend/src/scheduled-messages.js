@@ -29,6 +29,8 @@ export async function executeScheduledMessages() {
         conn.instance_name,
         conn.instance_id,
         conn.wapi_token,
+        conn.uazapi_url,
+        conn.uazapi_token,
         conn.status as connection_status
       FROM scheduled_messages sm
       JOIN conversations conv ON conv.id = sm.conversation_id
