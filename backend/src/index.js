@@ -891,15 +891,25 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Initialize database and start server
+// Start server FIRST so the health check passes immediately (EasyPanel SIGTERMs slow-starting containers).
+// Then run database initialization in the background. Cron jobs only start AFTER init succeeds.
+let dbReady = false;
+app.get('/ready', (req, res) => {
+  res.status(dbReady ? 200 : 503).json({ ready: dbReady });
+});
+
+const server = app.listen(PORT, () => {
+  console.log(`🚀 Whatsale API listening on port ${PORT} (db init running in background)`);
+});
+
 initDatabase().then((ok) => {
   if (!ok) {
-    console.error('🛑 Server not started because database initialization failed (critical step).');
-    process.exit(1);
+    console.error('🛑 Database initialization failed (critical step). Server stays up for diagnostics, but features will be broken.');
+    return;
   }
-
-  app.listen(PORT, () => {
-    console.log(`🚀 Whatsale API running on port ${PORT}`);
+  dbReady = true;
+  console.log('✅ Database ready — starting schedulers');
+  (() => {
 
     // Schedule billing notifications - runs every hour to check rules with matching send_time
     // Each rule has its own send_time, the scheduler only executes rules matching current hour
@@ -1090,5 +1100,7 @@ initDatabase().then((ok) => {
       timezone: 'America/Sao_Paulo'
     });
     console.log('🛡️ Supervisor IA daily audit scheduled - runs at 19:00 daily');
-  });
+  })();
+}).catch((err) => {
+  console.error('🛑 Unexpected error during database initialization:', err);
 });
