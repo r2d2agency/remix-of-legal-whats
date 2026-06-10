@@ -18,6 +18,7 @@ import { AgentStatsDialog } from '@/components/ai-agents/AgentStatsDialog';
 import { KnowledgeBaseDialog } from '@/components/ai-agents/KnowledgeBaseDialog';
 import { AgentTestChatDialog } from '@/components/ai-agents/AgentTestChatDialog';
 import { API_URL, getAuthToken } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +39,7 @@ import {
 
 export default function AgentesIA() {
   const navigate = useNavigate();
+  const { user, modulesEnabled, pagePermissions } = useAuth();
   const [agents, setAgents] = useState<AIAgent[]>([]);
   const [search, setSearch] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -58,40 +60,32 @@ export default function AgentesIA() {
 
   const { getAgents, toggleAgent, deleteAgent, getRealtimeLogs, loading } = useAIAgents();
 
-  // Check superadmin access
+  // Check access: superadmin OR (plan has ai_agents module AND user has agentes_ia page permission)
   useEffect(() => {
-    const checkAccess = async () => {
-      try {
-        const token = getAuthToken();
-        if (!token) {
-          navigate('/dashboard');
-          return;
-        }
-
-        const response = await fetch(`${API_URL}/api/admin/check`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (!data.isSuperadmin) {
-            toast.error('Acesso restrito a superadmins');
-            navigate('/dashboard');
-            return;
-          }
-          setIsSuperadmin(true);
-        } else {
-          navigate('/dashboard');
-          return;
-        }
-      } catch {
-        navigate('/dashboard');
-      } finally {
-        setCheckingAccess(false);
-      }
-    };
-    checkAccess();
-  }, [navigate]);
+    const token = getAuthToken();
+    if (!token) {
+      navigate('/dashboard');
+      return;
+    }
+    if (user?.is_superadmin) {
+      setIsSuperadmin(true);
+      setCheckingAccess(false);
+      return;
+    }
+    const hasModule = modulesEnabled?.ai_agents !== false;
+    const hasPagePerm = !pagePermissions || pagePermissions.agentes_ia !== false;
+    if (!hasModule) {
+      toast.error('Seu plano não inclui Agentes IA');
+      navigate('/dashboard');
+      return;
+    }
+    if (!hasPagePerm) {
+      toast.error('Você não tem permissão para acessar Agentes IA');
+      navigate('/dashboard');
+      return;
+    }
+    setCheckingAccess(false);
+  }, [navigate, user, modulesEnabled, pagePermissions]);
 
   const loadAgents = async () => {
     const data = await getAgents();
