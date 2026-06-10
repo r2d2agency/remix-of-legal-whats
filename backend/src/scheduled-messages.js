@@ -29,6 +29,8 @@ export async function executeScheduledMessages() {
         conn.instance_name,
         conn.instance_id,
         conn.wapi_token,
+        conn.uazapi_url,
+        conn.uazapi_token,
         conn.status as connection_status
       FROM scheduled_messages sm
       JOIN conversations conv ON conv.id = sm.conversation_id
@@ -75,6 +77,8 @@ export async function executeScheduledMessages() {
         instance_name: msg.instance_name,
         instance_id: msg.instance_id,
         wapi_token: msg.wapi_token,
+        uazapi_url: msg.uazapi_url,
+        uazapi_token: msg.uazapi_token,
       };
 
       // Check if we need to send text separately from media
