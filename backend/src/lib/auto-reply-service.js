@@ -393,12 +393,8 @@ async function sendAutoReply(connection, remoteJid, text) {
   const provider = connection.provider || 'evolution';
   
   try {
-    if (provider === 'evolution') {
+    if (provider === 'evolution' || provider === 'wapi' || provider === 'uazapi') {
       return await whatsappProvider.sendMessage(connection, remoteJid, text, 'text');
-    } else if (provider === 'wapi') {
-      return await wapiProvider.sendMessage(connection.instance_id, connection.wapi_token, remoteJid, text, 'text');
-    } else if (provider === 'uazapi') {
-      return await uazapiProvider.sendMessage(connection.uazapi_url, connection.uazapi_token, remoteJid, text, 'text');
     } else if (provider === 'meta') {
       // If there is a meta provider, use it. Otherwise, use fetch directly.
       const metaToken = connection.meta_token;
