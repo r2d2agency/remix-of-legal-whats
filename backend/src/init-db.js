@@ -3953,6 +3953,71 @@ export async function initDatabase() {
   } catch (e) {
     console.error('  ⚠️ Failed to fix orphaned users:', e.message);
   }
-  
+
+  // ============================================================
+  // AGENT MODES (Copilot + AutoReply) — self-healing
+  // ============================================================
+  try {
+    await pool.query(`
+      ALTER TABLE ai_agents
+        ADD COLUMN IF NOT EXISTS agent_mode VARCHAR(20) DEFAULT 'standard'
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_agent_actions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        agent_id UUID NOT NULL REFERENCES ai_agents(id) ON DELETE CASCADE,
+        name VARCHAR(80) NOT NULL,
+        icon VARCHAR(40) DEFAULT 'Sparkles',
+        prompt TEXT NOT NULL,
+        order_index INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_actions_agent ON ai_agent_actions(agent_id)`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_agent_autoreply_config (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        agent_id UUID NOT NULL UNIQUE REFERENCES ai_agents(id) ON DELETE CASCADE,
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        is_active BOOLEAN DEFAULT false,
+        paused_until TIMESTAMPTZ,
+        filter_mode VARCHAR(20) DEFAULT 'all',
+        included_tags TEXT[] DEFAULT '{}',
+        excluded_tags TEXT[] DEFAULT '{}',
+        included_contact_ids UUID[] DEFAULT '{}',
+        excluded_contact_ids UUID[] DEFAULT '{}',
+        included_groups TEXT[] DEFAULT '{}',
+        excluded_groups TEXT[] DEFAULT '{}',
+        schedule_enabled BOOLEAN DEFAULT false,
+        schedule_windows JSONB DEFAULT '[]'::jsonb,
+        response_template TEXT,
+        max_responses_per_contact INTEGER DEFAULT 1,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_org ON ai_agent_autoreply_config(organization_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_active ON ai_agent_autoreply_config(is_active) WHERE is_active = true`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_agent_autoreply_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        agent_id UUID NOT NULL REFERENCES ai_agents(id) ON DELETE CASCADE,
+        conversation_id UUID,
+        contact_id UUID,
+        message_sent TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_autoreply_log_contact ON ai_agent_autoreply_log(contact_id, agent_id)`);
+
+    console.log('  ✅ Agent Modes (Copilot/AutoReply) schema ready');
+  } catch (e) {
+    console.error('  ⚠️ Failed agent-modes schema:', e.message);
+  }
+
   return true;
 }

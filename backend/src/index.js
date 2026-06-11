@@ -52,6 +52,8 @@ import linkPreviewRoutes from './routes/link-preview.js';
 import salesSeoRoutes from './routes/sales-seo.js';
 import { handleAutoReplies } from './lib/auto-reply-service.js';
 import supervisorRoutes from './routes/supervisor.js';
+import agentModesRoutes from './routes/agent-modes.js';
+import { startAgentModesScheduler } from './agent-modes-scheduler.js';
 
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
@@ -845,6 +847,7 @@ app.use('/api/telehealth', telehealthRoutes);
 app.use('/api/sales-seo', salesSeoRoutes);
 app.use('/api/link-preview', linkPreviewRoutes);
 app.use('/api/supervisor', supervisorRoutes);
+app.use('/api/agent-modes', agentModesRoutes);
 
 
 app.get('/health', (req, res) => {
@@ -910,6 +913,9 @@ initDatabase().then((ok) => {
   dbReady = true;
   console.log('✅ Database ready — starting schedulers');
   (() => {
+
+    // Agent Modes scheduler (Copilot/AutoReply window + expiration)
+    try { startAgentModesScheduler(); } catch (e) { console.error('agent-modes scheduler error', e); }
 
     // Schedule billing notifications - runs every hour to check rules with matching send_time
     // Each rule has its own send_time, the scheduler only executes rules matching current hour
