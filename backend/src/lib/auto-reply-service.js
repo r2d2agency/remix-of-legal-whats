@@ -1,6 +1,9 @@
 import * as whatsappProvider from './whatsapp-provider.js';
 import * as wapiProvider from './wapi-provider.js';
 import * as uazapiProvider from './uazapi-provider.js';
+import { query } from '../db.js';
+import { callAI } from './ai-caller.js';
+import { logError, logInfo, logWarn } from '../logger.js';
 
 /**
  * Checks if current time is within business hours
@@ -28,25 +31,361 @@ function isWithinBusinessHours(hours) {
   return currentTime >= startTime && currentTime <= endTime;
 }
 
+function normalizePhone(value) {
+  return String(value || '').replace(/@s\.whatsapp\.net|@c\.us|@lid|@g\.us/g, '').replace(/[^0-9]/g, '');
+}
+
+function buildRemoteJidVariants(value) {
+  const raw = String(value || '').trim();
+  const phone = normalizePhone(raw);
+  return Array.from(new Set([
+    raw,
+    phone,
+    phone ? `${phone}@s.whatsapp.net` : '',
+    phone ? `${phone}@c.us` : '',
+  ].filter(Boolean)));
+}
+
+function normalizeTagName(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+async function getConversationContext(connectionId, remoteJid) {
+  const variants = buildRemoteJidVariants(remoteJid);
+  const phone = normalizePhone(remoteJid);
+  const res = await query(
+    `SELECT id, remote_jid, contact_phone, contact_name
+       FROM conversations
+      WHERE connection_id = $1
+        AND (
+          remote_jid = ANY($2::text[])
+          OR ($3 <> '' AND contact_phone = $3)
+        )
+      ORDER BY updated_at DESC NULLS LAST, created_at DESC
+      LIMIT 1`,
+    [connectionId, variants, phone]
+  );
+
+  return res.rows[0] || null;
+}
+
+async function getConversationTagNames(conversationId) {
+  if (!conversationId) return [];
+
+  const res = await query(
+    `SELECT t.name
+       FROM conversation_tag_links ctl
+       JOIN conversation_tags t ON t.id = ctl.tag_id
+      WHERE ctl.conversation_id = $1`,
+    [conversationId]
+  );
+
+  return res.rows.map((row) => String(row.name || '')).filter(Boolean);
+}
+
+async function getActiveAgentConfigs(organizationId, connectionId) {
+  const res = await query(
+    `SELECT c.*, a.name AS agent_name, a.system_prompt, a.ai_provider, a.ai_model, a.ai_api_key,
+            a.temperature, a.max_tokens
+       FROM ai_agent_autoreply_config c
+       JOIN ai_agents a ON a.id = c.agent_id
+      WHERE c.organization_id = $1
+        AND c.is_active = true
+        AND (c.paused_until IS NULL OR c.paused_until > NOW())
+        AND a.is_active = true
+        AND a.agent_mode = 'autoreply'
+        AND (
+          c.connection_ids IS NULL
+          OR c.connection_ids = '{}'
+          OR $2::uuid = ANY(c.connection_ids)
+        )
+      ORDER BY c.updated_at DESC NULLS LAST, c.created_at DESC`,
+    [organizationId, connectionId]
+  );
+
+  return res.rows;
+}
+
+async function getOrganizationAiKey(organizationId, provider) {
+  const apiKeyRow = await query(
+    `SELECT openai_api_key, gemini_api_key, openrouter_api_key
+       FROM organization_ai_config
+      WHERE organization_id = $1
+      LIMIT 1`,
+    [organizationId]
+  ).catch(() => ({ rows: [] }));
+
+  const orgKey = apiKeyRow.rows[0] || {};
+  return provider === 'openai'
+    ? orgKey.openai_api_key
+    : provider === 'openrouter'
+      ? orgKey.openrouter_api_key
+      : orgKey.gemini_api_key;
+}
+
+function matchesAutoReplyFilters(config, tagNames, hasConversation) {
+  const mode = config.filter_mode || 'all';
+  const normalizedTags = new Set((tagNames || []).map(normalizeTagName));
+  const includedTags = (config.included_tags || []).map(normalizeTagName).filter(Boolean);
+  const excludedTags = (config.excluded_tags || []).map(normalizeTagName).filter(Boolean);
+
+  if (mode === 'all') {
+    if (excludedTags.some((tag) => normalizedTags.has(tag))) {
+      return { matched: false, reason: 'excluded_tag_match' };
+    }
+    return { matched: true, reason: 'all_mode' };
+  }
+
+  if (!hasConversation && (includedTags.length > 0 || excludedTags.length > 0)) {
+    return { matched: false, reason: 'conversation_not_found_for_tag_filter' };
+  }
+
+  if (mode === 'include') {
+    if (includedTags.length === 0) {
+      return { matched: true, reason: 'include_mode_without_tags' };
+    }
+
+    const hasIncludedTag = includedTags.some((tag) => normalizedTags.has(tag));
+    return { matched: hasIncludedTag, reason: hasIncludedTag ? 'included_tag_match' : 'missing_included_tag' };
+  }
+
+  if (mode === 'exclude') {
+    const hasExcludedTag = excludedTags.some((tag) => normalizedTags.has(tag));
+    return { matched: !hasExcludedTag, reason: hasExcludedTag ? 'excluded_tag_match' : 'exclude_mode_clear' };
+  }
+
+  return { matched: true, reason: 'fallback' };
+}
+
+async function countPreviousAutoReplies(agentId, conversationId) {
+  if (!conversationId) return 0;
+
+  const res = await query(
+    `SELECT COUNT(*)::int AS total
+       FROM ai_agent_autoreply_log
+      WHERE agent_id = $1
+        AND conversation_id = $2`,
+    [agentId, conversationId]
+  );
+
+  return res.rows[0]?.total || 0;
+}
+
+async function persistAutoReplyMessage(conversationId, content, messageId) {
+  if (!conversationId || !content) return;
+
+  await query(
+    `INSERT INTO chat_messages (
+       conversation_id, message_id, from_me, content, message_type, status, timestamp
+     ) VALUES ($1, $2, true, $3, 'text', 'sent', NOW())
+     ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
+    [conversationId, messageId || `temp_autoreply_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, content]
+  ).catch(() => {});
+
+  await query(
+    `UPDATE conversations
+        SET last_message_at = NOW(), updated_at = NOW()
+      WHERE id = $1`,
+    [conversationId]
+  ).catch(() => {});
+}
+
+async function logAutoReplySent(agentId, conversationId, text) {
+  await query(
+    `INSERT INTO ai_agent_autoreply_log (agent_id, conversation_id, message_sent)
+     VALUES ($1, $2, $3)`,
+    [agentId, conversationId || null, text]
+  ).catch(() => {});
+}
+
+async function generateAgentReply(config, organizationId, inboundMessage) {
+  const provider = config.ai_provider || 'gemini';
+  const apiKey = config.ai_api_key || await getOrganizationAiKey(organizationId, provider);
+
+  if (!apiKey) {
+    throw new Error(`Sem chave de IA configurada para provider=${provider}`);
+  }
+
+  const systemPrompt = [
+    config.system_prompt || 'Você é um atendente virtual da empresa.',
+    config.response_template ? `Diretriz específica da auto-resposta:\n${config.response_template}` : '',
+    'Responda em português do Brasil, de forma natural, curta e objetiva.',
+    'Nunca diga que é uma IA, assistente virtual ou robô.',
+    'Retorne apenas o texto final que será enviado ao cliente.',
+  ].filter(Boolean).join('\n\n');
+
+  const aiRes = await callAI(
+    {
+      provider,
+      model: config.ai_model || (provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini'),
+      apiKey,
+    },
+    [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Mensagem recebida do cliente:\n${String(inboundMessage || '').trim() || '[sem texto]'}\n\nGere a resposta agora.` },
+    ],
+    {
+      temperature: Number(config.temperature) || 0.7,
+      maxTokens: Number(config.max_tokens) || 300,
+    }
+  );
+
+  return String(aiRes.content || '').trim();
+}
+
 /**
  * Handles auto-replies for a connection
  */
 export async function handleAutoReplies(connection, remoteJid, messageContent) {
   try {
-    // 1. Skip if message is from me or is a group
-    if (!remoteJid || remoteJid.includes('@g.us') || remoteJid.includes('@temp.g.us') || remoteJid.includes('-')) return;
+    const isGroup = !remoteJid || remoteJid.includes('@g.us') || remoteJid.includes('@temp.g.us') || remoteJid.includes('-');
+    if (isGroup) {
+      logInfo('auto_reply.debug.skip_group', {
+        connection_id: connection?.id || null,
+        remote_jid: remoteJid || null,
+      });
+      return;
+    }
 
-    // 2. Out of Office Check (Fora do horário de trabalho)
+    logInfo('auto_reply.debug.start', {
+      connection_id: connection?.id || null,
+      organization_id: connection?.organization_id || null,
+      provider: connection?.provider || null,
+      remote_jid: remoteJid,
+      message_preview: String(messageContent || '').slice(0, 120),
+    });
+
+    // 1. Out of Office Check (Fora do horário de trabalho)
     if (connection.out_of_office_message_enabled && connection.out_of_office_message) {
       const withinHours = isWithinBusinessHours(connection.business_hours);
       
       if (!withinHours) {
-        console.log(`[AutoReply] Sending out of office message to ${remoteJid}`);
+        logInfo('auto_reply.debug.out_of_office_triggered', {
+          connection_id: connection.id,
+          remote_jid: remoteJid,
+        });
         await sendAutoReply(connection, remoteJid, connection.out_of_office_message);
+        return;
       }
     }
+
+    if (!connection?.organization_id) {
+      logWarn('auto_reply.debug.skip_missing_org', {
+        connection_id: connection?.id || null,
+        remote_jid: remoteJid,
+      });
+      return;
+    }
+
+    const configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
+    logInfo('auto_reply.debug.configs_loaded', {
+      connection_id: connection.id,
+      organization_id: connection.organization_id,
+      total_configs: configs.length,
+      agent_ids: configs.map((cfg) => cfg.agent_id),
+    });
+
+    if (configs.length === 0) return;
+
+    const conversation = await getConversationContext(connection.id, remoteJid);
+    const tagNames = conversation?.id ? await getConversationTagNames(conversation.id) : [];
+
+    logInfo('auto_reply.debug.context_loaded', {
+      connection_id: connection.id,
+      remote_jid: remoteJid,
+      conversation_id: conversation?.id || null,
+      contact_phone: conversation?.contact_phone || normalizePhone(remoteJid),
+      tags: tagNames,
+    });
+
+    for (const config of configs) {
+      const filterDecision = matchesAutoReplyFilters(config, tagNames, Boolean(conversation?.id));
+      logInfo('auto_reply.debug.filter_check', {
+        connection_id: connection.id,
+        agent_id: config.agent_id,
+        agent_name: config.agent_name || null,
+        filter_mode: config.filter_mode,
+        included_tags: config.included_tags || [],
+        excluded_tags: config.excluded_tags || [],
+        conversation_id: conversation?.id || null,
+        tags: tagNames,
+        matched: filterDecision.matched,
+        reason: filterDecision.reason,
+      });
+
+      if (!filterDecision.matched) continue;
+
+      const previousReplies = await countPreviousAutoReplies(config.agent_id, conversation?.id || null);
+      logInfo('auto_reply.debug.rate_check', {
+        connection_id: connection.id,
+        agent_id: config.agent_id,
+        conversation_id: conversation?.id || null,
+        previous_replies: previousReplies,
+        max_responses_per_contact: config.max_responses_per_contact || 1,
+      });
+
+      if (conversation?.id && previousReplies >= (config.max_responses_per_contact || 1)) {
+        logInfo('auto_reply.debug.skip_rate_limit', {
+          connection_id: connection.id,
+          agent_id: config.agent_id,
+          conversation_id: conversation.id,
+        });
+        continue;
+      }
+
+      const replyText = await generateAgentReply(config, connection.organization_id, messageContent);
+      if (!replyText) {
+        logWarn('auto_reply.debug.empty_ai_response', {
+          connection_id: connection.id,
+          agent_id: config.agent_id,
+          conversation_id: conversation?.id || null,
+        });
+        continue;
+      }
+
+      logInfo('auto_reply.debug.ai_generated', {
+        connection_id: connection.id,
+        agent_id: config.agent_id,
+        conversation_id: conversation?.id || null,
+        message_preview: replyText.slice(0, 160),
+      });
+
+      const sendResult = await sendAutoReply(connection, remoteJid, replyText);
+      logInfo('auto_reply.debug.send_result', {
+        connection_id: connection.id,
+        agent_id: config.agent_id,
+        conversation_id: conversation?.id || null,
+        success: Boolean(sendResult?.success ?? true),
+        error: sendResult?.error || null,
+        message_id: sendResult?.messageId || null,
+      });
+
+      if (sendResult?.success === false) continue;
+
+      await persistAutoReplyMessage(conversation?.id || null, replyText, sendResult?.messageId || null);
+      await logAutoReplySent(config.agent_id, conversation?.id || null, replyText);
+
+      logInfo('auto_reply.debug.completed', {
+        connection_id: connection.id,
+        agent_id: config.agent_id,
+        conversation_id: conversation?.id || null,
+      });
+
+      return;
+    }
+
+    logInfo('auto_reply.debug.no_matching_config', {
+      connection_id: connection.id,
+      conversation_id: conversation?.id || null,
+      remote_jid: remoteJid,
+      tags: tagNames,
+    });
   } catch (error) {
-    console.error('[AutoReply] Error handling auto-replies:', error.message);
+    logError('auto_reply.debug.failure', error, {
+      connection_id: connection?.id || null,
+      organization_id: connection?.organization_id || null,
+      remote_jid: remoteJid || null,
+    });
   }
 }
 
@@ -54,18 +393,14 @@ async function sendAutoReply(connection, remoteJid, text) {
   const provider = connection.provider || 'evolution';
   
   try {
-    if (provider === 'evolution') {
-      await whatsappProvider.sendMessage(connection, remoteJid, text);
-    } else if (provider === 'wapi') {
-      await wapiProvider.sendMessage(connection.instance_id, connection.wapi_token, remoteJid, text);
-    } else if (provider === 'uazapi') {
-      await uazapiProvider.sendMessage(connection.uazapi_url, connection.uazapi_token, remoteJid, { text });
+    if (provider === 'evolution' || provider === 'wapi' || provider === 'uazapi') {
+      return await whatsappProvider.sendMessage(connection, remoteJid, text, 'text');
     } else if (provider === 'meta') {
       // If there is a meta provider, use it. Otherwise, use fetch directly.
       const metaToken = connection.meta_token;
       const phoneId = connection.meta_phone_number_id;
       if (metaToken && phoneId) {
-        await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
+        const response = await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${metaToken}`,
@@ -79,9 +414,17 @@ async function sendAutoReply(connection, remoteJid, text) {
             text: { body: text },
           }),
         });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          return { success: false, error: data?.error?.message || `Meta HTTP ${response.status}` };
+        }
+        return { success: true, messageId: data?.messages?.[0]?.id || null };
       }
     }
+    return { success: false, error: `Provider ${provider} sem credenciais suficientes` };
   } catch (error) {
     console.error(`[AutoReply] Failed to send ${provider} message:`, error.message);
+    return { success: false, error: error.message };
   }
 }
