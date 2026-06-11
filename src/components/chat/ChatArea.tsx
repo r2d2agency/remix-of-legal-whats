@@ -78,6 +78,7 @@ import { api } from "@/lib/api";
 import { QuickRepliesPanel } from "./QuickRepliesPanel";
 import { useQuickReplies, QuickReply } from "@/hooks/use-quick-replies";
 import { ConversationSummaryPanel, SummaryBadge } from "./ConversationSummaryPanel";
+import { CopilotPanel } from "./CopilotPanel";
 import { SentimentIndicator } from "./SentimentIndicator";
 import { ActionSuggestions } from "./ActionSuggestions";
 import { useFinishWithSummary, useGenerateSummary } from "@/hooks/use-conversation-summary";
