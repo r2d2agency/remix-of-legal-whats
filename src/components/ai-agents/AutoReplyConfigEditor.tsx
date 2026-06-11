@@ -11,9 +11,55 @@ import {
 } from '@/components/ui/select';
 import { Tag, X, Plus, Clock, Play, Pause } from 'lucide-react';
 import { useAutoReplyConfig, AutoReplyConfig } from '@/hooks/use-agent-modes';
+import { api } from '@/lib/api';
 import { toast } from 'sonner';
 
 const WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+interface OrgTag { id: string; name: string; color?: string }
+
+function TagsPicker({
+  label, values, onChange, availableTags,
+}: { label: string; values: string[]; onChange: (v: string[]) => void; availableTags: OrgTag[] }) {
+  const toggle = (name: string) => {
+    if (values.includes(name)) onChange(values.filter((v) => v !== name));
+    else onChange([...values, name]);
+  };
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      {availableTags.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic mt-1">
+          Nenhuma tag criada. Crie tags em <strong>Tags</strong> no menu lateral.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1 mt-1 p-2 border rounded-md max-h-40 overflow-y-auto">
+          {availableTags.map((t) => {
+            const active = values.includes(t.name);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => toggle(t.name)}
+                className={`text-xs px-2 py-1 rounded-full border transition-colors flex items-center gap-1 ${
+                  active ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted hover:bg-muted/70'
+                }`}
+                style={!active && t.color ? { borderColor: t.color } : undefined}
+              >
+                <Tag className="h-3 w-3" />
+                {t.name}
+                {active && <X className="h-3 w-3" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {values.length > 0 && (
+        <p className="text-[11px] text-muted-foreground mt-1">{values.length} selecionada(s)</p>
+      )}
+    </div>
+  );
+}
 
 function TagsInput({
   label, values, onChange, placeholder,
@@ -52,6 +98,13 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
   const { config, save, toggle, loading } = useAutoReplyConfig(agentId);
   const [local, setLocal] = useState<Partial<AutoReplyConfig>>({});
   const [duration, setDuration] = useState<string>('60');
+  const [orgTags, setOrgTags] = useState<OrgTag[]>([]);
+
+  useEffect(() => {
+    api<OrgTag[]>('/api/chat/tags', { auth: true })
+      .then((data) => setOrgTags(data || []))
+      .catch(() => setOrgTags([]));
+  }, []);
 
   useEffect(() => {
     if (config) setLocal({
@@ -142,13 +195,13 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
 
         {(local.filter_mode === 'include') && (
           <div className="space-y-3">
-            <TagsInput label="Tags incluídas" values={local.included_tags || []} onChange={(v) => set({ included_tags: v })} placeholder="cliente, lead..." />
+            <TagsPicker label="Tags incluídas" values={local.included_tags || []} onChange={(v) => set({ included_tags: v })} availableTags={orgTags} />
             <TagsInput label="Grupos incluídos (JID ou nome)" values={local.included_groups || []} onChange={(v) => set({ included_groups: v })} placeholder="Família, Vendas..." />
           </div>
         )}
         {(local.filter_mode === 'exclude') && (
           <div className="space-y-3">
-            <TagsInput label="Tags excluídas" values={local.excluded_tags || []} onChange={(v) => set({ excluded_tags: v })} placeholder="família, chefe, amigos..." />
+            <TagsPicker label="Tags excluídas" values={local.excluded_tags || []} onChange={(v) => set({ excluded_tags: v })} availableTags={orgTags} />
             <TagsInput label="Grupos excluídos" values={local.excluded_groups || []} onChange={(v) => set({ excluded_groups: v })} placeholder="Família, Amigos..." />
           </div>
         )}
