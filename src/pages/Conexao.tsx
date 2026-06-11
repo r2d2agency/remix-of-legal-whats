@@ -1518,6 +1518,41 @@ const handleGetQRCode = async (connection: Connection) => {
                           : 'Após configurar, clique em "Verificar e salvar" no Meta Business Suite.'
                         }
                       </p>
+
+                      {/* URLs para configuração do App na Meta */}
+                      <div className="pt-3 mt-2 border-t space-y-2">
+                        <p className="text-xs font-medium">URLs do App (Meta Business / Facebook Developers)</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Use estas URLs ao configurar seu App no Meta para Desenvolvedores (Configurações Básicas, Política de Privacidade, Termos, Exclusão de Dados e Domínios).
+                        </p>
+                        {[
+                          { label: 'Política de Privacidade', value: `${window.location.origin}/politica-privacidade` },
+                          { label: 'Termos de Serviço', value: `${window.location.origin}/termos-servico` },
+                          { label: 'Exclusão de Dados do Usuário', value: `${window.location.origin}/exclusao-dados` },
+                          { label: 'Domínio do App', value: window.location.hostname },
+                          { label: 'URL do Site', value: window.location.origin },
+                        ].map((item) => (
+                          <div key={item.label}>
+                            <Label className="text-xs text-muted-foreground">{item.label}</Label>
+                            <div className="flex items-center gap-1">
+                              <code className="text-xs bg-background px-2 py-1 rounded border flex-1 break-all">
+                                {item.value}
+                              </code>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(item.value);
+                                  toast.success(`${item.label} copiado!`);
+                                }}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
