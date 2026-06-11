@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Tag, X, Plus, Clock, Play, Pause } from 'lucide-react';
 import { useAutoReplyConfig, AutoReplyConfig } from '@/hooks/use-agent-modes';
+import { useConnections } from '@/hooks/use-connections';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -99,6 +100,7 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
   const [local, setLocal] = useState<Partial<AutoReplyConfig>>({});
   const [duration, setDuration] = useState<string>('60');
   const [orgTags, setOrgTags] = useState<OrgTag[]>([]);
+  const { data: connections = [] } = useConnections({ scope: 'organization' });
 
   useEffect(() => {
     api<OrgTag[]>('/api/chat/tags', { auth: true })
@@ -115,6 +117,7 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
       excluded_groups: config.excluded_groups || [],
       included_contact_ids: config.included_contact_ids || [],
       excluded_contact_ids: config.excluded_contact_ids || [],
+      connection_ids: config.connection_ids || [],
       schedule_enabled: config.schedule_enabled,
       schedule_windows: Array.isArray(config.schedule_windows) ? config.schedule_windows : [],
       response_template: config.response_template,
@@ -142,6 +145,11 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
 
   const isActive = config?.is_active;
   const until = config?.paused_until ? new Date(config.paused_until) : null;
+  const selectedConnIds = local.connection_ids || [];
+  const toggleConn = (id: string) => {
+    if (selectedConnIds.includes(id)) set({ connection_ids: selectedConnIds.filter((x) => x !== id) });
+    else set({ connection_ids: [...selectedConnIds, id] });
+  };
 
   return (
     <div className="space-y-4">
@@ -180,6 +188,39 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
         />
         <p className="text-xs text-muted-foreground mt-1">A IA usa o system prompt do agente + esta diretriz para gerar a resposta no contexto.</p>
       </div>
+
+      {/* Connections scope */}
+      <Card className="p-3 space-y-2">
+        <Label className="font-semibold">Conexões onde a auto-resposta vai funcionar</Label>
+        <p className="text-xs text-muted-foreground">Selecione uma ou mais conexões. Se nenhuma for marcada, vale para <strong>todas</strong> da organização.</p>
+        {connections.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">Nenhuma conexão disponível.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto">
+            {connections.map((c) => {
+              const active = selectedConnIds.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => toggleConn(c.id)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex items-center gap-2 ${
+                    active ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted hover:bg-muted/70'
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${c.status === 'connected' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                  {c.name}
+                  {c.phone_number && <span className="opacity-70">· {c.phone_number}</span>}
+                  {active && <X className="h-3 w-3" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {selectedConnIds.length > 0 && (
+          <p className="text-[11px] text-muted-foreground">{selectedConnIds.length} conexão(ões) selecionada(s)</p>
+        )}
+      </Card>
 
       {/* Filters */}
       <Card className="p-3 space-y-3">

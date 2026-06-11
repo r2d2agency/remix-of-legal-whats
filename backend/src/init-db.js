@@ -4002,6 +4002,9 @@ export async function initDatabase() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_org ON ai_agent_autoreply_config(organization_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_active ON ai_agent_autoreply_config(is_active) WHERE is_active = true`);
 
+    // Self-healing: connection scoping for auto-reply (multi-instance support)
+    await pool.query(`ALTER TABLE ai_agent_autoreply_config ADD COLUMN IF NOT EXISTS connection_ids UUID[] DEFAULT '{}'`);
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ai_agent_autoreply_log (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

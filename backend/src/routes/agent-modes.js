@@ -239,14 +239,16 @@ router.put('/:agentId/autoreply', authenticate, async (req, res) => {
       schedule_windows: Array.isArray(b.schedule_windows) ? JSON.stringify(b.schedule_windows) : '[]',
       response_template: b.response_template ?? null,
       max_responses_per_contact: Number(b.max_responses_per_contact) || 1,
+      connection_ids: Array.isArray(b.connection_ids) ? b.connection_ids : [],
     };
 
     const r = await query(
       `INSERT INTO ai_agent_autoreply_config (
          agent_id, organization_id, filter_mode, included_tags, excluded_tags,
          included_contact_ids, excluded_contact_ids, included_groups, excluded_groups,
-         schedule_enabled, schedule_windows, response_template, max_responses_per_contact
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13)
+         schedule_enabled, schedule_windows, response_template, max_responses_per_contact,
+         connection_ids
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14)
        ON CONFLICT (agent_id) DO UPDATE SET
          filter_mode = EXCLUDED.filter_mode,
          included_tags = EXCLUDED.included_tags,
@@ -259,6 +261,7 @@ router.put('/:agentId/autoreply', authenticate, async (req, res) => {
          schedule_windows = EXCLUDED.schedule_windows,
          response_template = EXCLUDED.response_template,
          max_responses_per_contact = EXCLUDED.max_responses_per_contact,
+         connection_ids = EXCLUDED.connection_ids,
          updated_at = NOW()
        RETURNING *`,
       [
@@ -268,6 +271,7 @@ router.put('/:agentId/autoreply', authenticate, async (req, res) => {
         fields.included_groups, fields.excluded_groups,
         fields.schedule_enabled, fields.schedule_windows,
         fields.response_template, fields.max_responses_per_contact,
+        fields.connection_ids,
       ]
     );
     res.json(r.rows[0]);

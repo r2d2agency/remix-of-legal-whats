@@ -22,6 +22,7 @@ export interface AutoReplyConfig {
   excluded_contact_ids: string[];
   included_groups: string[];
   excluded_groups: string[];
+  connection_ids: string[];
   schedule_enabled: boolean;
   schedule_windows: Array<{ days: number[]; start: string; end: string }>;
   response_template: string | null;
