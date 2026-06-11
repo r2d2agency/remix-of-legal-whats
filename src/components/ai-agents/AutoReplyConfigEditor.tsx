@@ -100,7 +100,13 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
   const [local, setLocal] = useState<Partial<AutoReplyConfig>>({});
   const [duration, setDuration] = useState<string>('60');
   const [orgTags, setOrgTags] = useState<OrgTag[]>([]);
-  const { data: connections = [] } = useConnections({ scope: 'organization' });
+  const { data: orgConns = [] } = useConnections({ scope: 'organization' });
+  const { data: userConns = [] } = useConnections({ scope: 'user' });
+  const connections = (() => {
+    const map = new Map<string, any>();
+    [...orgConns, ...userConns].forEach((c) => { if (c?.id) map.set(c.id, c); });
+    return Array.from(map.values());
+  })();
 
   useEffect(() => {
     api<OrgTag[]>('/api/chat/tags', { auth: true })
