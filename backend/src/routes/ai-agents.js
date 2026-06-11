@@ -214,7 +214,8 @@ router.patch('/:id', authenticate, async (req, res) => {
       'lead_scoring_criteria', 'auto_create_deal_funnel_id', 'auto_create_deal_stage_id',
       'call_agent_config',
       'notify_external_enabled', 'notify_external_phone', 'notify_external_summary',
-      'appbarber_api_key', 'appbarber_establishment_code'
+      'appbarber_api_key', 'appbarber_establishment_code',
+      'agent_mode'
     ];
 
     const updates = [];
