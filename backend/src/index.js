@@ -914,6 +914,9 @@ initDatabase().then((ok) => {
   console.log('✅ Database ready — starting schedulers');
   (() => {
 
+    // Agent Modes scheduler (Copilot/AutoReply window + expiration)
+    try { startAgentModesScheduler(); } catch (e) { console.error('agent-modes scheduler error', e); }
+
     // Schedule billing notifications - runs every hour to check rules with matching send_time
     // Each rule has its own send_time, the scheduler only executes rules matching current hour
     cron.schedule('0 * * * *', async () => {
