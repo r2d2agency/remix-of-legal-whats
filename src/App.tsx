@@ -55,6 +55,7 @@ import Projetos from "./pages/Projetos";
 import TarefasKanban from "./pages/TarefasKanban";
 import LeadGleego from "./pages/LeadGleego";
 import AgentesIACliente from "./pages/AgentesIACliente";
+import AgentesModos from "./pages/AgentesModos";
 import RespostasRapidas from "./pages/RespostasRapidas";
 import ApiDocumentation from "./pages/ApiDocumentation";
 import MetaTemplates from "./pages/MetaTemplates";
@@ -160,6 +161,7 @@ const App = () => (
             <Route path="/tarefas" element={<ProtectedRoute><TarefasKanban /></ProtectedRoute>} />
             <Route path="/lead-gleego" element={<ProtectedRoute><LeadGleego /></ProtectedRoute>} />
             <Route path="/agentes-ia-cliente" element={<ProtectedRoute><AgentesIACliente /></ProtectedRoute>} />
+            <Route path="/agentes-modos" element={<ProtectedRoute><AgentesModos /></ProtectedRoute>} />
             <Route path="/respostas-rapidas" element={<ProtectedRoute><RespostasRapidas /></ProtectedRoute>} />
             <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
             <Route path="/assinaturas" element={<ProtectedRoute><Assinaturas /></ProtectedRoute>} />
