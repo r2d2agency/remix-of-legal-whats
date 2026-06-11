@@ -1058,6 +1058,12 @@ export function ChatArea({
             <Search className={cn(isMobile ? "h-3.5 w-3.5" : "h-4 w-4")} />
           </Button>
 
+          {!isMobile && (
+            <CopilotPanel
+              conversationId={conversation.id}
+              onUseResponse={(text) => setMessageText((prev) => (prev.trim() ? prev + "\n" + text : text))}
+            />
+          )}
 
           {!isMobile && messages.length > 3 && showHeaderInfo && <SentimentIndicator messages={messages} compact />}
 
