@@ -34,8 +34,8 @@ export function useConnections(options: { scope?: 'organization' | 'user' } = { 
       
       const allConnections = await api<Connection[]>(endpoint);
       
-      // If user is owner or admin, they see everything
-      if (user?.role === 'owner' || user?.role === 'admin') {
+      // If user is owner, admin, or superadmin, they see everything
+      if (user?.role === 'owner' || user?.role === 'admin' || user?.is_superadmin) {
         return allConnections;
       }
 
