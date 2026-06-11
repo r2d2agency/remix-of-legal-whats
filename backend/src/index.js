@@ -52,6 +52,8 @@ import linkPreviewRoutes from './routes/link-preview.js';
 import salesSeoRoutes from './routes/sales-seo.js';
 import { handleAutoReplies } from './lib/auto-reply-service.js';
 import supervisorRoutes from './routes/supervisor.js';
+import agentModesRoutes from './routes/agent-modes.js';
+import { startAgentModesScheduler } from './agent-modes-scheduler.js';
 
 import { initDatabase } from './init-db.js';
 import { executeNotifications } from './scheduler.js';
@@ -845,6 +847,7 @@ app.use('/api/telehealth', telehealthRoutes);
 app.use('/api/sales-seo', salesSeoRoutes);
 app.use('/api/link-preview', linkPreviewRoutes);
 app.use('/api/supervisor', supervisorRoutes);
+app.use('/api/agent-modes', agentModesRoutes);
 
 
 app.get('/health', (req, res) => {
