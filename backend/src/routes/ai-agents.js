@@ -137,12 +137,16 @@ router.post('/', authenticate, async (req, res) => {
       auto_create_deal_stage_id,
       call_agent_config = {},
       appbarber_api_key,
-      appbarber_establishment_code
+      appbarber_establishment_code,
+      agent_mode = 'standard'
     } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Nome é obrigatório' });
     }
+
+    // Best-effort: ensure agent_mode column exists (older deploys)
+    try { await query(`ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS agent_mode VARCHAR(20) DEFAULT 'standard'`); } catch {}
 
      const result = await query(`
       INSERT INTO ai_agents (
@@ -176,6 +180,14 @@ router.post('/', authenticate, async (req, res) => {
       appbarber_api_key || null, appbarber_establishment_code || null,
       userCtx.id
     ]);
+
+    // Set agent_mode separately (avoids reshaping the big INSERT)
+    if (agent_mode && agent_mode !== 'standard') {
+      try {
+        await query(`UPDATE ai_agents SET agent_mode = $1 WHERE id = $2`, [agent_mode, result.rows[0].id]);
+        result.rows[0].agent_mode = agent_mode;
+      } catch (e) { logError('ai_agents.set_mode', e); }
+    }
 
     logInfo('ai_agents.created', { agentId: result.rows[0].id, userId: userCtx.id });
     res.status(201).json(result.rows[0]);
