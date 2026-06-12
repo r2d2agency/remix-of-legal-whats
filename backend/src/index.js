@@ -504,7 +504,11 @@ app.post('/api/meta/webhook', async (req, res) => {
 
         // Find the connection - try by phone_number_id first, then fallback to waba_id
         let connResult = await dbQuery(
-          `SELECT * FROM connections WHERE provider = 'meta' AND meta_phone_number_id = $1 LIMIT 1`,
+          `SELECT c.*, COALESCE(c.organization_id, om.organization_id) AS organization_id
+             FROM connections c
+             LEFT JOIN organization_members om ON om.user_id = c.user_id
+            WHERE c.provider = 'meta' AND c.meta_phone_number_id = $1
+            LIMIT 1`,
           [phoneNumberId]
         );
         
@@ -513,7 +517,11 @@ app.post('/api/meta/webhook', async (req, res) => {
           connectionMatchStrategy = 'meta_waba_id';
           console.log('[Meta Webhook] No match by phone_number_id, trying waba_id:', wabaId);
           connResult = await dbQuery(
-            `SELECT * FROM connections WHERE provider = 'meta' AND meta_waba_id = $1 LIMIT 1`,
+            `SELECT c.*, COALESCE(c.organization_id, om.organization_id) AS organization_id
+               FROM connections c
+               LEFT JOIN organization_members om ON om.user_id = c.user_id
+              WHERE c.provider = 'meta' AND c.meta_waba_id = $1
+              LIMIT 1`,
             [wabaId]
           );
           
@@ -540,7 +548,11 @@ app.post('/api/meta/webhook', async (req, res) => {
           connectionMatchStrategy = 'single_meta_connection';
           console.log('[Meta Webhook] No match by phone_number_id or waba_id, trying single meta connection fallback');
           connResult = await dbQuery(
-            `SELECT * FROM connections WHERE provider = 'meta' LIMIT 2`
+            `SELECT c.*, COALESCE(c.organization_id, om.organization_id) AS organization_id
+               FROM connections c
+               LEFT JOIN organization_members om ON om.user_id = c.user_id
+              WHERE c.provider = 'meta'
+              LIMIT 2`
           );
           if (connResult.rows.length === 1) {
             logMetaEvent('connection_identifiers_synced', {
@@ -646,11 +658,6 @@ app.post('/api/meta/webhook', async (req, res) => {
                 console.warn(`[Meta Webhook] UNSUPPORTED message type "${msgType}" from ${message.from}. Full payload:`, JSON.stringify(message));
             }
 
-            // Auto-replies (Away / Out of Office)
-            handleAutoReplies(connection, from, content).catch(err => {
-              console.error('[Meta] Auto-reply error:', err.message);
-            });
-
             // Persist a stable internal URL by Meta media id.
             // This avoids 404s when temporary lookaside URLs expire or local files are missing.
             let finalMediaUrl = mediaUrl ? `/api/uploads/meta/${mediaUrl}` : null;
@@ -731,6 +738,10 @@ app.post('/api/meta/webhook', async (req, res) => {
               messageId,
             });
             console.log(`[Meta Webhook] Message saved: ${msgType} (as ${effectiveType}) from ${normalizedPhone} in conversation ${conversationId}`);
+
+            handleAutoReplies(connection, remoteJid, content).catch(err => {
+              console.error('[Meta] Auto-reply error:', err.message);
+            });
           } catch (msgErr) {
             logMetaEvent('message_error', {
               request_id: req.requestId || null,
