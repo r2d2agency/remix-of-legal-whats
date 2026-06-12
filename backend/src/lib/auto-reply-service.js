@@ -106,6 +106,26 @@ async function getActiveAgentConfigs(organizationId, connectionId) {
   return res.rows;
 }
 
+async function ensureDefaultAutoReplyConfigs(organizationId) {
+  if (!organizationId) return 0;
+
+  const res = await query(
+    `INSERT INTO ai_agent_autoreply_config (agent_id, organization_id, is_active, filter_mode, connection_ids)
+     SELECT a.id, a.organization_id, COALESCE(a.is_active, true), 'all', '{}'::uuid[]
+       FROM ai_agents a
+       LEFT JOIN ai_agent_autoreply_config c ON c.agent_id = a.id
+      WHERE a.organization_id = $1
+        AND a.agent_mode = 'autoreply'
+        AND a.organization_id IS NOT NULL
+        AND c.id IS NULL
+     ON CONFLICT (agent_id) DO NOTHING
+     RETURNING agent_id`,
+    [organizationId]
+  ).catch(() => ({ rows: [], rowCount: 0 }));
+
+  return res.rowCount || 0;
+}
+
 async function getOrganizationAiKey(organizationId, provider) {
   const apiKeyRow = await query(
     `SELECT openai_api_key, gemini_api_key, openrouter_api_key
@@ -277,13 +297,25 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
       return;
     }
 
-    const configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
+    let configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
     logInfo('auto_reply.debug.configs_loaded', {
       connection_id: connection.id,
       organization_id: connection.organization_id,
       total_configs: configs.length,
       agent_ids: configs.map((cfg) => cfg.agent_id),
     });
+
+    if (configs.length === 0) {
+      const backfilled = await ensureDefaultAutoReplyConfigs(connection.organization_id);
+      if (backfilled > 0) {
+        logInfo('auto_reply.debug.backfilled_missing_configs', {
+          connection_id: connection.id,
+          organization_id: connection.organization_id,
+          inserted_configs: backfilled,
+        });
+        configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
+      }
+    }
 
     if (configs.length === 0) {
       // Diagnóstico extra: por que nenhuma config bateu?

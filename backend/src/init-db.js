@@ -4028,6 +4028,7 @@ export async function initDatabase() {
           FROM ai_agents a
           LEFT JOIN ai_agent_autoreply_config c ON c.agent_id = a.id
          WHERE a.agent_mode = 'autoreply'
+           AND a.organization_id IS NOT NULL
            AND c.id IS NULL
         ON CONFLICT (agent_id) DO NOTHING
         RETURNING agent_id
