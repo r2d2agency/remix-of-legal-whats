@@ -8,6 +8,35 @@ import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, getAppBar
 
 const router = Router();
 
+async function ensureAutoReplySchema() {
+  await query(`ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS agent_mode VARCHAR(20) DEFAULT 'standard'`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS ai_agent_autoreply_config (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      agent_id UUID NOT NULL UNIQUE REFERENCES ai_agents(id) ON DELETE CASCADE,
+      organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      is_active BOOLEAN DEFAULT false,
+      paused_until TIMESTAMPTZ,
+      filter_mode VARCHAR(20) DEFAULT 'all',
+      included_tags TEXT[] DEFAULT '{}',
+      excluded_tags TEXT[] DEFAULT '{}',
+      included_contact_ids UUID[] DEFAULT '{}',
+      excluded_contact_ids UUID[] DEFAULT '{}',
+      included_groups TEXT[] DEFAULT '{}',
+      excluded_groups TEXT[] DEFAULT '{}',
+      schedule_enabled BOOLEAN DEFAULT false,
+      schedule_windows JSONB DEFAULT '[]'::jsonb,
+      response_template TEXT,
+      max_responses_per_contact INTEGER DEFAULT 1,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_org ON ai_agent_autoreply_config(organization_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_active ON ai_agent_autoreply_config(is_active) WHERE is_active = true`);
+  await query(`ALTER TABLE ai_agent_autoreply_config ADD COLUMN IF NOT EXISTS connection_ids UUID[] DEFAULT '{}'`);
+}
+
 // Helper to get user's organization and info
 async function getUserContext(userId) {
   const result = await query(
@@ -147,6 +176,7 @@ router.post('/', authenticate, async (req, res) => {
 
     // Best-effort: ensure agent_mode column exists (older deploys)
     try { await query(`ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS agent_mode VARCHAR(20) DEFAULT 'standard'`); } catch {}
+    try { await ensureAutoReplySchema(); } catch (e) { logError('ai_agents.ensure_autoreply_schema_on_create', e); }
 
      const result = await query(`
       INSERT INTO ai_agents (
@@ -278,6 +308,7 @@ router.patch('/:id', authenticate, async (req, res) => {
 
     if (result.rows[0]?.agent_mode === 'autoreply') {
       try {
+        await ensureAutoReplySchema();
         await query(
           `INSERT INTO ai_agent_autoreply_config (agent_id, organization_id, is_active, filter_mode, connection_ids)
            VALUES ($1, $2, COALESCE($3, true), 'all', '{}'::uuid[])
