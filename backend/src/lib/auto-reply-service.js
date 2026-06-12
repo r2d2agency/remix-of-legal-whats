@@ -248,21 +248,27 @@ async function getAutoReplyCandidatesDiagnostic(organizationId, connectionId) {
   return res.rows;
 }
 
-async function getOrganizationAiKey(organizationId, provider) {
-  const apiKeyRow = await query(
-    `SELECT openai_api_key, gemini_api_key, openrouter_api_key
-       FROM organization_ai_config
-      WHERE organization_id = $1
+async function getOrganizationAiConfig(organizationId) {
+  if (!organizationId) return null;
+
+  const orgResult = await query(
+    `SELECT ai_provider, ai_model, ai_api_key
+       FROM organizations
+      WHERE id = $1
       LIMIT 1`,
     [organizationId]
   ).catch(() => ({ rows: [] }));
 
-  const orgKey = apiKeyRow.rows[0] || {};
-  return provider === 'openai'
-    ? orgKey.openai_api_key
-    : provider === 'openrouter'
-      ? orgKey.openrouter_api_key
-      : orgKey.gemini_api_key;
+  const org = orgResult.rows[0];
+  if (!org || !org.ai_api_key || !org.ai_provider || org.ai_provider === 'none') {
+    return null;
+  }
+
+  return {
+    provider: org.ai_provider,
+    model: org.ai_model || null,
+    apiKey: org.ai_api_key,
+  };
 }
 
 function matchesAutoReplyFilters(config, tagNames, hasConversation) {
@@ -341,13 +347,29 @@ async function logAutoReplySent(agentId, conversationId, text) {
 }
 
 async function generateAgentReply(config, organizationId, inboundMessage) {
-  const provider = config.ai_provider || 'gemini';
-  let apiKey = config.ai_api_key
-    || await getOrganizationAiKey(organizationId, provider);
+  let provider = config.ai_provider || null;
+  let model = config.ai_model || null;
+  let apiKey = config.ai_api_key || null;
+
+  if (!apiKey) {
+    const orgConfig = await getOrganizationAiConfig(organizationId);
+    if (orgConfig) {
+      provider = orgConfig.provider;
+      model = orgConfig.model;
+      apiKey = orgConfig.apiKey;
+    }
+  }
 
   if (!apiKey && config.agent_organization_id && config.agent_organization_id !== organizationId) {
-    apiKey = await getOrganizationAiKey(config.agent_organization_id, provider);
+    const agentOrgConfig = await getOrganizationAiConfig(config.agent_organization_id);
+    if (agentOrgConfig) {
+      provider = agentOrgConfig.provider;
+      model = agentOrgConfig.model;
+      apiKey = agentOrgConfig.apiKey;
+    }
   }
+
+  provider = provider || 'gemini';
 
   if (!apiKey) {
     if (provider === 'gemini') apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -370,7 +392,7 @@ async function generateAgentReply(config, organizationId, inboundMessage) {
   const aiRes = await callAI(
     {
       provider,
-      model: config.ai_model || (provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini'),
+      model: model || (provider === 'gemini' ? 'gemini-1.5-flash' : provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'),
       apiKey,
     },
     [
