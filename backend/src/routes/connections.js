@@ -516,34 +516,53 @@ router.post('/:id/meta-connect', async (req, res) => {
       return res.status(400).json({ error: 'Credenciais Meta incompletas (token, phone_number_id ou waba_id ausente)' });
     }
 
-    // Validação externa: tenta confirmar credenciais na Graph API.
-    // Loga aviso se falhar, mas NÃO marca como "connected" — apenas a
-    // verificação do webhook em /api/meta/webhook deve confirmar conexão.
-    let metaValidationWarning = null;
-    try {
-      const metaResp = await fetch(
-        `https://graph.facebook.com/v21.0/${connection.meta_waba_id}?fields=id,name`,
-        { headers: { Authorization: `Bearer ${connection.meta_token}` } }
-      );
+    // Validação externa: testa WABA + Phone Number na Graph API.
+    // O teste do phone_number_id é o que verifica a permissão
+    // `whatsapp_business_messaging` (mesma necessária para enviar templates).
+    // Se falhar, retornamos 400 com a mensagem real da Meta para o usuário
+    // corrigir token/permissões antes de prosseguir.
+    const authHeader = { Authorization: `Bearer ${connection.meta_token}` };
+    const checks = [
+      { label: 'WABA', url: `https://graph.facebook.com/v21.0/${connection.meta_waba_id}?fields=id,name` },
+      { label: 'Phone Number', url: `https://graph.facebook.com/v21.0/${connection.meta_phone_number_id}?fields=id,display_phone_number,verified_name,quality_rating` },
+    ];
 
-      if (!metaResp.ok) {
-        const err = await metaResp.json().catch(() => ({}));
-        metaValidationWarning = err.error?.message || `Meta retornou status ${metaResp.status}`;
-        console.warn('[Meta Connect] External validation failed', {
+    for (const check of checks) {
+      try {
+        const resp = await fetch(check.url, { headers: authHeader });
+        if (!resp.ok) {
+          const errBody = await resp.json().catch(() => ({}));
+          const metaErr = errBody?.error || {};
+          const msg = metaErr.error_user_msg || metaErr.message || `Meta retornou status ${resp.status}`;
+          console.warn('[Meta Connect] Validation failed', {
+            connection_id: id,
+            organization_id: org?.organization_id,
+            check: check.label,
+            status: resp.status,
+            meta_error: metaErr,
+          });
+          return res.status(400).json({
+            error: `Falha ao validar ${check.label}: ${msg}`,
+            meta_error_code: metaErr.code,
+            meta_error_subcode: metaErr.error_subcode,
+            hint: metaErr.code === 200 || metaErr.code === 10
+              ? 'O token não tem permissão whatsapp_business_messaging neste número. Verifique se o System User tem a permissão e se o WABA está atribuído como ativo (asset) a ele.'
+              : metaErr.code === 190
+                ? 'Token inválido ou expirado. Gere um novo token permanente do System User no Meta Business Manager.'
+                : 'Verifique se o WABA está atribuído ao System User com permissão whatsapp_business_messaging.',
+          });
+        }
+      } catch (metaError) {
+        console.warn('[Meta Connect] Validation request error', {
           connection_id: id,
-          organization_id: org?.organization_id,
-          status: metaResp.status,
-          error: metaValidationWarning,
+          check: check.label,
+          error: metaError?.message || String(metaError),
         });
+        return res.status(502).json({ error: `Erro de rede ao validar ${check.label} na Meta` });
       }
-    } catch (metaError) {
-      metaValidationWarning = metaError?.message || String(metaError);
-      console.warn('[Meta Connect] External validation request failed', {
-        connection_id: id,
-        organization_id: org?.organization_id,
-        error: metaValidationWarning,
-      });
     }
+
+    const metaValidationWarning = null;
 
     // Generate or regenerate verify token. Mantém status "pending" até que a
     // Meta valide o webhook em /api/meta/webhook.
