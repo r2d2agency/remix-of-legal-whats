@@ -371,9 +371,9 @@ const Conexao = () => {
         method: 'POST',
       });
       setConnections(prev => prev.map(c => c.id === connection.id ? result : c));
-      toast.success('Conexão Meta ativada! Token de verificação gerado.');
+      toast.success('Token de verificação Meta gerado com sucesso.');
     } catch (error: any) {
-      toast.error(error.message || 'Erro ao conectar Meta');
+      toast.error(error?.message || error?.response?.error || 'Erro ao gerar token da Meta');
     } finally {
       setConnectingMeta(null);
     }
