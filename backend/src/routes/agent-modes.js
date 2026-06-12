@@ -1,10 +1,27 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { query } from '../db.js';
-import { logError, logInfo } from '../logger.js';
+import { logError, logInfo, getRecentLogs } from '../logger.js';
 import { callAI } from '../lib/ai-caller.js';
 
 const router = Router();
+
+// Logs em tempo real do processamento de Auto-Resposta (buffer em memória)
+router.get('/debug/auto-reply-logs', authenticate, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '150'), 10) || 150, 1), 500);
+    const level = typeof req.query.level === 'string' ? req.query.level : null;
+    const logs = getRecentLogs({
+      limit,
+      level,
+      eventPrefixes: ['auto_reply.', 'ai_caller.'],
+    });
+    res.json({ logs });
+  } catch (error) {
+    logError('agent_modes.debug_logs_error', error);
+    res.status(500).json({ error: 'Erro ao buscar logs' });
+  }
+});
 
 async function getUserContext(userId) {
   const r = await query(
