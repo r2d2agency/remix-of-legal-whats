@@ -6,6 +6,35 @@ import { callAI } from '../lib/ai-caller.js';
 
 const router = Router();
 
+async function ensureAutoReplySchema() {
+  await query(`ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS agent_mode VARCHAR(20) DEFAULT 'standard'`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS ai_agent_autoreply_config (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      agent_id UUID NOT NULL UNIQUE REFERENCES ai_agents(id) ON DELETE CASCADE,
+      organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      is_active BOOLEAN DEFAULT false,
+      paused_until TIMESTAMPTZ,
+      filter_mode VARCHAR(20) DEFAULT 'all',
+      included_tags TEXT[] DEFAULT '{}',
+      excluded_tags TEXT[] DEFAULT '{}',
+      included_contact_ids UUID[] DEFAULT '{}',
+      excluded_contact_ids UUID[] DEFAULT '{}',
+      included_groups TEXT[] DEFAULT '{}',
+      excluded_groups TEXT[] DEFAULT '{}',
+      schedule_enabled BOOLEAN DEFAULT false,
+      schedule_windows JSONB DEFAULT '[]'::jsonb,
+      response_template TEXT,
+      max_responses_per_contact INTEGER DEFAULT 1,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_org ON ai_agent_autoreply_config(organization_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_active ON ai_agent_autoreply_config(is_active) WHERE is_active = true`);
+  await query(`ALTER TABLE ai_agent_autoreply_config ADD COLUMN IF NOT EXISTS connection_ids UUID[] DEFAULT '{}'`);
+}
+
 // Logs em tempo real do processamento de Auto-Resposta (buffer em memória)
 router.get('/debug/auto-reply-logs', authenticate, async (req, res) => {
   try {
@@ -224,6 +253,7 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
 
 router.get('/:agentId/autoreply', authenticate, async (req, res) => {
   try {
+    await ensureAutoReplySchema();
     const ctx = await getUserContext(req.userId);
     if (!ctx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
     const agent = await ensureAgentOwnership(req.params.agentId, ctx.organization_id);
@@ -238,6 +268,7 @@ router.get('/:agentId/autoreply', authenticate, async (req, res) => {
 
 router.put('/:agentId/autoreply', authenticate, async (req, res) => {
   try {
+    await ensureAutoReplySchema();
     const ctx = await getUserContext(req.userId);
     if (!ctx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
     const agent = await ensureAgentOwnership(req.params.agentId, ctx.organization_id);
@@ -303,6 +334,7 @@ router.put('/:agentId/autoreply', authenticate, async (req, res) => {
 
 router.post('/:agentId/autoreply/toggle', authenticate, async (req, res) => {
   try {
+    await ensureAutoReplySchema();
     const ctx = await getUserContext(req.userId);
     if (!ctx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
     const agent = await ensureAgentOwnership(req.params.agentId, ctx.organization_id);
@@ -338,6 +370,7 @@ router.post('/:agentId/autoreply/toggle', authenticate, async (req, res) => {
 // List active autoreply agents for current org (for chat header badge)
 router.get('/autoreply/active', authenticate, async (req, res) => {
   try {
+    await ensureAutoReplySchema();
     const ctx = await getUserContext(req.userId);
     if (!ctx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
     const r = await query(

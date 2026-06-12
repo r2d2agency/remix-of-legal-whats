@@ -5,6 +5,35 @@ import { query } from '../db.js';
 import { callAI } from './ai-caller.js';
 import { logError, logInfo, logWarn } from '../logger.js';
 
+async function ensureAutoReplySchema() {
+  await query(`ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS agent_mode VARCHAR(20) DEFAULT 'standard'`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS ai_agent_autoreply_config (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      agent_id UUID NOT NULL UNIQUE REFERENCES ai_agents(id) ON DELETE CASCADE,
+      organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      is_active BOOLEAN DEFAULT false,
+      paused_until TIMESTAMPTZ,
+      filter_mode VARCHAR(20) DEFAULT 'all',
+      included_tags TEXT[] DEFAULT '{}',
+      excluded_tags TEXT[] DEFAULT '{}',
+      included_contact_ids UUID[] DEFAULT '{}',
+      excluded_contact_ids UUID[] DEFAULT '{}',
+      included_groups TEXT[] DEFAULT '{}',
+      excluded_groups TEXT[] DEFAULT '{}',
+      schedule_enabled BOOLEAN DEFAULT false,
+      schedule_windows JSONB DEFAULT '[]'::jsonb,
+      response_template TEXT,
+      max_responses_per_contact INTEGER DEFAULT 1,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_org ON ai_agent_autoreply_config(organization_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_active ON ai_agent_autoreply_config(is_active) WHERE is_active = true`);
+  await query(`ALTER TABLE ai_agent_autoreply_config ADD COLUMN IF NOT EXISTS connection_ids UUID[] DEFAULT '{}'`);
+}
+
 /**
  * Checks if current time is within business hours
  */
@@ -109,21 +138,27 @@ async function getActiveAgentConfigs(organizationId, connectionId) {
 async function ensureDefaultAutoReplyConfigs(organizationId) {
   if (!organizationId) return 0;
 
-  const res = await query(
-    `INSERT INTO ai_agent_autoreply_config (agent_id, organization_id, is_active, filter_mode, connection_ids)
-     SELECT a.id, a.organization_id, COALESCE(a.is_active, true), 'all', '{}'::uuid[]
-       FROM ai_agents a
-       LEFT JOIN ai_agent_autoreply_config c ON c.agent_id = a.id
-      WHERE a.organization_id = $1
-        AND a.agent_mode = 'autoreply'
-        AND a.organization_id IS NOT NULL
-        AND c.id IS NULL
-     ON CONFLICT (agent_id) DO NOTHING
-     RETURNING agent_id`,
-    [organizationId]
-  ).catch(() => ({ rows: [], rowCount: 0 }));
+  try {
+    await ensureAutoReplySchema();
+    const res = await query(
+      `INSERT INTO ai_agent_autoreply_config (agent_id, organization_id, is_active, filter_mode, connection_ids)
+       SELECT a.id, a.organization_id, COALESCE(a.is_active, true), 'all', '{}'::uuid[]
+         FROM ai_agents a
+         LEFT JOIN ai_agent_autoreply_config c ON c.agent_id = a.id
+        WHERE a.organization_id = $1
+          AND COALESCE(a.agent_mode, 'standard') = 'autoreply'
+          AND a.organization_id IS NOT NULL
+          AND c.id IS NULL
+       ON CONFLICT (agent_id) DO NOTHING
+       RETURNING agent_id`,
+      [organizationId]
+    );
 
-  return res.rowCount || 0;
+    return res.rowCount || 0;
+  } catch (error) {
+    logError('auto_reply.ensure_default_configs_failed', error, { organization_id: organizationId });
+    throw error;
+  }
 }
 
 async function getOrganizationAiKey(organizationId, provider) {
@@ -307,14 +342,12 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
 
     if (configs.length === 0) {
       const backfilled = await ensureDefaultAutoReplyConfigs(connection.organization_id);
-      if (backfilled > 0) {
-        logInfo('auto_reply.debug.backfilled_missing_configs', {
-          connection_id: connection.id,
-          organization_id: connection.organization_id,
-          inserted_configs: backfilled,
-        });
-        configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
-      }
+      logInfo('auto_reply.debug.backfilled_missing_configs', {
+        connection_id: connection.id,
+        organization_id: connection.organization_id,
+        inserted_configs: backfilled,
+      });
+      configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
     }
 
     if (configs.length === 0) {
