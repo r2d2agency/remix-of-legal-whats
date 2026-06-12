@@ -79,6 +79,11 @@ function normalizeTagName(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function allowsLinkedAutoReplyFallback(provider) {
+  const normalized = String(provider || '').trim().toLowerCase();
+  return normalized === 'uazapi' || normalized === 'wapi' || normalized === 'meta';
+}
+
 async function getConversationContext(connectionId, remoteJid) {
   const variants = buildRemoteJidVariants(remoteJid);
   const phone = normalizePhone(remoteJid);
@@ -112,7 +117,7 @@ async function getConversationTagNames(conversationId) {
   return res.rows.map((row) => String(row.name || '')).filter(Boolean);
 }
 
-async function getActiveAgentConfigs(organizationId, connectionId) {
+async function getActiveAgentConfigs(organizationId, connectionId, allowLinkedFallback = false) {
   const res = await query(
     `SELECT c.*, a.name AS agent_name, a.system_prompt, a.ai_provider, a.ai_model, a.ai_api_key,
             a.temperature, a.max_tokens
@@ -122,43 +127,107 @@ async function getActiveAgentConfigs(organizationId, connectionId) {
         AND c.is_active = true
         AND (c.paused_until IS NULL OR c.paused_until > NOW())
         AND a.is_active = true
-        AND a.agent_mode = 'autoreply'
+         AND (
+           COALESCE(a.agent_mode, 'standard') = 'autoreply'
+           OR (
+             $3::boolean = true
+             AND EXISTS (
+               SELECT 1
+                 FROM ai_agent_connections ac
+                WHERE ac.agent_id = a.id
+                  AND ac.connection_id = $2
+                  AND ac.is_active = true
+             )
+           )
+         )
         AND (
           c.connection_ids IS NULL
           OR c.connection_ids = '{}'
           OR $2::uuid = ANY(c.connection_ids)
         )
       ORDER BY c.updated_at DESC NULLS LAST, c.created_at DESC`,
-    [organizationId, connectionId]
+    [organizationId, connectionId, allowLinkedFallback]
   );
 
   return res.rows;
 }
 
-async function ensureDefaultAutoReplyConfigs(organizationId) {
-  if (!organizationId) return 0;
+async function ensureDefaultAutoReplyConfigs(organizationId, connectionId, allowLinkedFallback = false) {
+  if (!organizationId || !connectionId) return 0;
 
   try {
     await ensureAutoReplySchema();
     const res = await query(
       `INSERT INTO ai_agent_autoreply_config (agent_id, organization_id, is_active, filter_mode, connection_ids)
-       SELECT a.id, a.organization_id, COALESCE(a.is_active, true), 'all', '{}'::uuid[]
+       SELECT a.id,
+              a.organization_id,
+              COALESCE(a.is_active, true),
+              'all',
+              CASE
+                WHEN COALESCE(a.agent_mode, 'standard') = 'autoreply' THEN '{}'::uuid[]
+                ELSE ARRAY[$2::uuid]
+              END
          FROM ai_agents a
          LEFT JOIN ai_agent_autoreply_config c ON c.agent_id = a.id
         WHERE a.organization_id = $1
-          AND COALESCE(a.agent_mode, 'standard') = 'autoreply'
           AND a.organization_id IS NOT NULL
+          AND (
+            COALESCE(a.agent_mode, 'standard') = 'autoreply'
+            OR (
+              $3::boolean = true
+              AND EXISTS (
+                SELECT 1
+                  FROM ai_agent_connections ac
+                 WHERE ac.agent_id = a.id
+                   AND ac.connection_id = $2
+                   AND ac.is_active = true
+              )
+            )
+          )
           AND c.id IS NULL
        ON CONFLICT (agent_id) DO NOTHING
        RETURNING agent_id`,
-      [organizationId]
+      [organizationId, connectionId, allowLinkedFallback]
     );
 
     return res.rowCount || 0;
   } catch (error) {
-    logError('auto_reply.ensure_default_configs_failed', error, { organization_id: organizationId });
+    logError('auto_reply.ensure_default_configs_failed', error, {
+      organization_id: organizationId,
+      connection_id: connectionId,
+      allow_linked_fallback: allowLinkedFallback,
+    });
     throw error;
   }
+}
+
+async function getAutoReplyCandidatesDiagnostic(organizationId, connectionId) {
+  if (!organizationId || !connectionId) return [];
+
+  const res = await query(
+    `SELECT a.id AS agent_id,
+            a.name AS agent_name,
+            a.agent_mode,
+            a.is_active AS agent_active,
+            EXISTS (
+              SELECT 1
+                FROM ai_agent_connections ac
+               WHERE ac.agent_id = a.id
+                 AND ac.connection_id = $2
+                 AND ac.is_active = true
+            ) AS linked_to_connection,
+            EXISTS (
+              SELECT 1
+                FROM ai_agent_autoreply_config c
+               WHERE c.agent_id = a.id
+            ) AS has_autoreply_config
+       FROM ai_agents a
+      WHERE a.organization_id = $1
+      ORDER BY linked_to_connection DESC, a.updated_at DESC NULLS LAST, a.created_at DESC`,
+    [organizationId, connectionId]
+  ).catch(() => ({ rows: [] }));
+
+  return res.rows;
 }
 
 async function getOrganizationAiKey(organizationId, provider) {
@@ -332,22 +401,25 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
       return;
     }
 
-    let configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
+    const allowLinkedFallback = allowsLinkedAutoReplyFallback(connection?.provider);
+    let configs = await getActiveAgentConfigs(connection.organization_id, connection.id, allowLinkedFallback);
     logInfo('auto_reply.debug.configs_loaded', {
       connection_id: connection.id,
       organization_id: connection.organization_id,
+      allow_linked_fallback: allowLinkedFallback,
       total_configs: configs.length,
       agent_ids: configs.map((cfg) => cfg.agent_id),
     });
 
     if (configs.length === 0) {
-      const backfilled = await ensureDefaultAutoReplyConfigs(connection.organization_id);
+      const backfilled = await ensureDefaultAutoReplyConfigs(connection.organization_id, connection.id, allowLinkedFallback);
       logInfo('auto_reply.debug.backfilled_missing_configs', {
         connection_id: connection.id,
         organization_id: connection.organization_id,
+        allow_linked_fallback: allowLinkedFallback,
         inserted_configs: backfilled,
       });
-      configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
+      configs = await getActiveAgentConfigs(connection.organization_id, connection.id, allowLinkedFallback);
     }
 
     if (configs.length === 0) {
@@ -367,6 +439,7 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
         logWarn('auto_reply.debug.no_configs_diagnostic', {
           connection_id: connection.id,
           organization_id: connection.organization_id,
+          allow_linked_fallback: allowLinkedFallback,
           total_rows_in_org: diag.rows.length,
           rows: diag.rows.map((r) => ({
             config_id: r.config_id,
@@ -387,6 +460,7 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
               : !r.connection_match ? 'connection_not_in_connection_ids'
               : 'unknown',
           })),
+          candidate_agents: await getAutoReplyCandidatesDiagnostic(connection.organization_id, connection.id),
         });
       } catch (diagErr) {
         logError('auto_reply.debug.no_configs_diagnostic_failed', diagErr);
