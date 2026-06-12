@@ -342,14 +342,12 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
 
     if (configs.length === 0) {
       const backfilled = await ensureDefaultAutoReplyConfigs(connection.organization_id);
-      if (backfilled > 0) {
-        logInfo('auto_reply.debug.backfilled_missing_configs', {
-          connection_id: connection.id,
-          organization_id: connection.organization_id,
-          inserted_configs: backfilled,
-        });
-        configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
-      }
+      logInfo('auto_reply.debug.backfilled_missing_configs', {
+        connection_id: connection.id,
+        organization_id: connection.organization_id,
+        inserted_configs: backfilled,
+      });
+      configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
     }
 
     if (configs.length === 0) {
