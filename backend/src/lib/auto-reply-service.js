@@ -120,7 +120,7 @@ async function getConversationTagNames(conversationId) {
 async function getActiveAgentConfigs(organizationId, connectionId, allowLinkedFallback = false) {
   const res = await query(
     `SELECT c.*, a.name AS agent_name, a.system_prompt, a.ai_provider, a.ai_model, a.ai_api_key,
-            a.temperature, a.max_tokens
+            a.temperature, a.max_tokens, a.organization_id AS agent_organization_id
        FROM ai_agent_autoreply_config c
        JOIN ai_agents a ON a.id = c.agent_id
       WHERE (
@@ -342,7 +342,18 @@ async function logAutoReplySent(agentId, conversationId, text) {
 
 async function generateAgentReply(config, organizationId, inboundMessage) {
   const provider = config.ai_provider || 'gemini';
-  const apiKey = config.ai_api_key || await getOrganizationAiKey(organizationId, provider);
+  let apiKey = config.ai_api_key
+    || await getOrganizationAiKey(organizationId, provider);
+
+  if (!apiKey && config.agent_organization_id && config.agent_organization_id !== organizationId) {
+    apiKey = await getOrganizationAiKey(config.agent_organization_id, provider);
+  }
+
+  if (!apiKey) {
+    if (provider === 'gemini') apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    else if (provider === 'openai') apiKey = process.env.OPENAI_API_KEY;
+    else if (provider === 'openrouter') apiKey = process.env.OPENROUTER_API_KEY;
+  }
 
   if (!apiKey) {
     throw new Error(`Sem chave de IA configurada para provider=${provider}`);
