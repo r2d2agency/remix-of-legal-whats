@@ -123,7 +123,10 @@ async function getActiveAgentConfigs(organizationId, connectionId, allowLinkedFa
             a.temperature, a.max_tokens
        FROM ai_agent_autoreply_config c
        JOIN ai_agents a ON a.id = c.agent_id
-      WHERE c.organization_id = $1
+      WHERE (
+          c.organization_id = $1
+          OR $2::uuid = ANY(c.connection_ids)
+        )
         AND c.is_active = true
         AND (c.paused_until IS NULL OR c.paused_until > NOW())
         AND a.is_active = true
@@ -207,6 +210,7 @@ async function getAutoReplyCandidatesDiagnostic(organizationId, connectionId) {
   const res = await query(
     `SELECT a.id AS agent_id,
             a.name AS agent_name,
+            a.organization_id AS agent_org,
             a.agent_mode,
             a.is_active AS agent_active,
             EXISTS (
@@ -216,14 +220,28 @@ async function getAutoReplyCandidatesDiagnostic(organizationId, connectionId) {
                  AND ac.connection_id = $2
                  AND ac.is_active = true
             ) AS linked_to_connection,
-            EXISTS (
-              SELECT 1
+            (
+              SELECT json_build_object(
+                'config_id', c.id,
+                'config_org', c.organization_id,
+                'is_active', c.is_active,
+                'paused_until', c.paused_until,
+                'connection_ids', c.connection_ids
+              )
                 FROM ai_agent_autoreply_config c
                WHERE c.agent_id = a.id
-            ) AS has_autoreply_config
+               LIMIT 1
+            ) AS autoreply_config
        FROM ai_agents a
       WHERE a.organization_id = $1
-      ORDER BY linked_to_connection DESC, a.updated_at DESC NULLS LAST, a.created_at DESC`,
+         OR COALESCE(a.agent_mode, 'standard') = 'autoreply'
+         OR EXISTS (
+              SELECT 1 FROM ai_agent_autoreply_config c
+               WHERE c.agent_id = a.id
+                 AND $2::uuid = ANY(c.connection_ids)
+            )
+      ORDER BY linked_to_connection DESC, a.updated_at DESC NULLS LAST, a.created_at DESC
+      LIMIT 50`,
     [organizationId, connectionId]
   ).catch(() => ({ rows: [] }));
 
