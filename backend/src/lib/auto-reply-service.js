@@ -401,22 +401,25 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
       return;
     }
 
-    let configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
+    const allowLinkedFallback = allowsLinkedAutoReplyFallback(connection?.provider);
+    let configs = await getActiveAgentConfigs(connection.organization_id, connection.id, allowLinkedFallback);
     logInfo('auto_reply.debug.configs_loaded', {
       connection_id: connection.id,
       organization_id: connection.organization_id,
+      allow_linked_fallback: allowLinkedFallback,
       total_configs: configs.length,
       agent_ids: configs.map((cfg) => cfg.agent_id),
     });
 
     if (configs.length === 0) {
-      const backfilled = await ensureDefaultAutoReplyConfigs(connection.organization_id);
+      const backfilled = await ensureDefaultAutoReplyConfigs(connection.organization_id, connection.id, allowLinkedFallback);
       logInfo('auto_reply.debug.backfilled_missing_configs', {
         connection_id: connection.id,
         organization_id: connection.organization_id,
+        allow_linked_fallback: allowLinkedFallback,
         inserted_configs: backfilled,
       });
-      configs = await getActiveAgentConfigs(connection.organization_id, connection.id);
+      configs = await getActiveAgentConfigs(connection.organization_id, connection.id, allowLinkedFallback);
     }
 
     if (configs.length === 0) {
@@ -436,6 +439,7 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
         logWarn('auto_reply.debug.no_configs_diagnostic', {
           connection_id: connection.id,
           organization_id: connection.organization_id,
+          allow_linked_fallback: allowLinkedFallback,
           total_rows_in_org: diag.rows.length,
           rows: diag.rows.map((r) => ({
             config_id: r.config_id,
@@ -456,6 +460,7 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
               : !r.connection_match ? 'connection_not_in_connection_ids'
               : 'unknown',
           })),
+          candidate_agents: await getAutoReplyCandidatesDiagnostic(connection.organization_id, connection.id),
         });
       } catch (diagErr) {
         logError('auto_reply.debug.no_configs_diagnostic_failed', diagErr);
