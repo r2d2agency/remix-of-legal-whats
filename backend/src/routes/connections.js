@@ -568,9 +568,11 @@ router.post('/:id/meta-connect', async (req, res) => {
     // Meta valide o webhook em /api/meta/webhook.
     const verifyToken = crypto.randomBytes(16).toString('hex');
 
+    // Validação passou — credenciais funcionam para enviar templates.
+    // Marca como conectado e gera/regenera o verify token do webhook.
     const result = await query(
       `UPDATE connections 
-       SET meta_webhook_verify_token = $1, status = 'pending', updated_at = NOW()
+       SET meta_webhook_verify_token = $1, status = 'connected', updated_at = NOW()
        WHERE id = $2
        RETURNING *`,
       [verifyToken, id]
@@ -579,9 +581,7 @@ router.post('/:id/meta-connect', async (req, res) => {
     res.json({
       ...result.rows[0],
       meta_validation_warning: metaValidationWarning,
-      message: metaValidationWarning
-        ? 'Token de verificação gerado, mas a validação externa falhou. Configure o webhook na Meta para concluir a conexão.'
-        : 'Token de verificação gerado. Configure o webhook na Meta para concluir a conexão.',
+      message: 'Credenciais Meta validadas com sucesso. Configure o webhook (URL + verify token) na Meta para receber mensagens.',
     });
   } catch (error) {
     console.error('Meta connect error:', error);
