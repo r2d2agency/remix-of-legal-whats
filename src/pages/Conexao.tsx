@@ -367,11 +367,17 @@ const Conexao = () => {
   const handleMetaConnect = async (connection: Connection) => {
     setConnectingMeta(connection.id);
     try {
-      const result = await api<Connection>(`/api/connections/${connection.id}/meta-connect`, {
-        method: 'POST',
-      });
-      setConnections(prev => prev.map(c => c.id === connection.id ? result : c));
-      toast.success('Token de verificação Meta gerado com sucesso.');
+      const result = await api<Connection & { meta_validation_warning?: string | null; message?: string }>(
+        `/api/connections/${connection.id}/meta-connect`,
+        { method: 'POST' }
+      );
+      const { meta_validation_warning, message, ...conn } = result as any;
+      setConnections(prev => prev.map(c => c.id === connection.id ? (conn as Connection) : c));
+      if (meta_validation_warning) {
+        toast.warning(`Token gerado, mas Meta retornou: ${meta_validation_warning}`, { duration: 8000 });
+      } else {
+        toast.success(message || 'Token de verificação gerado. Configure o webhook na Meta para concluir.');
+      }
     } catch (error: any) {
       toast.error(error?.message || error?.response?.error || 'Erro ao gerar token da Meta');
     } finally {

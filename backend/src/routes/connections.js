@@ -516,10 +516,10 @@ router.post('/:id/meta-connect', async (req, res) => {
       return res.status(400).json({ error: 'Credenciais Meta incompletas (token, phone_number_id ou waba_id ausente)' });
     }
 
-    // Gera/regenera o verify token sem bloquear por validação externa.
-    // A validação explícita das credenciais já existe em /api/meta/validate,
-    // e durante a configuração do app/webhook na Meta esse clique precisa
-    // funcionar mesmo antes da etapa final de verificação externa.
+    // Validação externa: tenta confirmar credenciais na Graph API.
+    // Loga aviso se falhar, mas NÃO marca como "connected" — apenas a
+    // verificação do webhook em /api/meta/webhook deve confirmar conexão.
+    let metaValidationWarning = null;
     try {
       const metaResp = await fetch(
         `https://graph.facebook.com/v21.0/${connection.meta_waba_id}?fields=id,name`,
@@ -528,33 +528,42 @@ router.post('/:id/meta-connect', async (req, res) => {
 
       if (!metaResp.ok) {
         const err = await metaResp.json().catch(() => ({}));
-        console.warn('[Meta Connect] External validation failed, generating verify token anyway', {
+        metaValidationWarning = err.error?.message || `Meta retornou status ${metaResp.status}`;
+        console.warn('[Meta Connect] External validation failed', {
           connection_id: id,
           organization_id: org?.organization_id,
           status: metaResp.status,
-          error: err.error?.message || null,
+          error: metaValidationWarning,
         });
       }
     } catch (metaError) {
-      console.warn('[Meta Connect] External validation request failed, generating verify token anyway', {
+      metaValidationWarning = metaError?.message || String(metaError);
+      console.warn('[Meta Connect] External validation request failed', {
         connection_id: id,
         organization_id: org?.organization_id,
-        error: metaError?.message || String(metaError),
+        error: metaValidationWarning,
       });
     }
 
-    // Generate or regenerate verify token
+    // Generate or regenerate verify token. Mantém status "pending" até que a
+    // Meta valide o webhook em /api/meta/webhook.
     const verifyToken = crypto.randomBytes(16).toString('hex');
 
     const result = await query(
       `UPDATE connections 
-       SET meta_webhook_verify_token = $1, status = 'connected', updated_at = NOW()
+       SET meta_webhook_verify_token = $1, status = 'pending', updated_at = NOW()
        WHERE id = $2
        RETURNING *`,
       [verifyToken, id]
     );
 
-    res.json(result.rows[0]);
+    res.json({
+      ...result.rows[0],
+      meta_validation_warning: metaValidationWarning,
+      message: metaValidationWarning
+        ? 'Token de verificação gerado, mas a validação externa falhou. Configure o webhook na Meta para concluir a conexão.'
+        : 'Token de verificação gerado. Configure o webhook na Meta para concluir a conexão.',
+    });
   } catch (error) {
     console.error('Meta connect error:', error);
     res.status(500).json({ error: 'Erro ao conectar Meta' });
