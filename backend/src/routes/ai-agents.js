@@ -186,6 +186,15 @@ router.post('/', authenticate, async (req, res) => {
       try {
         await query(`UPDATE ai_agents SET agent_mode = $1 WHERE id = $2`, [agent_mode, result.rows[0].id]);
         result.rows[0].agent_mode = agent_mode;
+
+        if (agent_mode === 'autoreply') {
+          await query(
+            `INSERT INTO ai_agent_autoreply_config (agent_id, organization_id, is_active, filter_mode, connection_ids)
+             VALUES ($1, $2, true, 'all', '{}'::uuid[])
+             ON CONFLICT (agent_id) DO NOTHING`,
+            [result.rows[0].id, userCtx.organization_id]
+          );
+        }
       } catch (e) { logError('ai_agents.set_mode', e); }
     }
 
@@ -266,6 +275,19 @@ router.patch('/:id', authenticate, async (req, res) => {
       WHERE id = $${paramIndex}
       RETURNING *
     `, values);
+
+    if (result.rows[0]?.agent_mode === 'autoreply') {
+      try {
+        await query(
+          `INSERT INTO ai_agent_autoreply_config (agent_id, organization_id, is_active, filter_mode, connection_ids)
+           VALUES ($1, $2, COALESCE($3, true), 'all', '{}'::uuid[])
+           ON CONFLICT (agent_id) DO NOTHING`,
+          [req.params.id, userCtx.organization_id, result.rows[0]?.is_active]
+        );
+      } catch (e) {
+        logError('ai_agents.ensure_autoreply_config', e, { agent_id: req.params.id });
+      }
+    }
 
     res.json(result.rows[0]);
   } catch (error) {
