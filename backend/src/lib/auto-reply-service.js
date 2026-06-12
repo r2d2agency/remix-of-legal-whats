@@ -446,11 +446,14 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
         const diag = await query(
           `SELECT c.id AS config_id, c.agent_id, c.is_active AS config_active,
                   c.paused_until, c.connection_ids, c.included_tags, c.filter_mode,
+                  c.organization_id AS config_org,
                   a.name AS agent_name, a.is_active AS agent_active, a.agent_mode,
+                  a.organization_id AS agent_org,
                   (c.connection_ids IS NULL OR c.connection_ids = '{}' OR $2::uuid = ANY(c.connection_ids)) AS connection_match
              FROM ai_agent_autoreply_config c
              LEFT JOIN ai_agents a ON a.id = c.agent_id
             WHERE c.organization_id = $1
+               OR $2::uuid = ANY(c.connection_ids)
             ORDER BY c.updated_at DESC NULLS LAST`,
           [connection.organization_id, connection.id]
         );
