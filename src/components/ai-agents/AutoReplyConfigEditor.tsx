@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Tag, X, Plus, Clock, Play, Pause } from 'lucide-react';
+import { Tag, X, Plus, Clock, Play, Pause, RefreshCw, Activity } from 'lucide-react';
 import { useAutoReplyConfig, AutoReplyConfig } from '@/hooks/use-agent-modes';
 import { useConnections } from '@/hooks/use-connections';
 import { api } from '@/lib/api';
@@ -295,6 +295,94 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
       <div className="flex justify-end">
         <Button onClick={handleSave}>Salvar configurações</Button>
       </div>
+
+      <AutoReplyDebugLogs />
     </div>
+  );
+}
+
+function AutoReplyDebugLogs() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [auto, setAuto] = useState(true);
+  const [filter, setFilter] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await api<{ logs: any[] }>(`/api/agent-modes/debug/auto-reply-logs?limit=200`, { auth: true });
+      setLogs(data?.logs || []);
+    } catch (e: any) {
+      toast.error('Erro ao buscar logs: ' + (e?.message || ''));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!auto) return;
+    const id = setInterval(load, 4000);
+    return () => clearInterval(id);
+  }, [auto]);
+
+  const filtered = logs.filter((l) => {
+    if (!filter) return true;
+    const s = (l.event || '') + ' ' + JSON.stringify(l);
+    return s.toLowerCase().includes(filter.toLowerCase());
+  });
+
+  const levelColor = (lv: string) =>
+    lv === 'error' ? 'text-destructive' : lv === 'warn' ? 'text-yellow-600' : 'text-muted-foreground';
+
+  return (
+    <Card className="p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <Label className="font-semibold flex items-center gap-2">
+          <Activity className="h-4 w-4" /> Logs de diagnóstico (tempo real)
+        </Label>
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder="Filtrar (ex: tag, connection, skip)"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="h-8 w-56"
+          />
+          <label className="flex items-center gap-1 text-xs">
+            <Switch checked={auto} onCheckedChange={setAuto} /> auto
+          </label>
+          <Button size="sm" variant="outline" onClick={load} disabled={loading}>
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Atualizar
+          </Button>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Mostra os eventos do processamento de auto-resposta vindos do webhook. Procure por <code>auto_reply.debug.start</code> (recebeu mensagem),
+        <code> configs_loaded</code>, <code>filter_check</code>, <code>no_matching_config</code> ou <code>send_result</code>.
+      </p>
+      <div className="border rounded-md bg-muted/30 max-h-80 overflow-y-auto font-mono text-[11px]">
+        {filtered.length === 0 ? (
+          <div className="p-4 text-center text-muted-foreground">
+            {loading ? 'Carregando...' : 'Nenhum log ainda. Envie uma mensagem de teste para a conexão configurada.'}
+          </div>
+        ) : (
+          filtered.map((l, i) => (
+            <div key={i} className="px-2 py-1 border-b last:border-b-0">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">{new Date(l.ts).toLocaleTimeString()}</span>
+                <span className={`uppercase ${levelColor(l.level)}`}>{l.level}</span>
+                <span className="font-semibold">{l.event}</span>
+              </div>
+              <pre className="whitespace-pre-wrap break-all text-muted-foreground mt-0.5">
+                {JSON.stringify(
+                  Object.fromEntries(Object.entries(l).filter(([k]) => !['ts','level','event'].includes(k))),
+                  null, 0
+                )}
+              </pre>
+            </div>
+          ))
+        )}
+      </div>
+    </Card>
   );
 }
