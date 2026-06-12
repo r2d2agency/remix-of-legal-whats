@@ -4017,6 +4017,28 @@ export async function initDatabase() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_autoreply_log_contact ON ai_agent_autoreply_log(contact_id, agent_id)`);
 
+    // Self-healing seed: para cada ai_agent com agent_mode='autoreply' que NÃO tem
+    // linha em ai_agent_autoreply_config, cria uma linha padrão ativa (filter_mode='all',
+    // connection_ids vazio = todas as conexões da org). Isso evita o cenário em que o
+    // usuário ativa o modo no agente mas o webhook não encontra config e ignora.
+    try {
+      const seed = await pool.query(`
+        INSERT INTO ai_agent_autoreply_config (agent_id, organization_id, is_active, filter_mode, connection_ids)
+        SELECT a.id, a.organization_id, COALESCE(a.is_active, true), 'all', '{}'::uuid[]
+          FROM ai_agents a
+          LEFT JOIN ai_agent_autoreply_config c ON c.agent_id = a.id
+         WHERE a.agent_mode = 'autoreply'
+           AND c.id IS NULL
+        ON CONFLICT (agent_id) DO NOTHING
+        RETURNING agent_id
+      `);
+      if (seed.rowCount > 0) {
+        console.log(`  🌱 Seeded ${seed.rowCount} default autoreply config row(s) for existing agents`);
+      }
+    } catch (seedErr) {
+      console.error('  ⚠️ Failed autoreply seed:', seedErr.message);
+    }
+
     console.log('  ✅ Agent Modes (Copilot/AutoReply) schema ready');
   } catch (e) {
     console.error('  ⚠️ Failed agent-modes schema:', e.message);
