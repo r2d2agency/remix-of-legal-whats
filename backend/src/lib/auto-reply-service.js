@@ -285,7 +285,49 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
       agent_ids: configs.map((cfg) => cfg.agent_id),
     });
 
-    if (configs.length === 0) return;
+    if (configs.length === 0) {
+      // Diagnóstico extra: por que nenhuma config bateu?
+      try {
+        const diag = await query(
+          `SELECT c.id AS config_id, c.agent_id, c.is_active AS config_active,
+                  c.paused_until, c.connection_ids, c.included_tags, c.filter_mode,
+                  a.name AS agent_name, a.is_active AS agent_active, a.agent_mode,
+                  (c.connection_ids IS NULL OR c.connection_ids = '{}' OR $2::uuid = ANY(c.connection_ids)) AS connection_match
+             FROM ai_agent_autoreply_config c
+             LEFT JOIN ai_agents a ON a.id = c.agent_id
+            WHERE c.organization_id = $1
+            ORDER BY c.updated_at DESC NULLS LAST`,
+          [connection.organization_id, connection.id]
+        );
+        logWarn('auto_reply.debug.no_configs_diagnostic', {
+          connection_id: connection.id,
+          organization_id: connection.organization_id,
+          total_rows_in_org: diag.rows.length,
+          rows: diag.rows.map((r) => ({
+            config_id: r.config_id,
+            agent_id: r.agent_id,
+            agent_name: r.agent_name,
+            agent_mode: r.agent_mode,
+            config_active: r.config_active,
+            agent_active: r.agent_active,
+            paused_until: r.paused_until,
+            connection_ids: r.connection_ids,
+            connection_match: r.connection_match,
+            filter_mode: r.filter_mode,
+            // Motivo provável da rejeição
+            rejected_reason: !r.config_active ? 'config_inactive'
+              : !r.agent_active ? 'agent_inactive'
+              : r.agent_mode !== 'autoreply' ? `agent_mode_is_${r.agent_mode || 'null'}_expected_autoreply`
+              : (r.paused_until && new Date(r.paused_until) > new Date()) ? 'paused'
+              : !r.connection_match ? 'connection_not_in_connection_ids'
+              : 'unknown',
+          })),
+        });
+      } catch (diagErr) {
+        logError('auto_reply.debug.no_configs_diagnostic_failed', diagErr);
+      }
+      return;
+    }
 
     const conversation = await getConversationContext(connection.id, remoteJid);
     const tagNames = conversation?.id ? await getConversationTagNames(conversation.id) : [];
