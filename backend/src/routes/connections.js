@@ -516,16 +516,30 @@ router.post('/:id/meta-connect', async (req, res) => {
       return res.status(400).json({ error: 'Credenciais Meta incompletas (token, phone_number_id ou waba_id ausente)' });
     }
 
-    // Validate token against Meta API
-    const metaResp = await fetch(
-      `https://graph.facebook.com/v21.0/${connection.meta_waba_id}?fields=id,name`,
-      { headers: { Authorization: `Bearer ${connection.meta_token}` } }
-    );
+    // Gera/regenera o verify token sem bloquear por validação externa.
+    // A validação explícita das credenciais já existe em /api/meta/validate,
+    // e durante a configuração do app/webhook na Meta esse clique precisa
+    // funcionar mesmo antes da etapa final de verificação externa.
+    try {
+      const metaResp = await fetch(
+        `https://graph.facebook.com/v21.0/${connection.meta_waba_id}?fields=id,name`,
+        { headers: { Authorization: `Bearer ${connection.meta_token}` } }
+      );
 
-    if (!metaResp.ok) {
-      const err = await metaResp.json().catch(() => ({}));
-      return res.status(400).json({
-        error: err.error?.message || `Token Meta inválido (${metaResp.status})`,
+      if (!metaResp.ok) {
+        const err = await metaResp.json().catch(() => ({}));
+        console.warn('[Meta Connect] External validation failed, generating verify token anyway', {
+          connection_id: id,
+          organization_id: org?.organization_id,
+          status: metaResp.status,
+          error: err.error?.message || null,
+        });
+      }
+    } catch (metaError) {
+      console.warn('[Meta Connect] External validation request failed, generating verify token anyway', {
+        connection_id: id,
+        organization_id: org?.organization_id,
+        error: metaError?.message || String(metaError),
       });
     }
 
