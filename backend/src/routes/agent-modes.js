@@ -435,4 +435,64 @@ router.get('/autoreply/active', authenticate, async (req, res) => {
   }
 });
 
+// Returns per-connection map: which autoreply agent is currently active on each connection.
+router.get('/autoreply/by-connection', authenticate, async (req, res) => {
+  try {
+    await ensureAutoReplySchema();
+    const ctx = await getUserContext(req.userId);
+    if (!ctx?.organization_id) return res.status(403).json({ error: 'Sem organização' });
+
+    const cfgR = await query(
+      `SELECT c.agent_id, c.connection_ids, c.paused_until, c.schedule_enabled,
+              c.schedule_windows, a.name AS agent_name
+         FROM ai_agent_autoreply_config c
+         JOIN ai_agents a ON a.id = c.agent_id
+        WHERE c.organization_id = $1 AND c.is_active = true
+          AND (c.paused_until IS NULL OR c.paused_until > NOW())`,
+      [ctx.organization_id]
+    );
+
+    // All org connections (so "vale para todas" maps to every connection)
+    const connR = await query(
+      `SELECT id, name, phone_number, provider, status
+         FROM connections WHERE organization_id = $1`,
+      [ctx.organization_id]
+    ).catch(() => ({ rows: [] }));
+
+    const byConn = {};
+    for (const c of connR.rows) {
+      byConn[c.id] = {
+        connection_id: c.id,
+        connection_name: c.name,
+        phone_number: c.phone_number,
+        status: c.status,
+        agent: null,
+      };
+    }
+
+    for (const cfg of cfgR.rows) {
+      const targets = Array.isArray(cfg.connection_ids) && cfg.connection_ids.length
+        ? cfg.connection_ids
+        : connR.rows.map((c) => c.id);
+      for (const cid of targets) {
+        if (!byConn[cid]) continue;
+        // first active wins (deactivateConflicting guarantees at most one)
+        if (!byConn[cid].agent) {
+          byConn[cid].agent = {
+            agent_id: cfg.agent_id,
+            agent_name: cfg.agent_name,
+            paused_until: cfg.paused_until,
+            scoped_to_all: !cfg.connection_ids?.length,
+          };
+        }
+      }
+    }
+
+    res.json(Object.values(byConn));
+  } catch (e) {
+    logError('agent_modes.autoreply_by_connection', e);
+    res.status(500).json({ error: 'Erro ao listar status por conexão' });
+  }
+});
+
 export default router;
