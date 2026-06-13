@@ -399,7 +399,14 @@ router.post('/:agentId/autoreply/toggle', authenticate, async (req, res) => {
         WHERE agent_id = $3 RETURNING *`,
       [!!active, pausedUntil, req.params.agentId]
     );
+    let deactivated = [];
+    if (active && r.rows[0]) {
+      deactivated = await deactivateConflicting(
+        req.params.agentId, ctx.organization_id, r.rows[0].connection_ids || [],
+      );
+    }
     logInfo('agent_modes.autoreply_toggle', { agent_id: req.params.agentId, active: !!active, until: pausedUntil });
+    if (deactivated.length && r.rows[0]) r.rows[0]._deactivated_conflicts = deactivated;
     res.json(r.rows[0]);
   } catch (e) {
     logError('agent_modes.autoreply_toggle_err', e);
