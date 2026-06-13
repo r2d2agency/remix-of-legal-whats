@@ -128,6 +128,8 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
       schedule_windows: Array.isArray(config.schedule_windows) ? config.schedule_windows : [],
       response_template: config.response_template,
       max_responses_per_contact: config.max_responses_per_contact ?? 1,
+      reply_mode: (config.reply_mode as any) || 'fixed',
+      sdr_max_replies: config.sdr_max_replies ?? 5,
     });
   }, [config]);
 
@@ -151,6 +153,7 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
 
   const isActive = config?.is_active;
   const until = config?.paused_until ? new Date(config.paused_until) : null;
+  const replyMode = (local.reply_mode as any) || 'fixed';
   const selectedConnIds = local.connection_ids || [];
   const toggleConn = (id: string) => {
     if (selectedConnIds.includes(id)) set({ connection_ids: selectedConnIds.filter((x) => x !== id) });
