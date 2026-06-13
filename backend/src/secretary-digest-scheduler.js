@@ -98,46 +98,75 @@ export async function executeSecretaryDigest({ organizationId = null, force = fa
           `⏳ *Tarefas pendentes:* ${pending}\n` +
           (topMembers ? `\n👥 *Mais demandados:*\n${topMembers}` : '');
 
-        // Generate full narrative summary per group (AI)
-        let narrativeSection = '';
+        // Generate narrative summary per group (AI)
+        let narrative = null;
         try {
-          const narrative = await generateGroupsNarrativeSummary({
+          narrative = await generateGroupsNarrativeSummary({
             organizationId: config.organization_id,
             hours: 24,
             maxGroups: 8,
           });
-          if (narrative?.groups && narrative.groups.length > 0) {
-            narrativeSection = '\n\n━━━━━━━━━━━━━━━━━━\n📝 *Resumo Detalhado por Grupo*\n━━━━━━━━━━━━━━━━━━';
-            for (const g of narrative.groups) {
-              let block = `\n\n*📍 ${g.groupName}*`;
-              block += `\n_${g.messageCount} mensagens • ${g.participants.length} participantes_\n`;
-              if (g.summary) block += `\n${g.summary}`;
-              if (g.key_points?.length) {
-                block += `\n\n*Pontos-chave:*\n` + g.key_points.map(p => `• ${p}`).join('\n');
-              }
-              if (g.decisions?.length) {
-                block += `\n\n*Decisões:*\n` + g.decisions.map(d => `✅ ${d}`).join('\n');
-              }
-              if (g.action_items?.length) {
-                block += `\n\n*Ações:*\n` + g.action_items.map(a => {
-                  const resp = a.responsible ? ` — _${a.responsible}_` : '';
-                  const dl = a.deadline ? ` (${a.deadline})` : '';
-                  return `🎯 ${a.task}${resp}${dl}`;
-                }).join('\n');
-              }
-              if (g.highlights?.length) {
-                block += `\n\n*Destaques:*\n` + g.highlights.map(h => `💬 ${h}`).join('\n');
-              }
-              narrativeSection += block;
-            }
-          } else if (narrative?.error === 'no_ai_config') {
-            narrativeSection = '\n\n_⚠️ Configure a IA da organização para receber o resumo narrativo dos grupos._';
-          }
         } catch (narrErr) {
           console.error('📊 [DIGEST] Narrative error:', narrErr.message);
         }
 
-        const fullMessage = headerMessage + narrativeSection + `\n\n_Acesse o sistema para mais detalhes._`;
+        const groups = narrative?.groups || [];
+        const multiGroup = groups.length > 1;
+
+        // When multiple groups: keep per-group messages CONCISE (summary +
+        // top 3 key points + top 3 actions). When single group: full detail.
+        const buildGroupBlock = (g, { concise }) => {
+          let block = `*📍 ${g.groupName}*`;
+          block += `\n_${g.messageCount} mensagens • ${g.participants.length} participantes_`;
+          if (g.summary) block += `\n\n${g.summary}`;
+          const kpLimit = concise ? 3 : (g.key_points?.length || 0);
+          const acLimit = concise ? 3 : (g.action_items?.length || 0);
+          if (g.key_points?.length) {
+            block += `\n\n*Pontos-chave:*\n` +
+              g.key_points.slice(0, kpLimit).map(p => `• ${p}`).join('\n');
+          }
+          if (!concise && g.decisions?.length) {
+            block += `\n\n*Decisões:*\n` + g.decisions.map(d => `✅ ${d}`).join('\n');
+          }
+          if (g.action_items?.length) {
+            block += `\n\n*Ações:*\n` + g.action_items.slice(0, acLimit).map(a => {
+              const resp = a.responsible ? ` — _${a.responsible}_` : '';
+              const dl = a.deadline ? ` (${a.deadline})` : '';
+              return `🎯 ${a.task}${resp}${dl}`;
+            }).join('\n');
+          }
+          if (!concise && g.highlights?.length) {
+            block += `\n\n*Destaques:*\n` + g.highlights.map(h => `💬 ${h}`).join('\n');
+          }
+          return block;
+        };
+
+        // Build the message list to send:
+        // - multi-group: [header (with index), one message per group]
+        // - single-group or none: one combined message (legacy behavior)
+        const messagesToSend = [];
+        if (multiGroup) {
+          let header = headerMessage;
+          header += `\n\n━━━━━━━━━━━━━━━━━━\n📝 *Resumo por grupo*` +
+            `\n_Enviarei ${groups.length} mensagens a seguir, uma por grupo._\n` +
+            groups.map((g, i) => `${i + 1}. ${g.groupName} (${g.messageCount} msgs)`).join('\n');
+          messagesToSend.push(header);
+          for (let i = 0; i < groups.length; i++) {
+            const g = groups[i];
+            const prefix = `*[${i + 1}/${groups.length}]*\n\n`;
+            messagesToSend.push(prefix + buildGroupBlock(g, { concise: true }) +
+              `\n\n_Acesse o sistema para mais detalhes._`);
+          }
+        } else {
+          let narrativeSection = '';
+          if (groups.length === 1) {
+            narrativeSection = '\n\n━━━━━━━━━━━━━━━━━━\n📝 *Resumo Detalhado*\n━━━━━━━━━━━━━━━━━━\n\n' +
+              buildGroupBlock(groups[0], { concise: false });
+          } else if (narrative?.error === 'no_ai_config') {
+            narrativeSection = '\n\n_⚠️ Configure a IA da organização para receber o resumo narrativo dos grupos._';
+          }
+          messagesToSend.push(headerMessage + narrativeSection + `\n\n_Acesse o sistema para mais detalhes._`);
+        }
 
         const recipients = await getDigestRecipients(config);
         if (recipients.length === 0) {
@@ -153,19 +182,27 @@ export async function executeSecretaryDigest({ organizationId = null, force = fa
           continue;
         }
 
-        const chunks = splitMessage(fullMessage, 3500);
         for (const recipient of recipients) {
-          for (let i = 0; i < chunks.length; i++) {
-            const part = chunks.length > 1 ? `*[Parte ${i + 1}/${chunks.length}]*\n\n${chunks[i]}` : chunks[i];
-            const sendResult = await whatsappProvider.sendMessage(connection, recipient.phone, part, 'text', null);
-            if (!sendResult?.success) {
-              throw new Error(sendResult?.error || `Falha ao enviar relatório para ${recipient.label}`);
+          for (let m = 0; m < messagesToSend.length; m++) {
+            const chunks = splitMessage(messagesToSend[m], 3500);
+            for (let i = 0; i < chunks.length; i++) {
+              const part = chunks.length > 1
+                ? `${chunks[i]}\n\n_(parte ${i + 1}/${chunks.length})_`
+                : chunks[i];
+              const sendResult = await whatsappProvider.sendMessage(connection, recipient.phone, part, 'text', null);
+              if (!sendResult?.success) {
+                throw new Error(sendResult?.error || `Falha ao enviar relatório para ${recipient.label}`);
+              }
+              if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 1500));
             }
-            if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 1500));
+            // Delay between per-group messages (3s) so o WhatsApp não trate como spam
+            if (m < messagesToSend.length - 1) {
+              await new Promise(r => setTimeout(r, 3000));
+            }
           }
 
           console.log(
-            `📊 [DIGEST] Sent daily digest to ${recipient.phone} (${recipient.label}) for org ${config.organization_id}`
+            `📊 [DIGEST] Sent daily digest (${messagesToSend.length} msg) to ${recipient.phone} (${recipient.label}) for org ${config.organization_id}`
           );
           sentCount++;
         }
