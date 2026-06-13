@@ -186,17 +186,67 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
         </div>
       </Card>
 
-      {/* Response template */}
-      <div>
-        <Label>Mensagem da auto-resposta (orientação para IA)</Label>
-        <Textarea
-          rows={3}
-          value={local.response_template ?? ''}
-          onChange={(e) => set({ response_template: e.target.value })}
-          placeholder='Ex: "Estou em reunião e retorno em breve. Posso anotar o motivo do seu contato?"'
-        />
-        <p className="text-xs text-muted-foreground mt-1">A IA usa o system prompt do agente + esta diretriz para gerar a resposta no contexto.</p>
-      </div>
+      {/* Reply mode */}
+      <Card className="p-3 space-y-3">
+        <Label className="font-semibold">Tipo de resposta</Label>
+        <Select value={replyMode} onValueChange={(v) => set({ reply_mode: v as any })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fixed">Resposta fixa (envia mensagem padrão)</SelectItem>
+            <SelectItem value="sdr">SDR com IA (responde várias vezes, baseado no prompt)</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {replyMode === 'fixed' ? (
+          <div>
+            <Label>Mensagem que será enviada</Label>
+            <Textarea
+              rows={3}
+              value={local.response_template ?? ''}
+              onChange={(e) => set({ response_template: e.target.value })}
+              placeholder='Ex: "Olá! Recebi sua mensagem e retorno em breve."'
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Esta mensagem é enviada exatamente como está, sem IA. Use o controle abaixo para escolher quantas vezes enviar para o mesmo contato.
+            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <Label className="text-xs">Enviar no máximo</Label>
+              <Input
+                type="number" min={1} max={10}
+                value={local.max_responses_per_contact ?? 1}
+                onChange={(e) => set({ max_responses_per_contact: parseInt(e.target.value) || 1 })}
+                className="w-20 h-8"
+              />
+              <span className="text-xs">vez(es) por contato</span>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div>
+              <Label>Diretriz extra para o SDR (opcional)</Label>
+              <Textarea
+                rows={3}
+                value={local.response_template ?? ''}
+                onChange={(e) => set({ response_template: e.target.value })}
+                placeholder='Ex: "Qualifique o lead perguntando sobre orçamento, prazo e decisor."'
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                A IA usa o <strong>system prompt do agente</strong> + esta diretriz + histórico da conversa para responder o cliente como um SDR humano.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">Limite de trocas com o cliente</Label>
+              <Input
+                type="number" min={1} max={50}
+                value={local.sdr_max_replies ?? 5}
+                onChange={(e) => set({ sdr_max_replies: parseInt(e.target.value) || 5 })}
+                className="w-20 h-8"
+              />
+              <span className="text-xs">resposta(s) antes de parar</span>
+            </div>
+          </div>
+        )}
+      </Card>
 
       {/* Connections scope */}
       <Card className="p-3 space-y-2">
