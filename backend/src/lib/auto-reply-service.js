@@ -588,24 +588,49 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
       if (!filterDecision.matched) continue;
 
       const previousReplies = await countPreviousAutoReplies(config.agent_id, conversation?.id || null);
+      const replyMode = config.reply_mode || 'fixed';
+      const effectiveLimit = replyMode === 'sdr'
+        ? (config.sdr_max_replies || 5)
+        : (config.max_responses_per_contact || 1);
       logInfo('auto_reply.debug.rate_check', {
         connection_id: connection.id,
         agent_id: config.agent_id,
         conversation_id: conversation?.id || null,
         previous_replies: previousReplies,
-        max_responses_per_contact: config.max_responses_per_contact || 1,
+        reply_mode: replyMode,
+        effective_limit: effectiveLimit,
       });
 
-      if (conversation?.id && previousReplies >= (config.max_responses_per_contact || 1)) {
+      if (conversation?.id && previousReplies >= effectiveLimit) {
         logInfo('auto_reply.debug.skip_rate_limit', {
           connection_id: connection.id,
           agent_id: config.agent_id,
           conversation_id: conversation.id,
+          reply_mode: replyMode,
         });
         continue;
       }
 
-      const replyText = await generateAgentReply(config, connection.organization_id, messageContent);
+      let replyText;
+      if (replyMode === 'fixed') {
+        // Modo Fixo: envia a mensagem-padrão exatamente como configurada (sem IA)
+        replyText = String(config.response_template || '').trim();
+        if (!replyText) {
+          logWarn('auto_reply.debug.fixed_empty_template', {
+            connection_id: connection.id,
+            agent_id: config.agent_id,
+          });
+          continue;
+        }
+      } else {
+        // Modo SDR: IA responde com base no prompt do agente + histórico
+        replyText = await generateAgentReply(
+          config,
+          connection.organization_id,
+          messageContent,
+          conversation?.id || null
+        );
+      }
       if (!replyText) {
         logWarn('auto_reply.debug.empty_ai_response', {
           connection_id: connection.id,
@@ -619,6 +644,7 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
         connection_id: connection.id,
         agent_id: config.agent_id,
         conversation_id: conversation?.id || null,
+        reply_mode: replyMode,
         message_preview: replyText.slice(0, 160),
       });
 
