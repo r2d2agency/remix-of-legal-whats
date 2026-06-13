@@ -32,6 +32,8 @@ async function ensureAutoReplySchema() {
   await query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_org ON ai_agent_autoreply_config(organization_id)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_active ON ai_agent_autoreply_config(is_active) WHERE is_active = true`);
   await query(`ALTER TABLE ai_agent_autoreply_config ADD COLUMN IF NOT EXISTS connection_ids UUID[] DEFAULT '{}'`);
+  await query(`ALTER TABLE ai_agent_autoreply_config ADD COLUMN IF NOT EXISTS reply_mode VARCHAR(20) DEFAULT 'fixed'`);
+  await query(`ALTER TABLE ai_agent_autoreply_config ADD COLUMN IF NOT EXISTS sdr_max_replies INTEGER DEFAULT 5`);
 }
 
 /**
@@ -346,7 +348,18 @@ async function logAutoReplySent(agentId, conversationId, text) {
   ).catch(() => {});
 }
 
-async function generateAgentReply(config, organizationId, inboundMessage) {
+async function getRecentHistory(conversationId, limit = 15) {
+  if (!conversationId) return [];
+  const r = await query(
+    `SELECT from_me, content FROM chat_messages
+      WHERE conversation_id = $1 AND content IS NOT NULL AND content <> ''
+      ORDER BY created_at DESC LIMIT $2`,
+    [conversationId, Math.min(Math.max(limit, 1), 40)]
+  ).catch(() => ({ rows: [] }));
+  return r.rows.reverse();
+}
+
+async function generateAgentReply(config, organizationId, inboundMessage, conversationId = null) {
   let provider = config.ai_provider || null;
   let model = config.ai_model || null;
   let apiKey = config.ai_api_key || null;
@@ -381,13 +394,40 @@ async function generateAgentReply(config, organizationId, inboundMessage) {
     throw new Error(`Sem chave de IA configurada para provider=${provider}`);
   }
 
+  const replyMode = config.reply_mode || 'fixed';
+  const isSdr = replyMode === 'sdr';
+
   const systemPrompt = [
     config.system_prompt || 'Você é um atendente virtual da empresa.',
-    config.response_template ? `Diretriz específica da auto-resposta:\n${config.response_template}` : '',
-    'Responda em português do Brasil, de forma natural, curta e objetiva.',
+    config.response_template
+      ? `Diretriz adicional:\n${config.response_template}`
+      : '',
+    isSdr
+      ? 'Você atua como SDR/atendente humano. Conduza a conversa com naturalidade, faça perguntas qualificadoras quando útil, e responda baseado no contexto e nas mensagens anteriores.'
+      : 'Responda de forma natural, curta e objetiva.',
+    'Responda em português do Brasil.',
     'Nunca diga que é uma IA, assistente virtual ou robô.',
     'Retorne apenas o texto final que será enviado ao cliente.',
   ].filter(Boolean).join('\n\n');
+
+  const messages = [{ role: 'system', content: systemPrompt }];
+
+  if (isSdr && conversationId) {
+    const history = await getRecentHistory(conversationId, 15);
+    for (const h of history) {
+      messages.push({
+        role: h.from_me ? 'assistant' : 'user',
+        content: String(h.content || '').slice(0, 1500),
+      });
+    }
+  }
+
+  messages.push({
+    role: 'user',
+    content: isSdr
+      ? String(inboundMessage || '').trim() || '[sem texto]'
+      : `Mensagem recebida do cliente:\n${String(inboundMessage || '').trim() || '[sem texto]'}\n\nGere a resposta agora.`,
+  });
 
   const aiRes = await callAI(
     {
@@ -395,13 +435,10 @@ async function generateAgentReply(config, organizationId, inboundMessage) {
       model: model || (provider === 'gemini' ? 'gemini-1.5-flash' : provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'),
       apiKey,
     },
-    [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Mensagem recebida do cliente:\n${String(inboundMessage || '').trim() || '[sem texto]'}\n\nGere a resposta agora.` },
-    ],
+    messages,
     {
       temperature: Number(config.temperature) || 0.7,
-      maxTokens: Number(config.max_tokens) || 300,
+      maxTokens: Number(config.max_tokens) || (isSdr ? 600 : 300),
     }
   );
 
@@ -551,24 +588,49 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
       if (!filterDecision.matched) continue;
 
       const previousReplies = await countPreviousAutoReplies(config.agent_id, conversation?.id || null);
+      const replyMode = config.reply_mode || 'fixed';
+      const effectiveLimit = replyMode === 'sdr'
+        ? (config.sdr_max_replies || 5)
+        : (config.max_responses_per_contact || 1);
       logInfo('auto_reply.debug.rate_check', {
         connection_id: connection.id,
         agent_id: config.agent_id,
         conversation_id: conversation?.id || null,
         previous_replies: previousReplies,
-        max_responses_per_contact: config.max_responses_per_contact || 1,
+        reply_mode: replyMode,
+        effective_limit: effectiveLimit,
       });
 
-      if (conversation?.id && previousReplies >= (config.max_responses_per_contact || 1)) {
+      if (conversation?.id && previousReplies >= effectiveLimit) {
         logInfo('auto_reply.debug.skip_rate_limit', {
           connection_id: connection.id,
           agent_id: config.agent_id,
           conversation_id: conversation.id,
+          reply_mode: replyMode,
         });
         continue;
       }
 
-      const replyText = await generateAgentReply(config, connection.organization_id, messageContent);
+      let replyText;
+      if (replyMode === 'fixed') {
+        // Modo Fixo: envia a mensagem-padrão exatamente como configurada (sem IA)
+        replyText = String(config.response_template || '').trim();
+        if (!replyText) {
+          logWarn('auto_reply.debug.fixed_empty_template', {
+            connection_id: connection.id,
+            agent_id: config.agent_id,
+          });
+          continue;
+        }
+      } else {
+        // Modo SDR: IA responde com base no prompt do agente + histórico
+        replyText = await generateAgentReply(
+          config,
+          connection.organization_id,
+          messageContent,
+          conversation?.id || null
+        );
+      }
       if (!replyText) {
         logWarn('auto_reply.debug.empty_ai_response', {
           connection_id: connection.id,
@@ -582,6 +644,7 @@ export async function handleAutoReplies(connection, remoteJid, messageContent) {
         connection_id: connection.id,
         agent_id: config.agent_id,
         conversation_id: conversation?.id || null,
+        reply_mode: replyMode,
         message_preview: replyText.slice(0, 160),
       });
 
