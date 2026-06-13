@@ -13,6 +13,7 @@ import { Bot, Plus, Sparkles, Reply, Loader2 } from 'lucide-react';
 import { useAIAgents, AIAgent } from '@/hooks/use-ai-agents';
 import { CopilotActionsEditor } from '@/components/ai-agents/CopilotActionsEditor';
 import { AutoReplyConfigEditor } from '@/components/ai-agents/AutoReplyConfigEditor';
+import { AutoReplyConnectionStatus } from '@/components/ai-agents/AutoReplyConnectionStatus';
 import { AUTOREPLY_TEMPLATES } from '@/lib/agent-mode-templates';
 import { toast } from 'sonner';
 
@@ -97,6 +98,7 @@ export default function AgentesModos() {
               extraTemplates
               onTemplate={(t) => { setForm({ name: t.name, description: t.description, system_prompt: 'Você é uma secretária virtual. Use esta diretriz: ' + t.message }); setNewDialog({ open: true, mode: 'autoreply' }); }}
             />
+            <AutoReplyConnectionStatus onAgentClick={(id) => setOpenId(id)} />
             {renderList(filtered, loading, openId, setOpenId, 'autoreply')}
           </TabsContent>
         </Tabs>
