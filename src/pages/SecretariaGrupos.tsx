@@ -30,6 +30,7 @@ export default function SecretariaGrupos() {
     getConfig, saveConfig, getMembers, addMember, removeMember, getLogs, getAvailableUsers, getGroups, getStats, updateMemberPhone,
     generateMeetingMinutes, getMeetingMinutes, deleteMeetingMinutes, sendDigestNow,
   } = useGroupSecretary();
+  const { data: orgConnections = [] } = useConnections({ scope: 'organization' });
 
   const [config, setConfig] = useState<SecretaryConfig>({
     is_active: false, connection_ids: null, group_jids: null,
