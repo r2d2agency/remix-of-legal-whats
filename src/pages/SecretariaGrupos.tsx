@@ -565,16 +565,16 @@ export default function SecretariaGrupos() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="auto">Automática (primeira disponível)</SelectItem>
-                        {allGroups
-                          .reduce((acc, g) => {
-                            if (!acc.find(c => c.id === g.connection_id)) {
-                              acc.push({ id: g.connection_id, name: g.connection_name });
-                            }
-                            return acc;
-                          }, [] as { id: string; name: string }[])
-                          .map(conn => (
-                            <SelectItem key={conn.id} value={conn.id}>{conn.name}</SelectItem>
-                          ))}
+                        {(() => {
+                          const merged = new Map<string, string>();
+                          orgConnections.forEach((c) => merged.set(c.id, c.name));
+                          allGroups.forEach((g) => {
+                            if (!merged.has(g.connection_id)) merged.set(g.connection_id, g.connection_name);
+                          });
+                          return [...merged.entries()].map(([id, name]) => (
+                            <SelectItem key={id} value={id}>{name}</SelectItem>
+                          ));
+                        })()}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
