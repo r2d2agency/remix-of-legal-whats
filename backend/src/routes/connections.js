@@ -431,11 +431,20 @@ router.patch('/:id', async (req, res) => {
     const org = await getUserOrganization(req.userId);
 
     // Allow update if user owns the connection OR belongs to same organization
+    // Be permissive: match by user_id OR by organization (when present), and
+    // also accept legacy rows whose organization_id is NULL but were created
+    // by a member of the same organization.
     let whereClause = 'id = $16 AND user_id = $17';
     let authId = req.userId;
 
     if (org) {
-      whereClause = 'id = $16 AND organization_id = $17';
+      whereClause = `id = $16 AND (
+        organization_id = $17
+        OR user_id = $18
+        OR (organization_id IS NULL AND user_id IN (
+          SELECT user_id FROM organization_members WHERE organization_id = $17
+        ))
+      )`;
       authId = org.organization_id;
     }
 
@@ -458,6 +467,7 @@ router.patch('/:id', async (req, res) => {
       id,
       authId
     ];
+    if (org) params.push(req.userId);
 
     const result = await query(
       `UPDATE connections 
