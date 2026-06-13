@@ -348,7 +348,18 @@ async function logAutoReplySent(agentId, conversationId, text) {
   ).catch(() => {});
 }
 
-async function generateAgentReply(config, organizationId, inboundMessage) {
+async function getRecentHistory(conversationId, limit = 15) {
+  if (!conversationId) return [];
+  const r = await query(
+    `SELECT from_me, content FROM chat_messages
+      WHERE conversation_id = $1 AND content IS NOT NULL AND content <> ''
+      ORDER BY created_at DESC LIMIT $2`,
+    [conversationId, Math.min(Math.max(limit, 1), 40)]
+  ).catch(() => ({ rows: [] }));
+  return r.rows.reverse();
+}
+
+async function generateAgentReply(config, organizationId, inboundMessage, conversationId = null) {
   let provider = config.ai_provider || null;
   let model = config.ai_model || null;
   let apiKey = config.ai_api_key || null;
@@ -383,13 +394,40 @@ async function generateAgentReply(config, organizationId, inboundMessage) {
     throw new Error(`Sem chave de IA configurada para provider=${provider}`);
   }
 
+  const replyMode = config.reply_mode || 'fixed';
+  const isSdr = replyMode === 'sdr';
+
   const systemPrompt = [
     config.system_prompt || 'Você é um atendente virtual da empresa.',
-    config.response_template ? `Diretriz específica da auto-resposta:\n${config.response_template}` : '',
-    'Responda em português do Brasil, de forma natural, curta e objetiva.',
+    config.response_template
+      ? `Diretriz adicional:\n${config.response_template}`
+      : '',
+    isSdr
+      ? 'Você atua como SDR/atendente humano. Conduza a conversa com naturalidade, faça perguntas qualificadoras quando útil, e responda baseado no contexto e nas mensagens anteriores.'
+      : 'Responda de forma natural, curta e objetiva.',
+    'Responda em português do Brasil.',
     'Nunca diga que é uma IA, assistente virtual ou robô.',
     'Retorne apenas o texto final que será enviado ao cliente.',
   ].filter(Boolean).join('\n\n');
+
+  const messages = [{ role: 'system', content: systemPrompt }];
+
+  if (isSdr && conversationId) {
+    const history = await getRecentHistory(conversationId, 15);
+    for (const h of history) {
+      messages.push({
+        role: h.from_me ? 'assistant' : 'user',
+        content: String(h.content || '').slice(0, 1500),
+      });
+    }
+  }
+
+  messages.push({
+    role: 'user',
+    content: isSdr
+      ? String(inboundMessage || '').trim() || '[sem texto]'
+      : `Mensagem recebida do cliente:\n${String(inboundMessage || '').trim() || '[sem texto]'}\n\nGere a resposta agora.`,
+  });
 
   const aiRes = await callAI(
     {
@@ -397,13 +435,10 @@ async function generateAgentReply(config, organizationId, inboundMessage) {
       model: model || (provider === 'gemini' ? 'gemini-1.5-flash' : provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'),
       apiKey,
     },
-    [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Mensagem recebida do cliente:\n${String(inboundMessage || '').trim() || '[sem texto]'}\n\nGere a resposta agora.` },
-    ],
+    messages,
     {
       temperature: Number(config.temperature) || 0.7,
-      maxTokens: Number(config.max_tokens) || 300,
+      maxTokens: Number(config.max_tokens) || (isSdr ? 600 : 300),
     }
   );
 
