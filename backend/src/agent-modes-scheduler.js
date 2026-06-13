@@ -16,7 +16,7 @@ export function startAgentModesScheduler() {
 
       // 2. Schedule windows (Brazil timezone)
       const cfgs = await query(
-        `SELECT agent_id, is_active, schedule_windows
+        `SELECT agent_id, organization_id, connection_ids, is_active, schedule_windows
            FROM ai_agent_autoreply_config
           WHERE schedule_enabled = true`
       );
@@ -40,6 +40,23 @@ export function startAgentModesScheduler() {
             `UPDATE ai_agent_autoreply_config SET is_active = $1, updated_at = NOW() WHERE agent_id = $2`,
             [inWindow, c.agent_id]
           );
+          if (inWindow) {
+            // Enforce one autoreply per connection
+            const arr = Array.isArray(c.connection_ids) ? c.connection_ids : [];
+            await query(
+              `UPDATE ai_agent_autoreply_config
+                  SET is_active = false, paused_until = NULL, updated_at = NOW()
+                WHERE organization_id = $1
+                  AND agent_id <> $2
+                  AND is_active = true
+                  AND (
+                    COALESCE(array_length(connection_ids, 1), 0) = 0
+                    OR $3::int = 0
+                    OR connection_ids && $4::uuid[]
+                  )`,
+              [c.organization_id, c.agent_id, arr.length, arr]
+            );
+          }
           logInfo('agent_modes.scheduler.window', { agent_id: c.agent_id, is_active: inWindow });
         }
       }
