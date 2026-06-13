@@ -288,15 +288,26 @@ router.get('/groups', async (req, res) => {
     const org = await getUserOrg(req.userId);
     if (!org) return res.status(403).json({ error: 'Sem organização' });
 
+    // Aceita tanto is_group=true quanto remote_jid terminando com @g.us
+    // (em alguns providers o flag não é populado corretamente).
     const result = await query(
-      `SELECT conv.id, conv.remote_jid, conv.group_name, conv.connection_id, conn.name as connection_name
-       FROM conversations conv
-       JOIN connections conn ON conn.id = conv.connection_id
-       WHERE conn.organization_id = $1 AND conv.is_group = true
-       ORDER BY conv.group_name`,
+      `SELECT conv.id,
+              conv.remote_jid,
+              COALESCE(NULLIF(conv.group_name, ''), conv.contact_name, conv.remote_jid) AS group_name,
+              conv.connection_id,
+              conn.name AS connection_name
+         FROM conversations conv
+         JOIN connections conn ON conn.id = conv.connection_id
+        WHERE conn.organization_id = $1
+          AND (
+               COALESCE(conv.is_group, false) = true
+               OR conv.remote_jid LIKE '%@g.us'
+              )
+        ORDER BY connection_name, group_name`,
       [org.organization_id]
     );
 
+    console.log(`[GroupSecretary] /groups org=${org.organization_id} retornou ${result.rows.length} grupo(s)`);
     res.json(result.rows);
   } catch (error) {
     console.error('Get groups error:', error);
