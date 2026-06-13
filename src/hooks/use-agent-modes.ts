@@ -27,6 +27,8 @@ export interface AutoReplyConfig {
   schedule_windows: Array<{ days: number[]; start: string; end: string }>;
   response_template: string | null;
   max_responses_per_contact: number;
+  reply_mode: 'fixed' | 'sdr';
+  sdr_max_replies: number;
 }
 
 export interface CopilotAgent {
