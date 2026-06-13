@@ -359,6 +359,12 @@ router.put('/:agentId/autoreply', authenticate, async (req, res) => {
         fields.reply_mode, fields.sdr_max_replies,
       ]
     );
+    if (fields.is_active) {
+      const deactivated = await deactivateConflicting(
+        req.params.agentId, ctx.organization_id, fields.connection_ids,
+      );
+      if (deactivated.length) r.rows[0]._deactivated_conflicts = deactivated;
+    }
     res.json(r.rows[0]);
   } catch (e) {
     logError('agent_modes.autoreply_put', e);
