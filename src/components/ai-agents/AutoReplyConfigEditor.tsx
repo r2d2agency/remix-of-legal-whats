@@ -148,8 +148,13 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
   const handleToggle = async (active: boolean) => {
     try {
       const dur = parseInt(duration);
-      await toggle(active, active && dur > 0 ? dur : undefined);
-      toast.success(active ? 'Auto-resposta ativada' : 'Auto-resposta pausada');
+      const result: any = await toggle(active, active && dur > 0 ? dur : undefined);
+      const deactivated = result?._deactivated_conflicts?.length || 0;
+      if (active && deactivated > 0) {
+        toast.success(`Auto-resposta ativada. ${deactivated} outra(s) foram pausadas para evitar conflito na mesma conexão.`);
+      } else {
+        toast.success(active ? 'Auto-resposta ativada' : 'Auto-resposta pausada');
+      }
     } catch (e: any) { toast.error(e.message); }
   };
 
