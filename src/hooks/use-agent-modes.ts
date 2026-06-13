@@ -135,3 +135,38 @@ export function useActiveAutoReplies() {
   }, []);
   return items;
 }
+
+export interface AutoReplyConnectionStatus {
+  connection_id: string;
+  connection_name: string;
+  phone_number?: string | null;
+  status?: string | null;
+  agent: null | {
+    agent_id: string;
+    agent_name: string;
+    paused_until: string | null;
+    scoped_to_all: boolean;
+  };
+}
+
+export function useAutoReplyByConnection(pollMs = 15000) {
+  const [items, setItems] = useState<AutoReplyConnectionStatus[]>([]);
+  const [loading, setLoading] = useState(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api<AutoReplyConnectionStatus[]>(
+        '/api/agent-modes/autoreply/by-connection', { auth: true }
+      );
+      setItems(data || []);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => {
+    load();
+    if (!pollMs) return;
+    const i = setInterval(load, pollMs);
+    return () => clearInterval(i);
+  }, [load, pollMs]);
+  return { items, loading, reload: load };
+}
