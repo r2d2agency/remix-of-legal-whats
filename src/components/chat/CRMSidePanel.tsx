@@ -299,6 +299,13 @@ export function CRMSidePanel({
     }
   }, [newDealFunnelData]);
 
+  // Auto-select first funnel when the create form is open and funnels are loaded
+  useEffect(() => {
+    if (showCreateDeal && funnels.length > 0 && !newDealFunnelId) {
+      setNewDealFunnelId(funnels[0].id);
+    }
+  }, [showCreateDeal, funnels, newDealFunnelId]);
+
   // Load notes when panel opens
   useEffect(() => {
     if (isOpen && conversationId) {
@@ -663,11 +670,19 @@ export function CRMSidePanel({
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    {funnels.map((funnel) => (
-                      <SelectItem key={funnel.id} value={funnel.id} className="text-xs">
-                        {funnel.name}
-                      </SelectItem>
-                    ))}
+                    {funnels.length === 0 ? (
+                      <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                        Nenhum funil cadastrado.
+                        <br />
+                        Crie um em CRM → Negociações.
+                      </div>
+                    ) : (
+                      funnels.map((funnel) => (
+                        <SelectItem key={funnel.id} value={funnel.id} className="text-xs">
+                          {funnel.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
