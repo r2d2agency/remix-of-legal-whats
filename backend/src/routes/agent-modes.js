@@ -6,6 +6,33 @@ import { callAI } from '../lib/ai-caller.js';
 
 const router = Router();
 
+// Deactivates other autoreply configs in the same org that overlap by connection
+// (only one autoreply per connection can be active at a time).
+async function deactivateConflicting(agentId, organizationId, connectionIds) {
+  const arr = Array.isArray(connectionIds) ? connectionIds : [];
+  const r = await query(
+    `UPDATE ai_agent_autoreply_config
+        SET is_active = false, paused_until = NULL, updated_at = NOW()
+      WHERE organization_id = $1
+        AND agent_id <> $2
+        AND is_active = true
+        AND (
+          COALESCE(array_length(connection_ids, 1), 0) = 0
+          OR $3::int = 0
+          OR connection_ids && $4::uuid[]
+        )
+      RETURNING agent_id`,
+    [organizationId, agentId, arr.length, arr]
+  );
+  if (r.rowCount > 0) {
+    logInfo('agent_modes.autoreply_conflict_deactivated', {
+      activated_agent: agentId,
+      deactivated_agents: r.rows.map((x) => x.agent_id),
+    });
+  }
+  return r.rows.map((x) => x.agent_id);
+}
+
 async function ensureAutoReplySchema() {
   await query(`ALTER TABLE ai_agents ADD COLUMN IF NOT EXISTS agent_mode VARCHAR(20) DEFAULT 'standard'`);
   await query(`
