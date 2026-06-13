@@ -9,11 +9,12 @@ import { Card } from '@/components/ui/card';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Tag, X, Plus, Clock, Play, Pause, RefreshCw, Activity } from 'lucide-react';
+import { Tag, X, Plus, Clock, Play, Pause, RefreshCw, Activity, Sparkles } from 'lucide-react';
 import { useAutoReplyConfig, AutoReplyConfig } from '@/hooks/use-agent-modes';
 import { useConnections } from '@/hooks/use-connections';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import { SdrPromptWizard } from './SdrPromptWizard';
 
 const WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -102,6 +103,7 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
   const [local, setLocal] = useState<Partial<AutoReplyConfig>>({});
   const [duration, setDuration] = useState<string>('60');
   const [orgTags, setOrgTags] = useState<OrgTag[]>([]);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const { data: orgConns = [] } = useConnections({ scope: 'organization' });
   const { data: userConns = [] } = useConnections({ scope: 'user' });
   const connections = (() => {
@@ -228,6 +230,15 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
               <div className="flex items-center justify-between">
                 <Label>Prompt completo do SDR</Label>
                 <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[11px] px-2 gap-1"
+                    onClick={() => setWizardOpen(true)}
+                  >
+                    <Sparkles className="h-3 w-3" /> Assistente
+                  </Button>
                   <Button
                     type="button"
                     size="sm"
@@ -371,6 +382,11 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
       </div>
 
       <AutoReplyDebugLogs />
+      <SdrPromptWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onApply={(prompt) => set({ response_template: prompt })}
+      />
     </div>
   );
 }
