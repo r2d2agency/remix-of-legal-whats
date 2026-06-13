@@ -290,6 +290,8 @@ router.put('/:agentId/autoreply', authenticate, async (req, res) => {
       response_template: b.response_template ?? null,
       max_responses_per_contact: Number(b.max_responses_per_contact) || 1,
       connection_ids: Array.isArray(b.connection_ids) ? b.connection_ids : [],
+      reply_mode: ['fixed', 'sdr'].includes(b.reply_mode) ? b.reply_mode : 'fixed',
+      sdr_max_replies: Math.max(1, Math.min(50, Number(b.sdr_max_replies) || 5)),
       // Se vier explícito, usa; senão, salvar configurações = ativar (preserva valor no UPDATE)
       is_active: typeof b.is_active === 'boolean' ? b.is_active : true,
     };
@@ -299,8 +301,8 @@ router.put('/:agentId/autoreply', authenticate, async (req, res) => {
          agent_id, organization_id, filter_mode, included_tags, excluded_tags,
          included_contact_ids, excluded_contact_ids, included_groups, excluded_groups,
          schedule_enabled, schedule_windows, response_template, max_responses_per_contact,
-         connection_ids, is_active
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15)
+         connection_ids, is_active, reply_mode, sdr_max_replies
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16,$17)
        ON CONFLICT (agent_id) DO UPDATE SET
          filter_mode = EXCLUDED.filter_mode,
          included_tags = EXCLUDED.included_tags,
@@ -315,6 +317,8 @@ router.put('/:agentId/autoreply', authenticate, async (req, res) => {
          max_responses_per_contact = EXCLUDED.max_responses_per_contact,
          connection_ids = EXCLUDED.connection_ids,
          is_active = EXCLUDED.is_active,
+         reply_mode = EXCLUDED.reply_mode,
+         sdr_max_replies = EXCLUDED.sdr_max_replies,
          updated_at = NOW()
        RETURNING *`,
       [
@@ -325,6 +329,7 @@ router.put('/:agentId/autoreply', authenticate, async (req, res) => {
         fields.schedule_enabled, fields.schedule_windows,
         fields.response_template, fields.max_responses_per_contact,
         fields.connection_ids, fields.is_active,
+        fields.reply_mode, fields.sdr_max_replies,
       ]
     );
     res.json(r.rows[0]);
