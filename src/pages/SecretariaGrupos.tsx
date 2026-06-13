@@ -20,6 +20,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useGroupSecretary, type SecretaryConfig, type SecretaryMember, type SecretaryLog, type SecretaryStats, type AvailableUser, type MonitoredGroup, type MeetingMinutes } from "@/hooks/use-group-secretary";
+import { useConnections } from "@/hooks/use-connections";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import SecretaryDiagnosticPanel from "@/components/secretaria/SecretaryDiagnosticPanel";
@@ -29,6 +30,7 @@ export default function SecretariaGrupos() {
     getConfig, saveConfig, getMembers, addMember, removeMember, getLogs, getAvailableUsers, getGroups, getStats, updateMemberPhone,
     generateMeetingMinutes, getMeetingMinutes, deleteMeetingMinutes, sendDigestNow,
   } = useGroupSecretary();
+  const { data: orgConnections = [] } = useConnections({ scope: 'organization' });
 
   const [config, setConfig] = useState<SecretaryConfig>({
     is_active: false, connection_ids: null, group_jids: null,
@@ -368,7 +370,21 @@ export default function SecretariaGrupos() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {allGroups.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum grupo encontrado nas conexões.</p>
+                  <div className="space-y-2">
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-xs">
+                        Nenhum grupo foi detectado ainda nas suas conexões
+                        {orgConnections.length > 0 && (
+                          <> ({orgConnections.length} conexão(ões): {orgConnections.map(c => c.name).join(', ')})</>
+                        )}
+                        . Os grupos aparecem aqui após a primeira mensagem ser recebida. Você ainda pode salvar a configuração — ela monitorará automaticamente todos os grupos que aparecerem.
+                      </AlertDescription>
+                    </Alert>
+                    <Button size="sm" variant="outline" onClick={loadAll} disabled={loading}>
+                      <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Recarregar grupos
+                    </Button>
+                  </div>
                 ) : (
                   <>
                     {(() => {
@@ -563,16 +579,16 @@ export default function SecretariaGrupos() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="auto">Automática (primeira disponível)</SelectItem>
-                        {allGroups
-                          .reduce((acc, g) => {
-                            if (!acc.find(c => c.id === g.connection_id)) {
-                              acc.push({ id: g.connection_id, name: g.connection_name });
-                            }
-                            return acc;
-                          }, [] as { id: string; name: string }[])
-                          .map(conn => (
-                            <SelectItem key={conn.id} value={conn.id}>{conn.name}</SelectItem>
-                          ))}
+                        {(() => {
+                          const merged = new Map<string, string>();
+                          orgConnections.forEach((c) => merged.set(c.id, c.name));
+                          allGroups.forEach((g) => {
+                            if (!merged.has(g.connection_id)) merged.set(g.connection_id, g.connection_name);
+                          });
+                          return [...merged.entries()].map(([id, name]) => (
+                            <SelectItem key={id} value={id}>{name}</SelectItem>
+                          ));
+                        })()}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
