@@ -227,15 +227,26 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
             <div>
               <div className="flex items-center justify-between">
                 <Label>Prompt completo do SDR</Label>
-                <span className="text-[11px] text-muted-foreground">
-                  {(local.response_template || '').length} caracteres
-                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-[11px] px-2"
+                    onClick={() => set({ response_template: SDR_EXAMPLE_PROMPT })}
+                  >
+                    Usar exemplo
+                  </Button>
+                  <span className="text-[11px] text-muted-foreground">
+                    {(local.response_template || '').length} caracteres
+                  </span>
+                </div>
               </div>
               <Textarea
                 rows={14}
                 value={local.response_template ?? ''}
                 onChange={(e) => set({ response_template: e.target.value })}
-                placeholder={`Descreva detalhadamente o papel do SDR. Quanto mais contexto, melhor a resposta.\n\nExemplo:\n\nVocê é a Ana, SDR da empresa XPTO (software de gestão para clínicas).\n\nObjetivo: qualificar o lead e agendar reunião de 20 min com um vendedor.\n\nFaça nesta ordem:\n1) Cumprimente pelo nome e agradeça o contato.\n2) Pergunte: nome da clínica, número de profissionais, qual sistema usa hoje.\n3) Identifique a dor principal (agenda, prontuário, financeiro).\n4) Apresente 1 benefício específico do XPTO para a dor citada.\n5) Ofereça 2 horários para reunião nos próximos 2 dias úteis.\n\nRegras:\n- Tom: cordial, direto, sem emojis exagerados.\n- Nunca invente preço; se perguntarem, diga que o vendedor traz proposta personalizada.\n- Se o lead estiver irritado ou pedir humano, peça desculpas e diga que vai transferir.\n- Mensagens curtas (máx. 3 linhas).\n- Use português brasileiro.\n\nInformações da empresa:\n- Site: ...\n- Diferenciais: ...\n- Casos de sucesso: ...`}
+                placeholder="Descreva detalhadamente o papel do SDR. Quanto mais contexto, melhor a resposta."
                 className="font-mono text-sm leading-relaxed"
               />
               <p className="text-xs text-muted-foreground mt-1">
