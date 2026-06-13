@@ -299,6 +299,13 @@ export function CRMSidePanel({
     }
   }, [newDealFunnelData]);
 
+  // Auto-select first funnel when the create form is open and funnels are loaded
+  useEffect(() => {
+    if (showCreateDeal && funnels.length > 0 && !newDealFunnelId) {
+      setNewDealFunnelId(funnels[0].id);
+    }
+  }, [showCreateDeal, funnels, newDealFunnelId]);
+
   // Load notes when panel opens
   useEffect(() => {
     if (isOpen && conversationId) {
