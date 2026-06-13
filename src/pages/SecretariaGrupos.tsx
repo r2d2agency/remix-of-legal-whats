@@ -20,6 +20,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useGroupSecretary, type SecretaryConfig, type SecretaryMember, type SecretaryLog, type SecretaryStats, type AvailableUser, type MonitoredGroup, type MeetingMinutes } from "@/hooks/use-group-secretary";
+import { useConnections } from "@/hooks/use-connections";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import SecretaryDiagnosticPanel from "@/components/secretaria/SecretaryDiagnosticPanel";
