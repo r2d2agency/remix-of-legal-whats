@@ -32,6 +32,8 @@ async function ensureAutoReplySchema() {
   await query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_org ON ai_agent_autoreply_config(organization_id)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_ai_agent_autoreply_active ON ai_agent_autoreply_config(is_active) WHERE is_active = true`);
   await query(`ALTER TABLE ai_agent_autoreply_config ADD COLUMN IF NOT EXISTS connection_ids UUID[] DEFAULT '{}'`);
+  await query(`ALTER TABLE ai_agent_autoreply_config ADD COLUMN IF NOT EXISTS reply_mode VARCHAR(20) DEFAULT 'fixed'`);
+  await query(`ALTER TABLE ai_agent_autoreply_config ADD COLUMN IF NOT EXISTS sdr_max_replies INTEGER DEFAULT 5`);
 }
 
 /**
