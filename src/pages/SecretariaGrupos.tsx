@@ -370,7 +370,21 @@ export default function SecretariaGrupos() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {allGroups.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum grupo encontrado nas conexões.</p>
+                  <div className="space-y-2">
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-xs">
+                        Nenhum grupo foi detectado ainda nas suas conexões
+                        {orgConnections.length > 0 && (
+                          <> ({orgConnections.length} conexão(ões): {orgConnections.map(c => c.name).join(', ')})</>
+                        )}
+                        . Os grupos aparecem aqui após a primeira mensagem ser recebida. Você ainda pode salvar a configuração — ela monitorará automaticamente todos os grupos que aparecerem.
+                      </AlertDescription>
+                    </Alert>
+                    <Button size="sm" variant="outline" onClick={loadAll} disabled={loading}>
+                      <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Recarregar grupos
+                    </Button>
+                  </div>
                 ) : (
                   <>
                     {(() => {
