@@ -223,15 +223,23 @@ export function AutoReplyConfigEditor({ agentId }: { agentId: string }) {
         ) : (
           <div className="space-y-2">
             <div>
-              <Label>Diretriz extra para o SDR (opcional)</Label>
+              <div className="flex items-center justify-between">
+                <Label>Prompt completo do SDR</Label>
+                <span className="text-[11px] text-muted-foreground">
+                  {(local.response_template || '').length} caracteres
+                </span>
+              </div>
               <Textarea
-                rows={3}
+                rows={14}
                 value={local.response_template ?? ''}
                 onChange={(e) => set({ response_template: e.target.value })}
-                placeholder='Ex: "Qualifique o lead perguntando sobre orçamento, prazo e decisor."'
+                placeholder={`Descreva detalhadamente o papel do SDR. Quanto mais contexto, melhor a resposta.\n\nExemplo:\n\nVocê é a Ana, SDR da empresa XPTO (software de gestão para clínicas).\n\nObjetivo: qualificar o lead e agendar reunião de 20 min com um vendedor.\n\nFaça nesta ordem:\n1) Cumprimente pelo nome e agradeça o contato.\n2) Pergunte: nome da clínica, número de profissionais, qual sistema usa hoje.\n3) Identifique a dor principal (agenda, prontuário, financeiro).\n4) Apresente 1 benefício específico do XPTO para a dor citada.\n5) Ofereça 2 horários para reunião nos próximos 2 dias úteis.\n\nRegras:\n- Tom: cordial, direto, sem emojis exagerados.\n- Nunca invente preço; se perguntarem, diga que o vendedor traz proposta personalizada.\n- Se o lead estiver irritado ou pedir humano, peça desculpas e diga que vai transferir.\n- Mensagens curtas (máx. 3 linhas).\n- Use português brasileiro.\n\nInformações da empresa:\n- Site: ...\n- Diferenciais: ...\n- Casos de sucesso: ...`}
+                className="font-mono text-sm leading-relaxed"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                A IA usa o <strong>system prompt do agente</strong> + esta diretriz + histórico da conversa para responder o cliente como um SDR humano.
+                Este prompt <strong>complementa o system prompt do agente</strong> e é usado junto com o histórico da conversa.
+                Inclua: persona, objetivo, passos da qualificação, regras de tom, informações da empresa, perguntas obrigatórias e o que <em>não</em> fazer.
+                Você pode usar variáveis como <code>{'{name}'}</code>, <code>{'{agent_name}'}</code>.
               </p>
             </div>
             <div className="flex items-center gap-2">
