@@ -623,10 +623,25 @@ router.post('/:id/consult', authenticate, async (req, res) => {
 
     const agent = agentResult.rows[0];
     const provider = agent.ai_provider || agent.org_ai_provider || 'openai';
-    const apiKey = agent.ai_api_key || agent.org_ai_api_key;
+    let apiKey = agent.ai_api_key || agent.org_ai_api_key;
+
+    // Fallback: organization_ai_config (used pela configuração global de IA)
+    if (!apiKey) {
+      try {
+        const cfg = await query(
+          `SELECT openai_api_key, gemini_api_key, openrouter_api_key
+             FROM organization_ai_config WHERE organization_id = $1 LIMIT 1`,
+          [userCtx.organization_id]
+        );
+        const row = cfg.rows[0] || {};
+        apiKey = provider === 'openai' ? row.openai_api_key
+               : provider === 'openrouter' ? row.openrouter_api_key
+               : row.gemini_api_key;
+      } catch { /* tabela pode não existir */ }
+    }
 
     if (!apiKey) {
-      return res.status(400).json({ error: 'Nenhuma API key configurada para este agente' });
+      return res.status(400).json({ error: 'Nenhuma API key de IA configurada. Configure em Configurações → IA.' });
     }
 
     // Build conversation context string
