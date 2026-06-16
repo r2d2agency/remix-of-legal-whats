@@ -1207,7 +1207,7 @@ export function CRMSidePanel({
 
               {/* Copilotos — ações rápidas por conversa */}
               <CRMCopilotsSection
-                conversationId={conversation.id}
+                conversationId={conversationId}
                 isOpen={true}
               />
             </Accordion>
