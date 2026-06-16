@@ -258,9 +258,11 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
           [ctx.organization_id]
         );
         const org = orgR.rows[0];
-        if (org && org.ai_api_key && org.ai_provider && org.ai_provider !== 'none') {
-          provider = org.ai_provider;
-          model = model || org.ai_model || null;
+        if (org && org.ai_api_key) {
+          // Sempre prioriza a chave da organização quando o agente não tem chave própria,
+          // mesmo que o agente tenha um provider diferente configurado.
+          provider = (org.ai_provider && org.ai_provider !== 'none') ? org.ai_provider : (provider || 'openai');
+          model = org.ai_model || model || null;
           apiKey = org.ai_api_key;
         }
       } catch (e) { logError('agent_modes.org_key', e); }
@@ -280,7 +282,7 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
       } catch (e) { logError('agent_modes.org_ai_config', e); }
     }
 
-    provider = provider || 'gemini';
+    provider = (provider && provider !== 'none') ? provider : 'gemini';
 
     if (!apiKey) {
       if (provider === 'gemini') apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -292,8 +294,22 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
     const userPrompt = `Tarefa: ${action.prompt}\n\n${history ? `Histórico recente da conversa:\n${history}` : 'Sem histórico fornecido.'}`;
 
     if (!apiKey) {
+      logError('agent_modes.run_action.no_key', {
+        organization_id: ctx.organization_id,
+        agent_id: agent.id,
+        agent_provider: agent.ai_provider,
+        resolved_provider: provider,
+      });
       return res.status(400).json({ error: 'Configure a chave de IA da organização' });
     }
+
+    logInfo('agent_modes.run_action.resolved', {
+      organization_id: ctx.organization_id,
+      agent_id: agent.id,
+      provider,
+      model: model || agent.ai_model || null,
+      key_source: agent.ai_api_key ? 'agent' : 'org',
+    });
 
     const aiRes = await callAI(
       { provider, model: model || agent.ai_model || (provider === 'gemini' ? 'gemini-1.5-flash' : provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'), apiKey },
