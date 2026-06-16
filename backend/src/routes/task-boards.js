@@ -147,10 +147,30 @@ router.use(authenticate);
 // Helper
 async function getUserOrg(userId) {
   const result = await query(
-    `SELECT om.organization_id, om.role FROM organization_members om WHERE om.user_id = $1 LIMIT 1`,
+    `SELECT om.organization_id,
+            CASE WHEN COALESCE(u.is_superadmin, false) = true THEN 'owner' ELSE om.role END AS role,
+            COALESCE(u.is_superadmin, false) AS is_superadmin
+       FROM organization_members om
+       LEFT JOIN users u ON u.id = om.user_id
+      WHERE om.user_id = $1
+      ORDER BY (CASE WHEN om.role = 'owner' THEN 0 WHEN om.role = 'admin' THEN 1 ELSE 2 END)
+      LIMIT 1`,
     [userId]
   );
-  return result.rows[0];
+  if (result.rows[0]) return result.rows[0];
+
+  const superadmin = await query(
+    `SELECT id FROM users WHERE id = $1 AND is_superadmin = true LIMIT 1`,
+    [userId]
+  );
+  if (superadmin.rows[0]) {
+    const anyOrg = await query(`SELECT id AS organization_id FROM organizations ORDER BY created_at ASC LIMIT 1`);
+    if (anyOrg.rows[0]) {
+      return { organization_id: anyOrg.rows[0].organization_id, role: 'owner', is_superadmin: true };
+    }
+  }
+
+  return undefined;
 }
 
 function canManage(role) {
