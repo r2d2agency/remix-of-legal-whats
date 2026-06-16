@@ -51,34 +51,13 @@ async function fetchFromBackend(url: string): Promise<OgData | null> {
   }
 }
 
-async function fetchFromMicrolink(url: string): Promise<OgData | null> {
-  try {
-    const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (json.status !== 'success') return null;
-    const d = json.data;
-    return {
-      title: d.title || undefined,
-      description: d.description || undefined,
-      image: d.image?.url || d.logo?.url || undefined,
-      siteName: d.publisher || undefined,
-    };
-  } catch {
-    return null;
-  }
-}
-
 async function fetchOgData(url: string): Promise<OgData | null> {
   // Prefer our backend (no CORS, no rate limits, cached)
   const backend = await fetchFromBackend(url);
   if (backend && (backend.title || backend.description || backend.image)) {
     return backend;
   }
-  // Fallback to microlink free tier
-  return fetchFromMicrolink(url);
+  return null;
 }
 
 const cache = new Map<string, OgData | null>();

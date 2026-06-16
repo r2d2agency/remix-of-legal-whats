@@ -360,7 +360,7 @@ export function ChatMessageBubble({
 
         {(msg.message_type === 'video' || (msg.media_mimetype?.startsWith('video/') ?? false)) && mediaUrl && (
           <div className="mb-2">
-            <video controls playsInline preload="metadata" className="rounded max-w-full max-h-[300px]" crossOrigin="anonymous">
+            <video controls playsInline preload="none" className="rounded max-w-full max-h-[300px]" crossOrigin="anonymous">
               {msg.media_mimetype && <source src={mediaUrl} type={msg.media_mimetype} />}
               <source src={mediaUrl} type="video/mp4" />
               <source src={mediaUrl} type="video/webm" />
