@@ -143,6 +143,42 @@ function resolveModelForProvider(provider, model) {
   return modelMatchesProvider(provider, model) ? String(model).trim() : defaultModelForProvider(provider);
 }
 
+function pickLegacyAIConfig(row, preferredProvider = null, preferredModel = null) {
+  if (!row) return null;
+
+  const providerPriority = [
+    normalizeProvider(preferredProvider),
+    normalizeProvider(row.ai_provider),
+    normalizeProvider(row.provider),
+    normalizeProvider(row.default_provider),
+    'gemini',
+    'openrouter',
+    'openai',
+  ].filter(Boolean);
+
+  const keyAliases = {
+    openai: ['openai_api_key', 'openai_key', 'OPENAI_API_KEY'],
+    gemini: ['gemini_api_key', 'google_api_key', 'gemini_key', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
+    openrouter: ['openrouter_api_key', 'openrouter_key', 'OPENROUTER_API_KEY'],
+  };
+
+  for (const provider of [...new Set(providerPriority)]) {
+    const aliases = keyAliases[provider] || [];
+    const apiKey = aliases.map((field) => cleanAIKey(row[field])).find(Boolean);
+    if (!apiKey) continue;
+
+    const model = row[`${provider}_model`] || row.ai_model || row.model || preferredModel;
+    return {
+      provider,
+      model: resolveModelForProvider(provider, model),
+      apiKey,
+      keySource: `organization_ai_config.${aliases.find((field) => cleanAIKey(row[field]))}`,
+    };
+  }
+
+  return null;
+}
+
 async function getPublicTableColumns(tableName) {
   const r = await query(
     `SELECT column_name
@@ -167,15 +203,28 @@ async function getOrganizationAIConfig(organizationId) {
 
   const org = r.rows[0];
   const apiKey = cleanAIKey(org?.ai_api_key);
-  if (!org || !apiKey || org.ai_provider === 'none') return null;
+  if (org && apiKey && org.ai_provider !== 'none') {
+    const provider = normalizeProvider(org.ai_provider) || inferProviderFromKey(apiKey);
+    return {
+      provider,
+      model: resolveModelForProvider(provider, org.ai_model),
+      apiKey,
+      keySource: 'organizations.ai_api_key',
+    };
+  }
 
-  const provider = normalizeProvider(org.ai_provider) || inferProviderFromKey(apiKey);
-  return {
-    provider,
-    model: org.ai_model || defaultModelForProvider(provider),
-    apiKey,
-    keySource: 'organizations.ai_api_key',
-  };
+  const legacyR = await query(
+    `SELECT *
+       FROM organization_ai_config
+      WHERE organization_id = $1
+      LIMIT 1`,
+    [organizationId]
+  ).catch((e) => {
+    logError('agent_modes.org_ai_config.legacy_lookup', e);
+    return { rows: [] };
+  });
+
+  return pickLegacyAIConfig(legacyR.rows[0], org?.ai_provider, org?.ai_model);
 }
 
 // ================= COPILOT ACTIONS =================
