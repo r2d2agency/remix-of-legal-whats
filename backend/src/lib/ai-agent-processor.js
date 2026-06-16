@@ -3160,53 +3160,6 @@ async function transcribeWithGemini(audioBuffer, mimeType, apiKey, model) {
 }
 
 /**
- * Transcribe using Lovable AI Gateway (fallback)
- */
-async function transcribeWithLovableGateway(audioBuffer, mimeType, lovableApiKey) {
-  try {
-    const base64Audio = Buffer.from(audioBuffer).toString('base64');
-    const audioFormat = mimeType.includes('mp3') ? 'mp3' :
-                        mimeType.includes('wav') ? 'wav' :
-                        mimeType.includes('ogg') ? 'ogg' :
-                        mimeType.includes('webm') ? 'webm' : 'mp3';
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-1.5-flash',
-        messages: [
-          { role: 'system', content: 'Transcreva o áudio com precisão em português. Retorne APENAS o texto transcrito. Se inaudível, retorne "[Áudio inaudível]".' },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Transcreva o seguinte áudio:' },
-              { type: 'input_audio', input_audio: { data: base64Audio, format: audioFormat } }
-            ]
-          }
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      logError('ai_agent_processor.transcribe_gateway_error', new Error(`Gateway error ${response.status}`));
-      return null;
-    }
-
-    const data = await response.json();
-    const transcript = data.choices?.[0]?.message?.content?.trim() || null;
-    logInfo('ai_agent_processor.transcribe_gateway_success', { length: transcript?.length });
-    return transcript;
-  } catch (error) {
-    logError('ai_agent_processor.transcribe_gateway_catch', error);
-    return null;
-  }
-}
-
-/**
  * Build a multimodal message content array for image messages
  * Downloads the image and converts to base64 data URI so both OpenAI and Gemini can access it
  */
