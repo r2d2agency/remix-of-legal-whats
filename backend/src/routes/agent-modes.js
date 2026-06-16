@@ -244,12 +244,13 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
       }
     }
 
-    // Mesmo padrão usado pelo auto-reply (que funciona):
-    // 1) chave do agente; 2) chave da organização (organizations.ai_api_key);
-    // 3) organization_ai_config; 4) env vars.
-    let provider = agent.ai_provider || null;
-    let model = agent.ai_model || null;
+    // Mesmo padrão do auto-reply: só usa provider/modelo do agente quando a chave também é do agente.
+    // Se a chave vier da organização/config global, provider e modelo devem vir da organização/config global,
+    // para não misturar chave OpenAI com modelo Gemini (ou vice-versa), que causa 400.
+    let provider = agent.ai_api_key ? (agent.ai_provider || null) : null;
+    let model = agent.ai_api_key ? (agent.ai_model || null) : null;
     let apiKey = agent.ai_api_key || null;
+    let keySource = apiKey ? 'agent' : null;
 
     if (!apiKey) {
       try {
@@ -258,12 +259,11 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
           [ctx.organization_id]
         );
         const org = orgR.rows[0];
-        if (org && org.ai_api_key) {
-          // Sempre prioriza a chave da organização quando o agente não tem chave própria,
-          // mesmo que o agente tenha um provider diferente configurado.
-          provider = (org.ai_provider && org.ai_provider !== 'none') ? org.ai_provider : (provider || 'openai');
-          model = org.ai_model || model || null;
+        if (org && org.ai_api_key && org.ai_provider && org.ai_provider !== 'none') {
+          provider = org.ai_provider;
+          model = org.ai_model || null;
           apiKey = org.ai_api_key;
+          keySource = 'organizations';
         }
       } catch (e) { logError('agent_modes.org_key', e); }
     }
@@ -276,13 +276,13 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
           [ctx.organization_id]
         );
         const row = cfg.rows[0] || {};
-        if (row.gemini_api_key) { provider = provider || 'gemini'; apiKey = row.gemini_api_key; }
-        else if (row.openai_api_key) { provider = provider || 'openai'; apiKey = row.openai_api_key; }
-        else if (row.openrouter_api_key) { provider = provider || 'openrouter'; apiKey = row.openrouter_api_key; }
+        if (row.openai_api_key) { provider = 'openai'; apiKey = row.openai_api_key; model = null; keySource = 'organization_ai_config.openai'; }
+        else if (row.openrouter_api_key) { provider = 'openrouter'; apiKey = row.openrouter_api_key; model = null; keySource = 'organization_ai_config.openrouter'; }
+        else if (row.gemini_api_key) { provider = 'gemini'; apiKey = row.gemini_api_key; model = null; keySource = 'organization_ai_config.gemini'; }
       } catch (e) { logError('agent_modes.org_ai_config', e); }
     }
 
-    provider = (provider && provider !== 'none') ? provider : 'gemini';
+    provider = (provider && provider !== 'none') ? provider : 'openai';
 
     if (!apiKey) {
       if (provider === 'gemini') apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -307,12 +307,12 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
       organization_id: ctx.organization_id,
       agent_id: agent.id,
       provider,
-      model: model || agent.ai_model || null,
-      key_source: agent.ai_api_key ? 'agent' : 'org',
+      model,
+      key_source: keySource || 'env',
     });
 
     const aiRes = await callAI(
-      { provider, model: model || agent.ai_model || (provider === 'gemini' ? 'gemini-1.5-flash' : provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'), apiKey },
+      { provider, model: model || (provider === 'gemini' ? 'gemini-1.5-flash' : provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'), apiKey },
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
