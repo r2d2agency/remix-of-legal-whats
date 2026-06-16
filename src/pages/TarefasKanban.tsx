@@ -65,7 +65,7 @@ export default function TarefasKanban() {
   const [filterDueTo, setFilterDueTo] = useState<Date | undefined>();
   const [showFilters, setShowFilters] = useState(false);
 
-  const isAdmin = user?.role && ['owner', 'admin', 'manager'].includes(user.role);
+  const isAdmin = user?.is_superadmin === true || (!!user?.role && ['owner', 'admin', 'manager'].includes(user.role));
 
   // Load org members
   useEffect(() => {
