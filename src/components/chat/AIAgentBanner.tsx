@@ -61,7 +61,7 @@ export function AIAgentBanner({ conversationId, isGroup, className, onSessionCha
   const fetchAgents = useCallback(async () => {
     try {
       const data = await api<SimpleAgent[]>('/api/ai-agents', { auth: true });
-      setAgents((data || []).filter(a => a.is_active));
+      setAgents((data || []).filter((a: any) => a.is_active && ((a as any).agent_mode || 'standard') === 'standard'));
     } catch {
       // silently fail
     }
