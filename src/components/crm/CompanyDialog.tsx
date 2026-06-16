@@ -776,7 +776,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
               />
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="flex-shrink-0 border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
