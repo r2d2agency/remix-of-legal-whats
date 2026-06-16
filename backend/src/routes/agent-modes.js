@@ -251,24 +251,57 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
       [ctx.organization_id]
     ).catch(() => ({ rows: [] }));
     const orgKey = apiKeyRow.rows[0] || {};
-    const apiKey = agent.ai_api_key
+    let apiKey = agent.ai_api_key
       || (provider === 'openai' ? orgKey.openai_api_key
         : provider === 'openrouter' ? orgKey.openrouter_api_key
         : orgKey.gemini_api_key);
 
-    if (!apiKey) return res.status(400).json({ error: 'Configure a chave de IA da organização' });
-
     const systemPrompt = `${agent.system_prompt || 'Você é um copiloto de vendas.'}\n\nVocê é o copiloto interno do vendedor. Responda direto, em português, prático, sem floreio. Nunca se apresente como IA.`;
     const userPrompt = `Tarefa: ${action.prompt}\n\n${history ? `Histórico recente da conversa:\n${history}` : 'Sem histórico fornecido.'}`;
 
-    const aiRes = await callAI(
-      { provider, model: agent.ai_model || (provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini'), apiKey },
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      { temperature: Number(agent.temperature) || 0.7, maxTokens: Number(agent.max_tokens) || 800 }
-    );
+    let aiRes;
+    if (!apiKey && process.env.LOVABLE_API_KEY) {
+      // Fallback: use Lovable AI Gateway
+      const gatewayModel = agent.ai_model || 'google/gemini-3-flash-preview';
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: gatewayModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: Number(agent.temperature) || 0.7,
+          max_tokens: Number(agent.max_tokens) || 800,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Lovable AI Gateway error ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      const choice = data.choices?.[0];
+      aiRes = {
+        content: choice?.message?.content || '',
+        tokensUsed: data.usage?.total_tokens || 0,
+        model: data.model || gatewayModel,
+      };
+    } else if (!apiKey) {
+      return res.status(400).json({ error: 'Configure a chave de IA da organização' });
+    } else {
+      aiRes = await callAI(
+        { provider, model: agent.ai_model || (provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini'), apiKey },
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        { temperature: Number(agent.temperature) || 0.7, maxTokens: Number(agent.max_tokens) || 800 }
+      );
+    }
 
     res.json({ content: aiRes.content || '', tokens: aiRes.tokensUsed || 0, model: aiRes.model });
   } catch (e) {
