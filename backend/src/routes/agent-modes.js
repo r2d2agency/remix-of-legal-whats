@@ -203,7 +203,9 @@ async function getOrganizationAIConfig(organizationId) {
 
   const org = r.rows[0];
   const apiKey = cleanAIKey(org?.ai_api_key);
-  if (org && apiKey && org.ai_provider !== 'none') {
+  if (org && apiKey) {
+    // Alguns cadastros antigos mantêm ai_provider = 'none' mesmo com a chave global salva.
+    // Não descarte a chave: inferimos o provedor pelo formato, igual aos demais módulos de IA.
     const provider = normalizeProvider(org.ai_provider) || inferProviderFromKey(apiKey);
     return {
       provider,
