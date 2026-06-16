@@ -23,7 +23,7 @@ export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, sav
   const sourceRef = useRef<MediaElementAudioSourceNode>();
   
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -118,6 +118,12 @@ export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, sav
     const audio = audioRef.current;
     if (!audio) return;
 
+    setIsPlaying(false);
+    setIsLoading(false);
+    setHasError(false);
+    setDuration(0);
+    setCurrentTime(0);
+
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
       setIsLoading(false);
@@ -134,7 +140,6 @@ export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, sav
     };
 
     const handleError = () => {
-      console.error('Audio error:', audio.error);
       setIsLoading(false);
       setHasError(true);
     };
@@ -162,7 +167,7 @@ export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, sav
       audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('waiting', handleWaiting);
     };
-  }, []);
+  }, [src]);
 
   const togglePlay = async () => {
     const audio = audioRef.current;
@@ -173,6 +178,10 @@ export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, sav
         audio.pause();
         setIsPlaying(false);
       } else {
+        setIsLoading(true);
+        if (audio.currentSrc !== src) {
+          audio.load();
+        }
         await audio.play();
         setIsPlaying(true);
       }
@@ -260,16 +269,10 @@ export function AudioPlayer({ src, mimetype, className, isFromMe, messageId, sav
         {/* Hidden audio element */}
         <audio
           ref={audioRef}
-          preload="metadata"
+          src={src}
+          preload="none"
           crossOrigin="anonymous"
-        >
-          {mimetype && <source src={src} type={mimetype} />}
-          <source src={src} type="audio/ogg; codecs=opus" />
-          <source src={src} type="audio/webm; codecs=opus" />
-          <source src={src} type="audio/mpeg" />
-          <source src={src} type="audio/mp4" />
-          <source src={src} type="audio/ogg" />
-        </audio>
+        />
 
         {/* Play/Pause button */}
         <Button
