@@ -244,21 +244,28 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
       }
     }
 
-    const provider = agent.ai_provider || 'gemini';
+    // Mesmo padrão usado pelo auto-reply (que funciona):
+    // 1) chave do agente; 2) chave da organização (organizations.ai_api_key);
+    // 3) organization_ai_config; 4) env vars.
+    let provider = agent.ai_provider || null;
+    let model = agent.ai_model || null;
     let apiKey = agent.ai_api_key || null;
 
-    // Fallback 1: organizations.ai_api_key
     if (!apiKey) {
       try {
         const orgR = await query(
-          `SELECT ai_api_key, ai_provider FROM organizations WHERE id = $1 LIMIT 1`,
+          `SELECT ai_provider, ai_model, ai_api_key FROM organizations WHERE id = $1 LIMIT 1`,
           [ctx.organization_id]
         );
-        apiKey = orgR.rows[0]?.ai_api_key || null;
+        const org = orgR.rows[0];
+        if (org && org.ai_api_key && org.ai_provider && org.ai_provider !== 'none') {
+          provider = org.ai_provider;
+          model = model || org.ai_model || null;
+          apiKey = org.ai_api_key;
+        }
       } catch (e) { logError('agent_modes.org_key', e); }
     }
 
-    // Fallback 2: organization_ai_config (Configurações → IA)
     if (!apiKey) {
       try {
         const cfg = await query(
@@ -267,10 +274,18 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
           [ctx.organization_id]
         );
         const row = cfg.rows[0] || {};
-        apiKey = provider === 'openai' ? row.openai_api_key
-               : provider === 'openrouter' ? row.openrouter_api_key
-               : (row.gemini_api_key || row.openai_api_key || row.openrouter_api_key);
+        if (row.gemini_api_key) { provider = provider || 'gemini'; apiKey = row.gemini_api_key; }
+        else if (row.openai_api_key) { provider = provider || 'openai'; apiKey = row.openai_api_key; }
+        else if (row.openrouter_api_key) { provider = provider || 'openrouter'; apiKey = row.openrouter_api_key; }
       } catch (e) { logError('agent_modes.org_ai_config', e); }
+    }
+
+    provider = provider || 'gemini';
+
+    if (!apiKey) {
+      if (provider === 'gemini') apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      else if (provider === 'openai') apiKey = process.env.OPENAI_API_KEY;
+      else if (provider === 'openrouter') apiKey = process.env.OPENROUTER_API_KEY;
     }
 
     const systemPrompt = `${agent.system_prompt || 'Você é um copiloto de vendas.'}\n\nVocê é o copiloto interno do vendedor. Responda direto, em português, prático, sem floreio. Nunca se apresente como IA.`;
@@ -281,7 +296,7 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
     }
 
     const aiRes = await callAI(
-      { provider, model: agent.ai_model || (provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-4o-mini'), apiKey },
+      { provider, model: model || agent.ai_model || (provider === 'gemini' ? 'gemini-1.5-flash' : provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'), apiKey },
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
