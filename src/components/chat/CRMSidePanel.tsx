@@ -330,7 +330,11 @@ export function CRMSidePanel({
     setLoadingAgents(true);
     try {
       const data = await getAgents();
-      setAiAgents(data.filter(a => a.is_active));
+      setAiAgents(
+        data.filter(
+          (a: any) => a.is_active && ((a as any).agent_mode || 'standard') === 'standard'
+        )
+      );
     } catch (error) {
       console.error("Error loading AI agents:", error);
     } finally {
