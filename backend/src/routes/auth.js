@@ -228,8 +228,16 @@ router.post('/login', async (req, res) => {
       [user.id]
     );
 
-    const role = orgResult.rows[0]?.role || null;
-    const organizationId = orgResult.rows[0]?.organization_id || null;
+    let role = orgResult.rows[0]?.role || null;
+    let organizationId = orgResult.rows[0]?.organization_id || null;
+
+    if (isSuperadmin && !organizationId) {
+      const anyOrg = await query(`SELECT id AS organization_id FROM organizations ORDER BY created_at ASC LIMIT 1`);
+      if (anyOrg.rows[0]?.organization_id) {
+        role = 'owner';
+        organizationId = anyOrg.rows[0].organization_id;
+      }
+    }
     
     // Superadmin always has all modules enabled
     const allModulesEnabled = {
@@ -364,8 +372,16 @@ router.get('/me', async (req, res) => {
       }
     }
 
-    const role = orgResult.rows[0]?.role || null;
-    const organizationId = orgResult.rows[0]?.organization_id || null;
+    let role = orgResult.rows[0]?.role || null;
+    let organizationId = orgResult.rows[0]?.organization_id || null;
+
+    if (isSuperadmin && !organizationId) {
+      const anyOrg = await query(`SELECT id AS organization_id FROM organizations ORDER BY created_at ASC LIMIT 1`);
+      if (anyOrg.rows[0]?.organization_id) {
+        role = 'owner';
+        organizationId = anyOrg.rows[0].organization_id;
+      }
+    }
     
     // Superadmin always has all modules enabled
     const allModulesEnabled = {
