@@ -89,7 +89,9 @@ export default function AgentesIA() {
 
   const loadAgents = async () => {
     const data = await getAgents();
-    setAgents(data);
+    // Copilot e Auto-Resposta têm sua própria página (Agentes › Modos).
+    // Aqui mostramos apenas os agentes "standard".
+    setAgents((data || []).filter((a: any) => (a.agent_mode || 'standard') === 'standard'));
   };
 
   useEffect(() => {
