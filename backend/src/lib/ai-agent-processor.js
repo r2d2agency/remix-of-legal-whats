@@ -3017,7 +3017,6 @@ function resolveMediaUrl(url) {
 
 /**
  * Transcribe audio using the agent's own AI provider (OpenAI or Gemini)
- * Falls back to LOVABLE_API_KEY if available
  */
 async function transcribeAudio(audioUrl, mimetype, aiConfig) {
   try {
@@ -3059,13 +3058,6 @@ async function transcribeAudio(audioUrl, mimetype, aiConfig) {
         const transcript = await transcribeWithGemini(audioBuffer, mimeType, aiConfig.apiKey, aiConfig.model);
         if (transcript) return transcript;
       }
-    }
-
-    // Fallback: try LOVABLE_API_KEY with Gemini gateway
-    const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-    if (LOVABLE_API_KEY) {
-      const transcript = await transcribeWithLovableGateway(audioBuffer, mimeType, LOVABLE_API_KEY);
-      if (transcript) return transcript;
     }
 
     logError('ai_agent_processor.transcribe_no_provider', new Error('No AI provider available for transcription'));
@@ -3163,53 +3155,6 @@ async function transcribeWithGemini(audioBuffer, mimeType, apiKey, model) {
     return transcript;
   } catch (error) {
     logError('ai_agent_processor.transcribe_gemini_catch', error);
-    return null;
-  }
-}
-
-/**
- * Transcribe using Lovable AI Gateway (fallback)
- */
-async function transcribeWithLovableGateway(audioBuffer, mimeType, lovableApiKey) {
-  try {
-    const base64Audio = Buffer.from(audioBuffer).toString('base64');
-    const audioFormat = mimeType.includes('mp3') ? 'mp3' :
-                        mimeType.includes('wav') ? 'wav' :
-                        mimeType.includes('ogg') ? 'ogg' :
-                        mimeType.includes('webm') ? 'webm' : 'mp3';
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-1.5-flash',
-        messages: [
-          { role: 'system', content: 'Transcreva o áudio com precisão em português. Retorne APENAS o texto transcrito. Se inaudível, retorne "[Áudio inaudível]".' },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Transcreva o seguinte áudio:' },
-              { type: 'input_audio', input_audio: { data: base64Audio, format: audioFormat } }
-            ]
-          }
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      logError('ai_agent_processor.transcribe_gateway_error', new Error(`Gateway error ${response.status}`));
-      return null;
-    }
-
-    const data = await response.json();
-    const transcript = data.choices?.[0]?.message?.content?.trim() || null;
-    logInfo('ai_agent_processor.transcribe_gateway_success', { length: transcript?.length });
-    return transcript;
-  } catch (error) {
-    logError('ai_agent_processor.transcribe_gateway_catch', error);
     return null;
   }
 }
