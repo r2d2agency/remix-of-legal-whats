@@ -317,30 +317,23 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
       }
     }
 
+    const orgConfig = await getOrganizationAIConfig(ctx.organization_id);
     const agentApiKey = cleanAIKey(agent.ai_api_key);
-    const agentProvider = normalizeProvider(agent.ai_provider);
-    let provider = agentApiKey ? (agentProvider || inferProviderFromKey(agentApiKey)) : null;
-    let model = agentApiKey ? resolveModelForProvider(provider, agent.ai_model) : null;
-    let apiKey = agentApiKey;
-    let keySource = apiKey ? 'ai_agents.ai_api_key' : null;
+    let provider = null;
+    let model = null;
+    let apiKey = null;
+    let keySource = null;
 
-    if (!apiKey) {
-      const orgConfig = await getOrganizationAIConfig(ctx.organization_id, agentProvider);
-      if (orgConfig?.apiKey) {
-        provider = orgConfig.provider;
-        model = orgConfig.model;
-        apiKey = orgConfig.apiKey;
-        keySource = orgConfig.keySource;
-      }
-    }
-
-    provider = normalizeProvider(provider) || 'openai';
-    model = resolveModelForProvider(provider, model);
-
-    if (!apiKey) {
-      if (provider === 'gemini') { apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY; keySource = apiKey ? 'env.gemini' : keySource; }
-      else if (provider === 'openai') { apiKey = process.env.OPENAI_API_KEY; keySource = apiKey ? 'env.openai' : keySource; }
-      else if (provider === 'openrouter') { apiKey = process.env.OPENROUTER_API_KEY; keySource = apiKey ? 'env.openrouter' : keySource; }
+    if (agentApiKey) {
+      provider = normalizeProvider(agent.ai_provider) || inferProviderFromKey(agentApiKey);
+      model = resolveModelForProvider(provider, agent.ai_model);
+      apiKey = agentApiKey;
+      keySource = 'ai_agents.ai_api_key';
+    } else if (orgConfig?.apiKey) {
+      provider = orgConfig.provider;
+      model = orgConfig.model;
+      apiKey = orgConfig.apiKey;
+      keySource = orgConfig.keySource;
     }
 
     const systemPrompt = `${agent.system_prompt || 'Você é um copiloto de vendas.'}\n\nVocê é o copiloto interno do vendedor. Responda direto, em português, prático, sem floreio. Nunca se apresente como IA.`;
@@ -351,7 +344,7 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
         organization_id: ctx.organization_id,
         agent_id: agent.id,
         agent_provider: agent.ai_provider,
-        resolved_provider: provider,
+        org_has_key: !!orgConfig?.apiKey,
       });
       return res.status(400).json({ error: 'Configure a chave de IA da organização' });
     }
