@@ -3017,7 +3017,6 @@ function resolveMediaUrl(url) {
 
 /**
  * Transcribe audio using the agent's own AI provider (OpenAI or Gemini)
- * Falls back to LOVABLE_API_KEY if available
  */
 async function transcribeAudio(audioUrl, mimetype, aiConfig) {
   try {
@@ -3059,13 +3058,6 @@ async function transcribeAudio(audioUrl, mimetype, aiConfig) {
         const transcript = await transcribeWithGemini(audioBuffer, mimeType, aiConfig.apiKey, aiConfig.model);
         if (transcript) return transcript;
       }
-    }
-
-    // Fallback: try LOVABLE_API_KEY with Gemini gateway
-    const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-    if (LOVABLE_API_KEY) {
-      const transcript = await transcribeWithLovableGateway(audioBuffer, mimeType, LOVABLE_API_KEY);
-      if (transcript) return transcript;
     }
 
     logError('ai_agent_processor.transcribe_no_provider', new Error('No AI provider available for transcription'));
