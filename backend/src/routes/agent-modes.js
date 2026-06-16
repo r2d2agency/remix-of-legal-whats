@@ -245,16 +245,33 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
     }
 
     const provider = agent.ai_provider || 'gemini';
-    const apiKeyRow = await query(
-      `SELECT openai_api_key, gemini_api_key, openrouter_api_key
-         FROM organization_ai_config WHERE organization_id = $1 LIMIT 1`,
-      [ctx.organization_id]
-    ).catch(() => ({ rows: [] }));
-    const orgKey = apiKeyRow.rows[0] || {};
-    let apiKey = agent.ai_api_key
-      || (provider === 'openai' ? orgKey.openai_api_key
-        : provider === 'openrouter' ? orgKey.openrouter_api_key
-        : orgKey.gemini_api_key);
+    let apiKey = agent.ai_api_key || null;
+
+    // Fallback 1: organizations.ai_api_key
+    if (!apiKey) {
+      try {
+        const orgR = await query(
+          `SELECT ai_api_key, ai_provider FROM organizations WHERE id = $1 LIMIT 1`,
+          [ctx.organization_id]
+        );
+        apiKey = orgR.rows[0]?.ai_api_key || null;
+      } catch (e) { logError('agent_modes.org_key', e); }
+    }
+
+    // Fallback 2: organization_ai_config (Configurações → IA)
+    if (!apiKey) {
+      try {
+        const cfg = await query(
+          `SELECT openai_api_key, gemini_api_key, openrouter_api_key
+             FROM organization_ai_config WHERE organization_id = $1 LIMIT 1`,
+          [ctx.organization_id]
+        );
+        const row = cfg.rows[0] || {};
+        apiKey = provider === 'openai' ? row.openai_api_key
+               : provider === 'openrouter' ? row.openrouter_api_key
+               : (row.gemini_api_key || row.openai_api_key || row.openrouter_api_key);
+      } catch (e) { logError('agent_modes.org_ai_config', e); }
+    }
 
     const systemPrompt = `${agent.system_prompt || 'Você é um copiloto de vendas.'}\n\nVocê é o copiloto interno do vendedor. Responda direto, em português, prático, sem floreio. Nunca se apresente como IA.`;
     const userPrompt = `Tarefa: ${action.prompt}\n\n${history ? `Histórico recente da conversa:\n${history}` : 'Sem histórico fornecido.'}`;
