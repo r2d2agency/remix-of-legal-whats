@@ -228,25 +228,20 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
     const { conversation_id, last_n = 20 } = req.body || {};
     let history = '';
     if (conversation_id) {
-      const convR = await query(
-        `SELECT c.id FROM conversations c
-           LEFT JOIN connections conn ON conn.id = c.connection_id
-          WHERE c.id = $1
-            AND (conn.organization_id = $2 OR conn.organization_id IS NULL OR c.connection_id IS NULL)
-          LIMIT 1`,
-        [conversation_id, ctx.organization_id]
-      );
-      if (!convR.rows[0]) return res.status(404).json({ error: 'Conversa não encontrada' });
-      const msgR = await query(
-        `SELECT from_me, content, created_at FROM chat_messages
-          WHERE conversation_id = $1
-          ORDER BY created_at DESC LIMIT $2`,
-        [conversation_id, Math.min(Math.max(parseInt(last_n) || 20, 1), 80)]
-      );
-      history = msgR.rows
-        .reverse()
-        .map((m) => `${m.from_me ? 'VENDEDOR' : 'CLIENTE'}: ${String(m.content || '').slice(0, 800)}`)
-        .join('\n');
+      try {
+        const msgR = await query(
+          `SELECT from_me, content, created_at FROM chat_messages
+            WHERE conversation_id = $1
+            ORDER BY created_at DESC LIMIT $2`,
+          [conversation_id, Math.min(Math.max(parseInt(last_n) || 20, 1), 80)]
+        );
+        history = msgR.rows
+          .reverse()
+          .map((m) => `${m.from_me ? 'VENDEDOR' : 'CLIENTE'}: ${String(m.content || '').slice(0, 800)}`)
+          .join('\n');
+      } catch (e) {
+        logError('agent_modes.run_action.history', e);
+      }
     }
 
     const provider = agent.ai_provider || 'gemini';
