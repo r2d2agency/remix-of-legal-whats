@@ -317,3 +317,57 @@ export function useCRMLossReasonMutations() {
 
   return { createLossReason, updateLossReason, deleteLossReason, resetToDefaults, cleanupDuplicates };
 }
+
+// Lead Sources (Origens)
+export interface CRMLeadSource {
+  id: string;
+  organization_id?: string;
+  name: string;
+  color: string;
+  is_active: boolean;
+  position: number;
+  deals_count?: number;
+  created_at: string;
+}
+
+export function useCRMLeadSources() {
+  return useQuery({
+    queryKey: ["crm-lead-sources"],
+    queryFn: async () => api<CRMLeadSource[]>("/api/crm/config/lead-sources"),
+  });
+}
+
+export function useCRMLeadSourceMutations() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const createLeadSource = useMutation({
+    mutationFn: async (data: Partial<CRMLeadSource>) =>
+      api<CRMLeadSource>("/api/crm/config/lead-sources", { method: "POST", body: data }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-lead-sources"] });
+      toast({ title: "Origem criada" });
+    },
+    onError: (e: any) => toast({ title: "Erro ao criar origem", description: e.message, variant: "destructive" }),
+  });
+
+  const updateLeadSource = useMutation({
+    mutationFn: async ({ id, ...data }: Partial<CRMLeadSource> & { id: string }) =>
+      api<CRMLeadSource>(`/api/crm/config/lead-sources/${id}`, { method: "PUT", body: data }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-lead-sources"] });
+      toast({ title: "Origem atualizada" });
+    },
+  });
+
+  const deleteLeadSource = useMutation({
+    mutationFn: async (id: string) =>
+      api<void>(`/api/crm/config/lead-sources/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-lead-sources"] });
+      toast({ title: "Origem excluída" });
+    },
+  });
+
+  return { createLeadSource, updateLeadSource, deleteLeadSource };
+}
