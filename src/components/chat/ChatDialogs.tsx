@@ -88,9 +88,9 @@ export function TransferDialog({ open, onOpenChange, conversation, team, availab
       }
 
       setLoadingAgents(true);
-      api<Array<{ id: string; name: string; is_active: boolean }>>('/api/ai-agents', { auth: true })
+      api<Array<{ id: string; name: string; is_active: boolean; agent_mode?: string }>>('/api/ai-agents', { auth: true })
         .then(data => {
-          const active = (data || []).filter(a => a.is_active);
+          const active = (data || []).filter((a: any) => a.is_active && ((a as any).agent_mode || 'standard') === 'standard');
           setTransferAgents(active);
           if (active.length === 0) setAgentsError("Nenhum agente IA ativo encontrado");
         })
