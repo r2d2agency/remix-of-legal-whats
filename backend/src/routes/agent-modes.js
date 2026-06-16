@@ -229,7 +229,10 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
     let history = '';
     if (conversation_id) {
       const convR = await query(
-        `SELECT id FROM conversations WHERE id = $1 AND organization_id = $2 LIMIT 1`,
+        `SELECT c.id FROM conversations c
+           LEFT JOIN connections conn ON conn.id = c.connection_id
+          WHERE c.id = $1 AND conn.organization_id = $2
+          LIMIT 1`,
         [conversation_id, ctx.organization_id]
       );
       if (!convR.rows[0]) return res.status(404).json({ error: 'Conversa não encontrada' });
