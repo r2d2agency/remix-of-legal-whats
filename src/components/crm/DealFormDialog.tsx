@@ -12,9 +12,10 @@ import { Slider } from "@/components/ui/slider";
 import { Building2, User, Search, Loader2, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, API_URL, getAuthToken } from "@/lib/api";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CompanyDialog } from "./CompanyDialog";
+import { useCRMLeadSources, useCRMLeadSourceMutations } from "@/hooks/use-crm-config";
 
 interface DealFormDialogProps {
   funnel: CRMFunnel | null;
@@ -49,12 +50,28 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [showCompanyDialog, setShowCompanyDialog] = useState(false);
+  const [ownerId, setOwnerId] = useState("");
+  const [leadSourceId, setLeadSourceId] = useState("");
+  const [newSourceName, setNewSourceName] = useState("");
+  const [showNewSource, setShowNewSource] = useState(false);
 
   const { data: companies } = useCRMCompanies(companySearchQuery.length >= 2 ? companySearchQuery : undefined);
   const { data: funnelData } = useCRMFunnel(funnel?.id || null);
   const { data: groups } = useCRMGroups();
   const { data: myGroups } = useMyGroups();
   const { createDeal } = useCRMDealMutations();
+  const { data: leadSources } = useCRMLeadSources();
+  const { createLeadSource } = useCRMLeadSourceMutations();
+  const { data: orgMembers } = useQuery({
+    queryKey: ["org-members-for-deal"],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/api/crm/map-users`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      if (!res.ok) return [];
+      return res.json() as Promise<{ id: string; name: string }[]>;
+    },
+  });
 
   // Auto-fill group for non-managers
   useEffect(() => {
@@ -87,6 +104,8 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
       expected_close_date: expectedCloseDate || undefined,
       description,
       group_id: groupId || undefined,
+      owner_id: ownerId || undefined,
+      lead_source_id: leadSourceId || undefined,
       contact_name: mode === "contact" ? contactName : undefined,
       contact_phone: mode === "contact" ? contactPhone : undefined,
     } as any);
@@ -109,6 +128,21 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
     setContactName("");
     setContactPhone("");
     setMode("company");
+    setOwnerId("");
+    setLeadSourceId("");
+    setNewSourceName("");
+    setShowNewSource(false);
+  };
+
+  const handleCreateSource = async () => {
+    const name = newSourceName.trim();
+    if (!name) return;
+    try {
+      const created = await createLeadSource.mutateAsync({ name });
+      if (created?.id) setLeadSourceId(created.id);
+      setNewSourceName("");
+      setShowNewSource(false);
+    } catch {/* toast handled */}
   };
 
   const isValid = () => {
@@ -317,6 +351,73 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
                 <Input value={userGroupName} disabled className="bg-muted" />
               </div>
             ) : null}
+
+            {/* Vendedor responsável */}
+            {canManage && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <User className="h-4 w-4" /> Vendedor responsável
+                </Label>
+                <Select value={ownerId || "none"} onValueChange={(v) => setOwnerId(v === "none" ? "" : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Atribuir a um vendedor (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Eu mesmo</SelectItem>
+                    {orgMembers?.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Origem */}
+            <div className="space-y-2">
+              <Label>Origem</Label>
+              {showNewSource ? (
+                <div className="flex gap-2">
+                  <Input
+                    autoFocus
+                    value={newSourceName}
+                    onChange={(e) => setNewSourceName(e.target.value)}
+                    placeholder="Ex: Feira, BNI, Indicação..."
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); handleCreateSource(); }
+                      if (e.key === "Escape") { setShowNewSource(false); setNewSourceName(""); }
+                    }}
+                  />
+                  <Button type="button" size="sm" onClick={handleCreateSource} disabled={!newSourceName.trim() || createLeadSource.isPending}>
+                    Salvar
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => { setShowNewSource(false); setNewSourceName(""); }}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Select value={leadSourceId || "none"} onValueChange={(v) => setLeadSourceId(v === "none" ? "" : v)}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Selecione uma origem (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      {leadSources?.filter(s => s.is_active).map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                            {s.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" size="icon" title="Nova origem" onClick={() => setShowNewSource(true)}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
 
             <div className="space-y-2">
               <Label>Descrição</Label>

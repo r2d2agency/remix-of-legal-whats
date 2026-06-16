@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -314,8 +313,8 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
           <DialogTitle>{company ? "Editar Empresa" : "Nova Empresa"}</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0 max-h-[calc(90vh-140px)]">
-          <div className="space-y-4 p-1 pr-4">
+        <div className="flex-1 min-h-0 overflow-y-auto -mr-4 pr-4">
+          <div className="space-y-4 p-1">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>CNPJ</Label>
@@ -777,7 +776,7 @@ export function CompanyDialog({ company, open, onOpenChange, onCreated }: Compan
               />
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="flex-shrink-0 border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

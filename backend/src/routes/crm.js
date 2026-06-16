@@ -1040,7 +1040,8 @@ router.post('/deals', async (req, res) => {
     if (!org) return res.status(403).json({ error: 'No organization' });
 
     const { funnel_id, stage_id, company_id, title, value, probability, expected_close_date, 
-            description, tags, owner_id, group_id, contact_ids, contact_name, contact_phone, custom_fields } = req.body;
+            description, tags, owner_id, group_id, contact_ids, contact_name, contact_phone, custom_fields,
+            lead_source_id } = req.body;
 
     if (!funnel_id || !stage_id || !title) {
       return res.status(400).json({ error: 'Campos obrigatórios: funil, etapa e título' });
@@ -1064,10 +1065,11 @@ router.post('/deals', async (req, res) => {
 
     const result = await query(
       `INSERT INTO crm_deals (organization_id, funnel_id, stage_id, position, company_id, title, value, probability, 
-       expected_close_date, description, tags, owner_id, group_id, created_by, custom_fields)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+       expected_close_date, description, tags, owner_id, group_id, created_by, custom_fields, lead_source_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [org.organization_id, funnel_id, stage_id, nextPosition, resolvedCompanyId, title, value || 0, probability || 50,
-       expected_close_date, description, tags || [], owner_id || req.userId, group_id, req.userId, JSON.stringify(custom_fields || {})]
+       expected_close_date, description, tags || [], owner_id || req.userId, group_id, req.userId, JSON.stringify(custom_fields || {}),
+       lead_source_id || null]
     );
     const deal = result.rows[0];
 
@@ -3611,6 +3613,95 @@ router.post('/config/loss-reasons/cleanup', async (req, res) => {
 // ============================================
 // REVENUE INTELLIGENCE
 // ============================================
+// ============================================
+// LEAD SOURCES (Origens de Negociação)
+// ============================================
+
+router.get('/config/lead-sources', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    const result = await query(
+      `SELECT s.*, (SELECT COUNT(*) FROM crm_deals d WHERE d.lead_source_id = s.id) AS deals_count
+         FROM crm_lead_sources s
+        WHERE s.organization_id = $1 OR s.organization_id IS NULL
+        ORDER BY s.position ASC, s.name ASC`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    if (error.code === '42P01') return res.json([]);
+    console.error('Error fetching lead sources:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/config/lead-sources', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    const { name, color } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
+    const posResult = await query(
+      `SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM crm_lead_sources WHERE organization_id = $1`,
+      [org.organization_id]
+    );
+    const position = posResult.rows[0].next_pos;
+    const result = await query(
+      `INSERT INTO crm_lead_sources (organization_id, name, color, position)
+         VALUES ($1, $2, $3, $4)
+       ON CONFLICT (organization_id, name) DO UPDATE SET color = EXCLUDED.color, is_active = true
+       RETURNING *`,
+      [org.organization_id, name.trim(), color || '#6366f1', position]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating lead source:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/config/lead-sources/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    const { name, color, is_active, position } = req.body;
+    const updates = [];
+    const values = [];
+    let i = 1;
+    if (name !== undefined) { updates.push(`name = $${i++}`); values.push(name.trim()); }
+    if (color !== undefined) { updates.push(`color = $${i++}`); values.push(color); }
+    if (is_active !== undefined) { updates.push(`is_active = $${i++}`); values.push(is_active); }
+    if (position !== undefined) { updates.push(`position = $${i++}`); values.push(position); }
+    updates.push('updated_at = NOW()');
+    values.push(req.params.id, org.organization_id);
+    const result = await query(
+      `UPDATE crm_lead_sources SET ${updates.join(', ')}
+        WHERE id = $${i} AND organization_id = $${i + 1} RETURNING *`,
+      values
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating lead source:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/config/lead-sources/:id', async (req, res) => {
+  try {
+    const org = await getUserOrg(req.userId);
+    if (!org) return res.status(403).json({ error: 'No organization' });
+    await query(
+      `DELETE FROM crm_lead_sources WHERE id = $1 AND organization_id = $2`,
+      [req.params.id, org.organization_id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting lead source:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // Revenue forecast
 router.get('/intelligence/revenue-forecast', async (req, res) => {

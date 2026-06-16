@@ -4045,5 +4045,30 @@ export async function initDatabase() {
     console.error('  ⚠️ Failed agent-modes schema:', e.message);
   }
 
+  // ============================================================
+  // CRM Lead Sources (origens de negociação) — self-healing
+  // ============================================================
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS crm_lead_sources (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+        name VARCHAR(120) NOT NULL,
+        color VARCHAR(20) DEFAULT '#6366f1',
+        is_active BOOLEAN DEFAULT true,
+        position INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(organization_id, name)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_crm_lead_sources_org ON crm_lead_sources(organization_id)`);
+    await pool.query(`ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS lead_source_id UUID REFERENCES crm_lead_sources(id) ON DELETE SET NULL`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_crm_deals_lead_source ON crm_deals(lead_source_id)`);
+    console.log('  ✅ CRM Lead Sources schema ready');
+  } catch (e) {
+    console.error('  ⚠️ Failed crm_lead_sources schema:', e.message);
+  }
+
   return true;
 }
