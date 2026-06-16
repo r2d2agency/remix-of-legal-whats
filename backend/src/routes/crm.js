@@ -1040,7 +1040,8 @@ router.post('/deals', async (req, res) => {
     if (!org) return res.status(403).json({ error: 'No organization' });
 
     const { funnel_id, stage_id, company_id, title, value, probability, expected_close_date, 
-            description, tags, owner_id, group_id, contact_ids, contact_name, contact_phone, custom_fields } = req.body;
+            description, tags, owner_id, group_id, contact_ids, contact_name, contact_phone, custom_fields,
+            lead_source_id } = req.body;
 
     if (!funnel_id || !stage_id || !title) {
       return res.status(400).json({ error: 'Campos obrigatórios: funil, etapa e título' });
@@ -1064,10 +1065,11 @@ router.post('/deals', async (req, res) => {
 
     const result = await query(
       `INSERT INTO crm_deals (organization_id, funnel_id, stage_id, position, company_id, title, value, probability, 
-       expected_close_date, description, tags, owner_id, group_id, created_by, custom_fields)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+       expected_close_date, description, tags, owner_id, group_id, created_by, custom_fields, lead_source_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [org.organization_id, funnel_id, stage_id, nextPosition, resolvedCompanyId, title, value || 0, probability || 50,
-       expected_close_date, description, tags || [], owner_id || req.userId, group_id, req.userId, JSON.stringify(custom_fields || {})]
+       expected_close_date, description, tags || [], owner_id || req.userId, group_id, req.userId, JSON.stringify(custom_fields || {}),
+       lead_source_id || null]
     );
     const deal = result.rows[0];
 
