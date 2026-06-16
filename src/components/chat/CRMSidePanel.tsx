@@ -80,6 +80,7 @@ import { CompanyDialog } from "@/components/crm/CompanyDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { CRMAIAgentsSection } from "./CRMAIAgentsSection";
 import { CRMProjectsSection } from "./CRMProjectsSection";
+import { CRMCopilotsSection } from "./CRMCopilotsSection";
 import { useAIAgents, AIAgent } from "@/hooks/use-ai-agents";
 import { useProjects, useProjectStages, useProjectTemplates, useProjectMutations, useProjectNoteMutations, useProjectAttachmentMutations, useProjectNotes } from "@/hooks/use-projects";
 import { useUpload } from "@/hooks/use-upload";
