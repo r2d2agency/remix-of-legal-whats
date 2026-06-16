@@ -231,7 +231,8 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
       const convR = await query(
         `SELECT c.id FROM conversations c
            LEFT JOIN connections conn ON conn.id = c.connection_id
-          WHERE c.id = $1 AND conn.organization_id = $2
+          WHERE c.id = $1
+            AND (conn.organization_id = $2 OR conn.organization_id IS NULL OR c.connection_id IS NULL)
           LIMIT 1`,
         [conversation_id, ctx.organization_id]
       );
