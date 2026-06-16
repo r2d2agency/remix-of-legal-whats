@@ -324,16 +324,16 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
     let apiKey = null;
     let keySource = null;
 
-    if (agentApiKey) {
-      provider = normalizeProvider(agent.ai_provider) || inferProviderFromKey(agentApiKey);
-      model = resolveModelForProvider(provider, agent.ai_model);
-      apiKey = agentApiKey;
-      keySource = 'ai_agents.ai_api_key';
-    } else if (orgConfig?.apiKey) {
+    if (orgConfig?.apiKey) {
       provider = orgConfig.provider;
       model = orgConfig.model;
       apiKey = orgConfig.apiKey;
       keySource = orgConfig.keySource;
+    } else if (agentApiKey) {
+      provider = normalizeProvider(agent.ai_provider) || inferProviderFromKey(agentApiKey);
+      model = resolveModelForProvider(provider, agent.ai_model);
+      apiKey = agentApiKey;
+      keySource = 'ai_agents.ai_api_key';
     }
 
     const systemPrompt = `${agent.system_prompt || 'Você é um copiloto de vendas.'}\n\nVocê é o copiloto interno do vendedor. Responda direto, em português, prático, sem floreio. Nunca se apresente como IA.`;
