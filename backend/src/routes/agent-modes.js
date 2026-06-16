@@ -153,95 +153,29 @@ async function getPublicTableColumns(tableName) {
   return new Set(r.rows.map((row) => row.column_name));
 }
 
-async function getOrganizationAIConfig(organizationId, preferredProvider = null) {
-  const preferred = normalizeProvider(preferredProvider);
+async function getOrganizationAIConfig(organizationId) {
+  const r = await query(
+    `SELECT ai_provider, ai_model, ai_api_key
+       FROM organizations
+      WHERE id = $1
+      LIMIT 1`,
+    [organizationId]
+  ).catch((e) => {
+    logError('agent_modes.org_ai_config.lookup', e);
+    return { rows: [] };
+  });
 
-  try {
-    const columns = await getPublicTableColumns('organizations');
-    const selectable = ['ai_provider', 'ai_model', 'ai_api_key'].filter((column) => columns.has(column));
-    if (selectable.includes('ai_api_key')) {
-      const r = await query(
-        `SELECT ${selectable.map((column) => `"${column}"`).join(', ')}
-           FROM organizations
-          WHERE id = $1
-          LIMIT 1`,
-        [organizationId]
-      );
-      const org = r.rows[0] || {};
-      const apiKey = cleanAIKey(org.ai_api_key);
-      if (apiKey) {
-        const provider = normalizeProvider(org.ai_provider) || inferProviderFromKey(apiKey, preferred);
-        return {
-          provider,
-          model: resolveModelForProvider(provider, org.ai_model),
-          apiKey,
-          keySource: 'organizations.ai_api_key',
-        };
-      }
-    }
-  } catch (e) {
-    logError('agent_modes.org_ai_config.organizations_lookup', e);
-  }
+  const org = r.rows[0];
+  const apiKey = cleanAIKey(org?.ai_api_key);
+  if (!org || !apiKey || org.ai_provider === 'none') return null;
 
-  try {
-    const columns = await getPublicTableColumns('organization_ai_config');
-    if (!columns.has('organization_id')) return null;
-
-    const candidates = [
-      'ai_provider', 'provider', 'default_provider',
-      'ai_model', 'model', 'default_model',
-      'ai_api_key', 'api_key',
-      'openai_api_key', 'openai_model',
-      'openrouter_api_key', 'openrouter_model',
-      'gemini_api_key', 'gemini_model',
-    ];
-    const selectable = candidates.filter((column) => columns.has(column));
-    if (selectable.length === 0) return null;
-
-    const r = await query(
-      `SELECT ${selectable.map((column) => `"${column}"`).join(', ')}
-         FROM organization_ai_config
-        WHERE organization_id = $1
-        LIMIT 1`,
-      [organizationId]
-    );
-    const cfg = r.rows[0] || {};
-    const configuredProvider = normalizeProvider(cfg.ai_provider || cfg.provider || cfg.default_provider);
-    const genericKey = cleanAIKey(cfg.ai_api_key || cfg.api_key);
-
-    if (genericKey) {
-      const provider = configuredProvider || inferProviderFromKey(genericKey, preferred);
-      return {
-        provider,
-        model: resolveModelForProvider(provider, cfg.ai_model || cfg.model || cfg.default_model),
-        apiKey: genericKey,
-        keySource: 'organization_ai_config.ai_api_key',
-      };
-    }
-
-    const providerOrder = Array.from(new Set([
-      preferred,
-      configuredProvider,
-      'openai',
-      'openrouter',
-      'gemini',
-    ].filter(Boolean)));
-
-    for (const provider of providerOrder) {
-      const apiKey = cleanAIKey(cfg[`${provider}_api_key`]);
-      if (!apiKey) continue;
-      return {
-        provider,
-        model: resolveModelForProvider(provider, cfg[`${provider}_model`] || cfg.ai_model || cfg.model || cfg.default_model),
-        apiKey,
-        keySource: `organization_ai_config.${provider}_api_key`,
-      };
-    }
-  } catch (e) {
-    logError('agent_modes.org_ai_config.table_lookup', e);
-  }
-
-  return null;
+  const provider = normalizeProvider(org.ai_provider) || inferProviderFromKey(apiKey);
+  return {
+    provider,
+    model: org.ai_model || defaultModelForProvider(provider),
+    apiKey,
+    keySource: 'organizations.ai_api_key',
+  };
 }
 
 // ================= COPILOT ACTIONS =================
@@ -383,30 +317,23 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
       }
     }
 
+    const orgConfig = await getOrganizationAIConfig(ctx.organization_id);
     const agentApiKey = cleanAIKey(agent.ai_api_key);
-    const agentProvider = normalizeProvider(agent.ai_provider);
-    let provider = agentApiKey ? (agentProvider || inferProviderFromKey(agentApiKey)) : null;
-    let model = agentApiKey ? resolveModelForProvider(provider, agent.ai_model) : null;
-    let apiKey = agentApiKey;
-    let keySource = apiKey ? 'ai_agents.ai_api_key' : null;
+    let provider = null;
+    let model = null;
+    let apiKey = null;
+    let keySource = null;
 
-    if (!apiKey) {
-      const orgConfig = await getOrganizationAIConfig(ctx.organization_id, agentProvider);
-      if (orgConfig?.apiKey) {
-        provider = orgConfig.provider;
-        model = orgConfig.model;
-        apiKey = orgConfig.apiKey;
-        keySource = orgConfig.keySource;
-      }
-    }
-
-    provider = normalizeProvider(provider) || 'openai';
-    model = resolveModelForProvider(provider, model);
-
-    if (!apiKey) {
-      if (provider === 'gemini') { apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY; keySource = apiKey ? 'env.gemini' : keySource; }
-      else if (provider === 'openai') { apiKey = process.env.OPENAI_API_KEY; keySource = apiKey ? 'env.openai' : keySource; }
-      else if (provider === 'openrouter') { apiKey = process.env.OPENROUTER_API_KEY; keySource = apiKey ? 'env.openrouter' : keySource; }
+    if (orgConfig?.apiKey) {
+      provider = orgConfig.provider;
+      model = orgConfig.model;
+      apiKey = orgConfig.apiKey;
+      keySource = orgConfig.keySource;
+    } else if (agentApiKey) {
+      provider = normalizeProvider(agent.ai_provider) || inferProviderFromKey(agentApiKey);
+      model = resolveModelForProvider(provider, agent.ai_model);
+      apiKey = agentApiKey;
+      keySource = 'ai_agents.ai_api_key';
     }
 
     const systemPrompt = `${agent.system_prompt || 'Você é um copiloto de vendas.'}\n\nVocê é o copiloto interno do vendedor. Responda direto, em português, prático, sem floreio. Nunca se apresente como IA.`;
@@ -417,7 +344,7 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
         organization_id: ctx.organization_id,
         agent_id: agent.id,
         agent_provider: agent.ai_provider,
-        resolved_provider: provider,
+        org_has_key: !!orgConfig?.apiKey,
       });
       return res.status(400).json({ error: 'Configure a chave de IA da organização' });
     }
