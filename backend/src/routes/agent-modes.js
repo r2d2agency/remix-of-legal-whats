@@ -130,6 +130,13 @@ function defaultModelForProvider(provider) {
   return 'gpt-4o-mini';
 }
 
+function getEnvKeyForProvider(provider) {
+  if (provider === 'gemini') return cleanAIKey(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+  if (provider === 'openai') return cleanAIKey(process.env.OPENAI_API_KEY);
+  if (provider === 'openrouter') return cleanAIKey(process.env.OPENROUTER_API_KEY);
+  return null;
+}
+
 function modelMatchesProvider(provider, model) {
   const m = String(model || '').trim().toLowerCase();
   if (!m) return false;
@@ -226,7 +233,20 @@ async function getOrganizationAIConfig(organizationId) {
     return { rows: [] };
   });
 
-  return pickLegacyAIConfig(legacyR.rows[0], org?.ai_provider, org?.ai_model);
+  const legacyConfig = pickLegacyAIConfig(legacyR.rows[0], org?.ai_provider, org?.ai_model);
+  if (legacyConfig) return legacyConfig;
+
+  const configuredProvider = normalizeProvider(org?.ai_provider);
+  if (configuredProvider) {
+    return {
+      provider: configuredProvider,
+      model: resolveModelForProvider(configuredProvider, org?.ai_model),
+      apiKey: null,
+      keySource: 'organizations.ai_provider',
+    };
+  }
+
+  return null;
 }
 
 // ================= COPILOT ACTIONS =================
@@ -385,6 +405,13 @@ router.post('/:agentId/actions/:actionId/run', authenticate, async (req, res) =>
       model = resolveModelForProvider(provider, agent.ai_model);
       apiKey = agentApiKey;
       keySource = 'ai_agents.ai_api_key';
+    }
+
+    if (!apiKey) {
+      provider = provider || orgConfig?.provider || normalizeProvider(agent.ai_provider) || 'gemini';
+      model = model || resolveModelForProvider(provider, orgConfig?.model || agent.ai_model);
+      apiKey = getEnvKeyForProvider(provider);
+      if (apiKey) keySource = `env.${provider}`;
     }
 
     const systemPrompt = `${agent.system_prompt || 'Você é um copiloto de vendas.'}\n\nVocê é o copiloto interno do vendedor. Responda direto, em português, prático, sem floreio. Nunca se apresente como IA.`;
