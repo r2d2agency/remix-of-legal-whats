@@ -294,6 +294,11 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
     const matches = text.match(/\{\{(\d+)\}\}/g) || [];
     return [...new Set(matches)];
   };
+  const getHeaderMediaFormat = (t: any): 'IMAGE' | 'VIDEO' | 'DOCUMENT' | null => {
+    const h = (t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'HEADER');
+    const f = (h?.format || '').toUpperCase();
+    return f === 'IMAGE' || f === 'VIDEO' || f === 'DOCUMENT' ? f : null;
+  };
   const selectTemplate = (t: any) => {
     onChange({
       ...content,
