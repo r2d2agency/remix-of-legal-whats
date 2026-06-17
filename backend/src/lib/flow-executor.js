@@ -1,6 +1,7 @@
 // Flow Executor - Processes visual flow nodes and sends messages
 import { query } from '../db.js';
 import * as whatsappProvider from './whatsapp-provider.js';
+import { sendMetaTemplate } from './meta-template-send.js';
 
 // In-memory execution logs for debugging (per conversation, limited)
 const EXECUTION_LOGS_MAX_PER_CONVERSATION = 100;
@@ -511,7 +512,35 @@ async function processMessageNode(content, connection, phone, variables, convers
       }
     };
 
-    if (mediaType === 'gallery' && content.gallery_images?.length > 0) {
+    if (mediaType === 'meta_template') {
+      if (connection.provider !== 'meta' || !connection.meta_token || !connection.meta_phone_number_id) {
+        throw new Error('Nó de Template Meta exige uma conexão Meta Cloud API');
+      }
+      const contact = {
+        name: variables?.nome || variables?.name || '',
+        phone: variables?.telefone || variables?.phone || phone || '',
+        email: variables?.email || '',
+        company: variables?.company_name || variables?.empresa || '',
+      };
+      const components = content.template_components || [];
+      const paramValues = content.template_params || {};
+      // Resolve {variable} tokens in params using current flow variables before sending
+      const resolvedParams = {};
+      for (const [k, v] of Object.entries(paramValues)) {
+        resolvedParams[k] = replaceVariables(String(v || ''), variables);
+      }
+      const { metaMessageId, readable } = await sendMetaTemplate({
+        metaToken: connection.meta_token,
+        metaPhoneNumberId: connection.meta_phone_number_id,
+        toPhone: phone,
+        templateName: content.template_name,
+        language: content.template_language || 'pt_BR',
+        components,
+        paramValues: resolvedParams,
+        contact,
+      });
+      await saveSentMessage(conversationId, `📋 ${readable}`, 'text', null, metaMessageId);
+    } else if (mediaType === 'gallery' && content.gallery_images?.length > 0) {
       // Send gallery images sequentially with proper delay
       console.log(`Flow executor: Sending gallery with ${content.gallery_images.length} images`);
       for (let i = 0; i < content.gallery_images.length; i++) {
