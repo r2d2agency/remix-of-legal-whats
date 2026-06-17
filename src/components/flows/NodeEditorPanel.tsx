@@ -271,6 +271,40 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [uploadingGallery, setUploadingGallery] = useState(0);
 
+  // Meta templates (org-wide approved)
+  const [metaTemplates, setMetaTemplates] = useState<any[]>([]);
+  const [loadingMetaTemplates, setLoadingMetaTemplates] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingMetaTemplates(true);
+    api<any[]>('/api/meta/_all/templates')
+      .then((data) => { if (!cancelled) setMetaTemplates(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setMetaTemplates([]); })
+      .finally(() => { if (!cancelled) setLoadingMetaTemplates(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const selectedTemplate = metaTemplates.find(t => t.id === content.template_id);
+  const getBody = (t: any) => (t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'BODY')?.text || '';
+  const getHeaderText = (t: any) => (t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'HEADER')?.text || '';
+  const getTemplateParams = (t: any): string[] => {
+    const text = `${getHeaderText(t)} ${getBody(t)}`;
+    const matches = text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)];
+  };
+  const selectTemplate = (t: any) => {
+    onChange({
+      ...content,
+      media_type: 'meta_template',
+      template_id: t.id,
+      template_name: t.name,
+      template_language: t.language,
+      template_components: t.components || [],
+      template_params: {},
+    });
+  };
+
   const MAX_GALLERY_IMAGES = 10;
   const galleryImages: { url: string; fileName?: string }[] = content.gallery_images || [];
 
@@ -352,8 +386,15 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
   };
 
   return (
-    <Tabs defaultValue={content.media_type === 'gallery' ? 'gallery' : 'text'} className="w-full">
-      <TabsList className="grid w-full grid-cols-5">
+    <Tabs defaultValue={
+      content.media_type === 'gallery' ? 'gallery'
+      : content.media_type === 'meta_template' ? 'template'
+      : content.media_type === 'image' ? 'image'
+      : content.media_type === 'video' ? 'video'
+      : content.media_type === 'audio' ? 'audio'
+      : 'text'
+    } className="w-full">
+      <TabsList className="grid w-full grid-cols-6">
         <TabsTrigger value="text" className="text-xs"><FileText className="h-3 w-3" /></TabsTrigger>
         <TabsTrigger value="image" className="text-xs"><Image className="h-3 w-3" /></TabsTrigger>
         <TabsTrigger value="gallery" className="text-xs relative">
@@ -366,6 +407,9 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
         </TabsTrigger>
         <TabsTrigger value="video" className="text-xs"><Video className="h-3 w-3" /></TabsTrigger>
         <TabsTrigger value="audio" className="text-xs"><Mic className="h-3 w-3" /></TabsTrigger>
+        <TabsTrigger value="template" className="text-xs" title="Template Meta">
+          <Bot className="h-3 w-3" />
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="text" className="space-y-3 mt-3">
