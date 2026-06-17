@@ -51,6 +51,7 @@ import {
   WifiOff,
   Edit,
   ArrowRight,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaigns, Campaign, CampaignReport } from "@/hooks/use-campaigns";
@@ -134,8 +135,14 @@ const Campanhas = () => {
   const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
   
   // Form state - Content type (message or flow)
-  const [contentType, setContentType] = useState<'message' | 'flow'>('message');
+  const [contentType, setContentType] = useState<'message' | 'flow' | 'template'>('message');
   const [selectedFlow, setSelectedFlow] = useState("");
+
+  // Form state - Meta template
+  const [metaTemplates, setMetaTemplates] = useState<any[]>([]);
+  const [selectedMetaTemplate, setSelectedMetaTemplate] = useState<string>("");
+  const [metaParamValues, setMetaParamValues] = useState<Record<string, string>>({});
+  const [loadingMetaTemplates, setLoadingMetaTemplates] = useState(false);
   
   // Form state - Tag source
   const [contactSource, setContactSource] = useState<'list' | 'tag'>('list');
@@ -332,6 +339,9 @@ const Campanhas = () => {
     setSelectedMessages([]);
     setContentType('message');
     setSelectedFlow("");
+    setSelectedMetaTemplate("");
+    setMetaTemplates([]);
+    setMetaParamValues({});
     setContactSource('list');
     setSelectedTag("");
     setStartDate(undefined);
