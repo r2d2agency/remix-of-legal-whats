@@ -63,6 +63,7 @@ import { toast } from "sonner";
 import { CampaignDetailModal } from "@/components/campanhas/CampaignDetailModal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useConnections } from "@/hooks/use-connections";
+import { TemplateHeaderMediaField } from "@/components/campanhas/TemplateHeaderMediaField";
 
 interface Connection {
   id: string;
