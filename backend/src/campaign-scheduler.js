@@ -307,6 +307,92 @@ export async function executeCampaignMessages() {
       stats.processed++;
 
       try {
+        // Build contact object early for reuse
+        const contactObj = {
+          name: msg.contact_name || '',
+          phone: msg.phone || '',
+          email: msg.contact_email || '',
+        };
+
+        // ============ META TEMPLATE CAMPAIGN ============
+        if (msg.meta_template_id) {
+          try {
+            const tplComponents = typeof msg.meta_template_components === 'string'
+              ? JSON.parse(msg.meta_template_components)
+              : (msg.meta_template_components || []);
+            const tplParams = typeof msg.meta_template_params === 'string'
+              ? JSON.parse(msg.meta_template_params)
+              : (msg.meta_template_params || {});
+
+            const { metaMessageId, readable } = await sendMetaTemplate({
+              metaToken: msg.meta_token,
+              metaPhoneNumberId: msg.meta_phone_number_id,
+              toPhone: msg.phone,
+              templateName: msg.meta_template_name,
+              language: msg.meta_template_language,
+              components: tplComponents,
+              paramValues: tplParams,
+              contact: contactObj,
+            });
+
+            // Persist a chat_messages row so the conversation has history
+            try {
+              const remoteJid = msg.phone.includes('@') ? msg.phone : `${msg.phone}@s.whatsapp.net`;
+              let conv = await query(
+                `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2`,
+                [msg.connection_id, remoteJid]
+              );
+              let convId;
+              if (conv.rows.length === 0) {
+                const newConv = await query(
+                  `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, last_message_at, updated_at)
+                   VALUES ($1, $2, $3, $4, NOW(), NOW())
+                   RETURNING id`,
+                  [msg.connection_id, remoteJid, msg.contact_name || '', msg.phone]
+                );
+                convId = newConv.rows[0].id;
+              } else {
+                convId = conv.rows[0].id;
+              }
+              await query(
+                `INSERT INTO chat_messages (conversation_id, message_id, from_me, content, message_type, status, timestamp)
+                 VALUES ($1, $2, true, $3, 'text', 'sent', NOW())`,
+                [convId, metaMessageId, `📋 ${readable}`]
+              );
+              await query(
+                `UPDATE conversations SET last_message_at = NOW(), updated_at = NOW() WHERE id = $1`,
+                [convId]
+              );
+            } catch (persistErr) {
+              console.warn('  ⚠ falha ao salvar histórico do template:', persistErr.message);
+            }
+
+            await query(
+              `UPDATE campaign_messages SET status = 'sent', sent_at = NOW() WHERE id = $1`,
+              [msg.id]
+            );
+            await query(
+              `UPDATE campaigns SET sent_count = sent_count + 1, updated_at = NOW() WHERE id = $1`,
+              [msg.campaign_id]
+            );
+            stats.sent++;
+            console.log(`  ✓ [${msg.phone}] Template "${msg.meta_template_name}" enviado`);
+          } catch (tplErr) {
+            const errorMsg = translateError(tplErr.message || 'Erro ao enviar template');
+            await query(
+              `UPDATE campaign_messages SET status = 'failed', error_message = $1, sent_at = NOW() WHERE id = $2`,
+              [errorMsg, msg.id]
+            );
+            await query(
+              `UPDATE campaigns SET failed_count = failed_count + 1, updated_at = NOW() WHERE id = $1`,
+              [msg.campaign_id]
+            );
+            stats.failed++;
+            console.log(`  ✗ [${msg.phone}] ${errorMsg}`);
+          }
+          continue;
+        }
+
         // Check if this is a flow-based campaign
         if (msg.flow_id) {
           // Execute flow for this contact
