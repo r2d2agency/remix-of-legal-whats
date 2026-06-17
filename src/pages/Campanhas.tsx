@@ -51,6 +51,7 @@ import {
   WifiOff,
   Edit,
   ArrowRight,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaigns, Campaign, CampaignReport } from "@/hooks/use-campaigns";
@@ -134,8 +135,14 @@ const Campanhas = () => {
   const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
   
   // Form state - Content type (message or flow)
-  const [contentType, setContentType] = useState<'message' | 'flow'>('message');
+  const [contentType, setContentType] = useState<'message' | 'flow' | 'template'>('message');
   const [selectedFlow, setSelectedFlow] = useState("");
+
+  // Form state - Meta template
+  const [metaTemplates, setMetaTemplates] = useState<any[]>([]);
+  const [selectedMetaTemplate, setSelectedMetaTemplate] = useState<string>("");
+  const [metaParamValues, setMetaParamValues] = useState<Record<string, string>>({});
+  const [loadingMetaTemplates, setLoadingMetaTemplates] = useState(false);
   
   // Form state - Tag source
   const [contactSource, setContactSource] = useState<'list' | 'tag'>('list');
@@ -207,6 +214,54 @@ const Campanhas = () => {
       setConversationTags([]);
     }
   }, [getCampaigns, getLists, getMessages, getFlows, availableConnections]);
+
+  // Detect provider of the selected connection
+  const selectedConn = (availableConnections as any[]).find((c) => c.id === selectedConnection);
+  const isMetaConnection = (selectedConn?.provider || '').toLowerCase() === 'meta';
+
+  // Load Meta templates when a Meta connection is selected and template mode is active
+  useEffect(() => {
+    if (!isMetaConnection || contentType !== 'template' || !selectedConnection) {
+      return;
+    }
+    let cancelled = false;
+    setLoadingMetaTemplates(true);
+    api<any[]>(`/api/meta/${selectedConnection}/templates?sync=true`, { auth: true })
+      .then((tpls) => {
+        if (cancelled) return;
+        setMetaTemplates(Array.isArray(tpls) ? tpls : []);
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar templates Meta:', err);
+        if (!cancelled) setMetaTemplates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMetaTemplates(false);
+      });
+    return () => { cancelled = true; };
+  }, [isMetaConnection, contentType, selectedConnection]);
+
+  // Reset content type when switching connections
+  useEffect(() => {
+    setSelectedMetaTemplate("");
+    setMetaParamValues({});
+    if (!isMetaConnection && contentType === 'template') {
+      setContentType('message');
+    }
+  }, [selectedConnection]);
+
+  const selectedTemplateObj = metaTemplates.find((t) => t.id === selectedMetaTemplate);
+
+  const getTemplateBodyText = (t: any): string => {
+    const body = (t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'BODY');
+    return body?.text || '';
+  };
+
+  const getTemplateParams = (t: any): string[] => {
+    const text = getTemplateBodyText(t) + ' ' + (((t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'HEADER')?.text) || '');
+    const matches = text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)];
+  };
 
   const loadReports = useCallback(async () => {
     setLoadingReport(true);
@@ -332,6 +387,9 @@ const Campanhas = () => {
     setSelectedMessages([]);
     setContentType('message');
     setSelectedFlow("");
+    setSelectedMetaTemplate("");
+    setMetaTemplates([]);
+    setMetaParamValues({});
     setContactSource('list');
     setSelectedTag("");
     setStartDate(undefined);
@@ -365,7 +423,10 @@ const Campanhas = () => {
 
   const handleCreateCampaign = async () => {
     // Validate content selection
-    const hasContent = contentType === 'flow' ? !!selectedFlow : selectedMessages.length > 0;
+    const hasContent =
+      contentType === 'flow' ? !!selectedFlow
+      : contentType === 'template' ? !!selectedMetaTemplate
+      : selectedMessages.length > 0;
     
     // Validate based on contact source
     if (contactSource === 'list') {
@@ -429,6 +490,8 @@ const Campanhas = () => {
         list_id: listIdToUse,
         message_ids: contentType === 'message' ? selectedMessages : [],
         flow_id: contentType === 'flow' ? selectedFlow : undefined,
+        meta_template_id: contentType === 'template' ? selectedMetaTemplate : undefined,
+        meta_template_params: contentType === 'template' ? metaParamValues : undefined,
         start_date: formatDateForApi(startDate),
         end_date: formatDateForApi(endDate),
         start_time: startTime,
@@ -694,6 +757,12 @@ const Campanhas = () => {
                                 Fluxo
                               </Badge>
                             )}
+                            {(campaign as any).meta_template_id && (
+                              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
+                                <FileText className="h-3 w-3 mr-1" />
+                                Template: {(campaign as any).meta_template_name}
+                              </Badge>
+                            )}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -701,7 +770,12 @@ const Campanhas = () => {
                               {campaign.list_name || "Lista removida"}
                             </span>
                             <span className="flex items-center gap-1">
-                              {campaign.flow_id ? (
+                              {(campaign as any).meta_template_id ? (
+                                <>
+                                  <FileText className="h-4 w-4" />
+                                  {(campaign as any).meta_template_name || 'Template'}
+                                </>
+                              ) : campaign.flow_id ? (
                                 <>
                                   <GitBranch className="h-4 w-4" />
                                   {campaign.flow_name || "Fluxo removido"}
@@ -1192,7 +1266,24 @@ const Campanhas = () => {
                         <GitBranch className="h-4 w-4 mr-2" />
                         Fluxo
                       </Button>
+                      {isMetaConnection && (
+                        <Button
+                          type="button"
+                          variant={contentType === 'template' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setContentType('template')}
+                          className="flex-1"
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          Template Meta
+                        </Button>
+                      )}
                     </div>
+                    {!isMetaConnection && (
+                      <p className="text-xs text-muted-foreground">
+                        Selecione uma conexão Meta Cloud API para habilitar envio por Template.
+                      </p>
+                    )}
                   </div>
 
                   {contentType === 'message' ? (
@@ -1240,7 +1331,7 @@ const Campanhas = () => {
                         Selecione múltiplas mensagens para envio aleatório entre contatos. Use <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code> nas mensagens para personalização.
                       </p>
                     </div>
-                  ) : (
+                  ) : contentType === 'flow' ? (
                     <div className="space-y-2">
                       <Label>Fluxo de Automação</Label>
                       <Select value={selectedFlow} onValueChange={setSelectedFlow} disabled={flows.length === 0}>
@@ -1267,6 +1358,68 @@ const Campanhas = () => {
                       </Select>
                       <p className="text-xs text-muted-foreground">
                         O fluxo será iniciado para cada contato da lista. Variáveis do contato estarão disponíveis no fluxo.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <Label>Template Meta Aprovado</Label>
+                      <Select
+                        value={selectedMetaTemplate}
+                        onValueChange={(v) => { setSelectedMetaTemplate(v); setMetaParamValues({}); }}
+                        disabled={loadingMetaTemplates}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            loadingMetaTemplates ? "Carregando templates..."
+                            : metaTemplates.filter(t => (t.status || '').toUpperCase() === 'APPROVED').length === 0
+                              ? "Nenhum template aprovado"
+                              : "Selecione um template"
+                          } />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {metaTemplates
+                            .filter((t) => (t.status || '').toUpperCase() === 'APPROVED')
+                            .map((t) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-4 w-4 text-primary" />
+                                  <span>{t.name}</span>
+                                  <Badge variant="outline" className="text-[10px] ml-1">{t.language}</Badge>
+                                  <Badge variant="outline" className="text-[10px]">{t.category}</Badge>
+                                </div>
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+
+                      {selectedTemplateObj && (
+                        <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Pré-visualização do corpo:</p>
+                          <p className="text-sm whitespace-pre-wrap">{getTemplateBodyText(selectedTemplateObj) || '(sem corpo)'}</p>
+                        </div>
+                      )}
+
+                      {selectedTemplateObj && getTemplateParams(selectedTemplateObj).length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-sm">Parâmetros do template</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Use variáveis dinâmicas: <code className="bg-muted px-1 rounded">{'{name}'}</code>, <code className="bg-muted px-1 rounded">{'{phone}'}</code>, <code className="bg-muted px-1 rounded">{'{email}'}</code> ou texto fixo.
+                          </p>
+                          {getTemplateParams(selectedTemplateObj).map((p) => (
+                            <div key={p} className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">{p}</Label>
+                              <Input
+                                placeholder={`Valor para ${p} — ex: {name}`}
+                                value={metaParamValues[p] || ''}
+                                onChange={(e) => setMetaParamValues((prev) => ({ ...prev, [p]: e.target.value }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-xs text-muted-foreground">
+                        Templates são obrigatórios em conexões Meta quando o contato está fora da janela de 24h.
                       </p>
                     </div>
                   )}

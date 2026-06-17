@@ -74,6 +74,8 @@ router.post('/', async (req, res) => {
       message_id,
       message_ids, // Support array of messages
       flow_id, // Support flow-based campaigns
+      meta_template_id, // Support Meta template-based campaigns
+      meta_template_params,
       scheduled_at,
       start_date,
       end_date,
@@ -94,11 +96,12 @@ router.post('/', async (req, res) => {
     
     const finalMessageId = allMessageIds[0] || null;
     const isFlowCampaign = !!flow_id;
+    const isTemplateCampaign = !!meta_template_id;
 
-    // Either messages or flow is required
-    if (!name || !connection_id || !list_id || (!finalMessageId && !isFlowCampaign)) {
+    // Either messages, flow OR meta template is required
+    if (!name || !connection_id || !list_id || (!finalMessageId && !isFlowCampaign && !isTemplateCampaign)) {
       return res.status(400).json({ 
-        error: 'Nome, conexão, lista e (mensagem ou fluxo) são obrigatórios' 
+        error: 'Nome, conexão, lista e (mensagem, fluxo ou template) são obrigatórios' 
       });
     }
 
@@ -138,7 +141,7 @@ router.post('/', async (req, res) => {
     }
 
     // Verify all message IDs (only if not using flow)
-    if (!isFlowCampaign) {
+    if (!isFlowCampaign && !isTemplateCampaign) {
       for (const msgId of allMessageIds) {
         let messageCheck;
         if (org) {
@@ -158,6 +161,30 @@ router.post('/', async (req, res) => {
         if (messageCheck.rows.length === 0) {
           return res.status(400).json({ error: `Mensagem ${msgId} não encontrada ou sem permissão` });
         }
+      }
+    }
+
+    // Verify Meta template
+    let metaTemplate = null;
+    if (isTemplateCampaign) {
+      const connRow = await query(
+        `SELECT id, provider, meta_token, meta_phone_number_id, meta_waba_id FROM connections WHERE id = $1`,
+        [connection_id]
+      );
+      if (connRow.rows[0]?.provider !== 'meta') {
+        return res.status(400).json({ error: 'Templates só podem ser usados em conexões Meta Cloud API' });
+      }
+      const tplRow = await query(
+        `SELECT * FROM meta_message_templates WHERE id = $1 AND connection_id = $2`,
+        [meta_template_id, connection_id]
+      );
+      if (tplRow.rows.length === 0) {
+        return res.status(400).json({ error: 'Template não encontrado para essa conexão' });
+      }
+      metaTemplate = tplRow.rows[0];
+      const status = String(metaTemplate.status || '').toUpperCase();
+      if (status !== 'APPROVED') {
+        return res.status(400).json({ error: `Template "${metaTemplate.name}" não está aprovado (status: ${metaTemplate.status})` });
       }
     }
 
@@ -328,15 +355,16 @@ router.post('/', async (req, res) => {
       `INSERT INTO campaigns 
        (user_id, name, connection_id, list_id, message_id, flow_id, status, scheduled_at, 
         start_date, end_date, start_time, end_time,
-        min_delay, max_delay, pause_after_messages, pause_duration, random_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) 
+        min_delay, max_delay, pause_after_messages, pause_duration, random_order,
+        meta_template_id, meta_template_name, meta_template_language, meta_template_components, meta_template_params)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) 
        RETURNING *`,
       [
         req.userId, 
         name, 
         connection_id, 
         list_id, 
-        isFlowCampaign ? null : finalMessageId,
+        (isFlowCampaign || isTemplateCampaign) ? null : finalMessageId,
         isFlowCampaign ? flow_id : null,
         initialStatus,
         scheduled_at || null,
@@ -348,7 +376,12 @@ router.post('/', async (req, res) => {
         maxDelayVal,
         pauseAfter,
         pause_duration || 10,
-        random_order || false
+        random_order || false,
+        isTemplateCampaign ? meta_template_id : null,
+        isTemplateCampaign ? metaTemplate.name : null,
+        isTemplateCampaign ? metaTemplate.language : null,
+        isTemplateCampaign ? JSON.stringify(metaTemplate.components || []) : null,
+        isTemplateCampaign ? JSON.stringify(meta_template_params || {}) : null,
       ]
     );
 
