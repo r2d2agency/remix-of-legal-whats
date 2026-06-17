@@ -215,6 +215,54 @@ const Campanhas = () => {
     }
   }, [getCampaigns, getLists, getMessages, getFlows, availableConnections]);
 
+  // Detect provider of the selected connection
+  const selectedConn = (availableConnections as any[]).find((c) => c.id === selectedConnection);
+  const isMetaConnection = (selectedConn?.provider || '').toLowerCase() === 'meta';
+
+  // Load Meta templates when a Meta connection is selected and template mode is active
+  useEffect(() => {
+    if (!isMetaConnection || contentType !== 'template' || !selectedConnection) {
+      return;
+    }
+    let cancelled = false;
+    setLoadingMetaTemplates(true);
+    api<any[]>(`/api/meta/${selectedConnection}/templates?sync=true`, { auth: true })
+      .then((tpls) => {
+        if (cancelled) return;
+        setMetaTemplates(Array.isArray(tpls) ? tpls : []);
+      })
+      .catch((err) => {
+        console.error('Erro ao carregar templates Meta:', err);
+        if (!cancelled) setMetaTemplates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMetaTemplates(false);
+      });
+    return () => { cancelled = true; };
+  }, [isMetaConnection, contentType, selectedConnection]);
+
+  // Reset content type when switching connections
+  useEffect(() => {
+    setSelectedMetaTemplate("");
+    setMetaParamValues({});
+    if (!isMetaConnection && contentType === 'template') {
+      setContentType('message');
+    }
+  }, [selectedConnection]);
+
+  const selectedTemplateObj = metaTemplates.find((t) => t.id === selectedMetaTemplate);
+
+  const getTemplateBodyText = (t: any): string => {
+    const body = (t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'BODY');
+    return body?.text || '';
+  };
+
+  const getTemplateParams = (t: any): string[] => {
+    const text = getTemplateBodyText(t) + ' ' + (((t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'HEADER')?.text) || '');
+    const matches = text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)];
+  };
+
   const loadReports = useCallback(async () => {
     setLoadingReport(true);
     try {
