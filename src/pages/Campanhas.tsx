@@ -423,7 +423,10 @@ const Campanhas = () => {
 
   const handleCreateCampaign = async () => {
     // Validate content selection
-    const hasContent = contentType === 'flow' ? !!selectedFlow : selectedMessages.length > 0;
+    const hasContent =
+      contentType === 'flow' ? !!selectedFlow
+      : contentType === 'template' ? !!selectedMetaTemplate
+      : selectedMessages.length > 0;
     
     // Validate based on contact source
     if (contactSource === 'list') {
@@ -487,6 +490,8 @@ const Campanhas = () => {
         list_id: listIdToUse,
         message_ids: contentType === 'message' ? selectedMessages : [],
         flow_id: contentType === 'flow' ? selectedFlow : undefined,
+        meta_template_id: contentType === 'template' ? selectedMetaTemplate : undefined,
+        meta_template_params: contentType === 'template' ? metaParamValues : undefined,
         start_date: formatDateForApi(startDate),
         end_date: formatDateForApi(endDate),
         start_time: startTime,
