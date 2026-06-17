@@ -757,6 +757,12 @@ const Campanhas = () => {
                                 Fluxo
                               </Badge>
                             )}
+                            {(campaign as any).meta_template_id && (
+                              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
+                                <FileText className="h-3 w-3 mr-1" />
+                                Template: {(campaign as any).meta_template_name}
+                              </Badge>
+                            )}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -764,7 +770,12 @@ const Campanhas = () => {
                               {campaign.list_name || "Lista removida"}
                             </span>
                             <span className="flex items-center gap-1">
-                              {campaign.flow_id ? (
+                              {(campaign as any).meta_template_id ? (
+                                <>
+                                  <FileText className="h-4 w-4" />
+                                  {(campaign as any).meta_template_name || 'Template'}
+                                </>
+                              ) : campaign.flow_id ? (
                                 <>
                                   <GitBranch className="h-4 w-4" />
                                   {campaign.flow_name || "Fluxo removido"}
