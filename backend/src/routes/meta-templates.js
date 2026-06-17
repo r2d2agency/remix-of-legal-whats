@@ -279,7 +279,7 @@ router.post('/validate', async (req, res) => {
 router.get('/_all/templates', async (req, res) => {
   try {
     const org = await getUserOrganization(req.userId);
-    if (!org) return res.status(403).json({ error: 'Sem organização' });
+    if (!org) return res.json([]);
 
     const result = await query(
       `SELECT t.*, c.name as connection_name
@@ -293,8 +293,9 @@ router.get('/_all/templates', async (req, res) => {
     );
     res.json(result.rows);
   } catch (error) {
-    console.error('List org meta templates error:', error);
-    res.status(500).json({ error: 'Erro ao listar templates' });
+    console.error('List org meta templates error:', error?.message, error?.code, error?.detail);
+    // Graceful degradation: return empty list instead of 500 so the flow editor doesn't crash
+    res.json([]);
   }
 });
 
