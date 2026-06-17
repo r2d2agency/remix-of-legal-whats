@@ -9,8 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Plus, RefreshCw, Loader2, FileText, Trash2, CheckCircle, Clock, XCircle, AlertTriangle, MessageSquare, BookTemplate, ChevronRight } from "lucide-react";
-import { api } from "@/lib/api";
+import { Plus, RefreshCw, Loader2, FileText, Trash2, CheckCircle, Clock, XCircle, AlertTriangle, MessageSquare, BookTemplate, ChevronRight, Upload, Image as ImageIcon, Video as VideoIcon, FileIcon } from "lucide-react";
+import { api, API_URL, getAuthToken } from "@/lib/api";
 import { toast } from "sonner";
 import { META_TEMPLATE_SEGMENTS, MetaTemplatePreset } from "@/components/meta-templates/meta-template-presets";
 interface MetaConnection {
@@ -72,6 +72,41 @@ const MetaTemplates = () => {
   const [newBodyText, setNewBodyText] = useState("");
   const [newFooterText, setNewFooterText] = useState("");
   const [creating, setCreating] = useState(false);
+
+  // Header format/media state
+  const [newHeaderFormat, setNewHeaderFormat] = useState<"NONE" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT">("NONE");
+  const [newHeaderMediaHandle, setNewHeaderMediaHandle] = useState<string>("");
+  const [newHeaderMediaName, setNewHeaderMediaName] = useState<string>("");
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+
+  const uploadHeaderSample = async (file: File) => {
+    if (!selectedConnectionId) {
+      toast.error("Selecione uma conexão Meta primeiro");
+      return;
+    }
+    setUploadingMedia(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const token = getAuthToken();
+      const resp = await fetch(`${API_URL}/api/meta/${selectedConnectionId}/template-media-handle`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: fd,
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.handle) {
+        throw new Error(data.error || "Falha ao enviar arquivo de exemplo");
+      }
+      setNewHeaderMediaHandle(data.handle);
+      setNewHeaderMediaName(file.name);
+      toast.success("Arquivo de exemplo enviado para a Meta");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao enviar arquivo");
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
 
   const applyPreset = (preset: MetaTemplatePreset) => {
     setNewName(preset.name);
@@ -145,8 +180,18 @@ const MetaTemplates = () => {
     }
 
     const components: any[] = [];
-    if (newHeaderText.trim()) {
+    if (newHeaderFormat === "TEXT" && newHeaderText.trim()) {
       components.push({ type: "HEADER", format: "TEXT", text: newHeaderText });
+    } else if (["IMAGE", "VIDEO", "DOCUMENT"].includes(newHeaderFormat)) {
+      if (!newHeaderMediaHandle) {
+        toast.error("Envie um arquivo de exemplo para o cabeçalho de mídia");
+        return;
+      }
+      components.push({
+        type: "HEADER",
+        format: newHeaderFormat,
+        example: { header_handle: [newHeaderMediaHandle] },
+      });
     }
     components.push({ type: "BODY", text: newBodyText });
     if (newFooterText.trim()) {
@@ -207,6 +252,9 @@ const MetaTemplates = () => {
     setNewFooterText("");
     setNewLanguage("pt_BR");
     setNewCategory("UTILITY");
+    setNewHeaderFormat("NONE");
+    setNewHeaderMediaHandle("");
+    setNewHeaderMediaName("");
   };
 
   const getBodyText = (components: any[]) => {
@@ -368,11 +416,63 @@ const MetaTemplates = () => {
 
               <div className="space-y-2">
                 <Label>Cabeçalho (opcional)</Label>
-                <Input
-                  placeholder="Texto do cabeçalho"
-                  value={newHeaderText}
-                  onChange={(e) => setNewHeaderText(e.target.value)}
-                />
+                <Select value={newHeaderFormat} onValueChange={(v: any) => {
+                  setNewHeaderFormat(v);
+                  setNewHeaderMediaHandle("");
+                  setNewHeaderMediaName("");
+                  if (v !== "TEXT") setNewHeaderText("");
+                }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">Sem cabeçalho</SelectItem>
+                    <SelectItem value="TEXT">Texto</SelectItem>
+                    <SelectItem value="IMAGE">Imagem</SelectItem>
+                    <SelectItem value="VIDEO">Vídeo</SelectItem>
+                    <SelectItem value="DOCUMENT">Documento (PDF)</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {newHeaderFormat === "TEXT" && (
+                  <Input
+                    placeholder="Texto do cabeçalho"
+                    value={newHeaderText}
+                    onChange={(e) => setNewHeaderText(e.target.value)}
+                  />
+                )}
+
+                {["IMAGE", "VIDEO", "DOCUMENT"].includes(newHeaderFormat) && (
+                  <div className="space-y-2 rounded-lg border border-dashed p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Envie um arquivo de exemplo (obrigatório pela Meta para aprovação). No disparo você poderá trocar a mídia por outra do mesmo tipo.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept={
+                          newHeaderFormat === "IMAGE" ? "image/jpeg,image/png"
+                          : newHeaderFormat === "VIDEO" ? "video/mp4,video/3gpp"
+                          : "application/pdf"
+                        }
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadHeaderSample(f);
+                          e.target.value = "";
+                        }}
+                        disabled={uploadingMedia}
+                      />
+                      {uploadingMedia && <Loader2 className="h-4 w-4 animate-spin" />}
+                    </div>
+                    {newHeaderMediaHandle && (
+                      <div className="flex items-center gap-2 text-xs text-green-600">
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        <span className="truncate">{newHeaderMediaName || "Arquivo enviado"}</span>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-muted-foreground">
+                      Formatos: Imagem (JPG/PNG, máx 5MB), Vídeo (MP4/3GPP, máx 16MB), PDF (máx 100MB).
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

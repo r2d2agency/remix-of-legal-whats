@@ -63,6 +63,7 @@ import { toast } from "sonner";
 import { CampaignDetailModal } from "@/components/campanhas/CampaignDetailModal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useConnections } from "@/hooks/use-connections";
+import { TemplateHeaderMediaField } from "@/components/campanhas/TemplateHeaderMediaField";
 
 interface Connection {
   id: string;
@@ -261,6 +262,12 @@ const Campanhas = () => {
     const text = getTemplateBodyText(t) + ' ' + (((t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'HEADER')?.text) || '');
     const matches = text.match(/\{\{(\d+)\}\}/g) || [];
     return [...new Set(matches)];
+  };
+
+  const getTemplateHeaderMediaFormat = (t: any): 'IMAGE' | 'VIDEO' | 'DOCUMENT' | null => {
+    const h = (t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'HEADER');
+    const f = (h?.format || '').toUpperCase();
+    return f === 'IMAGE' || f === 'VIDEO' || f === 'DOCUMENT' ? f : null;
   };
 
   const loadReports = useCallback(async () => {
@@ -1416,6 +1423,14 @@ const Campanhas = () => {
                             </div>
                           ))}
                         </div>
+                      )}
+
+                      {selectedTemplateObj && getTemplateHeaderMediaFormat(selectedTemplateObj) && (
+                        <TemplateHeaderMediaField
+                          format={getTemplateHeaderMediaFormat(selectedTemplateObj)!}
+                          value={metaParamValues['{{header_media}}'] || ''}
+                          onChange={(url) => setMetaParamValues((prev) => ({ ...prev, ['{{header_media}}']: url }))}
+                        />
                       )}
 
                       <p className="text-xs text-muted-foreground">

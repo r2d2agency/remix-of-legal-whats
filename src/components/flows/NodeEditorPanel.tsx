@@ -26,6 +26,7 @@ import { FlowNodeData } from '@/components/chatbots/FlowNodes';
 import { useUpload } from '@/hooks/use-upload';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { TemplateHeaderMediaField } from '@/components/campanhas/TemplateHeaderMediaField';
 
 // Reusable variables badge panel for flow editors
 function VariablesBadgePanel({ onInsert }: { onInsert: (variable: string) => void }) {
@@ -292,6 +293,11 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
     const text = `${getHeaderText(t)} ${getBody(t)}`;
     const matches = text.match(/\{\{(\d+)\}\}/g) || [];
     return [...new Set(matches)];
+  };
+  const getHeaderMediaFormat = (t: any): 'IMAGE' | 'VIDEO' | 'DOCUMENT' | null => {
+    const h = (t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'HEADER');
+    const f = (h?.format || '').toUpperCase();
+    return f === 'IMAGE' || f === 'VIDEO' || f === 'DOCUMENT' ? f : null;
   };
   const selectTemplate = (t: any) => {
     onChange({
@@ -723,6 +729,17 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
             )}
             <p className="text-sm whitespace-pre-wrap">{getBody(selectedTemplate) || '(sem corpo)'}</p>
           </div>
+        )}
+
+        {selectedTemplate && getHeaderMediaFormat(selectedTemplate) && (
+          <TemplateHeaderMediaField
+            format={getHeaderMediaFormat(selectedTemplate)!}
+            value={(content.template_params || {})['{{header_media}}'] || ''}
+            onChange={(url) => onChange({
+              ...content,
+              template_params: { ...(content.template_params || {}), ['{{header_media}}']: url },
+            })}
+          />
         )}
 
         {selectedTemplate && getTemplateParams(selectedTemplate).length > 0 && (
