@@ -1255,7 +1255,24 @@ const Campanhas = () => {
                         <GitBranch className="h-4 w-4 mr-2" />
                         Fluxo
                       </Button>
+                      {isMetaConnection && (
+                        <Button
+                          type="button"
+                          variant={contentType === 'template' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setContentType('template')}
+                          className="flex-1"
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          Template Meta
+                        </Button>
+                      )}
                     </div>
+                    {!isMetaConnection && (
+                      <p className="text-xs text-muted-foreground">
+                        Selecione uma conexão Meta Cloud API para habilitar envio por Template.
+                      </p>
+                    )}
                   </div>
 
                   {contentType === 'message' ? (
@@ -1303,7 +1320,7 @@ const Campanhas = () => {
                         Selecione múltiplas mensagens para envio aleatório entre contatos. Use <code className="bg-muted px-1 rounded">{'{nome}'}</code>, <code className="bg-muted px-1 rounded">{'{telefone}'}</code> nas mensagens para personalização.
                       </p>
                     </div>
-                  ) : (
+                  ) : contentType === 'flow' ? (
                     <div className="space-y-2">
                       <Label>Fluxo de Automação</Label>
                       <Select value={selectedFlow} onValueChange={setSelectedFlow} disabled={flows.length === 0}>
@@ -1330,6 +1347,68 @@ const Campanhas = () => {
                       </Select>
                       <p className="text-xs text-muted-foreground">
                         O fluxo será iniciado para cada contato da lista. Variáveis do contato estarão disponíveis no fluxo.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <Label>Template Meta Aprovado</Label>
+                      <Select
+                        value={selectedMetaTemplate}
+                        onValueChange={(v) => { setSelectedMetaTemplate(v); setMetaParamValues({}); }}
+                        disabled={loadingMetaTemplates}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            loadingMetaTemplates ? "Carregando templates..."
+                            : metaTemplates.filter(t => (t.status || '').toUpperCase() === 'APPROVED').length === 0
+                              ? "Nenhum template aprovado"
+                              : "Selecione um template"
+                          } />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {metaTemplates
+                            .filter((t) => (t.status || '').toUpperCase() === 'APPROVED')
+                            .map((t) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-4 w-4 text-primary" />
+                                  <span>{t.name}</span>
+                                  <Badge variant="outline" className="text-[10px] ml-1">{t.language}</Badge>
+                                  <Badge variant="outline" className="text-[10px]">{t.category}</Badge>
+                                </div>
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+
+                      {selectedTemplateObj && (
+                        <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">Pré-visualização do corpo:</p>
+                          <p className="text-sm whitespace-pre-wrap">{getTemplateBodyText(selectedTemplateObj) || '(sem corpo)'}</p>
+                        </div>
+                      )}
+
+                      {selectedTemplateObj && getTemplateParams(selectedTemplateObj).length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-sm">Parâmetros do template</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Use variáveis dinâmicas: <code className="bg-muted px-1 rounded">{'{name}'}</code>, <code className="bg-muted px-1 rounded">{'{phone}'}</code>, <code className="bg-muted px-1 rounded">{'{email}'}</code> ou texto fixo.
+                          </p>
+                          {getTemplateParams(selectedTemplateObj).map((p) => (
+                            <div key={p} className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">{p}</Label>
+                              <Input
+                                placeholder={`Valor para ${p} — ex: {name}`}
+                                value={metaParamValues[p] || ''}
+                                onChange={(e) => setMetaParamValues((prev) => ({ ...prev, [p]: e.target.value }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-xs text-muted-foreground">
+                        Templates são obrigatórios em conexões Meta quando o contato está fora da janela de 24h.
                       </p>
                     </div>
                   )}
