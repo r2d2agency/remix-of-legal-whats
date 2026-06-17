@@ -31,6 +31,30 @@ async function getMetaConnection(connectionId, orgId) {
   return result.rows[0] || null;
 }
 
+// List all approved templates across all Meta connections in the org
+// Must stay before /:connectionId/templates so "_all" is not treated as a UUID connection id.
+router.get('/_all/templates', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.json([]);
+
+    const result = await query(
+      `SELECT t.*, c.name as connection_name
+       FROM meta_message_templates t
+       JOIN connections c ON c.id = t.connection_id
+       WHERE c.organization_id = $1
+         AND c.provider = 'meta'
+         AND UPPER(t.status) = 'APPROVED'
+       ORDER BY t.name ASC`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('List org meta templates error:', error?.message, error?.code, error?.detail);
+    res.status(500).json({ error: 'Erro ao listar templates Meta salvos' });
+  }
+});
+
 // List templates from Meta API and sync to local cache
 router.get('/:connectionId/templates', async (req, res) => {
   try {
@@ -272,30 +296,6 @@ router.post('/validate', async (req, res) => {
   } catch (error) {
     console.error('Validate Meta token error:', error);
     res.status(500).json({ valid: false, error: 'Erro ao validar token Meta' });
-  }
-});
-
-// List all approved templates across all Meta connections in the org
-router.get('/_all/templates', async (req, res) => {
-  try {
-    const org = await getUserOrganization(req.userId);
-    if (!org) return res.json([]);
-
-    const result = await query(
-      `SELECT t.*, c.name as connection_name
-       FROM meta_message_templates t
-       JOIN connections c ON c.id = t.connection_id
-       WHERE c.organization_id = $1
-         AND c.provider = 'meta'
-         AND UPPER(t.status) = 'APPROVED'
-       ORDER BY t.name ASC`,
-      [org.organization_id]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error('List org meta templates error:', error?.message, error?.code, error?.detail);
-    // Graceful degradation: return empty list instead of 500 so the flow editor doesn't crash
-    res.json([]);
   }
 });
 
