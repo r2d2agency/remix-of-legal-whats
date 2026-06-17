@@ -731,6 +731,17 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
           </div>
         )}
 
+        {selectedTemplate && getHeaderMediaFormat(selectedTemplate) && (
+          <TemplateHeaderMediaField
+            format={getHeaderMediaFormat(selectedTemplate)!}
+            value={(content.template_params || {})['{{header_media}}'] || ''}
+            onChange={(url) => onChange({
+              ...content,
+              template_params: { ...(content.template_params || {}), ['{{header_media}}']: url },
+            })}
+          />
+        )}
+
         {selectedTemplate && getTemplateParams(selectedTemplate).length > 0 && (
           <div className="space-y-2">
             <Label className="text-sm">Parâmetros do template</Label>
