@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { buildComponentsWithExamples, validateTemplateInput } from '../lib/meta-template-utils.js';
@@ -8,6 +9,11 @@ router.use(authenticate);
 
 const META_GRAPH_URL = 'https://graph.facebook.com/v21.0';
 const META_DUPLICATE_TEMPLATE_SUBCODE = 2388024;
+
+const mediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+});
 
 async function getUserOrganization(userId) {
   const result = await query(
