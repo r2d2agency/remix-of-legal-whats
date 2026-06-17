@@ -263,6 +263,12 @@ const Campanhas = () => {
     return [...new Set(matches)];
   };
 
+  const getTemplateHeaderMediaFormat = (t: any): 'IMAGE' | 'VIDEO' | 'DOCUMENT' | null => {
+    const h = (t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'HEADER');
+    const f = (h?.format || '').toUpperCase();
+    return f === 'IMAGE' || f === 'VIDEO' || f === 'DOCUMENT' ? f : null;
+  };
+
   const loadReports = useCallback(async () => {
     setLoadingReport(true);
     try {
