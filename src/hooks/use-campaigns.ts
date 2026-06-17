@@ -96,6 +96,8 @@ export interface CreateCampaignData {
   pause_duration?: number;
   random_order?: boolean;
   random_messages?: boolean;
+  meta_template_id?: string;
+  meta_template_params?: Record<string, string>;
 }
 
 export const useCampaigns = () => {
