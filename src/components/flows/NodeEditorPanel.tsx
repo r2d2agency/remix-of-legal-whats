@@ -271,6 +271,40 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [uploadingGallery, setUploadingGallery] = useState(0);
 
+  // Meta templates (org-wide approved)
+  const [metaTemplates, setMetaTemplates] = useState<any[]>([]);
+  const [loadingMetaTemplates, setLoadingMetaTemplates] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingMetaTemplates(true);
+    api<any[]>('/api/meta/_all/templates')
+      .then((data) => { if (!cancelled) setMetaTemplates(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setMetaTemplates([]); })
+      .finally(() => { if (!cancelled) setLoadingMetaTemplates(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const selectedTemplate = metaTemplates.find(t => t.id === content.template_id);
+  const getBody = (t: any) => (t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'BODY')?.text || '';
+  const getHeaderText = (t: any) => (t?.components || []).find((c: any) => (c.type || '').toUpperCase() === 'HEADER')?.text || '';
+  const getTemplateParams = (t: any): string[] => {
+    const text = `${getHeaderText(t)} ${getBody(t)}`;
+    const matches = text.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches)];
+  };
+  const selectTemplate = (t: any) => {
+    onChange({
+      ...content,
+      media_type: 'meta_template',
+      template_id: t.id,
+      template_name: t.name,
+      template_language: t.language,
+      template_components: t.components || [],
+      template_params: {},
+    });
+  };
+
   const MAX_GALLERY_IMAGES = 10;
   const galleryImages: { url: string; fileName?: string }[] = content.gallery_images || [];
 
@@ -352,8 +386,15 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
   };
 
   return (
-    <Tabs defaultValue={content.media_type === 'gallery' ? 'gallery' : 'text'} className="w-full">
-      <TabsList className="grid w-full grid-cols-5">
+    <Tabs defaultValue={
+      content.media_type === 'gallery' ? 'gallery'
+      : content.media_type === 'meta_template' ? 'template'
+      : content.media_type === 'image' ? 'image'
+      : content.media_type === 'video' ? 'video'
+      : content.media_type === 'audio' ? 'audio'
+      : 'text'
+    } className="w-full">
+      <TabsList className="grid w-full grid-cols-6">
         <TabsTrigger value="text" className="text-xs"><FileText className="h-3 w-3" /></TabsTrigger>
         <TabsTrigger value="image" className="text-xs"><Image className="h-3 w-3" /></TabsTrigger>
         <TabsTrigger value="gallery" className="text-xs relative">
@@ -366,6 +407,9 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
         </TabsTrigger>
         <TabsTrigger value="video" className="text-xs"><Video className="h-3 w-3" /></TabsTrigger>
         <TabsTrigger value="audio" className="text-xs"><Mic className="h-3 w-3" /></TabsTrigger>
+        <TabsTrigger value="template" className="text-xs" title="Template Meta">
+          <Bot className="h-3 w-3" />
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="text" className="space-y-3 mt-3">
@@ -631,6 +675,106 @@ function MessageNodeEditor({ content, onChange }: { content: Record<string, any>
             </div>
           )}
         </div>
+      </TabsContent>
+
+      <TabsContent value="template" className="space-y-3 mt-3">
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-primary" />
+            Template Meta WhatsApp
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Use templates aprovados para iniciar conversa fora da janela de 24h (obrigatório em conexões Meta Cloud API).
+          </p>
+          <Select
+            value={content.template_id || ''}
+            onValueChange={(v) => {
+              const t = metaTemplates.find((x) => x.id === v);
+              if (t) selectTemplate(t);
+            }}
+            disabled={loadingMetaTemplates}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={
+                loadingMetaTemplates ? 'Carregando...'
+                : metaTemplates.length === 0 ? 'Nenhum template aprovado'
+                : 'Selecione um template'
+              } />
+            </SelectTrigger>
+            <SelectContent>
+              {metaTemplates.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  <div className="flex items-center gap-2">
+                    <span>{t.name}</span>
+                    <Badge variant="outline" className="text-[10px]">{t.language}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{t.category}</Badge>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selectedTemplate && (
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase">Pré-visualização</p>
+            {getHeaderText(selectedTemplate) && (
+              <p className="text-sm font-semibold">{getHeaderText(selectedTemplate)}</p>
+            )}
+            <p className="text-sm whitespace-pre-wrap">{getBody(selectedTemplate) || '(sem corpo)'}</p>
+          </div>
+        )}
+
+        {selectedTemplate && getTemplateParams(selectedTemplate).length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-sm">Parâmetros do template</Label>
+            {getTemplateParams(selectedTemplate).map((p) => (
+              <div key={p} className="space-y-1">
+                <Label className="text-xs text-muted-foreground">{p}</Label>
+                <Input
+                  placeholder={`Valor para ${p} (use {nome}, {telefone}...)`}
+                  value={(content.template_params || {})[p] || ''}
+                  onChange={(e) => onChange({
+                    ...content,
+                    template_params: { ...(content.template_params || {}), [p]: e.target.value },
+                  })}
+                />
+              </div>
+            ))}
+            <VariablesBadgePanel onInsert={(v) => {
+              const params = getTemplateParams(selectedTemplate);
+              if (params.length === 0) return;
+              // Insert into the first empty param, or append to last
+              const firstEmpty = params.find(p => !(content.template_params || {})[p]) || params[params.length - 1];
+              onChange({
+                ...content,
+                template_params: {
+                  ...(content.template_params || {}),
+                  [firstEmpty]: ((content.template_params || {})[firstEmpty] || '') + v,
+                },
+              });
+            }} />
+          </div>
+        )}
+
+        {content.template_id && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            onClick={() => onChange({
+              ...content,
+              media_type: 'text',
+              template_id: undefined,
+              template_name: undefined,
+              template_language: undefined,
+              template_components: undefined,
+              template_params: undefined,
+            })}
+          >
+            <X className="h-3 w-3 mr-1" /> Remover template
+          </Button>
+        )}
       </TabsContent>
     </Tabs>
   );
