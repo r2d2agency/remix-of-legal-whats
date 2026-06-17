@@ -298,4 +298,71 @@ router.get('/_all/templates', async (req, res) => {
   }
 });
 
+// Upload sample media for template approval (resumable upload) and return Meta file handle
+// to be used as components[].example.header_handle = [handle]
+router.post('/:connectionId/template-media-handle', mediaUpload.single('file'), async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    const connection = await getMetaConnection(req.params.connectionId, org.organization_id);
+    if (!connection) return res.status(404).json({ error: 'Conexão Meta não encontrada' });
+    if (!connection.meta_token) return res.status(400).json({ error: 'Conexão sem token Meta' });
+
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Arquivo obrigatório (campo file)' });
+
+    const token = connection.meta_token;
+
+    // 1. Discover app_id via debug_token
+    const dbgResp = await fetch(
+      `${META_GRAPH_URL}/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(token)}`
+    );
+    const dbgJson = await dbgResp.json().catch(() => ({}));
+    const appId = dbgJson?.data?.app_id;
+    if (!appId) {
+      return res.status(400).json({
+        error: 'Não foi possível identificar o App ID a partir do token Meta. Verifique se o token é válido.',
+        details: dbgJson,
+      });
+    }
+
+    // 2. Create resumable upload session
+    const sessionResp = await fetch(
+      `${META_GRAPH_URL}/${appId}/uploads?file_name=${encodeURIComponent(file.originalname || 'sample')}&file_length=${file.size}&file_type=${encodeURIComponent(file.mimetype || 'application/octet-stream')}&access_token=${encodeURIComponent(token)}`,
+      { method: 'POST' }
+    );
+    const sessionJson = await sessionResp.json().catch(() => ({}));
+    if (!sessionResp.ok || !sessionJson.id) {
+      return res.status(sessionResp.status || 500).json({
+        error: sessionJson?.error?.message || 'Erro ao criar sessão de upload Meta',
+        details: sessionJson,
+      });
+    }
+
+    // 3. Upload bytes
+    const uploadResp = await fetch(`${META_GRAPH_URL}/${sessionJson.id}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `OAuth ${token}`,
+        file_offset: '0',
+        'Content-Type': 'application/octet-stream',
+      },
+      body: file.buffer,
+    });
+    const uploadJson = await uploadResp.json().catch(() => ({}));
+    if (!uploadResp.ok || !uploadJson.h) {
+      return res.status(uploadResp.status || 500).json({
+        error: uploadJson?.error?.message || 'Erro ao enviar arquivo para Meta',
+        details: uploadJson,
+      });
+    }
+
+    res.json({ handle: uploadJson.h, mime_type: file.mimetype, size: file.size });
+  } catch (error) {
+    console.error('Template media handle error:', error);
+    res.status(500).json({ error: error.message || 'Erro ao gerar handle de mídia' });
+  }
+});
+
 export default router;
