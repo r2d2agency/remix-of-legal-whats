@@ -1424,6 +1424,14 @@ const Campanhas = () => {
                         </div>
                       )}
 
+                      {selectedTemplateObj && getTemplateHeaderMediaFormat(selectedTemplateObj) && (
+                        <TemplateHeaderMediaField
+                          format={getTemplateHeaderMediaFormat(selectedTemplateObj)!}
+                          value={metaParamValues['{{header_media}}'] || ''}
+                          onChange={(url) => setMetaParamValues((prev) => ({ ...prev, ['{{header_media}}']: url }))}
+                        />
+                      )}
+
                       <p className="text-xs text-muted-foreground">
                         Templates são obrigatórios em conexões Meta quando o contato está fora da janela de 24h.
                       </p>
