@@ -269,4 +269,27 @@ router.post('/validate', async (req, res) => {
   }
 });
 
+// List all approved templates across all Meta connections in the org
+router.get('/_all/templates', async (req, res) => {
+  try {
+    const org = await getUserOrganization(req.userId);
+    if (!org) return res.status(403).json({ error: 'Sem organização' });
+
+    const result = await query(
+      `SELECT t.*, c.name as connection_name
+       FROM meta_message_templates t
+       JOIN connections c ON c.id = t.connection_id
+       WHERE c.organization_id = $1
+         AND c.provider = 'meta'
+         AND UPPER(t.status) = 'APPROVED'
+       ORDER BY t.name ASC`,
+      [org.organization_id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('List org meta templates error:', error);
+    res.status(500).json({ error: 'Erro ao listar templates' });
+  }
+});
+
 export default router;
