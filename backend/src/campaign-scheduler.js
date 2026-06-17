@@ -2,6 +2,7 @@ import { query } from './db.js';
 import * as whatsappProvider from './lib/whatsapp-provider.js';
 import * as uazapiProvider from './lib/uazapi-provider.js';
 import { executeFlow } from './lib/flow-executor.js';
+import { sendMetaTemplate } from './lib/meta-template-send.js';
 // Translation map for common Evolution API errors
 const errorTranslations = {
   'not a whatsapp number': 'Número não é WhatsApp',
@@ -238,6 +239,11 @@ export async function executeCampaignMessages() {
         c.status as campaign_status,
         c.connection_id,
         c.flow_id,
+        c.meta_template_id,
+        c.meta_template_name,
+        c.meta_template_language,
+        c.meta_template_components,
+        c.meta_template_params,
         conn.provider,
         conn.api_url,
         conn.api_key,
@@ -246,6 +252,8 @@ export async function executeCampaignMessages() {
         conn.wapi_token,
         conn.uazapi_url,
         conn.uazapi_token,
+        conn.meta_token,
+        conn.meta_phone_number_id,
         conn.status as connection_status,
         mt.items as message_items,
         co.name as contact_name,
@@ -258,7 +266,7 @@ export async function executeCampaignMessages() {
       LEFT JOIN contacts co ON co.id = cm.contact_id
       WHERE cm.status = 'pending'
         AND c.status = 'running'
-        AND (conn.status = 'connected' OR (conn.instance_id IS NOT NULL AND conn.wapi_token IS NOT NULL) OR (conn.uazapi_url IS NOT NULL AND conn.uazapi_token IS NOT NULL))
+        AND (conn.status = 'connected' OR (conn.instance_id IS NOT NULL AND conn.wapi_token IS NOT NULL) OR (conn.uazapi_url IS NOT NULL AND conn.uazapi_token IS NOT NULL) OR (conn.provider = 'meta' AND conn.meta_token IS NOT NULL AND conn.meta_phone_number_id IS NOT NULL))
         AND cm.scheduled_at <= NOW()
       ORDER BY cm.scheduled_at ASC
       LIMIT 50
