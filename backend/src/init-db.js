@@ -517,6 +517,11 @@ DO $$ BEGIN
     ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS pause_duration INTEGER DEFAULT 10;
     ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS random_order BOOLEAN DEFAULT false;
     ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS flow_id UUID;
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS meta_template_id UUID;
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS meta_template_name TEXT;
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS meta_template_language VARCHAR(20);
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS meta_template_components JSONB;
+    ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS meta_template_params JSONB DEFAULT '{}'::jsonb;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;
