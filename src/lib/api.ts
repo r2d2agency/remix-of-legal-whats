@@ -22,6 +22,7 @@ export const API_URL = ENV_API_URL;
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
 const MAX_GET_RETRIES = 2;
 const ERROR_LOG_COOLDOWN_MS = 15000;
+const REQUEST_TIMEOUT_MS = 15000;
 const lastErrorLogByKey = new Map<string, number>();
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -81,12 +82,16 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
     const url = buildUrl(base, endpoint);
 
     for (let attempt = 0; attempt <= retries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       try {
         const response = await fetch(url, {
           method,
           headers,
           body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
         });
+        window.clearTimeout(timeoutId);
 
         const contentType = response.headers.get('content-type') || '';
         let data: any = null;
@@ -144,9 +149,14 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
 
         return data as T;
       } catch (error: any) {
+        window.clearTimeout(timeoutId);
         if (error instanceof HttpError) {
           throw error;
         }
+
+        const normalizedError = error?.name === 'AbortError'
+          ? new Error('Tempo limite excedido ao conectar com a API')
+          : error;
 
         const canRetry = attempt < retries && shouldRetry(method);
         if (canRetry) {
@@ -159,17 +169,17 @@ export const api = async <T>(endpoint: string, options: ApiOptions = {}): Promis
           console.error('[api] network failure', {
             url,
             method,
-            message: error?.message || 'Erro de rede',
+            message: normalizedError?.message || 'Erro de rede',
           });
         }
 
         const shouldTryNextBase = method === 'GET' && baseIndex < baseCandidates.length - 1;
         if (shouldTryNextBase) {
-          lastError = error instanceof Error ? error : new Error('Erro de rede');
+          lastError = normalizedError instanceof Error ? normalizedError : new Error('Erro de rede');
           break;
         }
 
-        throw error;
+        throw normalizedError;
       }
     }
   }

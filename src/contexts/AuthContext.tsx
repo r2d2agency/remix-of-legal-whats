@@ -83,23 +83,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    let mounted = true;
     const checkAuth = async () => {
-      const token = getAuthToken();
-      if (token) {
-        try {
-          const { user: userData } = await authApi.getMe();
-          const u = userData as any;
-          setUser(u);
-          if (u.organization_id) {
-            sessionStorage.setItem('user_org_id', u.organization_id);
+      try {
+        const token = getAuthToken();
+        if (token) {
+          try {
+            const { user: userData } = await authApi.getMe();
+            if (!mounted) return;
+            const u = userData as any;
+            setUser(u);
+            if (u.organization_id) {
+              sessionStorage.setItem('user_org_id', u.organization_id);
+            }
+          } catch {
+            clearAuthToken();
           }
-        } catch {
-          clearAuthToken();
         }
+      } finally {
+        if (mounted) setIsLoading(false);
       }
-      setIsLoading(false);
     };
     checkAuth();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
