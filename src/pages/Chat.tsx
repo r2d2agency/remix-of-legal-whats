@@ -675,7 +675,20 @@ const Chat = () => {
   const handleAcceptConversation = async (conversationId: string) => {
     try {
       await acceptConversation(conversationId);
-      loadConversations();
+      // Switch to 'attending' tab so the accepted conversation is visible
+      if (filters.attendance_status !== 'attending') {
+        setFilters(prev => ({ ...prev, attendance_status: 'attending' }));
+      }
+      await loadConversations();
+      // Auto-open the conversation after accepting
+      try {
+        const conv = await getConversation(conversationId);
+        if (conv) {
+          await handleSelectConversation(conv);
+        }
+      } catch (e) {
+        console.warn('[accept] failed to auto-open conversation', e);
+      }
       toast.success('Conversa aceita');
     } catch (error: any) {
       toast.error(error.message || 'Erro ao aceitar conversa');
