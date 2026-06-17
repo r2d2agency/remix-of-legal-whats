@@ -26,6 +26,7 @@ import { FlowNodeData } from '@/components/chatbots/FlowNodes';
 import { useUpload } from '@/hooks/use-upload';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { TemplateHeaderMediaField } from '@/components/campanhas/TemplateHeaderMediaField';
 
 // Reusable variables badge panel for flow editors
 function VariablesBadgePanel({ onInsert }: { onInsert: (variable: string) => void }) {
