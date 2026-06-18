@@ -13,12 +13,9 @@ export function localInputToBrISO(value: string | null | undefined): string | un
   return `${v}${BR_OFFSET}`;
 }
 
-/** Convert an ISO timestamp (UTC or with TZ) to a datetime-local string in BR time for <input type="datetime-local">. */
-export function isoToBrLocalInput(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  // Format in America/Sao_Paulo regardless of the user's browser timezone.
+/** Convert a Date object to a datetime-local string in Brazil time without using toISOString(). */
+export function dateToBrLocalInput(date: Date | null | undefined): string {
+  if (!date || Number.isNaN(date.getTime())) return "";
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
     year: "numeric",
@@ -27,10 +24,19 @@ export function isoToBrLocalInput(iso: string | null | undefined): string {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).formatToParts(d).reduce<Record<string, string>>((acc, p) => {
+  }).formatToParts(date).reduce<Record<string, string>>((acc, p) => {
     if (p.type !== "literal") acc[p.type] = p.value;
     return acc;
   }, {});
   const hour = parts.hour === "24" ? "00" : parts.hour;
   return `${parts.year}-${parts.month}-${parts.day}T${hour}:${parts.minute}`;
+}
+
+/** Convert an ISO timestamp (UTC or with TZ) to a datetime-local string in BR time for <input type="datetime-local">. */
+export function isoToBrLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  // Format in America/Sao_Paulo regardless of the user's browser timezone.
+  return dateToBrLocalInput(d);
 }
