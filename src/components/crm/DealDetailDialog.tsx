@@ -70,6 +70,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskType, setNewTaskType] = useState<string>("task");
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
+  const [newTaskAssignedTo, setNewTaskAssignedTo] = useState<string>("");
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [description, setDescription] = useState("");
 
@@ -169,6 +170,11 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
 
   const currentDeal = fullDeal || deal;
   const stages = funnelData?.stages || [];
+
+  // Default new-task assignment to deal owner whenever the loaded deal changes.
+  useEffect(() => {
+    setNewTaskAssignedTo(currentDeal?.owner_id || "");
+  }, [currentDeal?.id, currentDeal?.owner_id]);
 
   // Load scheduled messages for deal's primary contact
   const loadScheduledMessages = async () => {
@@ -362,11 +368,13 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       title: newTaskTitle,
       type: newTaskType as CRMTask['type'],
       due_date: localInputToBrISO(newTaskDueDate),
+      assigned_to: newTaskAssignedTo || currentDeal?.owner_id || undefined,
     });
     
     setNewTaskTitle("");
     setNewTaskType("task");
     setNewTaskDueDate("");
+    setNewTaskAssignedTo(currentDeal?.owner_id || "");
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1393,6 +1401,22 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                     onChange={(e) => setNewTaskDueDate(e.target.value)}
                     className="w-48"
                   />
+                  <Select
+                    value={newTaskAssignedTo || currentDeal?.owner_id || "__self"}
+                    onValueChange={(v) => setNewTaskAssignedTo(v === "__self" ? "" : v)}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__self">Eu (criador)</SelectItem>
+                      {orgMembers?.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}{m.id === currentDeal?.owner_id ? " (dono)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button onClick={handleAddTask} disabled={!newTaskTitle.trim()}>
                     Adicionar
                   </Button>
@@ -1431,6 +1455,12 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                               <span className="flex items-center gap-1">
                                 <CalendarIcon className="h-3 w-3" />
                                 {format(parseISO(task.due_date), "dd/MM HH:mm")}
+                              </span>
+                            )}
+                            {task.assigned_to_name && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {task.assigned_to_name}
                               </span>
                             )}
                           </div>

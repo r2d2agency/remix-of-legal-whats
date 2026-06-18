@@ -643,6 +643,26 @@ router.put('/cards/:id', async (req, res) => {
       params
     );
 
+    // Sync back to CRM task if this card is linked to one.
+    try {
+      const card = result.rows[0];
+      if (card?.crm_task_id && status !== undefined) {
+        if (status === 'completed') {
+          await query(
+            `UPDATE crm_tasks SET status = 'completed', completed_at = NOW(), completed_by = $1, updated_at = NOW() WHERE id = $2`,
+            [req.userId, card.crm_task_id]
+          );
+        } else {
+          await query(
+            `UPDATE crm_tasks SET status = 'pending', completed_at = NULL, completed_by = NULL, updated_at = NOW() WHERE id = $1`,
+            [card.crm_task_id]
+          );
+        }
+      }
+    } catch (syncErr) {
+      console.error('Error syncing CRM task from card update:', syncErr);
+    }
+
     res.json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -672,6 +692,38 @@ router.post('/cards/:id/move', async (req, res) => {
         `UPDATE task_cards SET column_id = $1, position = $2, updated_at = NOW() WHERE id = $3`,
         [column_id, pos, req.params.id]
       );
+    }
+
+    // Sync card status (and linked CRM task) based on the destination column.
+    try {
+      if (column_id !== undefined) {
+        const destCol = await query(
+          `SELECT is_done_column FROM task_board_columns WHERE id = $1`,
+          [column_id]
+        );
+        const isDone = !!destCol.rows[0]?.is_done_column;
+        await query(
+          `UPDATE task_cards SET status = $1, completed_at = ${isDone ? 'NOW()' : 'NULL'} WHERE id = $2`,
+          [isDone ? 'completed' : 'open', req.params.id]
+        );
+        const cardRes = await query(`SELECT crm_task_id FROM task_cards WHERE id = $1`, [req.params.id]);
+        const crmTaskId = cardRes.rows[0]?.crm_task_id;
+        if (crmTaskId) {
+          if (isDone) {
+            await query(
+              `UPDATE crm_tasks SET status = 'completed', completed_at = NOW(), completed_by = $1, updated_at = NOW() WHERE id = $2`,
+              [req.userId, crmTaskId]
+            );
+          } else {
+            await query(
+              `UPDATE crm_tasks SET status = 'pending', completed_at = NULL, completed_by = NULL, updated_at = NOW() WHERE id = $1`,
+              [crmTaskId]
+            );
+          }
+        }
+      }
+    } catch (syncErr) {
+      console.error('Error syncing CRM task from card move:', syncErr);
     }
 
     res.json({ success: true });

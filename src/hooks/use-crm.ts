@@ -563,10 +563,34 @@ export function useCRMTaskMutations() {
     mutationFn: async (data: Partial<CRMTask>) => {
       return api<CRMTask>("/api/crm/tasks", { method: "POST", body: data });
     },
+    onMutate: async (data) => {
+      if (!data.deal_id) return;
+      const key = ["crm-deal", data.deal_id];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<any>(key);
+      if (previous) {
+        const optimistic: any = {
+          id: `temp-${Date.now()}`,
+          status: "pending",
+          created_at: new Date().toISOString(),
+          ...data,
+        };
+        queryClient.setQueryData(key, {
+          ...previous,
+          tasks: [...(previous.tasks || []), optimistic],
+        });
+      }
+      return { previous, key };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.previous && ctx?.key) queryClient.setQueryData(ctx.key, ctx.previous);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["crm-task-counts"] });
       queryClient.invalidateQueries({ queryKey: ["crm-deal"] });
+      queryClient.invalidateQueries({ queryKey: ["task-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["task-boards"] });
       toast({ title: "Tarefa criada com sucesso" });
     },
   });
@@ -589,6 +613,9 @@ export function useCRMTaskMutations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["crm-task-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["crm-deal"] });
+      queryClient.invalidateQueries({ queryKey: ["task-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["task-boards"] });
       toast({ title: "Tarefa concluída" });
     },
   });
@@ -600,6 +627,9 @@ export function useCRMTaskMutations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["crm-task-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["crm-deal"] });
+      queryClient.invalidateQueries({ queryKey: ["task-cards"] });
+      queryClient.invalidateQueries({ queryKey: ["task-boards"] });
       toast({ title: "Tarefa excluída" });
     },
   });
