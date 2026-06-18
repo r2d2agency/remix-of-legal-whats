@@ -615,7 +615,12 @@ router.put('/cards/:id', async (req, res) => {
     const params = [];
     let paramIdx = 1;
 
-    const fields = { title, description, assigned_to, due_date, start_date, priority, cover_image_url, deal_id, company_id, contact_phone, contact_name, status, project_id };
+    const fields = {
+      title, description, assigned_to,
+      due_date: due_date === undefined ? undefined : normalizeBrazilDateTime(due_date),
+      start_date: start_date === undefined ? undefined : normalizeBrazilDateTime(start_date),
+      priority, cover_image_url, deal_id, company_id, contact_phone, contact_name, status, project_id,
+    };
     for (const [key, val] of Object.entries(fields)) {
       if (val !== undefined) {
         updates.push(`${key} = $${paramIdx}`);
@@ -837,7 +842,7 @@ router.put('/checklist-items/:id', async (req, res) => {
     }
     if (due_date !== undefined) {
       updates.push(`due_date = $${idx}`);
-      params.push(due_date);
+      params.push(normalizeBrazilDateTime(due_date));
       idx++;
     }
 
