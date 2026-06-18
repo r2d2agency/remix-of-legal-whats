@@ -1991,6 +1991,35 @@ router.post('/tasks/:id/complete', async (req, res) => {
        WHERE id = $2 AND organization_id = $3 RETURNING *`,
       [req.userId, req.params.id, org.organization_id]
     );
+
+    // Sync the linked Global Kanban card → mark completed & move to the done column.
+    try {
+      const cardRes = await query(
+        `SELECT id, board_id FROM task_cards WHERE crm_task_id = $1 LIMIT 1`,
+        [req.params.id]
+      );
+      if (cardRes.rows[0]) {
+        const { id: cardId, board_id } = cardRes.rows[0];
+        const doneCol = await query(
+          `SELECT id FROM task_board_columns WHERE board_id = $1 AND is_done_column = true ORDER BY position DESC LIMIT 1`,
+          [board_id]
+        );
+        if (doneCol.rows[0]) {
+          await query(
+            `UPDATE task_cards SET status = 'completed', completed_at = NOW(), column_id = $1, updated_at = NOW() WHERE id = $2`,
+            [doneCol.rows[0].id, cardId]
+          );
+        } else {
+          await query(
+            `UPDATE task_cards SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $1`,
+            [cardId]
+          );
+        }
+      }
+    } catch (syncErr) {
+      console.error('Error syncing kanban card on task complete:', syncErr);
+    }
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error completing task:', error);
@@ -2017,6 +2046,13 @@ router.delete('/tasks/:id', async (req, res) => {
       `DELETE FROM crm_tasks WHERE id = $1 AND organization_id = $2`,
       [req.params.id, org.organization_id]
     );
+
+    // Also remove the linked Global Kanban card so it doesn't get orphaned.
+    try {
+      await query(`DELETE FROM task_cards WHERE crm_task_id = $1`, [req.params.id]);
+    } catch (syncErr) {
+      console.error('Error deleting linked kanban card:', syncErr);
+    }
 
     // If Google mapping exists, we should ideally delete it from Google too.
     // This will be handled by the frontend calling the delete endpoint or by a background job.
