@@ -70,6 +70,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskType, setNewTaskType] = useState<string>("task");
   const [newTaskDueDate, setNewTaskDueDate] = useState("");
+  const [newTaskAssignedTo, setNewTaskAssignedTo] = useState<string>("");
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [description, setDescription] = useState("");
 
