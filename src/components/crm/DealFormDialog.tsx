@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CRMFunnel, useCRMDealMutations, useCRMCompanies, useCRMFunnel, useCRMGroups } from "@/hooks/use-crm";
 import { Slider } from "@/components/ui/slider";
@@ -160,12 +159,12 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] !flex !flex-col overflow-hidden" aria-describedby={undefined}>
+      <DialogContent className="max-w-lg max-h-[calc(100dvh-2rem)] !flex !flex-col overflow-hidden" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Nova Negociação</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0 -mr-3 pr-3">
+        <div className="-mr-3 max-h-[calc(100dvh-12rem)] overflow-y-auto pr-3 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
           <div className="space-y-4 p-1">
             <div className="space-y-2">
               <Label>Título *</Label>
@@ -429,7 +428,7 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
               />
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
