@@ -363,11 +363,13 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       title: newTaskTitle,
       type: newTaskType as CRMTask['type'],
       due_date: localInputToBrISO(newTaskDueDate),
+      assigned_to: newTaskAssignedTo || currentDeal?.owner_id || undefined,
     });
     
     setNewTaskTitle("");
     setNewTaskType("task");
     setNewTaskDueDate("");
+    setNewTaskAssignedTo(currentDeal?.owner_id || "");
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
