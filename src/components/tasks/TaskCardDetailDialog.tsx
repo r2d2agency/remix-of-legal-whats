@@ -21,6 +21,7 @@ import { useCRMDealsSearch, useCRMCompanies, CRMDeal } from "@/hooks/use-crm";
 import { useProjects, Project } from "@/hooks/use-projects";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { localInputToBrISO, isoToBrLocalInput } from "@/lib/timezone";
 import { format, parseISO, differenceInDays, isPast } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -671,8 +672,8 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                     <label className="text-xs text-muted-foreground">Prazo</label>
                     <Input
                       type="datetime-local"
-                      value={card.due_date ? format(parseISO(card.due_date), "yyyy-MM-dd'T'HH:mm") : ""}
-                      onChange={e => handleUpdateField('due_date', e.target.value || null)}
+                      value={isoToBrLocalInput(card.due_date)}
+                      onChange={e => handleUpdateField('due_date', localInputToBrISO(e.target.value) || null)}
                       className="h-8 mt-1 text-xs"
                     />
                   </div>
@@ -682,8 +683,8 @@ export function TaskCardDetailDialog({ cardId, boardId, isGlobal, open, onOpenCh
                     <label className="text-xs text-muted-foreground">Início</label>
                     <Input
                       type="datetime-local"
-                      value={card.start_date ? format(parseISO(card.start_date), "yyyy-MM-dd'T'HH:mm") : ""}
-                      onChange={e => handleUpdateField('start_date', e.target.value || null)}
+                      value={isoToBrLocalInput(card.start_date)}
+                      onChange={e => handleUpdateField('start_date', localInputToBrISO(e.target.value) || null)}
                       className="h-8 mt-1 text-xs"
                     />
                   </div>
