@@ -15,6 +15,7 @@ import { useGoogleCalendarStatus } from "@/hooks/use-google-calendar";
 import { toast } from "sonner";
 import { Video, Users, Calendar, X, Plus, Mail, Loader2, ExternalLink, Bell, MessageSquare, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { localInputToBrISO, isoToBrLocalInput } from "@/lib/timezone";
 
 interface TaskDialogProps {
   task: CRMTask | null;
@@ -106,7 +107,7 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
       setDescription(task.description || "");
       setType(task.type);
       setPriority(task.priority);
-      setDueDate(task.due_date ? task.due_date.slice(0, 16) : "");
+      setDueDate(isoToBrLocalInput(task.due_date));
       setEndTime("");
       setAssignedTo(task.assigned_to || "");
       setAddGoogleMeet(false);
@@ -251,7 +252,7 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
       description,
       type: type as CRMTask['type'],
       priority: priority as CRMTask['priority'],
-      due_date: dueDate || undefined,
+      due_date: localInputToBrISO(dueDate),
       assigned_to: assignedTo || undefined,
       deal_id: dealId,
       company_id: companyId,
