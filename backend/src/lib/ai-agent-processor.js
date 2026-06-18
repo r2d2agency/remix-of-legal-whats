@@ -15,6 +15,7 @@ import { logInfo, logError } from '../logger.js';
 import { searchKnowledge } from './knowledge-processor.js';
 import * as whatsappProvider from './whatsapp-provider.js';
 import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, getAppBarberToolResultStatus, inferAppBarberToolSource, isAppBarberToolResultFailure } from './appbarber-intent.js';
+import { normalizeBrazilDateTime } from './timezone.js';
 
 // ==================== MESSAGE BATCHING ====================
 // Collects multiple messages from same contact within a window before processing
@@ -1847,11 +1848,12 @@ async function executeManageTasks(organizationId, userId, args) {
   try {
     if (args.action === 'create') {
       if (!args.title) return 'Título da tarefa é obrigatório';
+      const dueDate = normalizeBrazilDateTime(args.due_date);
       const result = await query(`
         INSERT INTO crm_tasks (organization_id, assigned_to, created_by, title, description, type, priority, due_date)
         VALUES ($1, $2, $2, $3, $4, $5, $6, $7)
         RETURNING id, title, priority, due_date
-      `, [organizationId, userId, args.title, args.description || null, args.type || 'task', args.priority || 'medium', args.due_date || null]);
+      `, [organizationId, userId, args.title, args.description || null, args.type || 'task', args.priority || 'medium', dueDate]);
       const task = result.rows[0];
 
       // Also create kanban card
@@ -1860,7 +1862,7 @@ async function executeManageTasks(organizationId, userId, args) {
         await createTaskCardInGlobalBoard({
           organizationId, createdBy: userId, assignedTo: userId,
           title: args.title, description: args.description,
-          priority: args.priority || 'medium', dueDate: args.due_date,
+          priority: args.priority || 'medium', dueDate,
           sourceModule: 'ai_agent', crmTaskId: task.id,
         });
       } catch (e) { /* ignore */ }

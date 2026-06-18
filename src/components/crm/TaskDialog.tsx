@@ -15,7 +15,7 @@ import { useGoogleCalendarStatus } from "@/hooks/use-google-calendar";
 import { toast } from "sonner";
 import { Video, Users, Calendar, X, Plus, Mail, Loader2, ExternalLink, Bell, MessageSquare, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { localInputToBrISO, isoToBrLocalInput } from "@/lib/timezone";
+import { localInputToBrISO, isoToBrLocalInput, dateToBrLocalInput } from "@/lib/timezone";
 
 interface TaskDialogProps {
   task: CRMTask | null;
@@ -123,11 +123,11 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
       setPriority("medium");
       // Set default date if provided
       if (defaultDate) {
-        const dateStr = defaultDate.toISOString().slice(0, 16);
+        const dateStr = dateToBrLocalInput(defaultDate);
         setDueDate(dateStr);
         // Default end time = start + 1 hour
         const endDate = new Date(defaultDate.getTime() + 60 * 60 * 1000);
-        setEndTime(endDate.toISOString().slice(0, 16));
+        setEndTime(dateToBrLocalInput(endDate));
       } else {
         setDueDate("");
         setEndTime("");
@@ -157,9 +157,9 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
   // When due date changes, auto-update end time
   useEffect(() => {
     if (dueDate && !endTime) {
-      const start = new Date(dueDate);
+      const start = new Date(localInputToBrISO(dueDate) || dueDate);
       const end = new Date(start.getTime() + 60 * 60 * 1000);
-      setEndTime(end.toISOString().slice(0, 16));
+      setEndTime(dateToBrLocalInput(end));
     }
   }, [dueDate]);
 
@@ -194,7 +194,9 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
         const allAttendees = [...memberEmails, ...externalEmails];
 
         const startDateTime = dueDate.includes("T") ? dueDate : `${dueDate}T09:00`;
-        const endDateTime = endTime || new Date(new Date(startDateTime).getTime() + 60 * 60 * 1000).toISOString().slice(0, 16);
+        const endDateTime = endTime || dateToBrLocalInput(new Date(new Date(localInputToBrISO(startDateTime) || startDateTime).getTime() + 60 * 60 * 1000));
+        const normalizedStartDateTime = localInputToBrISO(startDateTime) || startDateTime;
+        const normalizedEndDateTime = localInputToBrISO(endDateTime) || endDateTime;
 
         // If editing existing task that has Google mapping
         const existingMapping = await api<any[]>(`/api/google-calendar/deal-meetings/${dealId || 'none'}`).then(meetings => 
@@ -208,8 +210,8 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
             body: {
               title,
               description,
-              startDateTime: `${startDateTime}:00`,
-              endDateTime: `${endDateTime}:00`,
+              startDateTime: normalizedStartDateTime,
+              endDateTime: normalizedEndDateTime,
               attendees: allAttendees,
             }
           });
@@ -217,8 +219,8 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
           result = await createMeeting.mutateAsync({
             title,
             description,
-            startDateTime: `${startDateTime}:00`,
-            endDateTime: `${endDateTime}:00`,
+            startDateTime: normalizedStartDateTime,
+            endDateTime: normalizedEndDateTime,
             addMeet: true,
             attendees: allAttendees,
             dealId,

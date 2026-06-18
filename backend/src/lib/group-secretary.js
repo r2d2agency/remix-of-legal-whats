@@ -10,6 +10,7 @@ import { query } from '../db.js';
 import { logInfo, logError } from '../logger.js';
 import * as whatsappProvider from './whatsapp-provider.js';
 import { recordSecretaryEvent } from './group-secretary-diagnostic.js';
+import { normalizeBrazilDateTime } from './timezone.js';
 
 /**
  * Analyze a group message with AI to detect requests and identify mentioned members
@@ -559,7 +560,7 @@ async function callAI(config, systemPrompt, userPrompt) {
  */
 async function createCRMTask({ organizationId, assignedTo, title, description, priority, dueDate, source }) {
   try {
-    const actualDueDate = dueDate || new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const actualDueDate = normalizeBrazilDateTime(dueDate) || new Date(Date.now() + 24 * 60 * 60 * 1000);
     const result = await query(
       `INSERT INTO crm_tasks (organization_id, assigned_to, title, description, type, priority, status, due_date, source)
        VALUES ($1, $2, $3, $4, 'task', $5, 'pending', $6, $7)
