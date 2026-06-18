@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth.js';
 import { onDealStageChanged } from '../crm-automation-scheduler.js';
 import { emitLeadEvent } from '../lib/event-bus.js';
 import { logInfo, logError } from '../logger.js';
+import { normalizeBrazilDateTime } from '../lib/timezone.js';
 
 const router = express.Router();
 router.use(authenticate);
@@ -1849,10 +1850,12 @@ router.post('/tasks', async (req, res) => {
 
     const { deal_id, company_id, assigned_to, title, description, type, priority, due_date, reminder_at, reminder_minutes, reminder_whatsapp, reminder_popup } = req.body;
     
+    const normalizedDueDate = normalizeBrazilDateTime(due_date);
+
     // Calculate reminder_at from due_date and reminder_minutes if provided
     let calculatedReminderAt = reminder_at;
-    if (reminder_minutes && due_date && !reminder_at) {
-      const dueDateTime = new Date(due_date);
+    if (reminder_minutes && normalizedDueDate && !reminder_at) {
+      const dueDateTime = new Date(normalizedDueDate);
       dueDateTime.setMinutes(dueDateTime.getMinutes() - reminder_minutes);
       calculatedReminderAt = dueDateTime.toISOString();
     }
@@ -1861,7 +1864,7 @@ router.post('/tasks', async (req, res) => {
       `INSERT INTO crm_tasks (organization_id, deal_id, company_id, assigned_to, created_by, title, description, type, priority, due_date, reminder_at, reminder_minutes, reminder_whatsapp, reminder_popup)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
       [org.organization_id, deal_id, company_id, assigned_to || req.userId, req.userId, 
-       title, description, type || 'task', priority || 'medium', due_date, calculatedReminderAt,
+       title, description, type || 'task', priority || 'medium', normalizedDueDate, calculatedReminderAt,
        reminder_minutes || null, reminder_whatsapp ?? false, reminder_popup ?? true]
     );
 
@@ -1875,7 +1878,7 @@ router.post('/tasks', async (req, res) => {
         title,
         description,
         priority: priority || 'medium',
-        dueDate: due_date,
+        dueDate: normalizedDueDate,
         sourceModule: 'crm',
         dealId: deal_id,
         companyId: company_id,
