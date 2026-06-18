@@ -1401,6 +1401,22 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                     onChange={(e) => setNewTaskDueDate(e.target.value)}
                     className="w-48"
                   />
+                  <Select
+                    value={newTaskAssignedTo || currentDeal?.owner_id || "__self"}
+                    onValueChange={(v) => setNewTaskAssignedTo(v === "__self" ? "" : v)}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__self">Eu (criador)</SelectItem>
+                      {orgMembers?.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}{m.id === currentDeal?.owner_id ? " (dono)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button onClick={handleAddTask} disabled={!newTaskTitle.trim()}>
                     Adicionar
                   </Button>
