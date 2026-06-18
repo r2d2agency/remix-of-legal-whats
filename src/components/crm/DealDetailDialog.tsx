@@ -37,6 +37,7 @@ import { LeadScoreDetail, LeadScoreBadge } from "./LeadScoreBadge";
 import { PredictiveAnalyticsCard } from "./PredictiveAnalytics";
 import { useProjectsByDeal, useProjectMutations, useProjectTemplates, Project } from "@/hooks/use-projects";
 import { FolderKanban } from "lucide-react";
+import { localInputToBrISO } from "@/lib/timezone";
 import { DealProjectCard } from "./DealProjectCard";
 
 interface ChatContact {
@@ -360,7 +361,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
       deal_id: deal.id,
       title: newTaskTitle,
       type: newTaskType as CRMTask['type'],
-      due_date: newTaskDueDate || undefined,
+      due_date: localInputToBrISO(newTaskDueDate),
     });
     
     setNewTaskTitle("");
@@ -442,7 +443,7 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
           deal_id: deal.id,
           title: scheduleTaskTitle || "Tarefa agendada",
           type: scheduleTaskType as CRMTask['type'],
-          due_date: scheduledDate.toISOString(),
+          due_date: localInputToBrISO(`${format(scheduleDate, "yyyy-MM-dd")}T${scheduleTime}`),
         });
         
         toast.success("Tarefa agendada!");
