@@ -171,6 +171,11 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
   const currentDeal = fullDeal || deal;
   const stages = funnelData?.stages || [];
 
+  // Default new-task assignment to deal owner whenever the loaded deal changes.
+  useEffect(() => {
+    setNewTaskAssignedTo(currentDeal?.owner_id || "");
+  }, [currentDeal?.id, currentDeal?.owner_id]);
+
   // Load scheduled messages for deal's primary contact
   const loadScheduledMessages = async () => {
     const primaryContact = currentDeal?.contacts?.find(c => c.is_primary) || currentDeal?.contacts?.[0];
