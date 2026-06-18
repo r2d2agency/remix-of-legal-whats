@@ -160,12 +160,12 @@ export function DealFormDialog({ funnel, open, onOpenChange }: DealFormDialogPro
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col" aria-describedby={undefined}>
+      <DialogContent className="max-w-lg max-h-[90vh] !flex !flex-col overflow-hidden" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Nova Negociação</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0 -mr-3 pr-3">
           <div className="space-y-4 p-1">
             <div className="space-y-2">
               <Label>Título *</Label>
