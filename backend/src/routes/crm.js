@@ -1920,10 +1920,12 @@ router.put('/tasks/:id', async (req, res) => {
       extraFields = `, completed_at = NULL, completed_by = NULL`;
     }
 
+    const normalizedDueDate = due_date === undefined ? undefined : normalizeBrazilDateTime(due_date);
+
     // Calculate reminder_at from due_date and reminder_minutes if provided
     let calculatedReminderAt = reminder_at;
-    if (reminder_minutes && due_date && !reminder_at) {
-      const dueDateTime = new Date(due_date);
+    if (reminder_minutes && normalizedDueDate && !reminder_at) {
+      const dueDateTime = new Date(normalizedDueDate);
       dueDateTime.setMinutes(dueDateTime.getMinutes() - reminder_minutes);
       calculatedReminderAt = dueDateTime.toISOString();
     }
@@ -1945,7 +1947,7 @@ router.put('/tasks/:id', async (req, res) => {
         updated_at = NOW()
         ${extraFields}
        WHERE id = $12 AND organization_id = $13 RETURNING *`,
-      [assigned_to, title, description, type, priority, due_date, calculatedReminderAt,
+      [assigned_to, title, description, type, priority, normalizedDueDate, calculatedReminderAt,
        reminder_minutes || null, reminder_whatsapp, reminder_popup, status, req.params.id, org.organization_id]
     );
 
