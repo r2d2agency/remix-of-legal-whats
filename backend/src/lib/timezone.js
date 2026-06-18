@@ -16,7 +16,7 @@ export function normalizeBrazilDateTime(value) {
   const dateOnly = trimmed.match(/^(\d{4}-\d{2}-\d{2})$/);
   if (dateOnly) return `${dateOnly[1]}T00:00:00${BR_OFFSET}`;
 
-  const dateTime = trimmed.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2}))?$/);
+  const dateTime = trimmed.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2})(?:\.\d{1,6})?)?$/);
   if (dateTime) {
     const seconds = dateTime[3] || '00';
     return `${dateTime[1]}T${dateTime[2]}:${seconds}${BR_OFFSET}`;
