@@ -2,6 +2,7 @@ import express from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { logInfo, logError } from '../logger.js';
+import { normalizeBrazilDateTime } from '../lib/timezone.js';
 
 const router = express.Router();
 router.use(authenticate);
@@ -584,6 +585,8 @@ router.post('/cards', async (req, res) => {
 
     // Personal boards: assignee is always the user
     const finalAssignee = board.rows[0].is_global ? (assigned_to || req.userId) : req.userId;
+    const normalizedDueDate = normalizeBrazilDateTime(due_date);
+    const normalizedStartDate = normalizeBrazilDateTime(start_date);
 
     const maxPos = await query(
       `SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM task_cards WHERE column_id = $1`,
@@ -594,7 +597,7 @@ router.post('/cards', async (req, res) => {
       `INSERT INTO task_cards (organization_id, board_id, column_id, title, description, position, assigned_to, created_by, due_date, start_date, priority, deal_id, company_id, contact_phone, contact_name, cover_image_url, source_module)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
-      [org.organization_id, board_id, column_id, title, description, maxPos.rows[0].next_pos, finalAssignee, req.userId, due_date, start_date, priority || 'medium', deal_id, company_id, contact_phone, contact_name, cover_image_url, source_module || 'manual']
+      [org.organization_id, board_id, column_id, title, description, maxPos.rows[0].next_pos, finalAssignee, req.userId, normalizedDueDate, normalizedStartDate, priority || 'medium', deal_id, company_id, contact_phone, contact_name, cover_image_url, source_module || 'manual']
     );
     res.json(result.rows[0]);
   } catch (error) {
