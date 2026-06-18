@@ -195,6 +195,8 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
 
         const startDateTime = dueDate.includes("T") ? dueDate : `${dueDate}T09:00`;
         const endDateTime = endTime || dateToBrLocalInput(new Date(new Date(localInputToBrISO(startDateTime) || startDateTime).getTime() + 60 * 60 * 1000));
+        const normalizedStartDateTime = localInputToBrISO(startDateTime) || startDateTime;
+        const normalizedEndDateTime = localInputToBrISO(endDateTime) || endDateTime;
 
         // If editing existing task that has Google mapping
         const existingMapping = await api<any[]>(`/api/google-calendar/deal-meetings/${dealId || 'none'}`).then(meetings => 
@@ -208,8 +210,8 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
             body: {
               title,
               description,
-              startDateTime: localInputToBrISO(startDateTime),
-              endDateTime: localInputToBrISO(endDateTime),
+              startDateTime: normalizedStartDateTime,
+              endDateTime: normalizedEndDateTime,
               attendees: allAttendees,
             }
           });
@@ -217,8 +219,8 @@ export function TaskDialog({ task, dealId, companyId, open, onOpenChange, defaul
           result = await createMeeting.mutateAsync({
             title,
             description,
-            startDateTime: localInputToBrISO(startDateTime),
-            endDateTime: localInputToBrISO(endDateTime),
+            startDateTime: normalizedStartDateTime,
+            endDateTime: normalizedEndDateTime,
             addMeet: true,
             attendees: allAttendees,
             dealId,
