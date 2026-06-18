@@ -4,6 +4,7 @@
  */
 import { query } from '../db.js';
 import { logInfo, logError } from '../logger.js';
+import { normalizeBrazilDateTime } from './timezone.js';
 
 /**
  * Create a task card in the first column of the organization's first global board.
@@ -91,6 +92,9 @@ export async function createTaskCardInGlobalBoard({
       [columnId]
     );
 
+    const normalizedDueDate = normalizeBrazilDateTime(dueDate);
+    const normalizedStartDate = normalizeBrazilDateTime(startDate);
+
     // 4. Insert card
     const result = await query(
       `INSERT INTO task_cards (organization_id, board_id, column_id, title, description, position, assigned_to, created_by, due_date, start_date, priority, source_module, deal_id, company_id, contact_phone, contact_name, crm_task_id, project_id)
@@ -99,7 +103,7 @@ export async function createTaskCardInGlobalBoard({
       [
         organizationId, boardId, columnId, title, description || null,
         maxPos.rows[0].next_pos, assignedTo || createdBy, createdBy,
-        dueDate || null, startDate || null, priority || 'medium',
+        normalizedDueDate, normalizedStartDate, priority || 'medium',
         sourceModule || null, dealId || null, companyId || null,
         contactPhone || null, contactName || null, crmTaskId || null, projectId || null,
       ]
