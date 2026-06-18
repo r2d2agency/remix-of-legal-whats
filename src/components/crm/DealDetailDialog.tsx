@@ -1457,6 +1457,12 @@ export function DealDetailDialog({ deal, open, onOpenChange }: DealDetailDialogP
                                 {format(parseISO(task.due_date), "dd/MM HH:mm")}
                               </span>
                             )}
+                            {task.assigned_to_name && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {task.assigned_to_name}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
