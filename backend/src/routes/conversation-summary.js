@@ -26,11 +26,6 @@ async function getUserOrg(userId) {
   return result.rows[0];
 }
 
-function hasUsableApiKey(value) {
-  const key = typeof value === 'string' ? value.trim() : '';
-  return Boolean(key && key !== '***' && !key.startsWith('••'));
-}
-
 function normalizeProvider(provider) {
   const value = String(provider || '').trim().toLowerCase();
   return ['openai', 'gemini', 'openrouter'].includes(value) ? value : null;
@@ -39,26 +34,88 @@ function normalizeProvider(provider) {
 function defaultModel(provider) {
   if (provider === 'openai') return 'gpt-4o-mini';
   if (provider === 'openrouter') return 'openai/gpt-4o-mini';
-  return 'gemini-1.5-flash';
+  return 'gemini-2.5-flash';
+}
+
+function cleanAIKey(value) {
+  const key = String(value || '').trim();
+  if (!key || key === '***' || key.startsWith('••')) return null;
+  return key;
+}
+
+function hasUsableApiKey(value) {
+  return Boolean(cleanAIKey(value));
+}
+
+function inferProviderFromKey(apiKey, fallbackProvider = null) {
+  const key = String(apiKey || '').trim();
+  if (key.startsWith('sk-or-')) return 'openrouter';
+  if (key.startsWith('AIza')) return 'gemini';
+  if (key.startsWith('sk-')) return 'openai';
+  return normalizeProvider(fallbackProvider) || 'gemini';
+}
+
+function modelMatchesProvider(provider, model) {
+  const value = String(model || '').trim().toLowerCase();
+  if (!value) return false;
+  if (provider === 'gemini') return value.startsWith('gemini-');
+  if (provider === 'openrouter') return value.includes('/');
+  if (provider === 'openai') return !value.includes('/') && !value.startsWith('gemini-');
+  return false;
+}
+
+function resolveModel(provider, model) {
+  return modelMatchesProvider(provider, model) ? String(model).trim() : defaultModel(provider);
 }
 
 function envKeyForProvider(provider) {
-  if (provider === 'openai') return process.env.OPENAI_API_KEY;
-  if (provider === 'openrouter') return process.env.OPENROUTER_API_KEY;
-  if (provider === 'gemini') return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (provider === 'openai') return cleanAIKey(process.env.OPENAI_API_KEY);
+  if (provider === 'openrouter') return cleanAIKey(process.env.OPENROUTER_API_KEY);
+  if (provider === 'gemini') return cleanAIKey(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
   return null;
 }
 
 function buildAIConfig(row, fallbackApiKey = null) {
-  const provider = normalizeProvider(row?.ai_provider);
-  if (!provider || provider === 'none') return null;
-  const apiKey = hasUsableApiKey(row?.ai_api_key) ? row.ai_api_key.trim() : fallbackApiKey;
-  if (!hasUsableApiKey(apiKey)) return null;
+  const apiKey = cleanAIKey(row?.ai_api_key) || cleanAIKey(fallbackApiKey);
+  if (!apiKey) return null;
+  const provider = normalizeProvider(row?.ai_provider) || inferProviderFromKey(apiKey);
   return {
     ai_provider: provider,
-    ai_model: row?.ai_model || defaultModel(provider),
-    ai_api_key: apiKey.trim(),
+    ai_model: resolveModel(provider, row?.ai_model),
+    ai_api_key: apiKey,
   };
+}
+
+function pickLegacyAIConfig(row, preferredProvider = null, preferredModel = null) {
+  if (!row) return null;
+
+  const providerPriority = [
+    normalizeProvider(preferredProvider),
+    normalizeProvider(row.ai_provider),
+    normalizeProvider(row.provider),
+    normalizeProvider(row.default_provider),
+    'gemini',
+    'openrouter',
+    'openai',
+  ].filter(Boolean);
+
+  const keyAliases = {
+    openai: ['openai_api_key', 'openai_key', 'OPENAI_API_KEY'],
+    gemini: ['gemini_api_key', 'google_api_key', 'gemini_key', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
+    openrouter: ['openrouter_api_key', 'openrouter_key', 'OPENROUTER_API_KEY'],
+  };
+
+  for (const provider of [...new Set(providerPriority)]) {
+    const apiKey = (keyAliases[provider] || []).map((field) => cleanAIKey(row[field])).find(Boolean);
+    if (!apiKey) continue;
+    return {
+      ai_provider: provider,
+      ai_model: resolveModel(provider, row[`${provider}_model`] || row.ai_model || row.model || preferredModel),
+      ai_api_key: apiKey,
+    };
+  }
+
+  return null;
 }
 
 // Helper: Get AI config from organization or agent
@@ -66,6 +123,15 @@ async function getAIConfig(organizationId, connectionId = null) {
   let orgFallbackKey = null;
   let preferredProvider = null;
   let preferredModel = null;
+  const orgIds = [organizationId].filter(Boolean);
+
+  if (connectionId) {
+    try {
+      const connOrg = await query(`SELECT organization_id FROM connections WHERE id = $1 LIMIT 1`, [connectionId]);
+      const connOrgId = connOrg.rows[0]?.organization_id;
+      if (connOrgId && !orgIds.includes(connOrgId)) orgIds.push(connOrgId);
+    } catch (e) { /* connection lookup is best-effort */ }
+  }
 
   // 1) Preferred: organization-level AI provider (set in Settings)
   try {
@@ -78,7 +144,7 @@ async function getAIConfig(organizationId, connectionId = null) {
     const org = orgResult.rows[0];
     preferredProvider = normalizeProvider(org?.ai_provider);
     preferredModel = org?.ai_model || null;
-    orgFallbackKey = hasUsableApiKey(org?.ai_api_key) ? org.ai_api_key.trim() : null;
+    orgFallbackKey = cleanAIKey(org?.ai_api_key);
 
     const orgConfig = buildAIConfig(org);
     if (orgConfig) {
@@ -86,46 +152,86 @@ async function getAIConfig(organizationId, connectionId = null) {
     }
   } catch (e) { /* org may lack columns on legacy installs */ }
 
+  // 1b) Legacy/global organization AI config used by older settings screens.
+  try {
+    const legacyResult = await query(
+      `SELECT *
+         FROM organization_ai_config
+        WHERE organization_id = $1
+        LIMIT 1`,
+      [organizationId]
+    );
+    const legacyConfig = pickLegacyAIConfig(legacyResult.rows[0], preferredProvider, preferredModel);
+    if (legacyConfig) {
+      orgFallbackKey = legacyConfig.ai_api_key;
+      preferredProvider = legacyConfig.ai_provider;
+      preferredModel = legacyConfig.ai_model;
+      return legacyConfig;
+    }
+  } catch (e) { /* legacy table may not exist */ }
+
   // 2) Fallback: active local AutoResponse/AI agent from the organization.
   // Agents may keep provider/model locally while using the organization/provider key.
   try {
     const agentResult = await query(
-      `SELECT a.ai_provider::text AS ai_provider, a.ai_model, a.ai_api_key
+      `SELECT a.ai_provider::text AS ai_provider, a.ai_model, a.ai_api_key,
+              a.organization_id AS agent_organization_id
          FROM ai_agents a
          LEFT JOIN ai_agent_autoreply_config arc ON arc.agent_id = a.id
-        WHERE a.organization_id = $1
+         LEFT JOIN ai_agent_connections ac ON ac.agent_id = a.id
+        WHERE a.organization_id = ANY($1::uuid[])
           AND a.is_active = true
-          AND ($2::uuid IS NULL
+           AND (COALESCE(a.agent_mode, 'standard') = 'autoreply' OR arc.id IS NOT NULL OR ac.id IS NOT NULL)
+           AND ($2::uuid IS NULL
                OR arc.id IS NULL
                OR COALESCE(cardinality(arc.connection_ids), 0) = 0
-               OR $2::uuid = ANY(arc.connection_ids))
+                OR $2::uuid = ANY(arc.connection_ids)
+                OR ac.connection_id = $2::uuid)
         ORDER BY
+           CASE WHEN ac.connection_id = $2::uuid THEN 0 ELSE 1 END,
           CASE WHEN arc.is_active = true THEN 0 ELSE 1 END,
           CASE WHEN NULLIF(BTRIM(a.ai_api_key), '') IS NOT NULL THEN 0 ELSE 1 END,
           a.updated_at DESC NULLS LAST,
           a.created_at DESC
         LIMIT 1`,
-      [organizationId, connectionId]
+      [orgIds, connectionId]
     );
     const agent = agentResult.rows[0];
-    const agentConfig = buildAIConfig(agent, orgFallbackKey || envKeyForProvider(normalizeProvider(agent?.ai_provider)));
+    let fallbackKey = orgFallbackKey;
+    if (!fallbackKey && agent?.agent_organization_id && agent.agent_organization_id !== organizationId) {
+      const agentOrg = await query(
+        `SELECT ai_api_key FROM organizations WHERE id = $1 LIMIT 1`,
+        [agent.agent_organization_id]
+      ).catch(() => ({ rows: [] }));
+      fallbackKey = cleanAIKey(agentOrg.rows[0]?.ai_api_key);
+    }
+    const agentProvider = normalizeProvider(agent?.ai_provider) || preferredProvider;
+    const agentConfig = buildAIConfig(
+      { ...agent, ai_provider: agentProvider || agent?.ai_provider },
+      fallbackKey || envKeyForProvider(agentProvider)
+    );
     if (agentConfig) return agentConfig;
   } catch (e) {
     try {
       const agentResult = await query(
         `SELECT ai_provider::text AS ai_provider, ai_model, ai_api_key
            FROM ai_agents
-          WHERE organization_id = $1
+          WHERE organization_id = ANY($1::uuid[])
             AND is_active = true
+             AND COALESCE(agent_mode, 'standard') = 'autoreply'
           ORDER BY
             CASE WHEN NULLIF(BTRIM(ai_api_key), '') IS NOT NULL THEN 0 ELSE 1 END,
             updated_at DESC NULLS LAST,
             created_at DESC
           LIMIT 1`,
-        [organizationId]
+        [orgIds]
       );
       const agent = agentResult.rows[0];
-      const agentConfig = buildAIConfig(agent, orgFallbackKey || envKeyForProvider(normalizeProvider(agent?.ai_provider)));
+      const agentProvider = normalizeProvider(agent?.ai_provider) || preferredProvider;
+      const agentConfig = buildAIConfig(
+        { ...agent, ai_provider: agentProvider || agent?.ai_provider },
+        orgFallbackKey || envKeyForProvider(agentProvider)
+      );
       if (agentConfig) return agentConfig;
     } catch (fallbackError) { /* table may not exist */ }
   }
@@ -139,8 +245,10 @@ async function getAIConfig(organizationId, connectionId = null) {
          JOIN global_ai_agents ga ON ga.id = act.global_agent_id
         WHERE act.organization_id = $1
           AND act.is_active = true
-          AND ($2::uuid IS NULL OR act.connection_id = $2::uuid)
-        ORDER BY act.updated_at DESC NULLS LAST, act.created_at DESC
+           AND ($2::uuid IS NULL OR act.connection_id = $2::uuid)
+        ORDER BY CASE WHEN act.connection_id = $2::uuid THEN 0 ELSE 1 END,
+                 act.updated_at DESC NULLS LAST,
+                 act.created_at DESC
         LIMIT 1`,
       [organizationId, connectionId]
     );
