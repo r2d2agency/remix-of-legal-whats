@@ -155,7 +155,7 @@ export function MetaApiHelpDialog() {
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm flex gap-2">
               <KeyRound className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
               <span>
-                <strong>Modelo SaaS — 1 App Gleego para todos os clientes.</strong> Você cria <strong>um único App</strong> no Meta da empresa (Gleego) e cada cliente conecta o próprio WABA/número usando o mesmo App ID/Secret. O <strong>App Review é feito uma vez só</strong> e libera todos os clientes. Não precisa criar um App por cliente.
+                Siga os passos abaixo para criar seu próprio App no Meta for Developers, gerar um <strong>token permanente</strong> e conectar seu WhatsApp Business Account (WABA) à plataforma Gleego.
               </span>
             </div>
 
