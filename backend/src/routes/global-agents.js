@@ -665,6 +665,10 @@ router.patch('/activation/:id', async (req, res) => {
     if (!org) return res.status(403).json({ error: 'Sem organização' });
     if (!isAdmin(org.role)) return res.status(403).json({ error: 'Apenas admins' });
 
+    if (req.body.client_ai_api_key === '***' || String(req.body.client_ai_api_key || '').startsWith('••')) {
+      delete req.body.client_ai_api_key;
+    }
+
     const allowed = ['is_active', 'schedule_mode', 'schedule_windows', 'custom_field_values', 'prompt_additions', 'client_ai_api_key'];
     const updates = [];
     const params = [];

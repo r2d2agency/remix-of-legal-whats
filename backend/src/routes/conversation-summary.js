@@ -26,6 +26,15 @@ async function getUserOrg(userId) {
   return result.rows[0];
 }
 
+async function getConnectionOrgId(connectionId) {
+  if (!connectionId) return null;
+  const result = await query(
+    `SELECT organization_id FROM connections WHERE id = $1 LIMIT 1`,
+    [connectionId]
+  ).catch(() => ({ rows: [] }));
+  return result.rows[0]?.organization_id || null;
+}
+
 function normalizeProvider(provider) {
   const value = String(provider || '').trim().toLowerCase();
   return ['openai', 'gemini', 'openrouter'].includes(value) ? value : null;
@@ -123,52 +132,49 @@ async function getAIConfig(organizationId, connectionId = null) {
   let orgFallbackKey = null;
   let preferredProvider = null;
   let preferredModel = null;
-  const orgIds = [organizationId].filter(Boolean);
-
-  if (connectionId) {
-    try {
-      const connOrg = await query(`SELECT organization_id FROM connections WHERE id = $1 LIMIT 1`, [connectionId]);
-      const connOrgId = connOrg.rows[0]?.organization_id;
-      if (connOrgId && !orgIds.includes(connOrgId)) orgIds.push(connOrgId);
-    } catch (e) { /* connection lookup is best-effort */ }
-  }
+  const connectionOrgId = await getConnectionOrgId(connectionId);
+  const orgIds = [...new Set([connectionOrgId, organizationId].filter(Boolean))];
 
   // 1) Preferred: organization-level AI provider (set in Settings)
-  try {
-    const orgResult = await query(
-      `SELECT ai_provider, ai_model, ai_api_key
-         FROM organizations
-        WHERE id = $1`,
-      [organizationId]
-    );
-    const org = orgResult.rows[0];
-    preferredProvider = normalizeProvider(org?.ai_provider);
-    preferredModel = org?.ai_model || null;
-    orgFallbackKey = cleanAIKey(org?.ai_api_key);
+  for (const orgId of orgIds) {
+    try {
+      const orgResult = await query(
+        `SELECT ai_provider, ai_model, ai_api_key
+           FROM organizations
+          WHERE id = $1`,
+        [orgId]
+      );
+      const org = orgResult.rows[0];
+      preferredProvider = normalizeProvider(org?.ai_provider) || preferredProvider;
+      preferredModel = org?.ai_model || preferredModel;
+      orgFallbackKey = cleanAIKey(org?.ai_api_key) || orgFallbackKey;
 
-    const orgConfig = buildAIConfig(org);
-    if (orgConfig) {
-      return orgConfig;
-    }
-  } catch (e) { /* org may lack columns on legacy installs */ }
+      const orgConfig = buildAIConfig(org);
+      if (orgConfig) {
+        return orgConfig;
+      }
+    } catch (e) { /* org may lack columns on legacy installs */ }
+  }
 
   // 1b) Legacy/global organization AI config used by older settings screens.
-  try {
-    const legacyResult = await query(
-      `SELECT *
-         FROM organization_ai_config
-        WHERE organization_id = $1
-        LIMIT 1`,
-      [organizationId]
-    );
-    const legacyConfig = pickLegacyAIConfig(legacyResult.rows[0], preferredProvider, preferredModel);
-    if (legacyConfig) {
-      orgFallbackKey = legacyConfig.ai_api_key;
-      preferredProvider = legacyConfig.ai_provider;
-      preferredModel = legacyConfig.ai_model;
-      return legacyConfig;
-    }
-  } catch (e) { /* legacy table may not exist */ }
+  for (const orgId of orgIds) {
+    try {
+      const legacyResult = await query(
+        `SELECT *
+           FROM organization_ai_config
+          WHERE organization_id = $1
+          LIMIT 1`,
+        [orgId]
+      );
+      const legacyConfig = pickLegacyAIConfig(legacyResult.rows[0], preferredProvider, preferredModel);
+      if (legacyConfig) {
+        orgFallbackKey = legacyConfig.ai_api_key;
+        preferredProvider = legacyConfig.ai_provider;
+        preferredModel = legacyConfig.ai_model;
+        return legacyConfig;
+      }
+    } catch (e) { /* legacy table may not exist */ }
+  }
 
   // 2) Fallback: active local AutoResponse/AI agent from the organization.
   // Agents may keep provider/model locally while using the organization/provider key.
@@ -200,10 +206,23 @@ async function getAIConfig(organizationId, connectionId = null) {
     let fallbackKey = orgFallbackKey;
     if (!fallbackKey && agent?.agent_organization_id && agent.agent_organization_id !== organizationId) {
       const agentOrg = await query(
-        `SELECT ai_api_key FROM organizations WHERE id = $1 LIMIT 1`,
+        `SELECT ai_provider, ai_model, ai_api_key FROM organizations WHERE id = $1 LIMIT 1`,
         [agent.agent_organization_id]
       ).catch(() => ({ rows: [] }));
       fallbackKey = cleanAIKey(agentOrg.rows[0]?.ai_api_key);
+      preferredProvider = normalizeProvider(agentOrg.rows[0]?.ai_provider) || preferredProvider;
+      preferredModel = agentOrg.rows[0]?.ai_model || preferredModel;
+
+      if (!fallbackKey) {
+        const legacyAgentOrg = await query(
+          `SELECT * FROM organization_ai_config WHERE organization_id = $1 LIMIT 1`,
+          [agent.agent_organization_id]
+        ).catch(() => ({ rows: [] }));
+        const legacyAgentConfig = pickLegacyAIConfig(legacyAgentOrg.rows[0], preferredProvider, preferredModel);
+        fallbackKey = legacyAgentConfig?.ai_api_key || null;
+        preferredProvider = legacyAgentConfig?.ai_provider || preferredProvider;
+        preferredModel = legacyAgentConfig?.ai_model || preferredModel;
+      }
     }
     const agentProvider = normalizeProvider(agent?.ai_provider) || preferredProvider;
     const agentConfig = buildAIConfig(
@@ -237,25 +256,27 @@ async function getAIConfig(organizationId, connectionId = null) {
   }
 
   // 3) Fallback: active global agent activation with client key
-  try {
-    const globalResult = await query(
-      `SELECT ga.ai_provider, ga.ai_model,
-              COALESCE(NULLIF(BTRIM(act.client_ai_api_key), ''), NULLIF(BTRIM(ga.ai_api_key), '')) AS ai_api_key
-         FROM global_agent_activations act
-         JOIN global_ai_agents ga ON ga.id = act.global_agent_id
-        WHERE act.organization_id = $1
-          AND act.is_active = true
-           AND ($2::uuid IS NULL OR act.connection_id = $2::uuid)
-        ORDER BY CASE WHEN act.connection_id = $2::uuid THEN 0 ELSE 1 END,
-                 act.updated_at DESC NULLS LAST,
-                 act.created_at DESC
-        LIMIT 1`,
-      [organizationId, connectionId]
-    );
-    const globalAgent = globalResult.rows[0];
-    const globalConfig = buildAIConfig(globalAgent, orgFallbackKey || envKeyForProvider(normalizeProvider(globalAgent?.ai_provider)));
-    if (globalConfig) return globalConfig;
-  } catch (e) { /* table may not exist */ }
+  for (const orgId of orgIds) {
+    try {
+      const globalResult = await query(
+        `SELECT ga.ai_provider, ga.ai_model,
+                COALESCE(NULLIF(BTRIM(act.client_ai_api_key), ''), NULLIF(BTRIM(ga.ai_api_key), '')) AS ai_api_key
+           FROM global_agent_activations act
+           JOIN global_ai_agents ga ON ga.id = act.global_agent_id
+          WHERE act.organization_id = $1
+            AND act.is_active = true
+            AND ($2::uuid IS NULL OR act.connection_id = $2::uuid)
+          ORDER BY CASE WHEN act.connection_id = $2::uuid THEN 0 ELSE 1 END,
+                   act.updated_at DESC NULLS LAST,
+                   act.created_at DESC
+          LIMIT 1`,
+        [orgId, connectionId]
+      );
+      const globalAgent = globalResult.rows[0];
+      const globalConfig = buildAIConfig(globalAgent, orgFallbackKey || envKeyForProvider(normalizeProvider(globalAgent?.ai_provider)));
+      if (globalConfig) return globalConfig;
+    } catch (e) { /* table may not exist */ }
+  }
 
   // 4) Last resort: org/provider selected but key is provided by deploy environment.
   const envKey = envKeyForProvider(preferredProvider);
@@ -390,7 +411,16 @@ router.post('/:conversationId/generate', async (req, res) => {
     // Get AI configuration
     const aiConfig = await getAIConfig(org.organization_id, convCheck.rows[0].connection_id);
     if (!aiConfig?.ai_api_key) {
-      return res.status(400).json({ error: 'Nenhum agente de IA configurado com API key' });
+      log('warn', 'conversation_summary.no_ai_config', {
+        conversation_id: conversationId,
+        user_org_id: org.organization_id,
+        connection_id: convCheck.rows[0].connection_id,
+        connection_org_id: convCheck.rows[0].conn_org,
+      });
+      return res.status(400).json({
+        error: 'Nenhuma chave de IA encontrada para esta conversa',
+        details: 'Verifique se a Configuração de IA da organização dona da conexão ou o agente Auto-Resposta ativo possui API key válida.',
+      });
     }
 
     // Optional time window (?days=N). Default: all messages (capped at 200).
