@@ -20,24 +20,51 @@ async function getUserOrg(userId) {
 
 // Helper: Get AI config from organization or agent
 async function getAIConfig(organizationId) {
-  // First try to get from a configured AI agent
-  const agentResult = await query(`
-    SELECT ai_provider, ai_model, ai_api_key
-    FROM ai_agents 
-    WHERE organization_id = $1 AND is_active = true AND ai_api_key IS NOT NULL
-    LIMIT 1
-  `, [organizationId]);
+  // 1) Preferred: organization-level AI provider (set in Settings)
+  try {
+    const orgResult = await query(
+      `SELECT ai_provider, ai_model, ai_api_key
+         FROM organizations
+        WHERE id = $1`,
+      [organizationId]
+    );
+    const org = orgResult.rows[0];
+    if (org && org.ai_api_key && org.ai_provider && org.ai_provider !== 'none') {
+      return org;
+    }
+  } catch (e) { /* org may lack columns on legacy installs */ }
 
-  if (agentResult.rows[0]) {
-    return agentResult.rows[0];
-  }
+  // 2) Fallback: any active local AI agent with its own key
+  try {
+    const agentResult = await query(
+      `SELECT ai_provider, ai_model, ai_api_key
+         FROM ai_agents
+        WHERE organization_id = $1
+          AND is_active = true
+          AND ai_api_key IS NOT NULL
+        LIMIT 1`,
+      [organizationId]
+    );
+    if (agentResult.rows[0]) return agentResult.rows[0];
+  } catch (e) { /* table may not exist */ }
 
-  // Fallback to organization settings if available
-  const orgResult = await query(`
-    SELECT ai_api_key, ai_provider, ai_model FROM organizations WHERE id = $1
-  `, [organizationId]);
+  // 3) Fallback: active global agent activation with client key
+  try {
+    const globalResult = await query(
+      `SELECT ga.ai_provider, ga.ai_model,
+              COALESCE(act.client_ai_api_key, ga.ai_api_key) AS ai_api_key
+         FROM global_agent_activations act
+         JOIN global_agents ga ON ga.id = act.global_agent_id
+        WHERE act.organization_id = $1
+          AND act.is_active = true
+          AND COALESCE(act.client_ai_api_key, ga.ai_api_key) IS NOT NULL
+        LIMIT 1`,
+      [organizationId]
+    );
+    if (globalResult.rows[0]) return globalResult.rows[0];
+  } catch (e) { /* table may not exist */ }
 
-  return orgResult.rows[0] || null;
+  return null;
 }
 
 // Helper: Call AI API to generate summary
