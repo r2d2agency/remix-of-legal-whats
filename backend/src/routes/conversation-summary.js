@@ -195,10 +195,9 @@ router.post('/:conversationId/generate', async (req, res) => {
     if (!convCheck.rows[0]) {
       return res.status(404).json({ error: 'Conversa não encontrada' });
     }
-    const convRow = convCheck.rows[0];
-    if (convRow.conn_org && convRow.conn_org !== org.organization_id) {
-      return res.status(403).json({ error: 'Conversa de outra organização' });
-    }
+    // Não bloqueia por org da conexão: conexões podem ser compartilhadas
+    // entre orgs (connection_members) ou a conversa pode ter sido transferida.
+    // O INSERT abaixo escopa o resumo pela org do usuário autenticado.
 
     // Get AI configuration
     const aiConfig = await getAIConfig(org.organization_id);
