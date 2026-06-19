@@ -98,6 +98,104 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_oauth_connections: {
+        Row: {
+          access_token: string
+          created_at: string
+          fb_user_id: string | null
+          id: string
+          metadata: Json | null
+          organization_id: string
+          provider: string
+          scopes: string[] | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          fb_user_id?: string | null
+          id?: string
+          metadata?: Json | null
+          organization_id: string
+          provider: string
+          scopes?: string[] | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          fb_user_id?: string | null
+          id?: string
+          metadata?: Json | null
+          organization_id?: string
+          provider?: string
+          scopes?: string[] | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      meta_pages: {
+        Row: {
+          created_at: string
+          external_id: string
+          external_name: string | null
+          id: string
+          kind: string
+          metadata: Json | null
+          oauth_connection_id: string | null
+          organization_id: string
+          page_access_token: string | null
+          phone_number: string | null
+          status: string
+          updated_at: string
+          waba_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          external_id: string
+          external_name?: string | null
+          id?: string
+          kind: string
+          metadata?: Json | null
+          oauth_connection_id?: string | null
+          organization_id: string
+          page_access_token?: string | null
+          phone_number?: string | null
+          status?: string
+          updated_at?: string
+          waba_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          external_id?: string
+          external_name?: string | null
+          id?: string
+          kind?: string
+          metadata?: Json | null
+          oauth_connection_id?: string | null
+          organization_id?: string
+          page_access_token?: string | null
+          phone_number?: string | null
+          status?: string
+          updated_at?: string
+          waba_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_pages_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "meta_oauth_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
