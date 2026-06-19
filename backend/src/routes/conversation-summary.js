@@ -100,7 +100,7 @@ async function getAIConfig(organizationId, connectionId = null) {
                OR COALESCE(cardinality(arc.connection_ids), 0) = 0
                OR $2::uuid = ANY(arc.connection_ids))
         ORDER BY
-          CASE WHEN has_column_privilege('ai_agent_autoreply_config', 'is_active', 'SELECT') AND arc.is_active = true THEN 0 ELSE 1 END,
+          CASE WHEN arc.is_active = true THEN 0 ELSE 1 END,
           CASE WHEN NULLIF(BTRIM(a.ai_api_key), '') IS NOT NULL THEN 0 ELSE 1 END,
           a.updated_at DESC NULLS LAST,
           a.created_at DESC
@@ -172,59 +172,21 @@ Regras:
   const userPrompt = `Analise esta conversa:\n\n${conversationText}`;
 
   try {
-    let response;
-    
-    if (provider === 'openai') {
-      response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: model || 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 800,
-          response_format: { type: 'json_object' }
-        })
-      });
-    } else if (provider === 'gemini') {
-      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-1.5-flash'}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
-          }],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 800,
-            responseMimeType: 'application/json'
-          }
-        })
-      });
-    } else {
-      throw new Error(`Provider ${provider} não suportado`);
-    }
+    const normalizedProvider = normalizeProvider(provider);
+    if (!normalizedProvider) throw new Error(`Provider ${provider} não suportado`);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`AI API error: ${response.status} - ${errorText}`);
-    }
+    const result = await callAI(
+      { provider: normalizedProvider, model: model || defaultModel(normalizedProvider), apiKey },
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      { temperature: 0.3, maxTokens: 800, responseFormat: { type: 'json_object' } }
+    );
 
-    const data = await response.json();
     const processingTime = Date.now() - startTime;
-    
-    let content;
-    if (provider === 'openai') {
-      content = data.choices?.[0]?.message?.content;
-    } else if (provider === 'gemini') {
-      content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    }
+
+    const content = result.content?.replace(/^```(?:json)?\s*/i, '').replace(/```$/i, '').trim();
 
     if (!content) {
       throw new Error('No content in AI response');
