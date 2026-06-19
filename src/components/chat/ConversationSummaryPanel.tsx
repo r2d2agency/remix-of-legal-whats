@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api } from "@/lib/api";
-import { useDealsByPhone } from "@/hooks/use-crm";
+import { useCRMDealsByPhone as useDealsByPhone } from "@/hooks/use-crm";
 import { toast } from "sonner";
 import {
   Select,
