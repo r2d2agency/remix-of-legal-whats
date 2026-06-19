@@ -330,8 +330,20 @@ export async function getWebhook(baseUrl, token) {
  * Normaliza número para formato UAZAPI
  */
 function normalizePhone(phone) {
-  const cleaned = String(phone).replace(/\D/g, '');
-  return cleaned;
+  const raw = String(phone || '').trim();
+  // Preserva JIDs completos (grupos e contatos individuais).
+  // UAZAPI aceita group JID (ex: 120363xxxxxx@g.us) diretamente no campo `number`.
+  // Se removermos o sufixo @g.us, a mensagem é enviada para um número individual inexistente
+  // (ou para o número truncado), por isso grupos não recebem nada.
+  if (raw.includes('@g.us') || raw.includes('@broadcast') || raw.includes('@lid')) {
+    return raw;
+  }
+  if (raw.includes('@s.whatsapp.net') || raw.includes('@c.us')) {
+    // Mantém apenas os dígitos antes do @, mas preserva o sufixo
+    const [num, suffix] = raw.split('@');
+    return `${num.replace(/\D/g, '')}@${suffix}`;
+  }
+  return raw.replace(/\D/g, '');
 }
 
 /**
