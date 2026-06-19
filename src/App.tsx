@@ -23,6 +23,8 @@ import Chat from "./pages/Chat";
 import Cobranca from "./pages/Cobranca";
 import Organizacoes from "./pages/Organizacoes";
 import Admin from "./pages/Admin";
+import AdminMetaSaas from "./pages/AdminMetaSaas";
+import MetaConnect from "./pages/MetaConnect";
 import Configuracoes from "./pages/Configuracoes";
 import Agendamentos from "./pages/Agendamentos";
 import Tags from "./pages/Tags";
@@ -136,6 +138,8 @@ const App = () => (
             <Route path="/cobranca" element={<ProtectedRoute><Cobranca /></ProtectedRoute>} />
             <Route path="/organizacoes" element={<ProtectedRoute><Organizacoes /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+            <Route path="/admin/meta-saas" element={<ProtectedRoute><AdminMetaSaas /></ProtectedRoute>} />
+            <Route path="/conectar-meta" element={<ProtectedRoute><MetaConnect /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="/chatbots" element={<ProtectedRoute><Chatbots /></ProtectedRoute>} />
             <Route path="/fluxos" element={<ProtectedRoute><Fluxos /></ProtectedRoute>} />
