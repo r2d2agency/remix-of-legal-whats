@@ -2,6 +2,7 @@ import express from 'express';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
 import { log, logError } from '../logger.js';
+import { callAI } from '../lib/ai-caller.js';
 
 const router = express.Router();
 router.use(authenticate);
@@ -12,14 +13,60 @@ async function getUserOrg(userId) {
     `SELECT om.organization_id, om.role 
      FROM organization_members om 
      WHERE om.user_id = $1 
+     ORDER BY CASE om.role
+       WHEN 'owner' THEN 1
+       WHEN 'admin' THEN 2
+       WHEN 'manager' THEN 3
+       WHEN 'agent' THEN 4
+       ELSE 5
+     END, om.created_at ASC
      LIMIT 1`,
     [userId]
   );
   return result.rows[0];
 }
 
+function hasUsableApiKey(value) {
+  const key = typeof value === 'string' ? value.trim() : '';
+  return Boolean(key && key !== '***' && !key.startsWith('••'));
+}
+
+function normalizeProvider(provider) {
+  const value = String(provider || '').trim().toLowerCase();
+  return ['openai', 'gemini', 'openrouter'].includes(value) ? value : null;
+}
+
+function defaultModel(provider) {
+  if (provider === 'openai') return 'gpt-4o-mini';
+  if (provider === 'openrouter') return 'openai/gpt-4o-mini';
+  return 'gemini-1.5-flash';
+}
+
+function envKeyForProvider(provider) {
+  if (provider === 'openai') return process.env.OPENAI_API_KEY;
+  if (provider === 'openrouter') return process.env.OPENROUTER_API_KEY;
+  if (provider === 'gemini') return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  return null;
+}
+
+function buildAIConfig(row, fallbackApiKey = null) {
+  const provider = normalizeProvider(row?.ai_provider);
+  if (!provider || provider === 'none') return null;
+  const apiKey = hasUsableApiKey(row?.ai_api_key) ? row.ai_api_key.trim() : fallbackApiKey;
+  if (!hasUsableApiKey(apiKey)) return null;
+  return {
+    ai_provider: provider,
+    ai_model: row?.ai_model || defaultModel(provider),
+    ai_api_key: apiKey.trim(),
+  };
+}
+
 // Helper: Get AI config from organization or agent
-async function getAIConfig(organizationId) {
+async function getAIConfig(organizationId, connectionId = null) {
+  let orgFallbackKey = null;
+  let preferredProvider = null;
+  let preferredModel = null;
+
   // 1) Preferred: organization-level AI provider (set in Settings)
   try {
     const orgResult = await query(
@@ -29,40 +76,66 @@ async function getAIConfig(organizationId) {
       [organizationId]
     );
     const org = orgResult.rows[0];
-    if (org && org.ai_api_key && org.ai_provider && org.ai_provider !== 'none') {
-      return org;
+    preferredProvider = normalizeProvider(org?.ai_provider);
+    preferredModel = org?.ai_model || null;
+    orgFallbackKey = hasUsableApiKey(org?.ai_api_key) ? org.ai_api_key.trim() : null;
+
+    const orgConfig = buildAIConfig(org);
+    if (orgConfig) {
+      return orgConfig;
     }
   } catch (e) { /* org may lack columns on legacy installs */ }
 
-  // 2) Fallback: any active local AI agent with its own key
+  // 2) Fallback: active local AutoResponse/AI agent from the organization.
+  // Agents may keep provider/model locally while using the organization/provider key.
   try {
     const agentResult = await query(
-      `SELECT ai_provider, ai_model, ai_api_key
-         FROM ai_agents
-        WHERE organization_id = $1
-          AND is_active = true
-          AND ai_api_key IS NOT NULL
+      `SELECT a.ai_provider::text AS ai_provider, a.ai_model, a.ai_api_key
+         FROM ai_agents a
+         LEFT JOIN ai_agent_autoreply_config arc ON arc.agent_id = a.id
+        WHERE a.organization_id = $1
+          AND a.is_active = true
+          AND ($2::uuid IS NULL
+               OR arc.id IS NULL
+               OR COALESCE(cardinality(arc.connection_ids), 0) = 0
+               OR $2::uuid = ANY(arc.connection_ids))
+        ORDER BY
+          CASE WHEN has_column_privilege('ai_agent_autoreply_config', 'is_active', 'SELECT') AND arc.is_active = true THEN 0 ELSE 1 END,
+          CASE WHEN NULLIF(BTRIM(a.ai_api_key), '') IS NOT NULL THEN 0 ELSE 1 END,
+          a.updated_at DESC NULLS LAST,
+          a.created_at DESC
         LIMIT 1`,
-      [organizationId]
+      [organizationId, connectionId]
     );
-    if (agentResult.rows[0]) return agentResult.rows[0];
+    const agent = agentResult.rows[0];
+    const agentConfig = buildAIConfig(agent, orgFallbackKey || envKeyForProvider(normalizeProvider(agent?.ai_provider)));
+    if (agentConfig) return agentConfig;
   } catch (e) { /* table may not exist */ }
 
   // 3) Fallback: active global agent activation with client key
   try {
     const globalResult = await query(
       `SELECT ga.ai_provider, ga.ai_model,
-              COALESCE(act.client_ai_api_key, ga.ai_api_key) AS ai_api_key
+              COALESCE(NULLIF(BTRIM(act.client_ai_api_key), ''), NULLIF(BTRIM(ga.ai_api_key), '')) AS ai_api_key
          FROM global_agent_activations act
-         JOIN global_agents ga ON ga.id = act.global_agent_id
+         JOIN global_ai_agents ga ON ga.id = act.global_agent_id
         WHERE act.organization_id = $1
           AND act.is_active = true
-          AND COALESCE(act.client_ai_api_key, ga.ai_api_key) IS NOT NULL
+          AND ($2::uuid IS NULL OR act.connection_id = $2::uuid)
+        ORDER BY act.updated_at DESC NULLS LAST, act.created_at DESC
         LIMIT 1`,
-      [organizationId]
+      [organizationId, connectionId]
     );
-    if (globalResult.rows[0]) return globalResult.rows[0];
+    const globalAgent = globalResult.rows[0];
+    const globalConfig = buildAIConfig(globalAgent, orgFallbackKey || envKeyForProvider(normalizeProvider(globalAgent?.ai_provider)));
+    if (globalConfig) return globalConfig;
   } catch (e) { /* table may not exist */ }
+
+  // 4) Last resort: org/provider selected but key is provided by deploy environment.
+  const envKey = envKeyForProvider(preferredProvider);
+  if (preferredProvider && hasUsableApiKey(envKey)) {
+    return buildAIConfig({ ai_provider: preferredProvider, ai_model: preferredModel, ai_api_key: envKey });
+  }
 
   return null;
 }
