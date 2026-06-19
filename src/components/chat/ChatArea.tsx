@@ -78,8 +78,6 @@ import { api } from "@/lib/api";
 import { QuickRepliesPanel } from "./QuickRepliesPanel";
 import { useQuickReplies, QuickReply } from "@/hooks/use-quick-replies";
 import { ConversationSummaryPanel, SummaryBadge } from "./ConversationSummaryPanel";
-import { CopilotPanel } from "./CopilotPanel";
-import { useCopilotAgents } from "@/hooks/use-agent-modes";
 import { SentimentIndicator } from "./SentimentIndicator";
 import { ActionSuggestions } from "./ActionSuggestions";
 import { useFinishWithSummary, useGenerateSummary } from "@/hooks/use-conversation-summary";
@@ -255,7 +253,6 @@ export function ChatArea({
   const [uploadStatus, setUploadStatus] = useState<{ active: boolean; current: number; total: number; fileName: string } | null>(null);
   const dragCounterRef = useRef(0);
   const { user, modulesEnabled } = useAuth();
-  const { agents: copilotAgents } = useCopilotAgents();
    const { getNotes, getTypingStatus, getScheduledMessages, scheduleMessage, cancelScheduledMessage, logCall, editMessage, deleteMessage: deleteMessageFn, pinMessage, cancelActiveFlow, retryMediaDownload } = useChat();
   const [pinnedMessage, setPinnedMessage] = useState<ChatMessage | null>(null);
   
@@ -1059,13 +1056,6 @@ export function ChatArea({
           <Button variant="ghost" size="icon" className={cn(showSearch && "bg-muted", isMobile ? "h-7 w-7" : "h-8 w-8")} onClick={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(""); }} title="Buscar mensagens">
             <Search className={cn(isMobile ? "h-3.5 w-3.5" : "h-4 w-4")} />
           </Button>
-
-          {!isMobile && copilotAgents.length > 0 && (
-            <CopilotPanel
-              conversationId={conversation.id}
-              onUseResponse={(text) => setMessageText((prev) => (prev.trim() ? prev + "\n" + text : text))}
-            />
-          )}
 
           {!isMobile && messages.length > 3 && showHeaderInfo && <SentimentIndicator messages={messages} compact />}
 
