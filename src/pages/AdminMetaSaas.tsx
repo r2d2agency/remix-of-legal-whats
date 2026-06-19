@@ -10,7 +10,7 @@ import { Loader2, RefreshCw, Trash2, Facebook, Instagram, Phone, AlertTriangle, 
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { API_URL, getAuthToken } from "@/lib/api";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface Status {
@@ -59,22 +59,13 @@ export default function AdminMetaSaas() {
 
   const isSuperadmin = user?.is_superadmin === true;
 
-  const headers = useMemo(() => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${getAuthToken()}`,
-  }), []);
-
   const load = async () => {
     setLoading(true);
     try {
-      const [statusRes, connRes] = await Promise.all([
-        fetch(`${API_URL}/functions/v1/meta-admin/status`, { headers }),
-        fetch(`${API_URL}/functions/v1/meta-admin/connections`, { headers }),
+      const [statusData, connData] = await Promise.all([
+        api<Status>("/api/meta/admin/status"),
+        api<{ connections: Connection[]; pages: Page[]; organizations: Record<string, { id: string; name: string; slug: string }> }>("/api/meta/admin/connections"),
       ]);
-      if (!statusRes.ok) throw new Error("Falha ao carregar status");
-      if (!connRes.ok) throw new Error("Falha ao carregar conexões");
-      const statusData = await statusRes.json();
-      const connData = await connRes.json();
       setStatus(statusData);
       setConnections(connData.connections ?? []);
       setPages(connData.pages ?? []);
@@ -98,12 +89,7 @@ export default function AdminMetaSaas() {
   const handleRevoke = async (connectionId: string) => {
     setActiveAction(connectionId);
     try {
-      const res = await fetch(`${API_URL}/functions/v1/meta-admin/revoke`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ connection_id: connectionId }),
-      });
-      if (!res.ok) throw new Error("Falha ao revogar");
+      await api("/api/meta/admin/revoke", { method: "POST", body: { connection_id: connectionId } });
       toast.success("Conexão revogada com sucesso");
       load();
     } catch (e: any) {
@@ -116,12 +102,7 @@ export default function AdminMetaSaas() {
   const handleSync = async (connectionId: string) => {
     setActiveAction(`sync-${connectionId}`);
     try {
-      const res = await fetch(`${API_URL}/functions/v1/meta-admin/sync`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ connection_id: connectionId }),
-      });
-      if (!res.ok) throw new Error("Falha ao sincronizar");
+      await api("/api/meta/admin/sync", { method: "POST", body: { connection_id: connectionId } });
       toast.success("Sincronização solicitada");
       load();
     } catch (e: any) {
