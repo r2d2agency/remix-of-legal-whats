@@ -26,6 +26,15 @@ async function getUserOrg(userId) {
   return result.rows[0];
 }
 
+async function getConnectionOrgId(connectionId) {
+  if (!connectionId) return null;
+  const result = await query(
+    `SELECT organization_id FROM connections WHERE id = $1 LIMIT 1`,
+    [connectionId]
+  ).catch(() => ({ rows: [] }));
+  return result.rows[0]?.organization_id || null;
+}
+
 function normalizeProvider(provider) {
   const value = String(provider || '').trim().toLowerCase();
   return ['openai', 'gemini', 'openrouter'].includes(value) ? value : null;
@@ -123,52 +132,49 @@ async function getAIConfig(organizationId, connectionId = null) {
   let orgFallbackKey = null;
   let preferredProvider = null;
   let preferredModel = null;
-  const orgIds = [organizationId].filter(Boolean);
-
-  if (connectionId) {
-    try {
-      const connOrg = await query(`SELECT organization_id FROM connections WHERE id = $1 LIMIT 1`, [connectionId]);
-      const connOrgId = connOrg.rows[0]?.organization_id;
-      if (connOrgId && !orgIds.includes(connOrgId)) orgIds.push(connOrgId);
-    } catch (e) { /* connection lookup is best-effort */ }
-  }
+  const connectionOrgId = await getConnectionOrgId(connectionId);
+  const orgIds = [...new Set([connectionOrgId, organizationId].filter(Boolean))];
 
   // 1) Preferred: organization-level AI provider (set in Settings)
-  try {
-    const orgResult = await query(
-      `SELECT ai_provider, ai_model, ai_api_key
-         FROM organizations
-        WHERE id = $1`,
-      [organizationId]
-    );
-    const org = orgResult.rows[0];
-    preferredProvider = normalizeProvider(org?.ai_provider);
-    preferredModel = org?.ai_model || null;
-    orgFallbackKey = cleanAIKey(org?.ai_api_key);
+  for (const orgId of orgIds) {
+    try {
+      const orgResult = await query(
+        `SELECT ai_provider, ai_model, ai_api_key
+           FROM organizations
+          WHERE id = $1`,
+        [orgId]
+      );
+      const org = orgResult.rows[0];
+      preferredProvider = normalizeProvider(org?.ai_provider) || preferredProvider;
+      preferredModel = org?.ai_model || preferredModel;
+      orgFallbackKey = cleanAIKey(org?.ai_api_key) || orgFallbackKey;
 
-    const orgConfig = buildAIConfig(org);
-    if (orgConfig) {
-      return orgConfig;
-    }
-  } catch (e) { /* org may lack columns on legacy installs */ }
+      const orgConfig = buildAIConfig(org);
+      if (orgConfig) {
+        return orgConfig;
+      }
+    } catch (e) { /* org may lack columns on legacy installs */ }
+  }
 
   // 1b) Legacy/global organization AI config used by older settings screens.
-  try {
-    const legacyResult = await query(
-      `SELECT *
-         FROM organization_ai_config
-        WHERE organization_id = $1
-        LIMIT 1`,
-      [organizationId]
-    );
-    const legacyConfig = pickLegacyAIConfig(legacyResult.rows[0], preferredProvider, preferredModel);
-    if (legacyConfig) {
-      orgFallbackKey = legacyConfig.ai_api_key;
-      preferredProvider = legacyConfig.ai_provider;
-      preferredModel = legacyConfig.ai_model;
-      return legacyConfig;
-    }
-  } catch (e) { /* legacy table may not exist */ }
+  for (const orgId of orgIds) {
+    try {
+      const legacyResult = await query(
+        `SELECT *
+           FROM organization_ai_config
+          WHERE organization_id = $1
+          LIMIT 1`,
+        [orgId]
+      );
+      const legacyConfig = pickLegacyAIConfig(legacyResult.rows[0], preferredProvider, preferredModel);
+      if (legacyConfig) {
+        orgFallbackKey = legacyConfig.ai_api_key;
+        preferredProvider = legacyConfig.ai_provider;
+        preferredModel = legacyConfig.ai_model;
+        return legacyConfig;
+      }
+    } catch (e) { /* legacy table may not exist */ }
+  }
 
   // 2) Fallback: active local AutoResponse/AI agent from the organization.
   // Agents may keep provider/model locally while using the organization/provider key.
