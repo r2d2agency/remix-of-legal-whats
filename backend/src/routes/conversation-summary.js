@@ -110,7 +110,25 @@ async function getAIConfig(organizationId, connectionId = null) {
     const agent = agentResult.rows[0];
     const agentConfig = buildAIConfig(agent, orgFallbackKey || envKeyForProvider(normalizeProvider(agent?.ai_provider)));
     if (agentConfig) return agentConfig;
-  } catch (e) { /* table may not exist */ }
+  } catch (e) {
+    try {
+      const agentResult = await query(
+        `SELECT ai_provider::text AS ai_provider, ai_model, ai_api_key
+           FROM ai_agents
+          WHERE organization_id = $1
+            AND is_active = true
+          ORDER BY
+            CASE WHEN NULLIF(BTRIM(ai_api_key), '') IS NOT NULL THEN 0 ELSE 1 END,
+            updated_at DESC NULLS LAST,
+            created_at DESC
+          LIMIT 1`,
+        [organizationId]
+      );
+      const agent = agentResult.rows[0];
+      const agentConfig = buildAIConfig(agent, orgFallbackKey || envKeyForProvider(normalizeProvider(agent?.ai_provider)));
+      if (agentConfig) return agentConfig;
+    } catch (fallbackError) { /* table may not exist */ }
+  }
 
   // 3) Fallback: active global agent activation with client key
   try {
@@ -262,7 +280,7 @@ router.post('/:conversationId/generate', async (req, res) => {
     // O INSERT abaixo escopa o resumo pela org do usuário autenticado.
 
     // Get AI configuration
-    const aiConfig = await getAIConfig(org.organization_id);
+    const aiConfig = await getAIConfig(org.organization_id, convCheck.rows[0].connection_id);
     if (!aiConfig?.ai_api_key) {
       return res.status(400).json({ error: 'Nenhum agente de IA configurado com API key' });
     }
@@ -355,9 +373,9 @@ router.post('/:conversationId/finish-with-summary', async (req, res) => {
     const convCheck = await query(`
       SELECT c.id, c.connection_id, conn.organization_id
       FROM conversations c
-      JOIN connections conn ON conn.id = c.connection_id
-      WHERE c.id = $1 AND conn.organization_id = $2
-    `, [conversationId, org.organization_id]);
+      LEFT JOIN connections conn ON conn.id = c.connection_id
+      WHERE c.id = $1
+    `, [conversationId]);
 
     if (!convCheck.rows[0]) {
       return res.status(404).json({ error: 'Conversa não encontrada' });
@@ -373,11 +391,11 @@ router.post('/:conversationId/finish-with-summary', async (req, res) => {
     // Try to generate summary (non-blocking)
     let summary = null;
     try {
-      const aiConfig = await getAIConfig(org.organization_id);
+      const aiConfig = await getAIConfig(org.organization_id, convCheck.rows[0].connection_id);
       
       if (aiConfig?.ai_api_key) {
         const messagesResult = await query(`
-          SELECT content, direction, message_type, created_at
+          SELECT content, from_me, message_type, created_at
           FROM chat_messages
           WHERE conversation_id = $1
           ORDER BY created_at ASC
