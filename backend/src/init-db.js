@@ -4075,5 +4075,106 @@ export async function initDatabase() {
     console.error('  ⚠️ Failed crm_lead_sources schema:', e.message);
   }
 
+  // ============================================================
+  // Meta SaaS — OAuth centralizado (App único Gleego) — self-healing
+  // Roda em todo boot. Nunca derruba nada do fluxo Meta API antigo.
+  // ============================================================
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_oauth_connections (
+        id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id   uuid NOT NULL,
+        user_id           uuid NOT NULL,
+        provider          text NOT NULL CHECK (provider IN ('facebook','instagram','whatsapp')),
+        fb_user_id        text,
+        access_token      text NOT NULL,
+        token_expires_at  timestamptz,
+        scopes            text[] DEFAULT '{}'::text[],
+        metadata          jsonb  DEFAULT '{}'::jsonb,
+        created_at        timestamptz NOT NULL DEFAULT now(),
+        updated_at        timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meta_oauth_org      ON meta_oauth_connections(organization_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meta_oauth_user     ON meta_oauth_connections(user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meta_oauth_provider ON meta_oauth_connections(provider)`);
+
+    // Self-healing colunas (instalações antigas)
+    await pool.query(`ALTER TABLE meta_oauth_connections ADD COLUMN IF NOT EXISTS scopes           text[] DEFAULT '{}'::text[]`);
+    await pool.query(`ALTER TABLE meta_oauth_connections ADD COLUMN IF NOT EXISTS metadata         jsonb  DEFAULT '{}'::jsonb`);
+    await pool.query(`ALTER TABLE meta_oauth_connections ADD COLUMN IF NOT EXISTS token_expires_at timestamptz`);
+    await pool.query(`ALTER TABLE meta_oauth_connections ADD COLUMN IF NOT EXISTS fb_user_id       text`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_pages (
+        id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id     uuid NOT NULL,
+        oauth_connection_id uuid REFERENCES meta_oauth_connections(id) ON DELETE CASCADE,
+        kind                text NOT NULL CHECK (kind IN ('facebook_page','instagram_account','whatsapp_number')),
+        external_id         text NOT NULL,
+        external_name       text,
+        page_access_token   text,
+        waba_id             text,
+        phone_number        text,
+        status              text NOT NULL DEFAULT 'active',
+        metadata            jsonb DEFAULT '{}'::jsonb,
+        created_at          timestamptz NOT NULL DEFAULT now(),
+        updated_at          timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+
+    // Constraint única (idempotente)
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'meta_pages_org_kind_ext_uniq') THEN
+          ALTER TABLE meta_pages
+            ADD CONSTRAINT meta_pages_org_kind_ext_uniq UNIQUE (organization_id, kind, external_id);
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meta_pages_org    ON meta_pages(organization_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meta_pages_conn   ON meta_pages(oauth_connection_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meta_pages_kind   ON meta_pages(kind)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meta_pages_extid  ON meta_pages(external_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meta_pages_status ON meta_pages(status)`);
+
+    await pool.query(`ALTER TABLE meta_pages ADD COLUMN IF NOT EXISTS page_access_token text`);
+    await pool.query(`ALTER TABLE meta_pages ADD COLUMN IF NOT EXISTS waba_id           text`);
+    await pool.query(`ALTER TABLE meta_pages ADD COLUMN IF NOT EXISTS phone_number      text`);
+    await pool.query(`ALTER TABLE meta_pages ADD COLUMN IF NOT EXISTS metadata          jsonb DEFAULT '{}'::jsonb`);
+    await pool.query(`ALTER TABLE meta_pages ADD COLUMN IF NOT EXISTS status            text  DEFAULT 'active'`);
+
+    // Trigger updated_at
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION meta_set_updated_at() RETURNS trigger AS $func$
+      BEGIN
+        NEW.updated_at = now();
+        RETURN NEW;
+      END;
+      $func$ LANGUAGE plpgsql;
+    `);
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_meta_oauth_updated_at') THEN
+          CREATE TRIGGER trg_meta_oauth_updated_at
+            BEFORE UPDATE ON meta_oauth_connections
+            FOR EACH ROW EXECUTE FUNCTION meta_set_updated_at();
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_meta_pages_updated_at') THEN
+          CREATE TRIGGER trg_meta_pages_updated_at
+            BEFORE UPDATE ON meta_pages
+            FOR EACH ROW EXECUTE FUNCTION meta_set_updated_at();
+        END IF;
+      END $$;
+    `);
+
+    console.log('  ✅ Meta SaaS (OAuth centralizado) schema ready');
+  } catch (e) {
+    console.error('  ⚠️ Failed meta-saas schema:', e.message);
+  }
+
   return true;
 }
