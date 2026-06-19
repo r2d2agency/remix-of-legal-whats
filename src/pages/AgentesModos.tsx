@@ -6,26 +6,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Bot, Plus, Sparkles, Reply, Loader2 } from 'lucide-react';
 import { useAIAgents, AIAgent } from '@/hooks/use-ai-agents';
-import { CopilotActionsEditor } from '@/components/ai-agents/CopilotActionsEditor';
 import { AutoReplyConfigEditor } from '@/components/ai-agents/AutoReplyConfigEditor';
 import { AutoReplyConnectionStatus } from '@/components/ai-agents/AutoReplyConnectionStatus';
 import { AUTOREPLY_TEMPLATES } from '@/lib/agent-mode-templates';
 import { toast } from 'sonner';
 
-type Mode = 'copilot' | 'autoreply';
+type Mode = 'autoreply';
 
 export default function AgentesModos() {
   const { getAgents, createAgent, updateAgent } = useAIAgents();
   const [agents, setAgents] = useState<AIAgent[]>([]);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState<Mode>('copilot');
   const [openId, setOpenId] = useState<string | null>(null);
-  const [newDialog, setNewDialog] = useState<{ open: boolean; mode: Mode }>({ open: false, mode: 'copilot' });
+  const [newDialog, setNewDialog] = useState<{ open: boolean }>({ open: false });
   const [form, setForm] = useState({ name: '', description: '', system_prompt: '' });
 
   const load = async () => {
@@ -35,15 +32,13 @@ export default function AgentesModos() {
   useEffect(() => { load(); }, []);
 
   const filtered = useMemo(
-    () => agents.filter((a: any) => (a.agent_mode || 'standard') === tab),
-    [agents, tab]
+    () => agents.filter((a: any) => (a.agent_mode || 'standard') === 'autoreply'),
+    [agents]
   );
 
   const handleCreate = async () => {
     if (!form.name.trim()) { toast.error('Nome obrigatório'); return; }
-    const defaultPrompt = newDialog.mode === 'copilot'
-      ? 'Você é um copiloto interno de vendas. Suas respostas vão direto para o vendedor (não para o cliente). Seja prático, em português, baseado no contexto da conversa.'
-      : 'Você é uma secretária virtual cordial. Responda o cliente em português, breve, gentil, sempre indicando que retornarei em breve.';
+    const defaultPrompt = 'Você é uma secretária virtual cordial. Responda o cliente em português, breve, gentil, sempre indicando que retornarei em breve.';
     const a = await createAgent({
       name: form.name,
       description: form.description || undefined,
@@ -51,12 +46,12 @@ export default function AgentesModos() {
       ai_provider: 'gemini',
       ai_model: 'gemini-1.5-flash',
       // @ts-ignore - novo campo
-      agent_mode: newDialog.mode,
+      agent_mode: 'autoreply',
       is_active: true,
     } as any);
     if (a) {
       toast.success('Agente criado');
-      setNewDialog({ open: false, mode: newDialog.mode });
+      setNewDialog({ open: false });
       setForm({ name: '', description: '', system_prompt: '' });
       await load();
       setOpenId(a.id);
@@ -69,50 +64,34 @@ export default function AgentesModos() {
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Bot className="h-6 w-6 text-primary" /> Agentes IA — Modos
+              <Bot className="h-6 w-6 text-primary" /> Auto-Resposta
             </h1>
-            <p className="text-sm text-muted-foreground">Crie copilotos para auxiliar o time e secretárias para responder automaticamente.</p>
+            <p className="text-sm text-muted-foreground">Crie secretárias virtuais para responder automaticamente seus clientes.</p>
           </div>
         </div>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as Mode)}>
-          <TabsList className="grid grid-cols-2 w-full max-w-md">
-            <TabsTrigger value="copilot" className="gap-2"><Sparkles className="h-4 w-4" /> Copiloto de Vendas</TabsTrigger>
-            <TabsTrigger value="autoreply" className="gap-2"><Reply className="h-4 w-4" /> Auto-Resposta</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="copilot" className="space-y-3 mt-4">
-            <ModeHeader
-              title="Copiloto de Vendas"
-              description="Agentes que sugerem respostas, análises e próximos passos. Aparecem no chat com até 4 ações cada."
-              onCreate={() => setNewDialog({ open: true, mode: 'copilot' })}
-            />
-            {renderList(filtered, loading, openId, setOpenId, 'copilot')}
-          </TabsContent>
-
-          <TabsContent value="autoreply" className="space-y-3 mt-4">
-            <ModeHeader
-              title="Auto-Resposta"
-              description="Responde automaticamente como uma secretária. Funciona com tags, contatos e janelas de horário."
-              onCreate={() => setNewDialog({ open: true, mode: 'autoreply' })}
-              extraTemplates
-              onTemplate={(t) => { setForm({ name: t.name, description: t.description, system_prompt: 'Você é uma secretária virtual. Use esta diretriz: ' + t.message }); setNewDialog({ open: true, mode: 'autoreply' }); }}
-            />
-            <AutoReplyConnectionStatus onAgentClick={(id) => setOpenId(id)} />
-            {renderList(filtered, loading, openId, setOpenId, 'autoreply')}
-          </TabsContent>
-        </Tabs>
+        <div className="space-y-3 mt-4">
+          <ModeHeader
+            title="Auto-Resposta"
+            description="Responde automaticamente como uma secretária. Funciona com tags, contatos e janelas de horário."
+            onCreate={() => setNewDialog({ open: true })}
+            extraTemplates
+            onTemplate={(t) => { setForm({ name: t.name, description: t.description, system_prompt: 'Você é uma secretária virtual. Use esta diretriz: ' + t.message }); setNewDialog({ open: true }); }}
+          />
+          <AutoReplyConnectionStatus onAgentClick={(id) => setOpenId(id)} />
+          {renderList(filtered, loading, openId, setOpenId)}
+        </div>
 
         {/* New Agent dialog */}
-        <Dialog open={newDialog.open} onOpenChange={(o) => setNewDialog({ ...newDialog, open: o })}>
+        <Dialog open={newDialog.open} onOpenChange={(o) => setNewDialog({ open: o })}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Novo agente {newDialog.mode === 'copilot' ? 'Copiloto' : 'Auto-Resposta'}</DialogTitle>
+              <DialogTitle>Novo agente Auto-Resposta</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
               <div>
                 <Label>Nome</Label>
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={newDialog.mode === 'copilot' ? 'Ex: Copiloto Vendas SDR' : 'Ex: Secretária Em Reunião'} />
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Secretária Em Reunião" />
               </div>
               <div>
                 <Label>Descrição</Label>
@@ -124,7 +103,7 @@ export default function AgentesModos() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setNewDialog({ ...newDialog, open: false })}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setNewDialog({ open: false })}>Cancelar</Button>
               <Button onClick={handleCreate}>Criar agente</Button>
             </DialogFooter>
           </DialogContent>
@@ -163,12 +142,12 @@ function ModeHeader({ title, description, onCreate, extraTemplates, onTemplate }
   );
 }
 
-function renderList(items: AIAgent[], loading: boolean, openId: string | null, setOpenId: (id: string | null) => void, mode: Mode) {
+function renderList(items: AIAgent[], loading: boolean, openId: string | null, setOpenId: (id: string | null) => void) {
   if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>;
   if (items.length === 0) {
     return (
       <Card className="p-8 text-center text-sm text-muted-foreground border-dashed">
-        Nenhum agente {mode === 'copilot' ? 'Copiloto' : 'Auto-Resposta'} ainda. Clique em "Novo" acima.
+        Nenhum agente Auto-Resposta ainda. Clique em "Novo" acima.
       </Card>
     );
   }
@@ -179,7 +158,7 @@ function renderList(items: AIAgent[], loading: boolean, openId: string | null, s
           <CardHeader className="pb-2 cursor-pointer" onClick={() => setOpenId(openId === a.id ? null : a.id)}>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
-                {mode === 'copilot' ? <Sparkles className="h-4 w-4 text-primary" /> : <Reply className="h-4 w-4 text-primary" />}
+                <Reply className="h-4 w-4 text-primary" />
                 {a.name}
                 {!a.is_active && <Badge variant="outline">Inativo</Badge>}
               </CardTitle>
@@ -189,7 +168,7 @@ function renderList(items: AIAgent[], loading: boolean, openId: string | null, s
           </CardHeader>
           {openId === a.id && (
             <CardContent>
-              {mode === 'copilot' ? <CopilotActionsEditor agentId={a.id} /> : <AutoReplyConfigEditor agentId={a.id} />}
+              <AutoReplyConfigEditor agentId={a.id} />
             </CardContent>
           )}
         </Card>
