@@ -132,7 +132,6 @@ export default function MetaConnect() {
 
             <TabsContent value="whatsapp">
               <ConnectCard
-                provider="whatsapp"
                 icon={Phone}
                 title="WhatsApp Business"
                 description="Conecte seu número WhatsApp Business Cloud API."
@@ -142,7 +141,6 @@ export default function MetaConnect() {
             </TabsContent>
             <TabsContent value="facebook">
               <ConnectCard
-                provider="facebook"
                 icon={Facebook}
                 title="Página do Facebook"
                 description="Conecte sua Página para receber mensagens do Messenger."
@@ -152,7 +150,6 @@ export default function MetaConnect() {
             </TabsContent>
             <TabsContent value="instagram">
               <ConnectCard
-                provider="instagram"
                 icon={Instagram}
                 title="Instagram Business"
                 description="Conecte sua conta Instagram Business para receber DMs."
