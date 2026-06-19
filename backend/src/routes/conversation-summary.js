@@ -183,16 +183,21 @@ router.post('/:conversationId/generate', async (req, res) => {
 
     const { conversationId } = req.params;
 
-    // Check conversation exists and belongs to org
+    // Check conversation exists. Allow if it has no connection (CRM-provisioned)
+    // OR if its connection belongs to the user's organization.
     const convCheck = await query(`
-      SELECT c.id, c.connection_id, conn.organization_id
+      SELECT c.id, c.connection_id, conn.organization_id AS conn_org
       FROM conversations c
-      JOIN connections conn ON conn.id = c.connection_id
-      WHERE c.id = $1 AND conn.organization_id = $2
-    `, [conversationId, org.organization_id]);
+      LEFT JOIN connections conn ON conn.id = c.connection_id
+      WHERE c.id = $1
+    `, [conversationId]);
 
     if (!convCheck.rows[0]) {
       return res.status(404).json({ error: 'Conversa não encontrada' });
+    }
+    const convRow = convCheck.rows[0];
+    if (convRow.conn_org && convRow.conn_org !== org.organization_id) {
+      return res.status(403).json({ error: 'Conversa de outra organização' });
     }
 
     // Get AI configuration
@@ -201,14 +206,24 @@ router.post('/:conversationId/generate', async (req, res) => {
       return res.status(400).json({ error: 'Nenhum agente de IA configurado com API key' });
     }
 
-    // Get conversation messages (limit to last 100 for performance)
-    const messagesResult = await query(`
-      SELECT content, from_me, message_type, created_at
-      FROM chat_messages
-      WHERE conversation_id = $1
-      ORDER BY created_at ASC
-      LIMIT 100
-    `, [conversationId]);
+    // Optional time window (?days=N). Default: all messages (capped at 200).
+    const daysParam = parseInt(req.query.days, 10);
+    const useWindow = Number.isFinite(daysParam) && daysParam > 0;
+    const messagesResult = await query(
+      useWindow
+        ? `SELECT content, from_me, message_type, created_at
+             FROM chat_messages
+             WHERE conversation_id = $1
+               AND created_at >= NOW() - ($2 || ' days')::interval
+             ORDER BY created_at ASC
+             LIMIT 200`
+        : `SELECT content, from_me, message_type, created_at
+             FROM chat_messages
+             WHERE conversation_id = $1
+             ORDER BY created_at ASC
+             LIMIT 200`,
+      useWindow ? [conversationId, String(daysParam)] : [conversationId]
+    );
 
     if (messagesResult.rows.length === 0) {
       return res.status(400).json({ error: 'Conversa sem mensagens' });

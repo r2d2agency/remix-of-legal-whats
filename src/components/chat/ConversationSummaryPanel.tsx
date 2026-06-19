@@ -5,6 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -47,8 +54,15 @@ export function ConversationSummaryPanel({
   compact = false,
 }: ConversationSummaryPanelProps) {
   const [isOpen, setIsOpen] = useState(!compact);
+  const [days, setDays] = useState<string>("2");
   const { data: summary, isLoading } = useConversationSummary(conversationId);
   const generateSummary = useGenerateSummary();
+
+  const triggerGenerate = () =>
+    generateSummary.mutate({
+      conversationId,
+      days: days === "all" ? undefined : parseInt(days, 10),
+    });
 
   if (isLoading) {
     return (
@@ -64,15 +78,28 @@ export function ConversationSummaryPanel({
   if (!summary) {
     return (
       <Card className={cn("p-4", className)}>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Sparkles className="h-4 w-4" />
             <span className="text-sm">Sem resumo IA</span>
           </div>
+          <div className="flex items-center gap-2">
+          <Select value={days} onValueChange={setDays}>
+            <SelectTrigger className="h-8 w-[110px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Último dia</SelectItem>
+              <SelectItem value="2">Últimos 2 dias</SelectItem>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="all">Tudo</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => generateSummary.mutate(conversationId)}
+            onClick={triggerGenerate}
             disabled={generateSummary.isPending}
           >
             {generateSummary.isPending ? (
@@ -82,6 +109,7 @@ export function ConversationSummaryPanel({
             )}
             Gerar Resumo
           </Button>
+          </div>
         </div>
       </Card>
     );
@@ -112,7 +140,7 @@ export function ConversationSummaryPanel({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <Separator />
-            <SummaryContent summary={summary} onRegenerate={() => generateSummary.mutate(conversationId)} isRegenerating={generateSummary.isPending} />
+            <SummaryContent summary={summary} onRegenerate={triggerGenerate} isRegenerating={generateSummary.isPending} />
           </CollapsibleContent>
         </Card>
       </Collapsible>
@@ -135,7 +163,7 @@ export function ConversationSummaryPanel({
           </Badge>
         </div>
       </div>
-      <SummaryContent summary={summary} onRegenerate={() => generateSummary.mutate(conversationId)} isRegenerating={generateSummary.isPending} />
+      <SummaryContent summary={summary} onRegenerate={triggerGenerate} isRegenerating={generateSummary.isPending} />
     </Card>
   );
 }

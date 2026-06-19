@@ -42,10 +42,16 @@ export function useGenerateSummary() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (conversationId: string) => {
-      return api<ConversationSummary>(`/api/conversation-summary/${conversationId}/generate`, {
-        method: "POST",
-      });
+    mutationFn: async (
+      input: string | { conversationId: string; days?: number }
+    ) => {
+      const conversationId = typeof input === 'string' ? input : input.conversationId;
+      const days = typeof input === 'string' ? undefined : input.days;
+      const qs = days && days > 0 ? `?days=${days}` : '';
+      return api<ConversationSummary>(
+        `/api/conversation-summary/${conversationId}/generate${qs}`,
+        { method: "POST" }
+      );
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["conversation-summary", data.conversation_id] });
