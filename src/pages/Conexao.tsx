@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
 import { ConnectionAIAgentDialog } from "@/components/conexao/ConnectionAIAgentDialog";
 import { MetaApiHelpDialog } from "@/components/conexao/MetaApiHelpDialog";
+import { InstagramMessengerHelpDialog } from "@/components/conexao/InstagramMessengerHelpDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConnections as useConnectionsHook } from "@/hooks/use-connections";
 
@@ -1216,6 +1217,7 @@ const handleGetQRCode = async (connection: Connection) => {
           
           <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
             <MetaApiHelpDialog />
+            <InstagramMessengerHelpDialog />
             {/* Plan limits badge */}
             {planLimits && (
               <Badge variant="outline" className="text-sm py-1 px-3">
