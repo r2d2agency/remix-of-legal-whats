@@ -23,6 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadDistributionDialog } from "@/components/conexao/LeadDistributionDialog";
 import { ConnectionAIAgentDialog } from "@/components/conexao/ConnectionAIAgentDialog";
+import { MetaApiHelpDialog } from "@/components/conexao/MetaApiHelpDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConnections as useConnectionsHook } from "@/hooks/use-connections";
 
@@ -1214,6 +1215,7 @@ const handleGetQRCode = async (connection: Connection) => {
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+            <MetaApiHelpDialog />
             {/* Plan limits badge */}
             {planLimits && (
               <Badge variant="outline" className="text-sm py-1 px-3">
