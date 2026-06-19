@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { api } from "@/lib/api";
+import { useDealsByPhone } from "@/hooks/use-crm";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -37,6 +41,7 @@ import {
   CheckCircle,
   AlertCircle,
   XCircle,
+  Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
@@ -46,12 +51,14 @@ interface ConversationSummaryPanelProps {
   conversationId: string;
   className?: string;
   compact?: boolean;
+  contactPhone?: string;
 }
 
 export function ConversationSummaryPanel({
   conversationId,
   className,
   compact = false,
+  contactPhone,
 }: ConversationSummaryPanelProps) {
   const [isOpen, setIsOpen] = useState(!compact);
   const [days, setDays] = useState<string>("2");
@@ -66,7 +73,7 @@ export function ConversationSummaryPanel({
 
   if (isLoading) {
     return (
-      <Card className={cn("p-4", className)}>
+      <Card className={cn("p-4 h-full", className)}>
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span className="text-sm">Carregando resumo...</span>
@@ -77,7 +84,7 @@ export function ConversationSummaryPanel({
 
   if (!summary) {
     return (
-      <Card className={cn("p-4", className)}>
+      <Card className={cn("p-4 h-full", className)}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Sparkles className="h-4 w-4" />
@@ -140,7 +147,7 @@ export function ConversationSummaryPanel({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <Separator />
-            <SummaryContent summary={summary} onRegenerate={triggerGenerate} isRegenerating={generateSummary.isPending} />
+            <SummaryContent summary={summary} onRegenerate={triggerGenerate} isRegenerating={generateSummary.isPending} contactPhone={contactPhone} fillHeight={false} />
           </CollapsibleContent>
         </Card>
       </Collapsible>
@@ -148,8 +155,8 @@ export function ConversationSummaryPanel({
   }
 
   return (
-    <Card className={cn("overflow-hidden", className)}>
-      <div className="flex items-center justify-between p-4 border-b">
+    <Card className={cn("overflow-hidden h-full flex flex-col", className)}>
+      <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
           <span className="font-medium">Resumo IA</span>
@@ -163,7 +170,7 @@ export function ConversationSummaryPanel({
           </Badge>
         </div>
       </div>
-      <SummaryContent summary={summary} onRegenerate={triggerGenerate} isRegenerating={generateSummary.isPending} />
+      <SummaryContent summary={summary} onRegenerate={triggerGenerate} isRegenerating={generateSummary.isPending} contactPhone={contactPhone} fillHeight />
     </Card>
   );
 }
@@ -172,13 +179,45 @@ interface SummaryContentProps {
   summary: ConversationSummary;
   onRegenerate: () => void;
   isRegenerating: boolean;
+  contactPhone?: string;
+  fillHeight?: boolean;
 }
 
-function SummaryContent({ summary, onRegenerate, isRegenerating }: SummaryContentProps) {
+function SummaryContent({ summary, onRegenerate, isRegenerating, contactPhone, fillHeight }: SummaryContentProps) {
   const resolutionInfo = getResolutionInfo(summary.resolution_status);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linking, setLinking] = useState<string | null>(null);
+  const { data: deals = [], isLoading: loadingDeals } = useDealsByPhone(linkOpen ? (contactPhone || null) : null);
+
+  const buildNoteContent = () => {
+    const lines = [`📝 Resumo IA da conversa`, '', summary.summary];
+    if (summary.key_points?.length) {
+      lines.push('', 'Pontos principais:', ...summary.key_points.map(p => `• ${p}`));
+    }
+    if (summary.action_items?.length) {
+      lines.push('', 'Ações pendentes:', ...summary.action_items.map(p => `• ${p}`));
+    }
+    return lines.join('\n');
+  };
+
+  const linkToDeal = async (dealId: string, dealTitle: string) => {
+    setLinking(dealId);
+    try {
+      await api(`/api/crm/deals/${dealId}/history`, {
+        method: 'POST',
+        body: { action: 'note', notes: buildNoteContent() },
+      });
+      toast.success(`Resumo anexado em "${dealTitle}"`);
+      setLinkOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao vincular resumo');
+    } finally {
+      setLinking(null);
+    }
+  };
 
   return (
-    <ScrollArea className="max-h-[400px]">
+    <ScrollArea className={cn(fillHeight ? "flex-1 h-full" : "max-h-[400px]")}>
       <div className="p-4 space-y-4">
         {/* Main Summary */}
         <div>
@@ -239,6 +278,50 @@ function SummaryContent({ summary, onRegenerate, isRegenerating }: SummaryConten
         )}
 
         <Separator />
+
+        {/* Link to CRM deal */}
+        {contactPhone && (
+          <Popover open={linkOpen} onOpenChange={setLinkOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full">
+                <Link2 className="h-3.5 w-3.5 mr-2" />
+                Vincular como anotação no CRM
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-2" align="end">
+              <div className="text-xs font-medium px-2 py-1 text-muted-foreground">
+                Negociações deste contato
+              </div>
+              {loadingDeals ? (
+                <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Buscando...
+                </div>
+              ) : deals.length === 0 ? (
+                <div className="p-3 text-xs text-muted-foreground">
+                  Nenhuma negociação encontrada para este contato.
+                </div>
+              ) : (
+                <div className="space-y-1 max-h-64 overflow-auto">
+                  {deals.map((deal: any) => (
+                    <button
+                      key={deal.id}
+                      onClick={() => linkToDeal(deal.id, deal.title)}
+                      disabled={linking === deal.id}
+                      className="w-full text-left px-2 py-2 rounded hover:bg-muted text-sm flex items-center justify-between gap-2 disabled:opacity-50"
+                    >
+                      <span className="truncate">{deal.title}</span>
+                      {linking === deal.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" />
+                      ) : (
+                        <Link2 className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        )}
 
         {/* Metadata */}
         <div className="flex items-center justify-between text-xs text-muted-foreground">
