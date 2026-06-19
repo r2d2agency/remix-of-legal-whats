@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +18,7 @@ interface Step {
   body: React.ReactNode;
 }
 
-const baseSteps: Step[] = [
+const steps: Step[] = [
   {
     title: "1. Pré-requisitos",
     body: (
@@ -147,52 +146,8 @@ const baseSteps: Step[] = [
   },
 ];
 
-// Etapa visível APENAS para superadmin — é feita uma única vez pela Gleego
-const superadminOnlyStep: Step = {
-  title: "[Superadmin] Validar o App da Gleego (Business Verification + App Review)",
-    body: (
-      <>
-        <p className="mb-2">Como o App da Gleego é <strong>único e usado por todos os clientes</strong>, a validação é feita uma vez só. Passo a passo:</p>
-        <ol className="list-decimal pl-5 space-y-1">
-          <li><strong>Business Verification:</strong> em <em>Business Manager → Configurações do Negócio → Centro de Segurança</em>, clique em <strong>Iniciar verificação</strong>. Envie: CNPJ da Gleego, comprovante de endereço, telefone comercial e site oficial. Aprovação leva de 1 a 5 dias úteis.</li>
-          <li><strong>Complete os dados do App:</strong> em <em>App → Configurações → Básico</em>, preencha:
-            <ul className="list-disc pl-5 mt-1">
-              <li>Ícone (1024×1024), URL da política de privacidade, URL dos termos de uso, categoria <em>Business and Pages</em>.</li>
-              <li>Domínios do app e URL do site da Gleego.</li>
-              <li>Contato de dados (Data Protection Officer).</li>
-            </ul>
-          </li>
-          <li><strong>Adicione um Tester/Reviewer:</strong> em <em>Funções → Funções</em>, inclua o e-mail do revisor da Meta (será solicitado).</li>
-          <li><strong>Solicite as permissões avançadas:</strong> em <em>App Review → Permissões e funcionalidades</em>, clique em <strong>Solicitar acesso avançado</strong> para cada uma:
-            <ul className="list-disc pl-5 mt-1">
-              <li><code>pages_messaging</code>, <code>pages_manage_metadata</code>, <code>pages_read_engagement</code>, <code>pages_show_list</code></li>
-              <li><code>instagram_basic</code>, <code>instagram_manage_messages</code></li>
-              <li><code>business_management</code></li>
-            </ul>
-          </li>
-          <li><strong>Para cada permissão</strong>, descreva:
-            <ul className="list-disc pl-5 mt-1">
-              <li>Como a Gleego usa a permissão (ex.: "atender clientes finais via Instagram Direct dentro do painel Gleego").</li>
-              <li>Como o usuário final autoriza (login via Facebook/Meta na conexão).</li>
-              <li>Anexe um <strong>screencast (vídeo de 1-3 min)</strong> mostrando: login na Gleego → conectar página → receber DM → responder pelo painel.</li>
-            </ul>
-          </li>
-          <li><strong>Submeta o App Review.</strong> A Meta responde em 3 a 7 dias úteis. Se reprovado, ajuste e reenvie — eles indicam exatamente o que faltou.</li>
-          <li><strong>Após aprovação</strong>, mude o App para <strong>Live</strong>. Agora qualquer cliente da Gleego pode conectar sua própria Página/Instagram usando o mesmo App ID — sem novo review.</li>
-        </ol>
-        <div className="mt-3 flex items-start gap-2 rounded-lg bg-primary/10 border border-primary/30 p-3 text-sm">
-          <KeyRound className="h-4 w-4 text-primary mt-0.5" />
-          <span>Dica: prepare o vídeo do screencast em inglês (ou com legendas em inglês) — acelera muito a aprovação.</span>
-        </div>
-      </>
-    ),
-};
-
 export function InstagramMessengerHelpDialog() {
   const [open, setOpen] = useState(false);
-  const { user } = useAuth();
-  const isSuperadmin = !!user?.is_superadmin;
-  const steps = isSuperadmin ? [...baseSteps, superadminOnlyStep] : baseSteps;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -210,7 +165,7 @@ export function InstagramMessengerHelpDialog() {
             <Badge variant="secondary" className="ml-2">Em breve no app</Badge>
           </DialogTitle>
           <DialogDescription>
-            Passo a passo completo para preparar o App Meta, obter o token permanente e habilitar recebimento/envio de mensagens do Instagram Direct e do Messenger.
+            Siga o passo a passo abaixo para criar seu próprio App Meta, preparar sua Página do Facebook e/ou conta Instagram Business e habilitar o recebimento e envio de mensagens.
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[65vh] pr-4">
@@ -218,7 +173,7 @@ export function InstagramMessengerHelpDialog() {
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm flex items-start gap-2">
               <KeyRound className="h-4 w-4 text-primary mt-0.5" />
               <span>
-                <strong>Modelo SaaS — 1 App Gleego para todos os clientes.</strong> A Gleego mantém <strong>um único App</strong> no Meta for Developers. Cada cliente conecta sua própria Página do Facebook / conta Instagram Business via OAuth usando o mesmo App ID/Secret. O <strong>App Review é feito uma vez pela Gleego</strong> e libera todos os clientes — você não precisa criar um App próprio.
+                Você precisará criar seu próprio App no Meta for Developers e conectar sua Página do Facebook / Instagram Business. Cada empresa utiliza seus próprios dados, sem compartilhar contas com terceiros.
               </span>
             </div>
 
