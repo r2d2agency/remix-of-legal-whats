@@ -1803,7 +1803,7 @@ export function ChatArea({
             <h3 className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />Resumo IA</h3>
             <Button variant="ghost" size="icon" onClick={() => setShowSummaryPanel(false)}><X className="h-4 w-4" /></Button>
           </div>
-          <div className="flex-1 overflow-auto p-4"><ConversationSummaryPanel conversationId={conversation.id} /></div>
+          <div className="flex-1 overflow-hidden p-4"><ConversationSummaryPanel conversationId={conversation.id} contactPhone={conversation.contact_phone || undefined} className="h-full" /></div>
         </div>
       )}
       {conversation && <DealLinkDialog open={showDealDialog} onOpenChange={setShowDealDialog} contactName={conversation.contact_name} contactPhone={conversation.contact_phone} />}
