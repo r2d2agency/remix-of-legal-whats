@@ -26,11 +26,6 @@ async function getUserOrg(userId) {
   return result.rows[0];
 }
 
-function hasUsableApiKey(value) {
-  const key = typeof value === 'string' ? value.trim() : '';
-  return Boolean(key && key !== '***' && !key.startsWith('••'));
-}
-
 function normalizeProvider(provider) {
   const value = String(provider || '').trim().toLowerCase();
   return ['openai', 'gemini', 'openrouter'].includes(value) ? value : null;
@@ -39,26 +34,88 @@ function normalizeProvider(provider) {
 function defaultModel(provider) {
   if (provider === 'openai') return 'gpt-4o-mini';
   if (provider === 'openrouter') return 'openai/gpt-4o-mini';
-  return 'gemini-1.5-flash';
+  return 'gemini-2.5-flash';
+}
+
+function cleanAIKey(value) {
+  const key = String(value || '').trim();
+  if (!key || key === '***' || key.startsWith('••')) return null;
+  return key;
+}
+
+function hasUsableApiKey(value) {
+  return Boolean(cleanAIKey(value));
+}
+
+function inferProviderFromKey(apiKey, fallbackProvider = null) {
+  const key = String(apiKey || '').trim();
+  if (key.startsWith('sk-or-')) return 'openrouter';
+  if (key.startsWith('AIza')) return 'gemini';
+  if (key.startsWith('sk-')) return 'openai';
+  return normalizeProvider(fallbackProvider) || 'gemini';
+}
+
+function modelMatchesProvider(provider, model) {
+  const value = String(model || '').trim().toLowerCase();
+  if (!value) return false;
+  if (provider === 'gemini') return value.startsWith('gemini-');
+  if (provider === 'openrouter') return value.includes('/');
+  if (provider === 'openai') return !value.includes('/') && !value.startsWith('gemini-');
+  return false;
+}
+
+function resolveModel(provider, model) {
+  return modelMatchesProvider(provider, model) ? String(model).trim() : defaultModel(provider);
 }
 
 function envKeyForProvider(provider) {
-  if (provider === 'openai') return process.env.OPENAI_API_KEY;
-  if (provider === 'openrouter') return process.env.OPENROUTER_API_KEY;
-  if (provider === 'gemini') return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (provider === 'openai') return cleanAIKey(process.env.OPENAI_API_KEY);
+  if (provider === 'openrouter') return cleanAIKey(process.env.OPENROUTER_API_KEY);
+  if (provider === 'gemini') return cleanAIKey(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
   return null;
 }
 
 function buildAIConfig(row, fallbackApiKey = null) {
-  const provider = normalizeProvider(row?.ai_provider);
-  if (!provider || provider === 'none') return null;
-  const apiKey = hasUsableApiKey(row?.ai_api_key) ? row.ai_api_key.trim() : fallbackApiKey;
-  if (!hasUsableApiKey(apiKey)) return null;
+  const apiKey = cleanAIKey(row?.ai_api_key) || cleanAIKey(fallbackApiKey);
+  if (!apiKey) return null;
+  const provider = normalizeProvider(row?.ai_provider) || inferProviderFromKey(apiKey);
   return {
     ai_provider: provider,
-    ai_model: row?.ai_model || defaultModel(provider),
-    ai_api_key: apiKey.trim(),
+    ai_model: resolveModel(provider, row?.ai_model),
+    ai_api_key: apiKey,
   };
+}
+
+function pickLegacyAIConfig(row, preferredProvider = null, preferredModel = null) {
+  if (!row) return null;
+
+  const providerPriority = [
+    normalizeProvider(preferredProvider),
+    normalizeProvider(row.ai_provider),
+    normalizeProvider(row.provider),
+    normalizeProvider(row.default_provider),
+    'gemini',
+    'openrouter',
+    'openai',
+  ].filter(Boolean);
+
+  const keyAliases = {
+    openai: ['openai_api_key', 'openai_key', 'OPENAI_API_KEY'],
+    gemini: ['gemini_api_key', 'google_api_key', 'gemini_key', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
+    openrouter: ['openrouter_api_key', 'openrouter_key', 'OPENROUTER_API_KEY'],
+  };
+
+  for (const provider of [...new Set(providerPriority)]) {
+    const apiKey = (keyAliases[provider] || []).map((field) => cleanAIKey(row[field])).find(Boolean);
+    if (!apiKey) continue;
+    return {
+      ai_provider: provider,
+      ai_model: resolveModel(provider, row[`${provider}_model`] || row.ai_model || row.model || preferredModel),
+      ai_api_key: apiKey,
+    };
+  }
+
+  return null;
 }
 
 // Helper: Get AI config from organization or agent
