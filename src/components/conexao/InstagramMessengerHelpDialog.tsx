@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,7 @@ interface Step {
   body: React.ReactNode;
 }
 
-const steps: Step[] = [
+const baseSteps: Step[] = [
   {
     title: "1. Pré-requisitos",
     body: (
@@ -128,7 +129,27 @@ const steps: Step[] = [
     ),
   },
   {
-    title: "8.1. Validar o App da Gleego (Business Verification + App Review)",
+    title: "9. Conecte na plataforma (em breve)",
+    body: (
+      <>
+        <p>Em <strong>Conexões → Nova conexão</strong>, escolha <strong>Instagram Direct</strong> ou <strong>Facebook Messenger</strong> e informe:</p>
+        <ul className="list-disc pl-5 space-y-1 mt-2">
+          <li><strong>Page ID</strong> (Facebook) e/ou <strong>Instagram Business Account ID</strong>.</li>
+          <li><strong>Page Access Token permanente</strong> gerado na etapa 6.</li>
+          <li><strong>App Secret</strong> (para validar assinatura do webhook).</li>
+        </ul>
+        <div className="mt-3 flex items-start gap-2 rounded-lg bg-primary/10 border border-primary/30 p-3 text-sm">
+          <KeyRound className="h-4 w-4 text-primary mt-0.5" />
+          <span>Atenção à <strong>janela de 24h</strong>: você só pode responder livremente até 24h após a última mensagem do usuário. Fora dessa janela é preciso usar Message Tags (Messenger) ou tópicos aprovados (Instagram).</span>
+        </div>
+      </>
+    ),
+  },
+];
+
+// Etapa visível APENAS para superadmin — é feita uma única vez pela Gleego
+const superadminOnlyStep: Step = {
+  title: "[Superadmin] Validar o App da Gleego (Business Verification + App Review)",
     body: (
       <>
         <p className="mb-2">Como o App da Gleego é <strong>único e usado por todos os clientes</strong>, a validação é feita uma vez só. Passo a passo:</p>
@@ -165,28 +186,13 @@ const steps: Step[] = [
         </div>
       </>
     ),
-  },
-  {
-    title: "9. Conecte na plataforma (em breve)",
-    body: (
-      <>
-        <p>Em <strong>Conexões → Nova conexão</strong>, escolha <strong>Instagram Direct</strong> ou <strong>Facebook Messenger</strong> e informe:</p>
-        <ul className="list-disc pl-5 space-y-1 mt-2">
-          <li><strong>Page ID</strong> (Facebook) e/ou <strong>Instagram Business Account ID</strong>.</li>
-          <li><strong>Page Access Token permanente</strong> gerado na etapa 6.</li>
-          <li><strong>App Secret</strong> (para validar assinatura do webhook).</li>
-        </ul>
-        <div className="mt-3 flex items-start gap-2 rounded-lg bg-primary/10 border border-primary/30 p-3 text-sm">
-          <KeyRound className="h-4 w-4 text-primary mt-0.5" />
-          <span>Atenção à <strong>janela de 24h</strong>: você só pode responder livremente até 24h após a última mensagem do usuário. Fora dessa janela é preciso usar Message Tags (Messenger) ou tópicos aprovados (Instagram).</span>
-        </div>
-      </>
-    ),
-  },
-];
+};
 
 export function InstagramMessengerHelpDialog() {
   const [open, setOpen] = useState(false);
+  const { user } = useAuth();
+  const isSuperadmin = !!user?.is_superadmin;
+  const steps = isSuperadmin ? [...baseSteps, superadminOnlyStep] : baseSteps;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -212,7 +218,7 @@ export function InstagramMessengerHelpDialog() {
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm flex items-start gap-2">
               <KeyRound className="h-4 w-4 text-primary mt-0.5" />
               <span>
-                <strong>Modelo SaaS — 1 App Gleego para todos os clientes.</strong> A Gleego mantém <strong>um único App</strong> no Meta for Developers. Cada cliente conecta sua própria Página do Facebook / conta Instagram Business via OAuth usando o mesmo App ID/Secret. O <strong>App Review é feito uma vez</strong> (veja etapa 8.1) e libera todos os clientes. Não é preciso criar um App por cliente.
+                <strong>Modelo SaaS — 1 App Gleego para todos os clientes.</strong> A Gleego mantém <strong>um único App</strong> no Meta for Developers. Cada cliente conecta sua própria Página do Facebook / conta Instagram Business via OAuth usando o mesmo App ID/Secret. O <strong>App Review é feito uma vez pela Gleego</strong> e libera todos os clientes — você não precisa criar um App próprio.
               </span>
             </div>
 
