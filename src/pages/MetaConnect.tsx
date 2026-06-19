@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Facebook, Instagram, Phone, Wrench, CheckCircle2, AlertTriangle, Loader2, ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { API_URL, getAuthToken } from "@/lib/api";
+import { api } from "@/lib/api";
 
 const META_SAAS_ENABLED = import.meta.env.VITE_META_SAAS_ENABLED === "true";
 
@@ -51,20 +51,14 @@ export default function MetaConnect() {
 
     setStarting(provider);
     try {
-      const res = await fetch(`${API_URL}/functions/v1/meta-oauth-start`, {
+      const data = await api<{ url: string }>("/api/meta/oauth/start", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getAuthToken()}`,
-        },
-        body: JSON.stringify({
+        body: {
           provider,
           organization_id: currentOrgId,
           redirect_uri: `${window.location.origin}/api/meta/oauth/callback`,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao iniciar OAuth");
       if (data.url) window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || "Erro ao iniciar conexão");
