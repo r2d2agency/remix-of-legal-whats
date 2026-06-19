@@ -206,10 +206,23 @@ async function getAIConfig(organizationId, connectionId = null) {
     let fallbackKey = orgFallbackKey;
     if (!fallbackKey && agent?.agent_organization_id && agent.agent_organization_id !== organizationId) {
       const agentOrg = await query(
-        `SELECT ai_api_key FROM organizations WHERE id = $1 LIMIT 1`,
+        `SELECT ai_provider, ai_model, ai_api_key FROM organizations WHERE id = $1 LIMIT 1`,
         [agent.agent_organization_id]
       ).catch(() => ({ rows: [] }));
       fallbackKey = cleanAIKey(agentOrg.rows[0]?.ai_api_key);
+      preferredProvider = normalizeProvider(agentOrg.rows[0]?.ai_provider) || preferredProvider;
+      preferredModel = agentOrg.rows[0]?.ai_model || preferredModel;
+
+      if (!fallbackKey) {
+        const legacyAgentOrg = await query(
+          `SELECT * FROM organization_ai_config WHERE organization_id = $1 LIMIT 1`,
+          [agent.agent_organization_id]
+        ).catch(() => ({ rows: [] }));
+        const legacyAgentConfig = pickLegacyAIConfig(legacyAgentOrg.rows[0], preferredProvider, preferredModel);
+        fallbackKey = legacyAgentConfig?.ai_api_key || null;
+        preferredProvider = legacyAgentConfig?.ai_provider || preferredProvider;
+        preferredModel = legacyAgentConfig?.ai_model || preferredModel;
+      }
     }
     const agentProvider = normalizeProvider(agent?.ai_provider) || preferredProvider;
     const agentConfig = buildAIConfig(
@@ -243,25 +256,27 @@ async function getAIConfig(organizationId, connectionId = null) {
   }
 
   // 3) Fallback: active global agent activation with client key
-  try {
-    const globalResult = await query(
-      `SELECT ga.ai_provider, ga.ai_model,
-              COALESCE(NULLIF(BTRIM(act.client_ai_api_key), ''), NULLIF(BTRIM(ga.ai_api_key), '')) AS ai_api_key
-         FROM global_agent_activations act
-         JOIN global_ai_agents ga ON ga.id = act.global_agent_id
-        WHERE act.organization_id = $1
-          AND act.is_active = true
-           AND ($2::uuid IS NULL OR act.connection_id = $2::uuid)
-        ORDER BY CASE WHEN act.connection_id = $2::uuid THEN 0 ELSE 1 END,
-                 act.updated_at DESC NULLS LAST,
-                 act.created_at DESC
-        LIMIT 1`,
-      [organizationId, connectionId]
-    );
-    const globalAgent = globalResult.rows[0];
-    const globalConfig = buildAIConfig(globalAgent, orgFallbackKey || envKeyForProvider(normalizeProvider(globalAgent?.ai_provider)));
-    if (globalConfig) return globalConfig;
-  } catch (e) { /* table may not exist */ }
+  for (const orgId of orgIds) {
+    try {
+      const globalResult = await query(
+        `SELECT ga.ai_provider, ga.ai_model,
+                COALESCE(NULLIF(BTRIM(act.client_ai_api_key), ''), NULLIF(BTRIM(ga.ai_api_key), '')) AS ai_api_key
+           FROM global_agent_activations act
+           JOIN global_ai_agents ga ON ga.id = act.global_agent_id
+          WHERE act.organization_id = $1
+            AND act.is_active = true
+            AND ($2::uuid IS NULL OR act.connection_id = $2::uuid)
+          ORDER BY CASE WHEN act.connection_id = $2::uuid THEN 0 ELSE 1 END,
+                   act.updated_at DESC NULLS LAST,
+                   act.created_at DESC
+          LIMIT 1`,
+        [orgId, connectionId]
+      );
+      const globalAgent = globalResult.rows[0];
+      const globalConfig = buildAIConfig(globalAgent, orgFallbackKey || envKeyForProvider(normalizeProvider(globalAgent?.ai_provider)));
+      if (globalConfig) return globalConfig;
+    } catch (e) { /* table may not exist */ }
+  }
 
   // 4) Last resort: org/provider selected but key is provided by deploy environment.
   const envKey = envKeyForProvider(preferredProvider);
