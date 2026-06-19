@@ -411,7 +411,16 @@ router.post('/:conversationId/generate', async (req, res) => {
     // Get AI configuration
     const aiConfig = await getAIConfig(org.organization_id, convCheck.rows[0].connection_id);
     if (!aiConfig?.ai_api_key) {
-      return res.status(400).json({ error: 'Nenhum agente de IA configurado com API key' });
+      log('warn', 'conversation_summary.no_ai_config', {
+        conversation_id: conversationId,
+        user_org_id: org.organization_id,
+        connection_id: convCheck.rows[0].connection_id,
+        connection_org_id: convCheck.rows[0].conn_org,
+      });
+      return res.status(400).json({
+        error: 'Nenhuma chave de IA encontrada para esta conversa',
+        details: 'Verifique se a Configuração de IA da organização dona da conexão ou o agente Auto-Resposta ativo possui API key válida.',
+      });
     }
 
     // Optional time window (?days=N). Default: all messages (capped at 200).
