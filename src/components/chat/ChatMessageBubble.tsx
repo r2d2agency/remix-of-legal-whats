@@ -170,29 +170,35 @@ export function ChatMessageBubble({
     e.preventDefault();
     e.stopPropagation();
 
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Network response was not ok');
-      
-      const blob = await response.blob();
+    const sanitizedFileName = fileName.replace(/[<>:"/\\|?*]/g, '_');
+    const triggerBlobDownload = (blob: Blob) => {
       const blobUrl = window.URL.createObjectURL(blob);
-      
       const link = document.createElement('a');
-      // Sanitize fileName to prevent issues with special characters
-      const sanitizedFileName = fileName.replace(/[<>:"/\\|?*]/g, '_');
-      
       link.href = blobUrl;
       link.download = sanitizedFileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Clean up the blob URL
       setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    };
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Network response was not ok');
+      triggerBlobDownload(await response.blob());
     } catch (error) {
-      console.error('Download failed:', error);
-      // Fallback: open in new tab if fetch fails (likely CORS)
-      window.open(url, '_blank', 'noopener,noreferrer');
+      console.warn('Direct download failed, trying backend proxy:', error);
+      // Fallback: route through backend proxy to bypass CORS / force download
+      try {
+        const { API_URL } = await import('@/lib/api');
+        const proxyUrl = `${API_URL}/api/uploads/proxy?url=${encodeURIComponent(url)}`;
+        const resp = await fetch(proxyUrl);
+        if (!resp.ok) throw new Error(`proxy ${resp.status}`);
+        triggerBlobDownload(await resp.blob());
+      } catch (proxyErr) {
+        console.error('Proxy download failed:', proxyErr);
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
     }
   };
 
