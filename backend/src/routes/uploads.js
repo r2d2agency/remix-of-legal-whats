@@ -13,6 +13,18 @@ const execPromise = promisify(exec);
 const router = express.Router();
 const PROXIED_MEDIA_HOSTS = new Set(['lookaside.fbsbx.com']);
 const META_MEDIA_HOSTS = new Set(['lookaside.fbsbx.com']);
+// Hosts permitidos por sufixo de domínio (ex.: instâncias UAZAPI/W-API/Evolution)
+const PROXIED_MEDIA_HOST_SUFFIXES = [
+  '.uazapi.com',
+  '.wapi.app',
+  '.w-api.app',
+];
+
+function isProxyAllowedHost(hostname) {
+  const h = String(hostname || '').toLowerCase();
+  if (PROXIED_MEDIA_HOSTS.has(h)) return true;
+  return PROXIED_MEDIA_HOST_SUFFIXES.some((suf) => h.endsWith(suf));
+}
 const META_GRAPH_API_VERSION = 'v21.0';
 
 async function getMetaCandidateTokens(req) {
@@ -420,7 +432,7 @@ router.get('/proxy', async (req, res) => {
       return res.status(400).json({ error: 'Protocolo inválido' });
     }
 
-    if (!PROXIED_MEDIA_HOSTS.has(targetUrl.hostname.toLowerCase())) {
+    if (!isProxyAllowedHost(targetUrl.hostname)) {
       return res.status(403).json({ error: 'Host não permitido' });
     }
 
