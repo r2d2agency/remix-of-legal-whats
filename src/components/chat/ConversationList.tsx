@@ -113,6 +113,7 @@ interface ConversationListProps {
   connections?: Connection[];
   onPinConversation?: (id: string, pinned: boolean) => Promise<void>;
   onFavoriteConversation?: (id: string, favorite: boolean) => Promise<void>;
+  onMuteConversation?: (id: string, muted: boolean) => Promise<void>;
   onNewConversation?: () => void;
   onAcceptConversation?: (id: string) => Promise<void>;
   onReleaseConversation?: (id: string) => Promise<void>;
@@ -192,6 +193,7 @@ export function ConversationList({
   onGlobalSearchSelect,
   onPinConversation,
   onFavoriteConversation,
+  onMuteConversation,
   onLoadMore,
   hasMore = false,
   loadingMore = false,
@@ -833,6 +835,7 @@ export function ConversationList({
                       <span className="font-medium truncate flex-1 min-w-0 flex items-center gap-1">
                         {conv.is_pinned && <Pin className="h-3 w-3 text-primary flex-shrink-0" />}
                         {conv.is_favorite && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+                        {conv.is_muted && <BellOff className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
                          {(conv.automation_active || conv.active_flow) && (
                            <Tooltip>
                              <TooltipTrigger asChild>
@@ -1050,6 +1053,17 @@ export function ConversationList({
                           >
                             <Star className={cn("h-4 w-4 mr-2", conv.is_favorite && "text-yellow-500 fill-yellow-500")} />
                             {conv.is_favorite ? 'Remover favorito' : 'Favoritar'}
+                          </DropdownMenuItem>
+                        )}
+                        {onMuteConversation && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onMuteConversation(conv.id, !conv.is_muted);
+                            }}
+                          >
+                            <BellOff className={cn("h-4 w-4 mr-2", conv.is_muted && "text-muted-foreground")} />
+                            {conv.is_muted ? 'Reativar notificações' : 'Silenciar notificações'}
                           </DropdownMenuItem>
                         )}
                         {isAdmin && (

@@ -27,6 +27,7 @@ export interface Conversation {
   is_archived: boolean;
   is_pinned: boolean;
   is_favorite: boolean;
+  is_muted?: boolean;
   pinned_message_id: string | null;
   is_group: boolean;
   group_name: string | null;
@@ -372,6 +373,14 @@ export const useChat = () => {
     await api(`/api/chat/conversations/${id}/favorite`, {
       method: 'POST',
       body: { favorite },
+    });
+  }, []);
+
+  // Mute/unmute conversation (silences push notifications)
+  const muteConversation = useCallback(async (id: string, muted: boolean): Promise<void> => {
+    await api(`/api/chat/conversations/${id}/mute`, {
+      method: 'POST',
+      body: { muted },
     });
   }, []);
 
@@ -768,6 +777,7 @@ export const useChat = () => {
     transferConversation,
     pinConversation,
     favoriteConversation,
+    muteConversation,
     acceptConversation,
     releaseConversation,
     finishConversation,

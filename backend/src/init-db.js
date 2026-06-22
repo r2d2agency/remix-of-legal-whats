@@ -783,6 +783,7 @@ DO $$ BEGIN
     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS group_name VARCHAR(255);
     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned_message_id UUID REFERENCES chat_messages(id) ON DELETE SET NULL;
     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT false;
+    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_muted BOOLEAN DEFAULT false;
 EXCEPTION
     WHEN duplicate_column THEN null;
 END $$;

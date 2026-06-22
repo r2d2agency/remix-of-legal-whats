@@ -8,6 +8,7 @@ import { emitLeadEvent } from '../lib/event-bus.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { handleAutoReplies } from '../lib/auto-reply-service.js';
+import { sendPushToOrgUsers } from './push.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -1967,6 +1968,44 @@ async function handleIncomingMessage(connection, payload) {
       // Reset unread_count since the message wasn't saved
       await query(`UPDATE conversations SET unread_count = GREATEST(unread_count - 1, 0) WHERE id = $1`, [conversationId]).catch(() => {});
       throw insertError;
+    }
+
+    // ====== PUSH NOTIFICATION on incoming message ======
+    // Fire-and-forget; respects per-conversation mute flag.
+    if (connection.organization_id) {
+      (async () => {
+        try {
+          const convInfo = await query(
+            `SELECT is_muted, is_group, group_name, contact_name, contact_phone FROM conversations WHERE id = $1`,
+            [conversationId]
+          );
+          const conv = convInfo.rows[0];
+          if (!conv || conv.is_muted) return;
+
+          const titleName = conv.is_group
+            ? (conv.group_name || 'Grupo')
+            : (conv.contact_name || conv.contact_phone || 'Nova mensagem');
+          const senderPrefix = conv.is_group && senderName ? `${senderName}: ` : '';
+          let preview = '';
+          if (messageType === 'text') preview = (content || '').slice(0, 120);
+          else if (messageType === 'image') preview = '📷 Foto';
+          else if (messageType === 'audio') preview = '🎤 Áudio';
+          else if (messageType === 'video') preview = '🎥 Vídeo';
+          else if (messageType === 'document') preview = '📎 Documento';
+          else if (messageType === 'sticker') preview = 'Figurinha';
+          else preview = 'Nova mensagem';
+
+          await sendPushToOrgUsers(connection.organization_id, {
+            title: titleName,
+            body: `${senderPrefix}${preview}`,
+            url: '/chat',
+            tag: `conv-${conversationId}`,
+            data: { conversation_id: conversationId, type: 'new_message' },
+          });
+        } catch (e) {
+          console.error('[W-API] push notify error:', e.message);
+        }
+      })();
     }
 
     // Pause nurturing sequences on incoming message (fromMe is always false here)

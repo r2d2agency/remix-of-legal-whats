@@ -39,6 +39,7 @@ const Chat = () => {
     transferConversation,
     pinConversation,
     favoriteConversation,
+    muteConversation,
     acceptConversation,
     releaseConversation,
     finishConversation,
@@ -887,6 +888,9 @@ const Chat = () => {
                   onFavoriteConversation={async (id, favorite) => {
                     try { await favoriteConversation(id, favorite); loadConversations(); toast.success(favorite ? 'Conversa favoritada' : 'Favorito removido'); } catch (error: any) { toast.error(error.message || 'Erro ao favoritar conversa'); }
                   }}
+                  onMuteConversation={async (id, muted) => {
+                    try { await muteConversation(id, muted); loadConversations(); toast.success(muted ? 'Notificações silenciadas' : 'Notificações reativadas'); } catch (error: any) { toast.error(error.message || 'Erro ao silenciar conversa'); }
+                  }}
                   onGlobalSearchSelect={async (conversationId, messageId) => {
                     try {
                       const conv = await getConversation(conversationId);
@@ -986,6 +990,9 @@ const Chat = () => {
                 }}
                 onFavoriteConversation={async (id, favorite) => {
                   try { await favoriteConversation(id, favorite); loadConversations(); toast.success(favorite ? 'Conversa favoritada' : 'Favorito removido'); } catch (error: any) { toast.error(error.message || 'Erro ao favoritar conversa'); }
+                }}
+                onMuteConversation={async (id, muted) => {
+                  try { await muteConversation(id, muted); loadConversations(); toast.success(muted ? 'Notificações silenciadas' : 'Notificações reativadas'); } catch (error: any) { toast.error(error.message || 'Erro ao silenciar conversa'); }
                 }}
                 onGlobalSearchSelect={async (conversationId, messageId) => {
                   try {
