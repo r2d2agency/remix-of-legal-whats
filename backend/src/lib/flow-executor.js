@@ -678,8 +678,16 @@ function processConditionNode(content, variables) {
   let result = operator === 'AND';
 
   for (const rule of rules) {
-    const varValue = variables[rule.variable] || '';
-    const ruleResult = evaluateRule(varValue, rule.operator, rule.value);
+    // Support both raw variable names ("resposta_cliente") and template
+    // syntax ("{resposta_cliente}" or "{{resposta_cliente}}") in rule.variable.
+    let varName = String(rule.variable || '').trim();
+    const templateMatch = varName.match(/^\{\{?\s*([\w.]+)\s*\}?\}$/);
+    if (templateMatch) varName = templateMatch[1];
+    const varValue = getVariableValue(variables, varName);
+    // Compare value may also reference variables
+    const compareValue = replaceVariables(String(rule.value ?? ''), variables);
+    const ruleResult = evaluateRule(varValue ?? '', rule.operator, compareValue);
+    console.log(`[Condition] var="${varName}" value="${varValue}" op=${rule.operator} compare="${compareValue}" => ${ruleResult}`);
 
     if (operator === 'AND') {
       result = result && ruleResult;
