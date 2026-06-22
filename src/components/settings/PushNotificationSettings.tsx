@@ -24,9 +24,15 @@ export function PushNotificationSettings() {
   };
 
   const handleTest = async () => {
-    const result = await sendTestNotification();
-    if (result?.success) toast.success(`Notificação de teste enviada! (${result.sent} dispositivo(s))`);
-    else toast.error("Erro ao enviar notificação de teste");
+    try {
+      const result = await sendTestNotification();
+      if (result?.success) toast.success(`Notificação de teste enviada! (${result.sent} dispositivo(s))`);
+      else toast.error("Erro ao enviar notificação de teste");
+    } catch (err: any) {
+      const msg = err?.message || "Erro desconhecido";
+      const status = err?.status ? ` (HTTP ${err.status})` : "";
+      toast.error(`Erro ao enviar: ${msg}${status}`, { duration: 8000 });
+    }
   };
 
   const handleTestBackground = async () => {
@@ -40,12 +46,19 @@ export function PushNotificationSettings() {
       setDelayCountdown((prev) => (prev !== null && prev > 1 ? prev - 1 : null));
     }, 1000);
 
-    const result = await sendTestNotification({ delaySeconds: seconds });
-    clearInterval(interval);
-    setDelayCountdown(null);
-
-    if (result?.success) toast.success(`🔔 Push enviada para ${result.sent} dispositivo(s)!`);
-    else toast.error("Erro ao enviar notificação de teste");
+    try {
+      const result = await sendTestNotification({ delaySeconds: seconds });
+      clearInterval(interval);
+      setDelayCountdown(null);
+      if (result?.success) toast.success(`🔔 Push enviada para ${result.sent} dispositivo(s)!`);
+      else toast.error("Erro ao enviar notificação de teste");
+    } catch (err: any) {
+      clearInterval(interval);
+      setDelayCountdown(null);
+      const msg = err?.message || "Erro desconhecido";
+      const status = err?.status ? ` (HTTP ${err.status})` : "";
+      toast.error(`Erro ao enviar: ${msg}${status}`, { duration: 8000 });
+    }
   };
 
   if (!isSupported) {
