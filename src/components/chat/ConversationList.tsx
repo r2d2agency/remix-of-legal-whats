@@ -113,6 +113,7 @@ interface ConversationListProps {
   connections?: Connection[];
   onPinConversation?: (id: string, pinned: boolean) => Promise<void>;
   onFavoriteConversation?: (id: string, favorite: boolean) => Promise<void>;
+  onMuteConversation?: (id: string, muted: boolean) => Promise<void>;
   onNewConversation?: () => void;
   onAcceptConversation?: (id: string) => Promise<void>;
   onReleaseConversation?: (id: string) => Promise<void>;
@@ -192,6 +193,7 @@ export function ConversationList({
   onGlobalSearchSelect,
   onPinConversation,
   onFavoriteConversation,
+  onMuteConversation,
   onLoadMore,
   hasMore = false,
   loadingMore = false,
