@@ -166,9 +166,9 @@ export function usePushNotifications() {
         },
         auth: true,
       });
-    } catch (err) {
-      console.error('Test notification error:', err);
-      return null;
+    } catch (err: any) {
+      console.error('[PUSH] Test notification error:', err?.status, err?.message, err?.response);
+      throw err;
     }
   }, []);
 
