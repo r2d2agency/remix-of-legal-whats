@@ -35,7 +35,7 @@ router.post('/subscribe', authenticate, async (req, res) => {
     // Get user's organization
     const orgResult = await query(
       'SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1',
-      [req.user.id]
+      [req.userId]
     );
     const organizationId = orgResult.rows[0]?.organization_id || null;
 
@@ -49,7 +49,7 @@ router.post('/subscribe', authenticate, async (req, res) => {
          auth = EXCLUDED.auth,
          user_agent = EXCLUDED.user_agent,
          updated_at = NOW()`,
-      [req.user.id, organizationId, endpoint, keys.p256dh, keys.auth, req.headers['user-agent'] || null]
+      [req.userId, organizationId, endpoint, keys.p256dh, keys.auth, req.headers['user-agent'] || null]
     );
 
     res.json({ success: true });
@@ -65,7 +65,7 @@ router.post('/unsubscribe', authenticate, async (req, res) => {
     const { endpoint } = req.body;
     if (!endpoint) return res.status(400).json({ error: 'Endpoint required' });
 
-    await query('DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2', [endpoint, req.user.id]);
+    await query('DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2', [endpoint, req.userId]);
     res.json({ success: true });
   } catch (error) {
     console.error('Push unsubscribe error:', error);
@@ -78,7 +78,7 @@ router.get('/status', authenticate, async (req, res) => {
   try {
     const result = await query(
       'SELECT id, endpoint, created_at FROM push_subscriptions WHERE user_id = $1',
-      [req.user.id]
+      [req.userId]
     );
     res.json({ subscriptions: result.rows, count: result.rows.length });
   } catch (error) {
@@ -91,7 +91,7 @@ router.get('/status', authenticate, async (req, res) => {
 router.post('/send', authenticate, async (req, res) => {
   try {
     const { userId, title, body, url, data } = req.body;
-    const targetUserId = userId || req.user.id;
+    const targetUserId = userId || req.userId;
 
     const subs = await query(
       'SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1',
@@ -157,7 +157,7 @@ router.post('/broadcast', authenticate, async (req, res) => {
 
     const orgResult = await query(
       'SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1',
-      [req.user.id]
+      [req.userId]
     );
     const orgId = orgResult.rows[0]?.organization_id;
     if (!orgId) return res.status(400).json({ error: 'No organization found' });
