@@ -411,9 +411,16 @@ export function ExcelImportDialog({
     try {
       await onImport(contactsToImport);
       handleClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Import error:", error);
-      alert("Erro ao importar contatos");
+      const status = error?.status ? ` (HTTP ${error.status})` : "";
+      const serverMsg =
+        error?.response?.error ||
+        error?.response?.message ||
+        error?.response?.details ||
+        error?.message ||
+        "Erro desconhecido";
+      alert(`Erro ao importar contatos${status}:\n\n${serverMsg}`);
     } finally {
       setIsImporting(false);
     }
