@@ -11,13 +11,14 @@ self.addEventListener('push', function(event) {
       body: data.body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-96.png',
-      vibrate: [100, 50, 100],
+      vibrate: data.vibrate || [200, 100, 200, 100, 200],
       data: {
         url: data.url || '/',
         ...data.data,
       },
       actions: data.actions || [],
       tag: data.tag || 'default',
+      silent: false,
       renotify: true,
       requireInteraction: data.requireInteraction || false,
     };
