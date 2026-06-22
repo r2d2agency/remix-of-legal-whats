@@ -160,10 +160,9 @@ export function usePushNotifications() {
             ? `Push recebida! (enviada ${delay}s após o clique)`
             : 'As notificações push estão funcionando!',
           url: '/dashboard',
-          data: {
-            vibrate: [300, 100, 300, 100, 300, 100, 500],
-            requireInteraction: true,
-          },
+          vibrate: [300, 100, 300, 100, 300, 100, 500],
+          requireInteraction: true,
+          tag: 'push-test',
         },
         auth: true,
       });
