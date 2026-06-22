@@ -13,6 +13,7 @@ import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 import { detectSalesSeoLead, updateSalesSeoEvolution } from '../lib/sales-seo-service.js';
 import { handleAutoReplies } from '../lib/auto-reply-service.js';
+import { sendPushToOrgUsers } from './push.js';
 
 
 const router = Router();
@@ -2071,7 +2072,41 @@ async function handleMessageUpsert(connection, data) {
 
       if (insertResult.rows.length > 0) {
         console.log('Webhook: Message saved/updated:', messageId, 'Type:', messageType, 'FromMe:', fromMe, 'Content:', content?.substring(0, 50));
-        
+
+        // Push notification on incoming message (skip own messages); honors per-conversation mute
+        if (!fromMe && connection.organization_id) {
+          (async () => {
+            try {
+              const convInfo = await query(
+                `SELECT is_muted, is_group, group_name, contact_name, contact_phone FROM conversations WHERE id = $1`,
+                [conversationId]
+              );
+              const conv = convInfo.rows[0];
+              if (!conv || conv.is_muted) return;
+              const titleName = conv.is_group
+                ? (conv.group_name || 'Grupo')
+                : (conv.contact_name || conv.contact_phone || 'Nova mensagem');
+              const senderPrefix = conv.is_group && senderName ? `${senderName}: ` : '';
+              let preview = '';
+              if (messageType === 'text') preview = (content || '').slice(0, 120);
+              else if (messageType === 'image') preview = '📷 Foto';
+              else if (messageType === 'audio') preview = '🎤 Áudio';
+              else if (messageType === 'video') preview = '🎥 Vídeo';
+              else if (messageType === 'document') preview = '📎 Documento';
+              else preview = 'Nova mensagem';
+              await sendPushToOrgUsers(connection.organization_id, {
+                title: titleName,
+                body: `${senderPrefix}${preview}`,
+                url: '/chat',
+                tag: `conv-${conversationId}`,
+                data: { conversation_id: conversationId, type: 'new_message' },
+              });
+            } catch (e) {
+              console.error('[Evolution] push notify error:', e.message);
+            }
+          })();
+        }
+
         // ==========================================
         // SALES & SEO TRACKER DETECTION
         // ==========================================
