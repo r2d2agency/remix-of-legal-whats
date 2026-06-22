@@ -854,6 +854,63 @@ async function processActionNode(content, connection, phone, variables) {
 }
 
 /**
+ * Process external_send node - send a WhatsApp message to a fixed external number
+ * using the same conversation's connection. Useful for notifying internal teams
+ * with the captured user reply, contact info and current date/time.
+ */
+async function processExternalSendNode(content, connection, variables, conversationId) {
+  try {
+    const rawPhone = String(content.phone || content.external_phone || '').trim();
+    if (!rawPhone) {
+      console.log('Flow executor: external_send missing phone');
+      return { success: false, error: 'Número externo não configurado' };
+    }
+
+    // Inject runtime date/time variables (America/Sao_Paulo)
+    const tz = 'America/Sao_Paulo';
+    const now = new Date();
+    const localVars = {
+      ...variables,
+      data: now.toLocaleDateString('pt-BR', { timeZone: tz }),
+      hora: now.toLocaleTimeString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' }),
+      data_hora: now.toLocaleString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' }),
+    };
+
+    const targetPhone = replaceVariables(rawPhone, localVars).replace(/\D/g, '');
+    if (!targetPhone) {
+      return { success: false, error: 'Número externo inválido após resolver variáveis' };
+    }
+
+    const defaultTemplate = [
+      '🔔 Nova resposta recebida',
+      '',
+      'Contato: {nome}',
+      'Telefone: {telefone}',
+      'Resposta: {resposta_cliente}',
+      'Data/Hora: {data_hora}',
+    ].join('\n');
+    const messageTpl = content.message || content.text || defaultTemplate;
+    const message = replaceVariables(messageTpl, localVars);
+
+    console.log(`Flow executor: external_send -> ${targetPhone} (${message.length} chars)`);
+    const result = await whatsappProvider.sendMessage(connection, targetPhone, message, 'text');
+    if (!result?.success) {
+      const errMsg = result?.error || 'Falha ao enviar mensagem externa';
+      if (content.continue_on_error) {
+        console.warn('Flow executor: external_send failed but continuing:', errMsg);
+        return { success: true };
+      }
+      throw new Error(errMsg);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Flow executor: external_send error:', error);
+    if (content?.continue_on_error) return { success: true };
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Replace variables in text - supports {var}, {{var}}, and {obj.key} dot notation
  */
 function replaceVariables(text, variables) {
