@@ -679,6 +679,40 @@ async function persistIncomingMessage(connection, payload) {
     );
   }
 
+  // Push notification on incoming message (skip own messages); honors per-conversation mute
+  if (!message.fromMe && connection.organization_id) {
+    (async () => {
+      try {
+        const convInfo = await query(
+          `SELECT is_muted, is_group, group_name, contact_name, contact_phone FROM conversations WHERE id = $1`,
+          [conversationId]
+        );
+        const conv = convInfo.rows[0];
+        if (!conv || conv.is_muted) return;
+        const titleName = conv.is_group
+          ? (conv.group_name || 'Grupo')
+          : (conv.contact_name || conv.contact_phone || 'Nova mensagem');
+        const senderPrefix = conv.is_group && message.senderName ? `${message.senderName}: ` : '';
+        let preview = '';
+        if (message.messageType === 'text') preview = (message.content || '').slice(0, 120);
+        else if (message.messageType === 'image') preview = '📷 Foto';
+        else if (message.messageType === 'audio') preview = '🎤 Áudio';
+        else if (message.messageType === 'video') preview = '🎥 Vídeo';
+        else if (message.messageType === 'document') preview = '📎 Documento';
+        else preview = 'Nova mensagem';
+        await sendPushToOrgUsers(connection.organization_id, {
+          title: titleName,
+          body: `${senderPrefix}${preview}`,
+          url: '/chat',
+          tag: `conv-${conversationId}`,
+          data: { conversation_id: conversationId, type: 'new_message' },
+        });
+      } catch (e) {
+        console.error('[UAZAPI] push notify error:', e.message);
+      }
+    })();
+  }
+
   return { skipped: false, conversationId, messageId: message.messageId };
 }
 
