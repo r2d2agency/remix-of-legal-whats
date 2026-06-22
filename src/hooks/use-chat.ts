@@ -777,6 +777,7 @@ export const useChat = () => {
     transferConversation,
     pinConversation,
     favoriteConversation,
+    muteConversation,
     acceptConversation,
     releaseConversation,
     finishConversation,
