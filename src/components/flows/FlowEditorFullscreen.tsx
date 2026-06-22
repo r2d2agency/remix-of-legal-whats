@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Save, Plus, MessageSquare, List, FormInput, GitBranch, 
   Zap, ArrowRightLeft, Sparkles, Square, Loader2, X,
-  Clock, Webhook, Undo2, Play, Bot, MessageCircleReply
+  Clock, Webhook, Undo2, Play, Bot, MessageCircleReply, Send
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { nodeTypes, FlowNodeData } from '@/components/chatbots/FlowNodes';
@@ -50,6 +50,7 @@ const nodeTypeOptions = [
   { type: 'wait_reply', label: 'Aguardar Resposta', icon: MessageCircleReply, description: 'Aguarda resposta do contato', color: 'bg-teal-500' },
   { type: 'delay', label: 'Delay', icon: Clock, description: 'Aguarda X segundos', color: 'bg-cyan-500' },
   { type: 'webhook', label: 'Webhook', icon: Webhook, description: 'Chama API externa', color: 'bg-rose-500' },
+  { type: 'external_send', label: 'Enviar Número Externo', icon: Send, description: 'Envia WhatsApp para um número fixo (notificação)', color: 'bg-indigo-500' },
   { type: 'end', label: 'Fim', icon: Square, description: 'Encerra o fluxo', color: 'bg-slate-500' },
 ];
 

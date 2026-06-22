@@ -20,7 +20,7 @@ import { Slider } from '@/components/ui/slider';
 import { 
   X, Plus, Trash2, GripVertical, MessageSquare, List, 
   FormInput, GitBranch, Zap, ArrowRightLeft, Sparkles, 
-  Clock, Webhook, Image, Images, FileText, Video, Mic, Upload, Loader2, Bot, MessageCircleReply
+  Clock, Webhook, Image, Images, FileText, Video, Mic, Upload, Loader2, Bot, MessageCircleReply, Send
 } from 'lucide-react';
 import { FlowNodeData } from '@/components/chatbots/FlowNodes';
 import { useUpload } from '@/hooks/use-upload';
@@ -165,6 +165,7 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
       ai_response: <Sparkles className="h-5 w-5" />,
       ai_agent: <Bot className="h-5 w-5" />,
       wait_reply: <MessageCircleReply className="h-5 w-5" />,
+      external_send: <Send className="h-5 w-5" />,
       delay: <Clock className="h-5 w-5" />,
       webhook: <Webhook className="h-5 w-5" />,
     };
@@ -182,6 +183,7 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
       ai_response: 'Resposta IA',
       ai_agent: 'Agente IA',
       wait_reply: 'Aguardar Resposta',
+      external_send: 'Enviar Número Externo',
       delay: 'Delay',
       webhook: 'Webhook',
     };
@@ -250,6 +252,9 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
           )}
           {node.type === 'wait_reply' && (
             <WaitReplyNodeEditor content={content} onChange={setContent} />
+          )}
+          {node.type === 'external_send' && (
+            <ExternalSendNodeEditor content={content} onChange={setContent} />
           )}
         </div>
       </ScrollArea>
@@ -2088,6 +2093,67 @@ function WaitReplyNodeEditor({ content, onChange }: { content: Record<string, an
             <span className="text-xs">Timeout (sem resposta)</span>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ External Send Node Editor ============
+function ExternalSendNodeEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
+  const defaultTemplate = [
+    '🔔 Nova resposta recebida',
+    '',
+    'Contato: {nome}',
+    'Telefone: {telefone}',
+    'Resposta: {resposta_cliente}',
+    'Data/Hora: {data_hora}',
+  ].join('\n');
+
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
+        <p className="text-sm font-medium text-indigo-700 dark:text-indigo-300 mb-1">📤 Enviar para Número Externo</p>
+        <p className="text-xs text-muted-foreground">
+          Envia uma mensagem de WhatsApp para um número fixo (interno) usando a mesma conexão da conversa.
+          Ideal para notificar um responsável com a resposta capturada no fluxo.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Número de destino (com DDI, só dígitos)</Label>
+        <Input
+          value={content.phone || ''}
+          onChange={(e) => onChange({ ...content, phone: e.target.value })}
+          placeholder="5511999999999"
+        />
+        <p className="text-xs text-muted-foreground">
+          Ex.: 55 + DDD + número. Pode usar variáveis, ex.: <code>{'{telefone_supervisor}'}</code>.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Mensagem</Label>
+        <Textarea
+          value={content.message ?? defaultTemplate}
+          onChange={(e) => onChange({ ...content, message: e.target.value })}
+          rows={8}
+          className="font-mono text-sm"
+        />
+        <VariablesBadgePanel
+          onInsert={(v) => onChange({ ...content, message: ((content.message ?? defaultTemplate) + ' ' + v) })}
+        />
+        <p className="text-xs text-muted-foreground">
+          Variáveis extras injetadas no envio: <code>{'{data}'}</code>, <code>{'{hora}'}</code>, <code>{'{data_hora}'}</code>,
+          além da resposta capturada pelo nó "Aguardar Resposta" (use o mesmo nome configurado lá, ex.: <code>{'{resposta_cliente}'}</code>).
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <Label className="text-sm">Continuar fluxo em caso de erro</Label>
+        <Switch
+          checked={content.continue_on_error || false}
+          onCheckedChange={(v) => onChange({ ...content, continue_on_error: v })}
+        />
       </div>
     </div>
   );

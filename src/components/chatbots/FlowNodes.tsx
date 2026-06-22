@@ -3,7 +3,7 @@ import { Handle, Position, NodeProps } from 'reactflow';
 import { 
   Play, MessageSquare, List, FormInput, GitBranch, 
   Zap, ArrowRightLeft, Sparkles, Square, Trash2, Settings,
-  Clock, Webhook, Bot, MessageCircleReply
+  Clock, Webhook, Bot, MessageCircleReply, Send
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ const nodeColors: Record<string, { bg: string; border: string; icon: string }> =
   webhook: { bg: 'bg-rose-500/10', border: 'border-rose-500', icon: 'text-rose-500' },
   ai_agent: { bg: 'bg-emerald-500/10', border: 'border-emerald-500', icon: 'text-emerald-500' },
   wait_reply: { bg: 'bg-teal-500/10', border: 'border-teal-500', icon: 'text-teal-500' },
+  external_send: { bg: 'bg-indigo-500/10', border: 'border-indigo-500', icon: 'text-indigo-500' },
   end: { bg: 'bg-red-500/10', border: 'border-red-500', icon: 'text-red-500' },
 };
 
@@ -44,6 +45,7 @@ const nodeIcons: Record<string, React.ElementType> = {
   webhook: Webhook,
   ai_agent: Bot,
   wait_reply: MessageCircleReply,
+  external_send: Send,
   end: Square,
 };
 
@@ -128,6 +130,7 @@ function BaseFlowNode({ id, data, nodeType, selected }: BaseNodeProps) {
           {nodeType === 'wait_reply' && `Timeout: ${data.content.timeout_value || 24}${data.content.timeout_unit === 'minutes' ? 'min' : data.content.timeout_unit === 'hours' ? 'h' : 'd'}`}
           {nodeType === 'delay' && `${data.content.duration || 5}${data.content.unit === 'minutes' ? 'min' : 's'}`}
           {nodeType === 'webhook' && (data.content.url ? 'API configurada' : 'Configurar...')}
+          {nodeType === 'external_send' && (data.content.phone ? `→ ${data.content.phone}` : 'Configurar número...')}
         </div>
       )}
 
@@ -290,6 +293,11 @@ export const WaitReplyNode = memo((props: NodeProps<FlowNodeData>) => (
 ));
 WaitReplyNode.displayName = 'WaitReplyNode';
 
+export const ExternalSendNode = memo((props: NodeProps<FlowNodeData>) => (
+  <BaseFlowNode {...props} nodeType="external_send" />
+));
+ExternalSendNode.displayName = 'ExternalSendNode';
+
 export const EndNode = memo((props: NodeProps<FlowNodeData>) => (
   <BaseFlowNode {...props} nodeType="end" />
 ));
@@ -308,5 +316,6 @@ export const nodeTypes = {
   webhook: WebhookNode,
   ai_agent: AIAgentNode,
   wait_reply: WaitReplyNode,
+  external_send: ExternalSendNode,
   end: EndNode,
 };
