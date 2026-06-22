@@ -464,6 +464,9 @@ async function processNode(node, connection, phone, variables, conversationId) {
     case 'action':
       return await processActionNode(content, connection, phone, variables);
 
+    case 'external_send':
+      return await processExternalSendNode(content, connection, variables, conversationId);
+
     default:
       console.log('Flow executor: Unknown node type:', node.node_type);
       return { success: true };
