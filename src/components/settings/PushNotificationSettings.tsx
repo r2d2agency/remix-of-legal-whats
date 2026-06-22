@@ -1,4 +1,5 @@
-import { Bell, BellOff, BellRing, Loader2, Send } from "lucide-react";
+import { Bell, BellOff, BellRing, Loader2, Send, Timer } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +8,7 @@ import { toast } from "sonner";
 
 export function PushNotificationSettings() {
   const { isSupported, isSubscribed, permission, loading, subscribe, unsubscribe, sendTestNotification } = usePushNotifications();
+  const [delayCountdown, setDelayCountdown] = useState<number | null>(null);
 
   const handleToggle = async () => {
     if (isSubscribed) {
@@ -24,6 +26,25 @@ export function PushNotificationSettings() {
   const handleTest = async () => {
     const result = await sendTestNotification();
     if (result?.success) toast.success(`Notificação de teste enviada! (${result.sent} dispositivo(s))`);
+    else toast.error("Erro ao enviar notificação de teste");
+  };
+
+  const handleTestBackground = async () => {
+    const seconds = 10;
+    setDelayCountdown(seconds);
+    toast.info(`Vai disparar em ${seconds}s — saia do app, bloqueie a tela ou abra outro app agora! 📱`, {
+      duration: seconds * 1000,
+    });
+
+    const interval = setInterval(() => {
+      setDelayCountdown((prev) => (prev !== null && prev > 1 ? prev - 1 : null));
+    }, 1000);
+
+    const result = await sendTestNotification({ delaySeconds: seconds });
+    clearInterval(interval);
+    setDelayCountdown(null);
+
+    if (result?.success) toast.success(`🔔 Push enviada para ${result.sent} dispositivo(s)!`);
     else toast.error("Erro ao enviar notificação de teste");
   };
 
@@ -89,6 +110,34 @@ export function PushNotificationSettings() {
             </Button>
           )}
         </div>
+
+        {isSubscribed && (
+          <Button
+            onClick={handleTestBackground}
+            variant="secondary"
+            size="sm"
+            className="w-full gap-2"
+            disabled={loading || delayCountdown !== null}
+          >
+            {delayCountdown !== null ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Disparando em {delayCountdown}s — saia do app!
+              </>
+            ) : (
+              <>
+                <Timer className="h-3.5 w-3.5" />
+                Testar em segundo plano (10s)
+              </>
+            )}
+          </Button>
+        )}
+
+        {isSubscribed && (
+          <p className="text-[11px] text-muted-foreground bg-muted/50 rounded-md p-2">
+            💡 <strong>Como testar push real:</strong> clique em "Testar em segundo plano", depois <strong>saia do app</strong> (volte pra home, bloqueie a tela ou abra outro app). A notificação chega em 10s com som e vibração.
+          </p>
+        )}
 
         {permission === 'denied' && (
           <p className="text-xs text-destructive">

@@ -146,14 +146,23 @@ export function usePushNotifications() {
     }
   }, [isSupported]);
 
-  const sendTestNotification = useCallback(async () => {
+  const sendTestNotification = useCallback(async (opts?: { delaySeconds?: number }) => {
     try {
+      const delay = opts?.delaySeconds ?? 0;
+      if (delay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delay * 1000));
+      }
       return await api<{ success: boolean; sent: number }>('/api/push/send', {
         method: 'POST',
         body: {
           title: '🔔 Teste de Notificação',
-          body: 'As notificações push estão funcionando!',
+          body: delay > 0
+            ? `Push recebida! (enviada ${delay}s após o clique)`
+            : 'As notificações push estão funcionando!',
           url: '/dashboard',
+          vibrate: [300, 100, 300, 100, 300, 100, 500],
+          requireInteraction: true,
+          tag: 'push-test',
         },
         auth: true,
       });

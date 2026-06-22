@@ -90,7 +90,7 @@ router.get('/status', authenticate, async (req, res) => {
 // Send push to a specific user (internal use / admin)
 router.post('/send', authenticate, async (req, res) => {
   try {
-    const { userId, title, body, url, data } = req.body;
+    const { userId, title, body, url, data, vibrate, requireInteraction, tag } = req.body;
     const targetUserId = userId || req.userId;
 
     const subs = await query(
@@ -107,6 +107,9 @@ router.post('/send', authenticate, async (req, res) => {
       body: body || '',
       url: url || '/',
       data: data || {},
+      vibrate: vibrate || undefined,
+      requireInteraction: !!requireInteraction,
+      tag: tag || undefined,
       timestamp: Date.now(),
     });
 
