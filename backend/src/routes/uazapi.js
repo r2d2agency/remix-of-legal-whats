@@ -12,6 +12,7 @@ import path from 'path';
 import { detectSalesSeoLead, updateSalesSeoEvolution } from '../lib/sales-seo-service.js';
 import { handleAutoReplies } from '../lib/auto-reply-service.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
+import { sendPushToOrgUsers } from './push.js';
 import { recordSecretaryEvent, getSecretaryEvents, clearSecretaryEvents } from '../lib/group-secretary-diagnostic.js';
 
 const router = Router();
