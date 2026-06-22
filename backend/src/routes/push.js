@@ -232,4 +232,47 @@ export async function sendPushToUser(userId, title, body, url = '/', data = {}) 
   }
 }
 
+// Helper: send push to all users in an org (used when an incoming message arrives)
+export async function sendPushToOrgUsers(organizationId, { title, body, url = '/', data = {}, tag, excludeUserId = null } = {}) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+  if (!organizationId) return;
+
+  try {
+    const subs = await query(
+      `SELECT ps.id, ps.user_id, ps.endpoint, ps.p256dh, ps.auth
+       FROM push_subscriptions ps
+       WHERE ps.organization_id = $1
+         AND ($2::uuid IS NULL OR ps.user_id <> $2)`,
+      [organizationId, excludeUserId]
+    );
+
+    if (subs.rows.length === 0) return;
+
+    const payload = JSON.stringify({
+      title: title || 'Nova mensagem',
+      body: body || '',
+      url: url || '/chat',
+      data: data || {},
+      vibrate: [200, 100, 200],
+      tag: tag || undefined,
+      timestamp: Date.now(),
+    });
+
+    for (const sub of subs.rows) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          payload
+        );
+      } catch (err) {
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          await query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('sendPushToOrgUsers error:', error);
+  }
+}
+
 export default router;
