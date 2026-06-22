@@ -20,7 +20,7 @@ import { Slider } from '@/components/ui/slider';
 import { 
   X, Plus, Trash2, GripVertical, MessageSquare, List, 
   FormInput, GitBranch, Zap, ArrowRightLeft, Sparkles, 
-  Clock, Webhook, Image, Images, FileText, Video, Mic, Upload, Loader2, Bot, MessageCircleReply
+  Clock, Webhook, Image, Images, FileText, Video, Mic, Upload, Loader2, Bot, MessageCircleReply, Send
 } from 'lucide-react';
 import { FlowNodeData } from '@/components/chatbots/FlowNodes';
 import { useUpload } from '@/hooks/use-upload';
@@ -165,6 +165,7 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
       ai_response: <Sparkles className="h-5 w-5" />,
       ai_agent: <Bot className="h-5 w-5" />,
       wait_reply: <MessageCircleReply className="h-5 w-5" />,
+      external_send: <Send className="h-5 w-5" />,
       delay: <Clock className="h-5 w-5" />,
       webhook: <Webhook className="h-5 w-5" />,
     };
@@ -182,6 +183,7 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
       ai_response: 'Resposta IA',
       ai_agent: 'Agente IA',
       wait_reply: 'Aguardar Resposta',
+      external_send: 'Enviar Número Externo',
       delay: 'Delay',
       webhook: 'Webhook',
     };
@@ -250,6 +252,9 @@ export function NodeEditorPanel({ node, onSave, onClose }: NodeEditorPanelProps)
           )}
           {node.type === 'wait_reply' && (
             <WaitReplyNodeEditor content={content} onChange={setContent} />
+          )}
+          {node.type === 'external_send' && (
+            <ExternalSendNodeEditor content={content} onChange={setContent} />
           )}
         </div>
       </ScrollArea>
