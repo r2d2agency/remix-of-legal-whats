@@ -126,7 +126,9 @@ const MetaTemplates = () => {
 
   useEffect(() => {
     if (selectedConnectionId) {
-      loadTemplates(false);
+      // Sempre sincroniza com a Meta ao trocar de conexão para refletir
+      // status reais (APPROVED/REJECTED) atualizados no Gerenciador.
+      loadTemplates(true);
     }
   }, [selectedConnectionId]);
 
