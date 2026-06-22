@@ -835,6 +835,7 @@ export function ConversationList({
                       <span className="font-medium truncate flex-1 min-w-0 flex items-center gap-1">
                         {conv.is_pinned && <Pin className="h-3 w-3 text-primary flex-shrink-0" />}
                         {conv.is_favorite && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+                        {conv.is_muted && <BellOff className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
                          {(conv.automation_active || conv.active_flow) && (
                            <Tooltip>
                              <TooltipTrigger asChild>
