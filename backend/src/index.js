@@ -865,6 +865,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Diagnostic endpoint to check Google Calendar env vars
 app.get('/api/debug/google-config', (req, res) => {
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;

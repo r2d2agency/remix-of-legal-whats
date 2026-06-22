@@ -18,6 +18,8 @@ const router = Router();
 // Public endpoint to get branding settings (no auth required)
 // NOTE: Must be defined before router.use(authenticate)
 router.get('/branding', async (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+
   try {
     const result = await query(
       `SELECT key, value FROM system_settings 
@@ -65,7 +67,15 @@ router.get('/branding', async (req, res) => {
     res.json(branding);
   } catch (error) {
     console.error('Get branding error:', error);
-    res.status(500).json({ error: 'Erro ao buscar branding' });
+    res.json({
+      logo_login: null,
+      logo_sidebar: null,
+      logo_topbar: null,
+      favicon: null,
+      company_name: null,
+      theme_preset: null,
+      theme_custom_colors: null,
+    });
   }
 });
 
