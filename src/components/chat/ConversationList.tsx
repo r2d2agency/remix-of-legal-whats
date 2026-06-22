@@ -1054,6 +1054,17 @@ export function ConversationList({
                             {conv.is_favorite ? 'Remover favorito' : 'Favoritar'}
                           </DropdownMenuItem>
                         )}
+                        {onMuteConversation && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onMuteConversation(conv.id, !conv.is_muted);
+                            }}
+                          >
+                            <BellOff className={cn("h-4 w-4 mr-2", conv.is_muted && "text-muted-foreground")} />
+                            {conv.is_muted ? 'Reativar notificações' : 'Silenciar notificações'}
+                          </DropdownMenuItem>
+                        )}
                         {isAdmin && (
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
