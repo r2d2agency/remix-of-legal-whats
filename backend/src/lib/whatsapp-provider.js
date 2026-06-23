@@ -120,7 +120,7 @@
  /**
   * Edit message (unified)
   */
- export async function editMessage(connection, phone, messageId, newText) {
+ export async function editMessage(connection, phone, messageId, newText, options = {}) {
    const provider = detectProvider(connection);
  
   if (provider === 'meta') {
@@ -160,7 +160,7 @@
       if (!baseUrl || !token) {
         return { success: false, error: 'UAZAPI URL/token ausentes na conexão' };
       }
-      return await uazapiProvider.editMessage(baseUrl, token, phone, messageId, newText);
+      return await uazapiProvider.editMessage(baseUrl, token, phone, messageId, newText, options);
     } catch (error) {
       return { success: false, error: error.message };
     }
