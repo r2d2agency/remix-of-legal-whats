@@ -30,6 +30,28 @@ interface UnreadConversation {
   created_at?: string | null;
 }
 
+function dedupeUnreadConversations(conversations: UnreadConversation[]): UnreadConversation[] {
+  const byKey = new Map<string, UnreadConversation>();
+
+  for (const conv of conversations) {
+    const digits = (conv.contact_phone || '').replace(/\D/g, '');
+    const last9 = digits.slice(-9);
+    const key = last9 ? `${conv.connection_id || ''}:phone:${last9}` : conv.id;
+    const existing = byKey.get(key);
+    const existingTime = existing?.last_message_at ? new Date(existing.last_message_at).getTime() : 0;
+    const currentTime = conv.last_message_at ? new Date(conv.last_message_at).getTime() : 0;
+
+    if (!existing || currentTime >= existingTime) {
+      byKey.set(key, {
+        ...conv,
+        unread_count: Math.max(conv.unread_count || 0, existing?.unread_count || 0),
+      });
+    }
+  }
+
+  return Array.from(byKey.values());
+}
+
 export function MessageNotifications() {
   const [unreadConversations, setUnreadConversations] = useState<UnreadConversation[]>([]);
   const [totalUnread, setTotalUnread] = useState(0);
@@ -58,7 +80,7 @@ export function MessageNotifications() {
   // Fetch unread conversations
   const fetchUnreadConversations = useCallback(async (emitEvent = false) => {
     try {
-      const data = await api<UnreadConversation[]>("/api/chat/conversations/unread");
+      const data = dedupeUnreadConversations(await api<UnreadConversation[]>("/api/chat/conversations/unread"));
       setUnreadConversations(data);
       
       const newTotal = data.reduce((sum, c) => sum + c.unread_count, 0);
@@ -85,7 +107,6 @@ export function MessageNotifications() {
       // Play appropriate sound
       if (soundEnabled && settings.soundEnabled && previousUnreadRef.current >= 0) {
         if (hasUnmutedNewConversations) {
-          console.log('[Notifications] New conversation detected:', newConversationIds);
           playNewConversationSound();
         } else if (hasUnmutedNewMessages && previousUnreadRef.current > 0) {
           playSound();
