@@ -258,7 +258,7 @@ export function ChatArea({
   
   const finishWithSummary = useFinishWithSummary();
   const generateSummary = useGenerateSummary();
-  const { isConversationMuted, toggleConversationMute } = useNotificationSound();
+  const { isConversationMuted, toggleConversationMute, settings: notifSettings, updateSettings: updateNotifSettings } = useNotificationSound();
   
   const { data: contactDeals, isLoading: loadingDeals } = useCRMDealsByPhone(
     conversation?.contact_phone && !conversation.is_group ? conversation.contact_phone : null
@@ -1211,6 +1211,19 @@ export function ChatArea({
                 {isConversationMuted(conversation.id) ? <Bell className="h-4 w-4 mr-2" /> : <BellOff className="h-4 w-4 mr-2" />}
               {isConversationMuted(conversation.id) ? 'Ativar notificações' : 'Silenciar conversa'}
               </DropdownMenuItem>
+              {conversation.is_group && notifSettings.muteGroups && (
+                <DropdownMenuItem onClick={() => {
+                  const allowed = notifSettings.allowedGroups || [];
+                  const isAllowed = allowed.includes(conversation.id);
+                  const next = isAllowed ? allowed.filter(id => id !== conversation.id) : [...allowed, conversation.id];
+                  updateNotifSettings({ allowedGroups: next });
+                  toast.success(isAllowed ? 'Grupo voltou a ser silenciado' : 'Notificações deste grupo ativadas');
+                }}>
+                  {(notifSettings.allowedGroups || []).includes(conversation.id)
+                    ? (<><BellOff className="h-4 w-4 mr-2" />Silenciar este grupo</>)
+                    : (<><Bell className="h-4 w-4 mr-2" />Permitir som deste grupo</>)}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs text-muted-foreground">Exportar conversa</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => { exportConversationAsTxt(conversation, messages); toast.success("Conversa exportada como TXT"); }}>
