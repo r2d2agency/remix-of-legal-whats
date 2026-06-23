@@ -1096,6 +1096,13 @@ export async function continueFlowWithInput(conversationId, userInput) {
       : (session.variables || {});
 
     console.log(`Flow executor: Resuming from node ${currentNodeId}`, variables);
+    addExecutionLog(conversationId, {
+      type: 'continue_input',
+      flowId,
+      nodeId: currentNodeId,
+      message: `Recebida resposta do contato, retomando fluxo a partir de ${currentNodeId}`,
+      userInput: String(userInput || '').substring(0, 80),
+    });
 
     // Get the current node to understand what we're waiting for
     const nodeResult = await query(
@@ -1216,6 +1223,11 @@ export async function continueFlowWithInput(conversationId, userInput) {
       if (!nextEdge && nextHandle === 'replied') {
         // Fallback for case sensitivity or slight variations
         nextEdge = edges.find(e => e.source_handle?.toLowerCase() === 'replied');
+      }
+      // Fallback: if there's no 'timeout' edge and only one edge, follow it for 'replied'
+      if (!nextEdge && nextHandle === 'replied') {
+        const nonTimeout = edges.filter(e => e.source_handle !== 'timeout');
+        if (nonTimeout.length >= 1) nextEdge = nonTimeout[0];
       }
       if (!nextEdge) {
         nextEdge = edges.find(e => e.source_handle === 'default') || edges[0];
