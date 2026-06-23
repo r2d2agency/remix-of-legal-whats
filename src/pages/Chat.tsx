@@ -73,29 +73,34 @@ function dedupeMessages(messages: ChatMessage[]): ChatMessage[] {
     const bucket = timestamp ? Math.floor(timestamp / (3 * 60 * 1000)) : 0;
     const signature = [
       message.conversation_id,
-      message.from_me ? 'me' : 'lead',
       message.message_type || 'text',
       (message.content || '').trim(),
       message.media_url || '',
       bucket,
     ].join('|');
 
-    const existing = byRecentSignature.get(signature);
-    if (existing) {
-      const existingHasUser = Boolean(existing.sender_id);
-      const currentHasUser = Boolean(message.sender_id);
-      const existingIsTemp = !existing.message_id || existing.message_id.startsWith('temp_');
-      const currentIsReal = Boolean(message.message_id && !message.message_id.startsWith('temp_'));
+    if (message.from_me) {
+      const existing = byRecentSignature.get(signature);
+      if (existing) {
+        const existingHasUser = Boolean(existing.sender_id);
+        const currentHasUser = Boolean(message.sender_id);
+        const existingIsTemp = !existing.message_id || existing.message_id.startsWith('temp_');
+        const currentIsReal = Boolean(message.message_id && !message.message_id.startsWith('temp_'));
+        const looksLikeWebhookEcho = existingHasUser !== currentHasUser || (existingIsTemp && currentIsReal);
 
-      if ((currentHasUser && !existingHasUser) || (existingIsTemp && currentIsReal)) {
-        const index = result.findIndex((item) => item.id === existing.id);
-        if (index >= 0) result[index] = message;
-        byRecentSignature.set(signature, message);
+        if (looksLikeWebhookEcho) {
+          if ((currentHasUser && !existingHasUser) || (existingIsTemp && currentIsReal)) {
+            const index = result.findIndex((item) => item.id === existing.id);
+            if (index >= 0) result[index] = message;
+            byRecentSignature.set(signature, message);
+          }
+          continue;
+        }
       }
-      continue;
+
+      byRecentSignature.set(signature, message);
     }
 
-    byRecentSignature.set(signature, message);
     result.push(message);
   }
 
