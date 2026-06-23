@@ -51,6 +51,7 @@ import telehealthRoutes from './routes/telehealth.js';
 import linkPreviewRoutes from './routes/link-preview.js';
 import salesSeoRoutes from './routes/sales-seo.js';
 import { handleAutoReplies } from './lib/auto-reply-service.js';
+import { executeFlow, continueFlowWithInput } from './lib/flow-executor.js';
 import supervisorRoutes from './routes/supervisor.js';
 import agentModesRoutes from './routes/agent-modes.js';
 import { startAgentModesScheduler } from './agent-modes-scheduler.js';
@@ -742,6 +743,48 @@ app.post('/api/meta/webhook', async (req, res) => {
             handleAutoReplies(connection, remoteJid, content).catch(err => {
               console.error('[Meta] Auto-reply error:', err.message);
             });
+
+            // === Continue/trigger flows for Meta inbound messages ===
+            // Only for text-like content (text, interactive replies, button responses)
+            if ((effectiveType === 'text' || msgType === 'text') && content) {
+              (async () => {
+                try {
+                  // 1) Continue active flow session if any
+                  const activeSess = await dbQuery(
+                    `SELECT id, flow_id, current_node_id FROM flow_sessions
+                     WHERE conversation_id = $1 AND is_active = true LIMIT 1`,
+                    [conversationId]
+                  );
+                  if (activeSess.rows.length > 0) {
+                    console.log('[Meta][Flow] Continuing active flow session for conversation', conversationId);
+                    const r = await continueFlowWithInput(conversationId, content);
+                    console.log('[Meta][Flow] continueFlowWithInput result:', JSON.stringify(r));
+                    return;
+                  }
+
+                  // 2) No active session - check keyword-triggered flows
+                  if (connection.organization_id) {
+                    const flowsRes = await dbQuery(
+                      `SELECT id, name, trigger_keywords FROM flows
+                       WHERE organization_id = $1 AND is_active = true
+                         AND trigger_keywords IS NOT NULL AND array_length(trigger_keywords, 1) > 0`,
+                      [connection.organization_id]
+                    );
+                    const lc = String(content).trim().toLowerCase();
+                    for (const flow of flowsRes.rows) {
+                      const kws = (flow.trigger_keywords || []).map(k => String(k).trim().toLowerCase()).filter(Boolean);
+                      if (kws.some(k => lc === k || lc.includes(k))) {
+                        console.log(`[Meta][Flow] Keyword match -> triggering flow ${flow.id} (${flow.name})`);
+                        await executeFlow(flow.id, conversationId, 'start');
+                        return;
+                      }
+                    }
+                  }
+                } catch (flowErr) {
+                  console.error('[Meta][Flow] Error continuing/triggering flow:', flowErr.message);
+                }
+              })();
+            }
           } catch (msgErr) {
             logMetaEvent('message_error', {
               request_id: req.requestId || null,
