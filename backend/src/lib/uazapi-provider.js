@@ -418,17 +418,9 @@ export async function downloadMedia(baseUrl, token, messageId) {
  export async function sendText(baseUrl, token, phone, message, messageId = null) {
    // Se messageId for fornecido, tenta editar a mensagem
    if (messageId) {
-     const r = await uazapiFetch(baseUrl, '/message/editMessage', {
-       method: 'POST',
-       token,
-       body: {
-         number: normalizePhone(phone),
-         text: message,
-         messageId: messageId,
-       },
-     });
-     if (r.ok) return { success: true, messageId };
-     // Fallback para send normal se edit falhar ou não existir endpoint (depende da versão da API)
+    const edit = await editMessage(baseUrl, token, phone, messageId, message);
+    if (edit.success) return { success: true, messageId };
+    // Fallback para send normal se edit falhar ou não existir endpoint (depende da versão da API)
    }
 
   const r = await uazapiFetch(baseUrl, '/send/text', {
@@ -446,6 +438,43 @@ export async function downloadMedia(baseUrl, token, messageId) {
     success: true,
     messageId: r.data?.id || r.data?.messageId || r.data?.key?.id || null,
   };
+}
+
+/**
+ * Envia mídia (image, video, audio, document)
+ */
+/**
+ * Edita uma mensagem já enviada via UAZAPI.
+ * A documentação atual expõe `/message/edit` com body { number, id, text }.
+ * Mantemos fallback para variantes antigas (`/message/editMessage` com messageId)
+ * para garantir compatibilidade com instâncias mais antigas.
+ */
+export async function editMessage(baseUrl, token, phone, messageId, newText) {
+  if (!messageId) return { success: false, error: 'messageId obrigatório' };
+  const number = normalizePhone(phone);
+  const attempts = [
+    { path: '/message/edit', body: { number, id: messageId, text: newText } },
+    { path: '/message/edit', body: { number, messageId, text: newText } },
+    { path: '/message/editMessage', body: { number, messageId, text: newText } },
+    { path: '/message/editMessage', body: { number, id: messageId, text: newText } },
+  ];
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      const r = await uazapiFetch(baseUrl, attempt.path, {
+        method: 'POST',
+        token,
+        body: attempt.body,
+      });
+      if (r.ok) return { success: true, messageId };
+      lastError = r.data?.error || r.data?.message || `HTTP ${r.status}`;
+      // Se a rota não existe (404) tenta a próxima
+      if (r.status !== 404 && r.status !== 400) break;
+    } catch (err) {
+      lastError = err.message;
+    }
+  }
+  return { success: false, error: lastError || 'Falha ao editar mensagem' };
 }
 
 /**

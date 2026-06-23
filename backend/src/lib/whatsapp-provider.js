@@ -153,6 +153,19 @@
      return wapiProvider.editMessage(connection.instance_id, resolvedToken, messageId, phone, newText);
    }
  
+  if (provider === 'uazapi') {
+    try {
+      const baseUrl = connection.uazapi_url;
+      const token = connection.uazapi_token;
+      if (!baseUrl || !token) {
+        return { success: false, error: 'UAZAPI URL/token ausentes na conexão' };
+      }
+      return await uazapiProvider.editMessage(baseUrl, token, phone, messageId, newText);
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
    if (provider === 'evolution') {
      try {
        const isGroup = phone.includes('@g.us');
