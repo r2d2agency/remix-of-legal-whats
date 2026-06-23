@@ -590,7 +590,7 @@ async function persistIncomingMessage(connection, payload) {
 
     const createdConversation = await query(
       `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW(), 1, 'waiting')
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8)
        RETURNING id`,
       [
         connection.id,
@@ -599,6 +599,8 @@ async function persistIncomingMessage(connection, payload) {
         message.isGroup ? null : message.phone,
         message.isGroup,
         message.isGroup ? message.groupName : null,
+        message.fromMe ? 0 : 1,
+        message.fromMe ? 'attending' : 'waiting',
       ]
     );
     conversationId = createdConversation.rows[0].id;
