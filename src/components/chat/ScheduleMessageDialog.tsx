@@ -43,6 +43,14 @@ interface ScheduleMessageDialogProps {
   sending?: boolean;
 }
 
+interface Attachment {
+  url: string;
+  mimetype: string;
+  type: "image" | "document";
+  preview: string | null;
+  name: string;
+}
+
 export function ScheduleMessageDialog({
   open,
   onOpenChange,
@@ -56,67 +64,65 @@ export function ScheduleMessageDialog({
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [time, setTime] = useState("09:00");
   const [showCalendar, setShowCalendar] = useState(false);
-  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-  const [mediaMimetype, setMediaMimetype] = useState<string | null>(null);
-  const [mediaType, setMediaType] = useState<"text" | "image" | "document">("text");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [sendTextSeparate, setSendTextSeparate] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { uploadFile, isUploading } = useUpload();
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    // Check if it's an image
-    const isImage = file.type.startsWith("image/");
-    const isDocument = !isImage;
-
-    try {
-      // Create preview for images
-      if (isImage) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setMediaPreview(event.target?.result as string);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        setMediaPreview(null);
+    for (const file of files) {
+      const isImage = file.type.startsWith("image/");
+      try {
+        let preview: string | null = null;
+        if (isImage) {
+          preview = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve((ev.target?.result as string) || "");
+            reader.readAsDataURL(file);
+          });
+        }
+        const url = await uploadFile(file);
+        if (url) {
+          setAttachments((prev) => [
+            ...prev,
+            {
+              url,
+              mimetype: file.type,
+              type: isImage ? "image" : "document",
+              preview,
+              name: file.name,
+            },
+          ]);
+        }
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast.error(`Erro ao carregar ${file.name}`);
       }
-
-      // Upload file
-      const url = await uploadFile(file);
-      if (url) {
-        setMediaUrl(url);
-        setMediaMimetype(file.type);
-        setMediaType(isImage ? "image" : "document");
-        toast.success("Arquivo carregado com sucesso!");
-      }
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast.error("Erro ao carregar arquivo");
-      clearMedia();
     }
 
-    // Reset input
+    toast.success(`${files.length} arquivo(s) carregado(s)!`);
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const clearMedia = () => {
-    setMediaPreview(null);
-    setMediaUrl(null);
-    setMediaMimetype(null);
-    setMediaType("text");
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const clearAll = () => {
+    setAttachments([]);
   };
 
   const handleSchedule = async () => {
     if (!date) return;
-    
-    // Must have either content or media
-    if (!content.trim() && !mediaUrl) {
+
+    if (!content.trim() && attachments.length === 0) {
       toast.error("Adicione uma mensagem ou imagem");
       return;
     }
@@ -124,22 +130,68 @@ export function ScheduleMessageDialog({
     const [hours, minutes] = time.split(":").map(Number);
     const scheduledDate = new Date(date);
     scheduledDate.setHours(hours, minutes, 0, 0);
+    const baseIso = scheduledDate.toISOString();
+    const trimmedContent = content.trim();
 
-    await onSchedule({
-      content: content.trim() || undefined,
-      message_type: mediaUrl ? mediaType : "text",
-      media_url: mediaUrl || undefined,
-      media_mimetype: mediaMimetype || undefined,
-      scheduled_at: scheduledDate.toISOString(),
-      send_text_separate: mediaUrl && content.trim() ? sendTextSeparate : undefined,
-    });
+    try {
+      if (attachments.length === 0) {
+        // Only text
+        await onSchedule({
+          content: trimmedContent,
+          message_type: "text",
+          scheduled_at: baseIso,
+        });
+      } else if (attachments.length === 1) {
+        // Single attachment — preserve original behavior (caption / separate text)
+        const att = attachments[0];
+        await onSchedule({
+          content: trimmedContent || undefined,
+          message_type: att.type,
+          media_url: att.url,
+          media_mimetype: att.mimetype,
+          scheduled_at: baseIso,
+          send_text_separate: trimmedContent ? sendTextSeparate : undefined,
+        });
+      } else {
+        // Multiple attachments — schedule each as its own message (spaced by 1s),
+        // text goes either on first attachment as caption, or as last separate message.
+        const baseMs = scheduledDate.getTime();
+        const useSeparateText = sendTextSeparate || !trimmedContent;
+
+        for (let i = 0; i < attachments.length; i++) {
+          const att = attachments[i];
+          const at = new Date(baseMs + i * 1000).toISOString();
+          const caption = !useSeparateText && i === 0 ? trimmedContent : undefined;
+          await onSchedule({
+            content: caption,
+            message_type: att.type,
+            media_url: att.url,
+            media_mimetype: att.mimetype,
+            scheduled_at: at,
+          });
+        }
+
+        if (useSeparateText && trimmedContent) {
+          const at = new Date(baseMs + attachments.length * 1000).toISOString();
+          await onSchedule({
+            content: trimmedContent,
+            message_type: "text",
+            scheduled_at: at,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Schedule error:", error);
+      toast.error("Erro ao agendar uma ou mais mensagens");
+      return;
+    }
 
     // Reset form
     setContent("");
     setDate(undefined);
     setTime("09:00");
     setSendTextSeparate(false);
-    clearMedia();
+    clearAll();
     
     // Close dialog after scheduling
     onOpenChange(false);
@@ -175,11 +227,12 @@ export function ScheduleMessageDialog({
         <div className="space-y-4">
           {/* Image/Document Upload */}
           <div className="space-y-2">
-            <Label>Anexo (opcional)</Label>
+            <Label>Anexos (opcional) {attachments.length > 0 && `— ${attachments.length}`}</Label>
             <div className="flex gap-2">
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
                 onChange={handleFileSelect}
                 className="hidden"
@@ -200,45 +253,49 @@ export function ScheduleMessageDialog({
                 ) : (
                   <>
                     <Image className="h-4 w-4 mr-2" />
-                    Adicionar imagem ou documento
+                    Adicionar imagens ou documentos
                   </>
                 )}
               </Button>
             </div>
 
-            {/* Media Preview */}
-            {mediaUrl && (
-              <div className="relative inline-block">
-                {mediaType === "image" && mediaPreview ? (
-                  <img
-                    src={mediaPreview}
-                    alt="Preview"
-                    className="max-h-32 rounded-lg border"
-                  />
-                ) : (
-                  <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                    <FileText className="h-5 w-5" />
-                    <span className="text-sm">Documento anexado</span>
+            {/* Attachments Preview */}
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {attachments.map((att, i) => (
+                  <div key={i} className="relative inline-block">
+                    {att.type === "image" && att.preview ? (
+                      <img
+                        src={att.preview}
+                        alt={att.name}
+                        className="h-20 w-20 object-cover rounded-lg border"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2 p-2 bg-muted rounded-lg max-w-[180px]">
+                        <FileText className="h-5 w-5 flex-shrink-0" />
+                        <span className="text-xs truncate">{att.name}</span>
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-5 w-5"
+                      onClick={() => removeAttachment(i)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
                   </div>
-                )}
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="icon"
-                  className="absolute -top-2 -right-2 h-6 w-6"
-                  onClick={clearMedia}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
+                ))}
               </div>
             )}
           </div>
 
           {/* Message content */}
           <div className="space-y-2">
-            <Label>Mensagem {mediaUrl ? (sendTextSeparate ? "" : "(legenda)") : ""}</Label>
+            <Label>Mensagem {attachments.length > 0 ? (sendTextSeparate ? "" : "(legenda do 1º anexo)") : ""}</Label>
             <Textarea
-              placeholder={mediaUrl && !sendTextSeparate ? "Digite uma legenda (opcional)..." : "Digite a mensagem..."}
+              placeholder={attachments.length > 0 && !sendTextSeparate ? "Digite uma legenda (opcional)..." : "Digite a mensagem..."}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={3}
@@ -246,7 +303,7 @@ export function ScheduleMessageDialog({
           </div>
 
           {/* Send text separate toggle - only show when both media and text exist */}
-          {mediaUrl && content.trim() && (
+          {attachments.length > 0 && content.trim() && (
             <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50 border">
               <div className="flex items-center gap-2 min-w-0">
                 <SplitSquareHorizontal className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -254,8 +311,8 @@ export function ScheduleMessageDialog({
                   <p className="text-sm font-medium">Enviar texto separado</p>
                   <p className="text-xs text-muted-foreground">
                     {sendTextSeparate 
-                      ? "Mídia e texto serão enviados como mensagens separadas" 
-                      : "Texto será enviado como legenda do anexo"}
+                      ? "Texto será enviado como mensagem separada após os anexos" 
+                      : "Texto será enviado como legenda do primeiro anexo"}
                   </p>
                 </div>
               </div>
@@ -352,7 +409,7 @@ export function ScheduleMessageDialog({
           </Button>
           <Button
             onClick={handleSchedule}
-            disabled={(!content.trim() && !mediaUrl) || !date || sending || isUploading}
+            disabled={(!content.trim() && attachments.length === 0) || !date || sending || isUploading}
           >
             {sending ? (
               <>
