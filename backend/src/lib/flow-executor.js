@@ -462,7 +462,7 @@ async function processNode(node, connection, phone, variables, conversationId) {
       return processConditionNode(content, variables);
 
     case 'action':
-      return await processActionNode(content, connection, phone, variables);
+      return await processActionNode(content, connection, phone, variables, conversationId);
 
     case 'external_send':
       return await processExternalSendNode(content, connection, variables, conversationId);
@@ -740,21 +740,60 @@ function evaluateRule(value, operator, compareValue) {
 /**
  * Process action node
  */
-async function processActionNode(content, connection, phone, variables) {
+async function processActionNode(content, connection, phone, variables, conversationId) {
   const actionType = content.action_type;
 
   try {
     switch (actionType) {
-      case 'add_tag':
-        // Tag logic would go here
-        console.log('Flow action: Add tag', content.tag_id);
+      case 'add_tag': {
+        const tagId = content.tag_id;
+        if (!tagId || !conversationId) {
+          console.log('Flow action: add_tag missing tag_id or conversationId');
+          break;
+        }
+        try {
+          await query(
+            `INSERT INTO conversation_tag_links (conversation_id, tag_id)
+             VALUES ($1, $2)
+             ON CONFLICT (conversation_id, tag_id) DO NOTHING`,
+            [conversationId, tagId]
+          );
+          console.log(`Flow action: Added tag ${tagId} to conversation ${conversationId}`);
+        } catch (e) {
+          console.error('Flow action add_tag error:', e.message);
+        }
         break;
-      case 'remove_tag':
-        console.log('Flow action: Remove tag', content.tag_id);
+      }
+      case 'remove_tag': {
+        const tagId = content.tag_id;
+        if (!tagId || !conversationId) {
+          console.log('Flow action: remove_tag missing tag_id or conversationId');
+          break;
+        }
+        try {
+          await query(
+            `DELETE FROM conversation_tag_links WHERE conversation_id = $1 AND tag_id = $2`,
+            [conversationId, tagId]
+          );
+          console.log(`Flow action: Removed tag ${tagId} from conversation ${conversationId}`);
+        } catch (e) {
+          console.error('Flow action remove_tag error:', e.message);
+        }
         break;
-      case 'close_conversation':
-        console.log('Flow action: Close conversation');
+      }
+      case 'close_conversation': {
+        if (!conversationId) break;
+        try {
+          await query(
+            `UPDATE conversations SET attendance_status = 'finished', updated_at = NOW() WHERE id = $1`,
+            [conversationId]
+          );
+          console.log(`Flow action: Closed conversation ${conversationId}`);
+        } catch (e) {
+          console.error('Flow action close_conversation error:', e.message);
+        }
         break;
+      }
       case 'send_email':
         // Send email via SMTP queue
         if (content.email_to && content.email_subject) {
