@@ -443,8 +443,6 @@ export async function downloadMedia(baseUrl, token, messageId) {
 /**
  * Envia mídia (image, video, audio, document)
  */
-export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, filename, mimetype, seconds) {
-
 /**
  * Edita uma mensagem já enviada via UAZAPI.
  * A documentação atual expõe `/message/edit` com body { number, id, text }.
@@ -479,11 +477,10 @@ export async function editMessage(baseUrl, token, phone, messageId, newText) {
   return { success: false, error: lastError || 'Falha ao editar mensagem' };
 }
 
-// (continuação)
-export async function _sendMediaShim_noop() {}
-
-// Reabre sendMedia (mantém a assinatura original abaixo)
-export async function sendMedia_DUPLICATE_PLACEHOLDER_DO_NOT_CALL(baseUrl, token, phone, mediaUrl, type, caption, filename, mimetype, seconds) {
+/**
+ * Envia mídia (image, video, audio, document)
+ */
+export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, filename, mimetype, seconds) {
   const typeMap = {
     image: 'image',
     video: 'video',
