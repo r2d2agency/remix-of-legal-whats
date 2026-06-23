@@ -58,6 +58,50 @@ function dedupeConversations(conversations: Conversation[]): Conversation[] {
   });
 }
 
+function dedupeMessages(messages: ChatMessage[]): ChatMessage[] {
+  const result: ChatMessage[] = [];
+  const byExactId = new Set<string>();
+  const byRecentSignature = new Map<string, ChatMessage>();
+
+  for (const message of messages) {
+    if (message.message_id && !message.message_id.startsWith('temp_')) {
+      if (byExactId.has(message.message_id)) continue;
+      byExactId.add(message.message_id);
+    }
+
+    const timestamp = message.timestamp ? new Date(message.timestamp).getTime() : 0;
+    const bucket = timestamp ? Math.floor(timestamp / (3 * 60 * 1000)) : 0;
+    const signature = [
+      message.conversation_id,
+      message.from_me ? 'me' : 'lead',
+      message.message_type || 'text',
+      (message.content || '').trim(),
+      message.media_url || '',
+      bucket,
+    ].join('|');
+
+    const existing = byRecentSignature.get(signature);
+    if (existing) {
+      const existingHasUser = Boolean(existing.sender_id);
+      const currentHasUser = Boolean(message.sender_id);
+      const existingIsTemp = !existing.message_id || existing.message_id.startsWith('temp_');
+      const currentIsReal = Boolean(message.message_id && !message.message_id.startsWith('temp_'));
+
+      if ((currentHasUser && !existingHasUser) || (existingIsTemp && currentIsReal)) {
+        const index = result.findIndex((item) => item.id === existing.id);
+        if (index >= 0) result[index] = message;
+        byRecentSignature.set(signature, message);
+      }
+      continue;
+    }
+
+    byRecentSignature.set(signature, message);
+    result.push(message);
+  }
+
+  return result;
+}
+
 const Chat = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -238,7 +282,7 @@ const Chat = () => {
     const unsubscribe = chatEvents.subscribe('new_message', () => {
       loadConversationsRef.current();
       if (selectedConversation) {
-        getMessages(selectedConversation.id).then(setMessages).catch(console.error);
+        getMessages(selectedConversation.id).then((msgs) => setMessages(dedupeMessages(msgs))).catch(console.error);
       }
     });
     return unsubscribe;
@@ -265,7 +309,7 @@ const Chat = () => {
      if (!selectedConversation) return;
      const interval = setInterval(async () => {
        try {
-         const msgs = await getMessages(selectedConversation.id);
+          const msgs = dedupeMessages(await getMessages(selectedConversation.id));
          
          setMessages(prev => {
            // If we have more messages in the state than the initial fetch (due to infinite scroll),
@@ -328,7 +372,7 @@ const Chat = () => {
       filterParams.limit = limit;
       filterParams.offset = offset;
 
-      const data = await getConversations(filterParams);
+      const data = dedupeConversations(await getConversations(filterParams));
       setHasMoreConversations(Array.isArray(data) && data.length === limit);
 
       const sticky = stickyConversationRef.current;
@@ -425,10 +469,10 @@ const Chat = () => {
         return; // User switched to another conversation
       }
       
-      const msgs = await getMessages(conversation.id, { 
+      const msgs = dedupeMessages(await getMessages(conversation.id, { 
         days: historyDays,
         limit: 500 // Increased limit to match sync capacity
-      });
+      }));
       
       // Verify again after async call
       if (selectedIdRef.current !== conversation.id) {
@@ -541,10 +585,10 @@ const Chat = () => {
       const oldestMessage = messages[0];
       // When loading older messages, we should probably ignore the days filter
       // or ensure the backend doesn't combine before + days in a way that returns nothing
-      const olderMsgs = await getMessages(selectedConversation.id, {
+      const olderMsgs = dedupeMessages(await getMessages(selectedConversation.id, {
         before: oldestMessage.timestamp,
         limit: 500,
-      });
+      }));
       
       setMessages([...olderMsgs, ...messages]);
       setHasMoreMessages(olderMsgs.length >= 500);
@@ -576,7 +620,7 @@ const Chat = () => {
         duration,
       });
       
-      setMessages(prev => [...prev, newMessage]);
+      setMessages(prev => dedupeMessages([...prev, newMessage]));
       loadConversations(); // Refresh to update last_message
     } catch (error: any) {
       toast.error(error.message || 'Erro ao enviar mensagem');
