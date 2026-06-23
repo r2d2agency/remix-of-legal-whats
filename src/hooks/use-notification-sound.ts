@@ -40,6 +40,7 @@ interface NotificationSoundSettings {
   volume: number;
   mutedConnections: string[]; // connection IDs that are muted
   mutedConversations: string[]; // conversation IDs that are muted
+  muteGroups: boolean; // when true, mute all WhatsApp groups by default
 }
 
 const SETTINGS_KEY = 'notification-sound-settings';
@@ -54,6 +55,7 @@ const defaultSettings: NotificationSoundSettings = {
   volume: 0.7,
   mutedConnections: [],
   mutedConversations: [],
+  muteGroups: false,
 };
 
 // Detect if current device is mobile
@@ -155,6 +157,17 @@ export function useNotificationSound() {
     if (!conversationId) return false;
     return (settings.mutedConversations || []).includes(conversationId);
   }, [settings.mutedConversations]);
+
+  // Returns true when the conversation should be silenced.
+  // Group conversations are silenced when `muteGroups` is enabled, unless the
+  // user explicitly unmutes that specific group (via mutedConversations toggle
+  // acting as an allow-list override is intentionally NOT supported — to allow
+  // a group through, keep muteGroups off and mute groups individually).
+  const isGroupMuted = useCallback((isGroup?: boolean, conversationId?: string) => {
+    if (!isGroup) return false;
+    if (settings.muteGroups) return true;
+    return isConversationMuted(conversationId);
+  }, [settings.muteGroups, isConversationMuted]);
 
   const toggleConversationMute = useCallback((conversationId: string) => {
     const muted = settings.mutedConversations || [];
@@ -260,6 +273,7 @@ export function useNotificationSound() {
     notify,
     isConnectionMuted,
     isConversationMuted,
+    isGroupMuted,
     toggleConversationMute,
     isMobileDevice: isMobileDevice(),
     isPushSupported: typeof window !== 'undefined' && 'Notification' in window,
