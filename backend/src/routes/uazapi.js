@@ -625,6 +625,19 @@ async function persistIncomingMessage(connection, payload) {
        [conversationId, message.senderName, message.groupName, connection.id]
     );
 
+    // Modo híbrido: se o atendente respondeu pelo WhatsApp diretamente (fromMe),
+    // muda automaticamente de 'waiting' para 'attending'.
+    if (message.fromMe) {
+      await query(
+        `UPDATE conversations
+         SET attendance_status = 'attending',
+             accepted_at = COALESCE(accepted_at, NOW()),
+             updated_at = NOW()
+         WHERE id = $1 AND attendance_status = 'waiting'`,
+        [conversationId]
+      );
+    }
+
     // SALES SEO: Detecta lead e atualiza evolução
     try {
       await detectSalesSeoLead(connection.id, conversationId, message);
