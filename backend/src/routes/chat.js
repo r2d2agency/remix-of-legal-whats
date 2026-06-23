@@ -2404,7 +2404,7 @@ router.patch('/conversations/:id/messages/:messageId', authenticate, async (req,
     const msgResult = await query(
       `SELECT m.*, conv.remote_jid, conv.is_group, conv.contact_phone,
               conn.provider, conn.instance_id, conn.wapi_token, conn.api_url, conn.api_key, conn.instance_name,
-              conn.meta_token, conn.meta_phone_number_id
+              conn.meta_token, conn.meta_phone_number_id, conn.uazapi_url, conn.uazapi_token
        FROM chat_messages m
        JOIN conversations conv ON conv.id = m.conversation_id
        JOIN connections conn ON conn.id = conv.connection_id
@@ -2419,6 +2419,32 @@ router.patch('/conversations/:id/messages/:messageId', authenticate, async (req,
 
     const msg = msgResult.rows[0];
 
+    const previousContent = msg.content || '';
+    const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', '').replace('@c.us', ''));
+
+    // UAZAPI precisa confirmar no provedor antes, pois o endpoint exige o ID real da mensagem.
+    // Se falhar, não marcamos como editada localmente para não parecer que foi para o WhatsApp.
+    if (String(msg.provider || '').toLowerCase() === 'uazapi') {
+      const editResult = await whatsappProvider.editMessage(msg, phone, msg.message_id, content.trim(), {
+        originalText: previousContent,
+      });
+
+      if (!editResult?.success) {
+        return res.status(400).json({ error: editResult?.error || 'Falha ao editar na UAZAPI' });
+      }
+
+      await query(
+        `UPDATE chat_messages
+         SET content = $1,
+             is_edited = true,
+             message_id = COALESCE($3, message_id)
+         WHERE id = $2`,
+        [content.trim(), messageId, editResult.messageId || null]
+      );
+
+      return res.json({ success: true, messageId: editResult.messageId || msg.message_id });
+    }
+
     // Update in DB
     await query(
       `UPDATE chat_messages SET content = $1, is_edited = true WHERE id = $2`,
@@ -2430,8 +2456,9 @@ router.patch('/conversations/:id/messages/:messageId', authenticate, async (req,
 
     (async () => {
       try {
-        const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', '').replace('@c.us', ''));
-        await whatsappProvider.editMessage(msg, phone, msg.message_id, content.trim());
+        await whatsappProvider.editMessage(msg, phone, msg.message_id, content.trim(), {
+          originalText: previousContent,
+        });
       } catch (err) {
         console.error('Edit message on WhatsApp error:', err.message);
       }
