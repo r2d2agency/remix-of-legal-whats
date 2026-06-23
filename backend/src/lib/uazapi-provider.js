@@ -123,21 +123,21 @@ async function uazapiFetch(baseUrl, path, { method = 'GET', body, token, adminto
 
 function extractUazapiMessageId(data) {
   const candidates = [
-    data?.id,
     data?.messageid,
     data?.messageId,
     data?.key?.id,
-    data?.message?.id,
     data?.message?.messageid,
     data?.message?.messageId,
     data?.message?.key?.id,
-    data?.data?.id,
     data?.data?.messageid,
     data?.data?.messageId,
     data?.data?.key?.id,
-    data?.response?.id,
     data?.response?.messageid,
     data?.response?.messageId,
+    data?.id,
+    data?.message?.id,
+    data?.data?.id,
+    data?.response?.id,
   ];
 
   return candidates.find((value) => value !== undefined && value !== null && String(value).trim()) || null;
