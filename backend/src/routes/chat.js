@@ -2422,47 +2422,27 @@ router.patch('/conversations/:id/messages/:messageId', authenticate, async (req,
     const previousContent = msg.content || '';
     const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', '').replace('@c.us', ''));
 
-    // UAZAPI precisa confirmar no provedor antes, pois o endpoint exige o ID real da mensagem.
-    // Se falhar, não marcamos como editada localmente para não parecer que foi para o WhatsApp.
-    if (String(msg.provider || '').toLowerCase() === 'uazapi') {
-      const editResult = await whatsappProvider.editMessage(msg, phone, msg.message_id, content.trim(), {
-        originalText: previousContent,
-      });
+    // Sempre confirmar no WhatsApp antes de marcar como editado localmente.
+    // Caso contrário, o chat mostra "editado" mas a mensagem segue intacta no WhatsApp.
+    const editResult = await whatsappProvider.editMessage(msg, phone, msg.message_id, content.trim(), {
+      originalText: previousContent,
+    });
 
-      if (!editResult?.success) {
-        return res.status(400).json({ error: editResult?.error || 'Falha ao editar na UAZAPI' });
-      }
-
-      await query(
-        `UPDATE chat_messages
-         SET content = $1,
-             is_edited = true,
-             message_id = COALESCE($3, message_id)
-         WHERE id = $2`,
-        [content.trim(), messageId, editResult.messageId || null]
-      );
-
-      return res.json({ success: true, messageId: editResult.messageId || msg.message_id });
+    if (!editResult?.success) {
+      console.error('[chat.edit] Provider edit failed:', editResult?.error, 'provider=', msg.provider, 'message_id=', msg.message_id);
+      return res.status(400).json({ error: editResult?.error || 'Falha ao editar mensagem no WhatsApp' });
     }
 
-    // Update in DB
     await query(
-      `UPDATE chat_messages SET content = $1, is_edited = true WHERE id = $2`,
-      [content.trim(), messageId]
+      `UPDATE chat_messages
+       SET content = $1,
+           is_edited = true,
+           message_id = COALESCE($3, message_id)
+       WHERE id = $2`,
+      [content.trim(), messageId, editResult.messageId || null]
     );
 
-    // Try to edit on WhatsApp (async, non-blocking)
-    res.json({ success: true });
-
-    (async () => {
-      try {
-        await whatsappProvider.editMessage(msg, phone, msg.message_id, content.trim(), {
-          originalText: previousContent,
-        });
-      } catch (err) {
-        console.error('Edit message on WhatsApp error:', err.message);
-      }
-    })();
+    return res.json({ success: true, messageId: editResult.messageId || msg.message_id });
   } catch (error) {
     console.error('Edit message error:', error);
     res.status(500).json({ error: 'Erro ao editar mensagem' });
