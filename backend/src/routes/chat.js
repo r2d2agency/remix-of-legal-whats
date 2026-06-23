@@ -2463,7 +2463,8 @@ router.delete('/conversations/:id/messages/:messageId', authenticate, async (req
     const msgResult = await query(
       `SELECT m.*, conv.remote_jid, conv.is_group, conv.contact_phone,
               conn.provider, conn.instance_id, conn.wapi_token, conn.api_url, conn.api_key, conn.instance_name,
-              conn.meta_token, conn.meta_phone_number_id
+              conn.meta_token, conn.meta_phone_number_id,
+              conn.uazapi_url, conn.uazapi_token
        FROM chat_messages m
        JOIN conversations conv ON conv.id = m.conversation_id
        JOIN connections conn ON conn.id = conv.connection_id
@@ -2478,23 +2479,31 @@ router.delete('/conversations/:id/messages/:messageId', authenticate, async (req
 
     const msg = msgResult.rows[0];
 
-    // Mark as deleted in DB
+    // Apaga primeiro no WhatsApp para garantir que o estado local reflita o real.
+    const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', '').replace('@c.us', ''));
+    let waResult = { success: false, error: 'Provider não suportado' };
+    try {
+      waResult = await whatsappProvider.deleteMessage(msg, phone, msg.message_id, {
+        originalText: msg.content || msg.message_content || '',
+      });
+    } catch (err) {
+      console.error('Delete message on WhatsApp error:', err.message);
+      waResult = { success: false, error: err.message };
+    }
+
+    if (!waResult?.success) {
+      return res.status(400).json({
+        error: waResult?.error || 'Falha ao apagar no WhatsApp',
+      });
+    }
+
+    // Marca como apagada no banco apenas após sucesso no WhatsApp
     await query(
       `UPDATE chat_messages SET is_deleted = true WHERE id = $1`,
       [messageId]
     );
 
-    res.json({ success: true });
-
-    // Try to delete on WhatsApp (async)
-    (async () => {
-      try {
-        const phone = msg.is_group ? msg.remote_jid : (msg.contact_phone || msg.remote_jid?.replace('@s.whatsapp.net', '').replace('@c.us', ''));
-        await whatsappProvider.deleteMessage(msg, phone, msg.message_id);
-      } catch (err) {
-        console.error('Delete message on WhatsApp error:', err.message);
-      }
-    })();
+    res.json({ success: true, warning: waResult?.warning });
   } catch (error) {
     console.error('Delete message error:', error);
     res.status(500).json({ error: 'Erro ao apagar mensagem' });
