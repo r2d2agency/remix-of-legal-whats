@@ -503,7 +503,7 @@ export function ChatMessageBubble({
             {msg.content || '🚫 Mensagem apagada'}
           </p>
         ) : isEditing ? (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
             <Textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
@@ -517,12 +517,24 @@ export function ChatMessageBubble({
                 if (e.key === 'Escape') setIsEditing(false);
               }}
             />
-            <div className="flex items-center gap-1 justify-end">
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsEditing(false)} disabled={isSaving}>
-                <X className="h-3 w-3" />
+            <div className="flex items-center gap-2 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={(e) => { e.stopPropagation(); setIsEditing(false); }}
+                disabled={isSaving}
+              >
+                <X className="h-3 w-3 mr-1" /> Cancelar
               </Button>
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-primary" onClick={handleEdit} disabled={isSaving || !editContent.trim()}>
-                <Send className="h-3 w-3" />
+              <Button
+                variant="default"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={(e) => { e.stopPropagation(); handleEdit(); }}
+                disabled={isSaving || !editContent.trim()}
+              >
+                <Send className="h-3 w-3 mr-1" /> {isSaving ? 'Salvando...' : 'Salvar'}
               </Button>
             </div>
           </div>
