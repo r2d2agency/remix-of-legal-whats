@@ -565,6 +565,7 @@ export async function downloadMedia(baseUrl, token, messageId) {
  * para garantir compatibilidade com instâncias mais antigas.
  */
 export async function editMessage(baseUrl, token, phone, messageId, newText, options = {}) {
+  // placeholder marker
   if (!messageId) return { success: false, error: 'messageId obrigatório' };
   // Conforme docs oficiais UAZAPI (POST /message/edit) o body é apenas { id, text }
   // O ID pode estar no formato "owner:messageid" ou apenas "messageid".
