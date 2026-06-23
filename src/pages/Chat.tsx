@@ -25,6 +25,39 @@ interface UserProfile {
   };
 }
 
+function dedupeConversations(conversations: Conversation[]): Conversation[] {
+  const byKey = new Map<string, Conversation>();
+
+  const getKey = (conv: Conversation) => {
+    if (conv.is_group) return `${conv.connection_id}:group:${conv.remote_jid}`;
+    const digits = (conv.contact_phone || conv.remote_jid || '').replace(/\D/g, '');
+    const last9 = digits.slice(-9);
+    return last9 ? `${conv.connection_id}:phone:${last9}` : `${conv.connection_id}:jid:${conv.remote_jid}`;
+  };
+
+  const score = (conv: Conversation) => {
+    const statusScore = conv.attendance_status === 'attending' ? 3 : conv.attendance_status === 'waiting' ? 2 : 1;
+    const unreadScore = Number(conv.unread_count || 0) > 0 ? 2 : 0;
+    const messageScore = conv.last_message_at ? new Date(conv.last_message_at).getTime() : 0;
+    return statusScore * 1_000_000_000_000_000 + unreadScore * 1_000_000_000_000 + messageScore;
+  };
+
+  for (const conv of conversations) {
+    const key = getKey(conv);
+    const existing = byKey.get(key);
+    if (!existing || score(conv) > score(existing)) {
+      byKey.set(key, conv);
+    }
+  }
+
+  return Array.from(byKey.values()).sort((a, b) => {
+    if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
+    const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+    const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+    return bTime - aTime;
+  });
+}
+
 const Chat = () => {
   const location = useLocation();
   const isMobile = useIsMobile();
@@ -308,7 +341,7 @@ const Chat = () => {
         merged = [sticky, ...merged];
       }
 
-      setConversations(merged);
+      setConversations(dedupeConversations(merged));
 
       // Clear sticky once it is naturally returned by the backend (or has messages)
       if (sticky && (sticky.last_message_at || data.some(c => c.id === sticky.id))) {
