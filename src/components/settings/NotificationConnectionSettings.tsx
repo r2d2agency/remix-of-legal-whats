@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Smartphone, Monitor, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { Smartphone, Monitor, Wifi, WifiOff, Loader2, Users } from "lucide-react";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { api } from "@/lib/api";
 
@@ -53,6 +53,29 @@ export function NotificationConnectionSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Mute all groups */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Grupos do WhatsApp</Label>
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-full ${settings.muteGroups ? 'bg-muted' : 'bg-primary/10'}`}>
+                <Users className={`h-4 w-4 ${settings.muteGroups ? 'text-muted-foreground' : 'text-primary'}`} />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Silenciar todos os grupos</p>
+                <p className="text-xs text-muted-foreground">
+                  Não toca som para nenhum grupo. Você pode liberar grupos específicos
+                  desativando esta opção e silenciando individualmente no chat.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={settings.muteGroups}
+              onCheckedChange={(checked) => updateSettings({ muteGroups: checked })}
+            />
+          </div>
+        </div>
+
         {/* Per-device toggles */}
         <div className="space-y-3">
           <Label className="text-sm font-medium">Dispositivo</Label>

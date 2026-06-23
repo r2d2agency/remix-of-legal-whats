@@ -28,6 +28,7 @@ interface UnreadConversation {
   connection_id?: string;
   attendance_status?: string | null;
   created_at?: string | null;
+  is_group?: boolean;
 }
 
 function dedupeUnreadConversations(conversations: UnreadConversation[]): UnreadConversation[] {
@@ -64,7 +65,7 @@ export function MessageNotifications() {
   const previousUnreadRef = useRef<number>(0);
   const previousConversationIdsRef = useRef<Set<string>>(new Set());
   
-  const { playSound, playNewConversationSound, settings, isConnectionMuted, isConversationMuted } = useNotificationSound();
+  const { playSound, playNewConversationSound, settings, isConnectionMuted, isConversationMuted, isGroupMuted } = useNotificationSound();
 
   // Project note notifications
   const { data: projectNotifications = [] } = useProjectNoteNotifications();
@@ -93,7 +94,10 @@ export function MessageNotifications() {
       // Check if new conversations are from non-muted connections
       const hasUnmutedNewConversations = hasNewConversations && newConversationIds.some(id => {
         const conv = data.find(c => c.id === id);
-        return conv && !isConnectionMuted(conv.connection_id) && !isConversationMuted(conv.id);
+        return conv
+          && !isConnectionMuted(conv.connection_id)
+          && !isConversationMuted(conv.id)
+          && !isGroupMuted(conv.is_group, conv.id);
       });
       
       // Check for new messages in existing conversations
@@ -101,7 +105,10 @@ export function MessageNotifications() {
       
       // Check if new messages are from non-muted connections
       const hasUnmutedNewMessages = hasNewMessagesInExisting && data.some(conv => {
-        return conv.unread_count > 0 && !isConnectionMuted(conv.connection_id) && !isConversationMuted(conv.id);
+        return conv.unread_count > 0
+          && !isConnectionMuted(conv.connection_id)
+          && !isConversationMuted(conv.id)
+          && !isGroupMuted(conv.is_group, conv.id);
       });
       
       // Play appropriate sound
@@ -124,7 +131,7 @@ export function MessageNotifications() {
     } catch (error) {
       console.error("Error fetching unread conversations:", error);
     }
-  }, [soundEnabled, settings.soundEnabled, playSound, playNewConversationSound, isConnectionMuted, isConversationMuted]);
+  }, [soundEnabled, settings.soundEnabled, playSound, playNewConversationSound, isConnectionMuted, isConversationMuted, isGroupMuted]);
 
   // Poll for unread messages - faster polling (every 3 seconds)
   useEffect(() => {
