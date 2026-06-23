@@ -41,6 +41,7 @@ interface NotificationSoundSettings {
   mutedConnections: string[]; // connection IDs that are muted
   mutedConversations: string[]; // conversation IDs that are muted
   muteGroups: boolean; // when true, mute all WhatsApp groups by default
+  allowedGroups: string[]; // conversation IDs of groups allowed when muteGroups is true
 }
 
 const SETTINGS_KEY = 'notification-sound-settings';
@@ -56,6 +57,7 @@ const defaultSettings: NotificationSoundSettings = {
   mutedConnections: [],
   mutedConversations: [],
   muteGroups: false,
+  allowedGroups: [],
 };
 
 // Detect if current device is mobile
@@ -159,15 +161,25 @@ export function useNotificationSound() {
   }, [settings.mutedConversations]);
 
   // Returns true when the conversation should be silenced.
-  // Group conversations are silenced when `muteGroups` is enabled, unless the
-  // user explicitly unmutes that specific group (via mutedConversations toggle
-  // acting as an allow-list override is intentionally NOT supported — to allow
-  // a group through, keep muteGroups off and mute groups individually).
+  // When `muteGroups` is on, groups are silenced UNLESS they are in `allowedGroups`
+  // (per-group allow-list). When `muteGroups` is off, only groups in
+  // `mutedConversations` are silenced.
   const isGroupMuted = useCallback((isGroup?: boolean, conversationId?: string) => {
     if (!isGroup) return false;
-    if (settings.muteGroups) return true;
+    if (settings.muteGroups) {
+      if (conversationId && (settings.allowedGroups || []).includes(conversationId)) return false;
+      return true;
+    }
     return isConversationMuted(conversationId);
-  }, [settings.muteGroups, isConversationMuted]);
+  }, [settings.muteGroups, settings.allowedGroups, isConversationMuted]);
+
+  const toggleGroupAllowed = useCallback((conversationId: string) => {
+    const allowed = settings.allowedGroups || [];
+    const next = allowed.includes(conversationId)
+      ? allowed.filter(id => id !== conversationId)
+      : [...allowed, conversationId];
+    updateSettings({ allowedGroups: next });
+  }, [settings.allowedGroups, updateSettings]);
 
   const toggleConversationMute = useCallback((conversationId: string) => {
     const muted = settings.mutedConversations || [];
@@ -275,6 +287,7 @@ export function useNotificationSound() {
     isConversationMuted,
     isGroupMuted,
     toggleConversationMute,
+    toggleGroupAllowed,
     isMobileDevice: isMobileDevice(),
     isPushSupported: typeof window !== 'undefined' && 'Notification' in window,
   };
