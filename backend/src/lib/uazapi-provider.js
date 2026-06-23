@@ -564,6 +564,70 @@ export async function downloadMedia(baseUrl, token, messageId) {
  * Mantemos fallback para variantes antigas (`/message/editMessage` com messageId)
  * para garantir compatibilidade com instâncias mais antigas.
  */
+/**
+ * Apaga (revoga) uma mensagem já enviada via UAZAPI.
+ * Tenta múltiplos formatos de body/endpoint por compatibilidade.
+ */
+export async function deleteMessage(baseUrl, token, phone, messageId, options = {}) {
+  if (!messageId) return { success: false, error: 'messageId obrigatório' };
+  const number = normalizePhone(phone);
+  const originalText = options?.originalText || '';
+  const ids = normalizeMessageIdCandidates(messageId);
+
+  if (ids.length === 0 && originalText) {
+    const foundId = await findEditableMessageId(baseUrl, token, phone, originalText);
+    if (foundId) ids.push(...normalizeMessageIdCandidates(foundId));
+  }
+
+  const attempts = [
+    ...ids.flatMap((id) => ([
+      { path: '/message/delete', body: { id } },
+      { path: '/message/delete', body: { id, number } },
+      { path: '/message/delete', body: { messageId: id, number } },
+      { path: '/message/deleteMessage', body: { id, number } },
+    ])),
+  ];
+
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      const r = await uazapiFetch(baseUrl, attempt.path, {
+        method: 'POST',
+        token,
+        body: attempt.body,
+      });
+      if (r.ok) {
+        return { success: true };
+      }
+      lastError = r.data?.error || r.data?.message || `HTTP ${r.status}`;
+      console.warn(`[UAZAPI] deleteMessage ${attempt.path} falhou: ${r.status} - ${lastError}`);
+      if (r.status !== 404 && r.status !== 400 && r.status !== 422) break;
+    } catch (err) {
+      lastError = err.message;
+    }
+  }
+
+  if (originalText) {
+    try {
+      const foundId = await findEditableMessageId(baseUrl, token, phone, originalText);
+      const fallbackIds = normalizeMessageIdCandidates(foundId).filter((id) => !ids.includes(id));
+      for (const id of fallbackIds) {
+        const r = await uazapiFetch(baseUrl, '/message/delete', {
+          method: 'POST',
+          token,
+          body: { id },
+        });
+        if (r.ok) return { success: true };
+        lastError = r.data?.error || r.data?.message || `HTTP ${r.status}`;
+      }
+    } catch (err) {
+      lastError = err.message;
+    }
+  }
+
+  return { success: false, error: lastError || 'Falha ao apagar mensagem' };
+}
+
 export async function editMessage(baseUrl, token, phone, messageId, newText, options = {}) {
   if (!messageId) return { success: false, error: 'messageId obrigatório' };
   // Conforme docs oficiais UAZAPI (POST /message/edit) o body é apenas { id, text }
