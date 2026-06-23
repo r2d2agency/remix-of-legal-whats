@@ -2299,14 +2299,27 @@ async function handleOutgoingMessage(connection, payload) {
       }
     }
 
-    // Check for duplicate or pending message (optimistic UI pattern)
+    // Check for duplicate or pending message (optimistic UI pattern).
+    // W-API can return one id from the send endpoint and another id in the webhook echo,
+    // so also reconcile a recent message sent from the web chat with same content/type.
     const existingMsg = await query(
-      `SELECT id, message_id FROM chat_messages WHERE message_id = $1 OR 
-       (message_id LIKE 'temp_%' AND conversation_id = $2 AND from_me = true AND status = 'pending' 
-         AND timestamp > NOW() - INTERVAL '120 seconds')
-       ORDER BY CASE WHEN message_id = $1 THEN 0 ELSE 1 END
+      `SELECT id, message_id FROM chat_messages
+       WHERE message_id = $1
+          OR (
+            conversation_id = $2
+            AND from_me = true
+            AND COALESCE(is_deleted, false) = false
+            AND timestamp > NOW() - INTERVAL '180 seconds'
+            AND (
+              ((message_id LIKE 'temp_%' OR message_id IS NULL) AND status IN ('pending','sent'))
+              OR (sender_id IS NOT NULL AND status IN ('pending','sent') AND message_type = $3 AND COALESCE(content, '') = COALESCE($4, ''))
+            )
+          )
+       ORDER BY
+         CASE WHEN message_id = $1 THEN 0 WHEN message_id LIKE 'temp_%' OR message_id IS NULL OR status = 'pending' THEN 1 ELSE 2 END,
+         timestamp DESC
        LIMIT 1`,
-      [messageId, conversationId]
+      [messageId, conversationId, messageType, content || '']
     );
 
     if (existingMsg.rows.length > 0) {
@@ -2315,11 +2328,20 @@ async function handleOutgoingMessage(connection, payload) {
         console.log('[W-API] Outgoing message already exists:', messageId);
         return;
       }
-      // Update the pending message with real message ID
-      await query(
-        `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
-        [messageId, existing.id]
-      );
+      // Update only temp/pending rows with the real webhook ID; if it already has a real ID,
+      // keep it and skip inserting the webhook echo.
+      if (!existing.message_id || String(existing.message_id).startsWith('temp_')) {
+        await query(
+          `UPDATE chat_messages
+           SET message_id = $1,
+               status = 'sent',
+               content = COALESCE($3, content),
+               media_url = COALESCE($4, media_url),
+               media_mimetype = COALESCE($5, media_mimetype)
+           WHERE id = $2`,
+          [messageId, existing.id, content || null, effectiveMediaUrl || null, effectiveMediaMimetype || null]
+        );
+      }
       console.log('[W-API] Updated pending message with real ID:', messageId);
       return;
     }
