@@ -451,12 +451,15 @@ export async function downloadMedia(baseUrl, token, messageId) {
  */
 export async function editMessage(baseUrl, token, phone, messageId, newText) {
   if (!messageId) return { success: false, error: 'messageId obrigatório' };
+  // Conforme docs oficiais UAZAPI (POST /message/edit) o body é apenas { id, text }
+  // O ID pode estar no formato "owner:messageid" ou apenas "messageid".
+  // Mantemos fallback com `number` e endpoint legado para compatibilidade.
   const number = normalizePhone(phone);
   const attempts = [
-    { path: '/message/edit', body: { number, id: messageId, text: newText } },
-    { path: '/message/edit', body: { number, messageId, text: newText } },
-    { path: '/message/editMessage', body: { number, messageId, text: newText } },
-    { path: '/message/editMessage', body: { number, id: messageId, text: newText } },
+    { path: '/message/edit', body: { id: messageId, text: newText } },
+    { path: '/message/edit', body: { id: messageId, text: newText, number } },
+    { path: '/message/edit', body: { messageId, text: newText, number } },
+    { path: '/message/editMessage', body: { id: messageId, text: newText, number } },
   ];
   let lastError = null;
   for (const attempt of attempts) {
@@ -466,10 +469,13 @@ export async function editMessage(baseUrl, token, phone, messageId, newText) {
         token,
         body: attempt.body,
       });
-      if (r.ok) return { success: true, messageId };
+      if (r.ok) {
+        const newId = r.data?.messageid || r.data?.id || messageId;
+        return { success: true, messageId: newId };
+      }
       lastError = r.data?.error || r.data?.message || `HTTP ${r.status}`;
-      // Se a rota não existe (404) tenta a próxima
-      if (r.status !== 404 && r.status !== 400) break;
+      console.warn(`[UAZAPI] editMessage ${attempt.path} falhou: ${r.status} - ${lastError}`);
+      if (r.status !== 404 && r.status !== 400 && r.status !== 422) break;
     } catch (err) {
       lastError = err.message;
     }
