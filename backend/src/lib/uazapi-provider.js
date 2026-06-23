@@ -551,7 +551,7 @@ export async function downloadMedia(baseUrl, token, messageId) {
   }
   return {
     success: true,
-    messageId: r.data?.id || r.data?.messageId || r.data?.key?.id || null,
+    messageId: extractUazapiMessageId(r.data),
   };
 }
 
@@ -564,17 +564,27 @@ export async function downloadMedia(baseUrl, token, messageId) {
  * Mantemos fallback para variantes antigas (`/message/editMessage` com messageId)
  * para garantir compatibilidade com instâncias mais antigas.
  */
-export async function editMessage(baseUrl, token, phone, messageId, newText) {
+export async function editMessage(baseUrl, token, phone, messageId, newText, options = {}) {
   if (!messageId) return { success: false, error: 'messageId obrigatório' };
   // Conforme docs oficiais UAZAPI (POST /message/edit) o body é apenas { id, text }
   // O ID pode estar no formato "owner:messageid" ou apenas "messageid".
   // Mantemos fallback com `number` e endpoint legado para compatibilidade.
   const number = normalizePhone(phone);
+  const originalText = options?.originalText || '';
+  const ids = normalizeMessageIdCandidates(messageId);
+
+  if (ids.length === 0 && originalText) {
+    const foundId = await findEditableMessageId(baseUrl, token, phone, originalText);
+    if (foundId) ids.push(...normalizeMessageIdCandidates(foundId));
+  }
+
   const attempts = [
-    { path: '/message/edit', body: { id: messageId, text: newText } },
-    { path: '/message/edit', body: { id: messageId, text: newText, number } },
-    { path: '/message/edit', body: { messageId, text: newText, number } },
-    { path: '/message/editMessage', body: { id: messageId, text: newText, number } },
+    ...ids.flatMap((id) => ([
+      { path: '/message/edit', body: { id, text: newText } },
+      { path: '/message/edit', body: { id, text: newText, number } },
+      { path: '/message/edit', body: { messageId: id, text: newText, number } },
+      { path: '/message/editMessage', body: { id, text: newText, number } },
+    ])),
   ];
   let lastError = null;
   for (const attempt of attempts) {
@@ -585,7 +595,7 @@ export async function editMessage(baseUrl, token, phone, messageId, newText) {
         body: attempt.body,
       });
       if (r.ok) {
-        const newId = r.data?.messageid || r.data?.id || messageId;
+        const newId = extractUazapiMessageId(r.data) || attempt.body.id || attempt.body.messageId || messageId;
         return { success: true, messageId: newId };
       }
       lastError = r.data?.error || r.data?.message || `HTTP ${r.status}`;
@@ -595,6 +605,27 @@ export async function editMessage(baseUrl, token, phone, messageId, newText) {
       lastError = err.message;
     }
   }
+
+  if (originalText) {
+    try {
+      const foundId = await findEditableMessageId(baseUrl, token, phone, originalText);
+      const fallbackIds = normalizeMessageIdCandidates(foundId).filter((id) => !ids.includes(id));
+      for (const id of fallbackIds) {
+        const r = await uazapiFetch(baseUrl, '/message/edit', {
+          method: 'POST',
+          token,
+          body: { id, text: newText },
+        });
+        if (r.ok) {
+          return { success: true, messageId: extractUazapiMessageId(r.data) || id };
+        }
+        lastError = r.data?.error || r.data?.message || `HTTP ${r.status}`;
+      }
+    } catch (err) {
+      lastError = err.message;
+    }
+  }
+
   return { success: false, error: lastError || 'Falha ao editar mensagem' };
 }
 
@@ -674,7 +705,7 @@ export async function sendMedia(baseUrl, token, phone, mediaUrl, type, caption, 
   }
   return {
     success: true,
-    messageId: r.data?.id || r.data?.messageId || r.data?.key?.id || null,
+    messageId: extractUazapiMessageId(r.data),
   };
 }
 
