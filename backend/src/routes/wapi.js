@@ -2195,7 +2195,7 @@ async function handleOutgoingMessage(connection, payload) {
       
       const newConv = await query(
         `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 0, 'waiting')
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), 0, 'attending')
          RETURNING id`,
         [connection.id, remoteJid, contactName, isGroup ? null : cleanPhone, isGroup, isGroup ? contactName : null]
       );
@@ -2204,6 +2204,16 @@ async function handleOutgoingMessage(connection, payload) {
       console.log('[W-API] Created new conversation for outgoing:', conversationId);
     } else {
       var conversationId = convResult.rows[0].id;
+      // Modo híbrido: se atendente respondeu pelo WhatsApp diretamente,
+      // muda a conversa de 'waiting' para 'attending' automaticamente.
+      await query(
+        `UPDATE conversations
+         SET attendance_status = 'attending',
+             accepted_at = COALESCE(accepted_at, NOW()),
+             updated_at = NOW()
+         WHERE id = $1 AND attendance_status = 'waiting'`,
+        [conversationId]
+      );
     }
 
     // Handle protocolMessage (edits/deletes) for outgoing
