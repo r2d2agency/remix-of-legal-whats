@@ -558,13 +558,53 @@ async function persistIncomingMessage(connection, payload) {
     }
   }
 
-  const existingMessage = await query(
-    `SELECT id FROM chat_messages WHERE message_id = $1 LIMIT 1`,
-    [message.messageId]
-  );
+  // Dedup + reconcile pending optimistic messages sent via chat (temp_ message_id)
+  {
+    const existingMessage = await query(
+      `SELECT id, message_id, conversation_id FROM chat_messages WHERE message_id = $1 LIMIT 1`,
+      [message.messageId]
+    );
+    if (existingMessage.rows.length > 0) {
+      return { skipped: true, reason: 'duplicate' };
+    }
 
-  if (existingMessage.rows.length > 0) {
-    return { skipped: true, reason: 'duplicate' };
+    if (message.fromMe) {
+      // Find conversation first (by remote_jid or by phone)
+      let convLookup = await query(
+        `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`,
+        [connection.id, message.chatId]
+      );
+      if (convLookup.rows.length === 0 && !message.isGroup && message.phone) {
+        convLookup = await query(
+          `SELECT id FROM conversations
+           WHERE connection_id = $1 AND contact_phone = $2 AND COALESCE(is_group, false) = false
+           ORDER BY last_message_at DESC
+           LIMIT 1`,
+          [connection.id, message.phone]
+        );
+      }
+      if (convLookup.rows.length > 0) {
+        const convId = convLookup.rows[0].id;
+        const pending = await query(
+          `SELECT id FROM chat_messages
+           WHERE conversation_id = $1
+             AND from_me = true
+             AND (message_id LIKE 'temp_%' OR message_id IS NULL)
+             AND status IN ('pending','sent')
+             AND timestamp > NOW() - INTERVAL '120 seconds'
+           ORDER BY timestamp DESC
+           LIMIT 1`,
+          [convId]
+        );
+        if (pending.rows.length > 0) {
+          await query(
+            `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
+            [message.messageId, pending.rows[0].id]
+          );
+          return { skipped: true, reason: 'reconciled' };
+        }
+      }
+    }
   }
 
   let conversationResult = await query(
