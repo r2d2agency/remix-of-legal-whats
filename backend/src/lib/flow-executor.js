@@ -749,6 +749,11 @@ async function processActionNode(content, connection, phone, variables, conversa
         const tagId = content.tag_id;
         if (!tagId || !conversationId) {
           console.log('Flow action: add_tag missing tag_id or conversationId');
+          addExecutionLog(conversationId, {
+            type: 'action_skipped',
+            nodeType: 'action',
+            message: `add_tag ignorado: ${!tagId ? 'tag_id ausente' : 'conversationId ausente'}`,
+          });
           break;
         }
         try {
@@ -759,8 +764,18 @@ async function processActionNode(content, connection, phone, variables, conversa
             [conversationId, tagId]
           );
           console.log(`Flow action: Added tag ${tagId} to conversation ${conversationId}`);
+          addExecutionLog(conversationId, {
+            type: 'action_done',
+            nodeType: 'action',
+            message: `Tag adicionada (${tagId})`,
+          });
         } catch (e) {
           console.error('Flow action add_tag error:', e.message);
+          addExecutionLog(conversationId, {
+            type: 'error',
+            nodeType: 'action',
+            message: `Erro add_tag: ${e.message}`,
+          });
         }
         break;
       }
@@ -778,6 +793,25 @@ async function processActionNode(content, connection, phone, variables, conversa
           console.log(`Flow action: Removed tag ${tagId} from conversation ${conversationId}`);
         } catch (e) {
           console.error('Flow action remove_tag error:', e.message);
+          addExecutionLog(conversationId, {
+            type: 'error',
+            nodeType: 'action',
+            message: `Erro remove_tag: ${e.message}`,
+          });
+        }
+        break;
+      }
+      case 'set_variable': {
+        const varName = content.variable_name || content.variable;
+        if (varName) {
+          const val = replaceVariables(String(content.value ?? ''), variables);
+          variables[varName] = val;
+          console.log(`Flow action: set_variable ${varName} = ${val}`);
+          addExecutionLog(conversationId, {
+            type: 'action_done',
+            nodeType: 'action',
+            message: `Variável definida: ${varName} = ${val}`,
+          });
         }
         break;
       }
