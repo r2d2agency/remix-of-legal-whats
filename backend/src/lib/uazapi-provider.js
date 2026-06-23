@@ -206,7 +206,7 @@ function extractTextFromUazapiMessage(message) {
 }
 
 function isUazapiFromMe(message) {
-  const value = message?.fromMe ?? message?.key?.fromMe ?? message?.message?.fromMe;
+  const value = message?.fromMe ?? message?.key?.fromMe ?? message?.message?.fromMe ?? message?.wasSentByApi;
   if (value === true || value === 1) return true;
   if (typeof value === 'string') return ['true', '1', 'yes', 'sim'].includes(value.trim().toLowerCase());
   return false;
