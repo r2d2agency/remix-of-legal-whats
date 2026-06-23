@@ -324,7 +324,7 @@ const Chat = () => {
               // Simple strategy: only update the common messages at the end
               const commonCount = msgs.length;
              const baseMessages = prev.slice(0, prev.length - commonCount);
-             return [...baseMessages, ...msgs];
+              return dedupeMessages([...baseMessages, ...msgs]);
            }
            return msgs;
          });
@@ -595,7 +595,7 @@ const Chat = () => {
         limit: 500,
       }));
       
-      setMessages([...olderMsgs, ...messages]);
+      setMessages(dedupeMessages([...olderMsgs, ...messages]));
       setHasMoreMessages(olderMsgs.length >= 500);
     } catch (error) {
       console.error('Error loading more messages:', error);
