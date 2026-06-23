@@ -40,7 +40,7 @@
  /**
   * Delete/Revoke message (unified)
   */
- export async function deleteMessage(connection, phone, messageId) {
+export async function deleteMessage(connection, phone, messageId, options = {}) {
    const provider = detectProvider(connection);
    
    if (provider === 'meta') {
@@ -55,13 +55,21 @@
            },
             body: JSON.stringify({
               messaging_product: 'whatsapp',
-              message_id: messageId,
-              status: 'inactive',
+             recipient_type: 'individual',
+             to: String(phone || '').replace(/\D/g, ''),
+             type: 'reaction',
+             reaction: { message_id: messageId, emoji: '' },
             }),
          }
        );
        const data = await response.json();
-       return { success: response.ok, error: data?.error?.message };
+      // Meta Cloud API não suporta apagar (revogar) mensagem para todos.
+      // O melhor que conseguimos é remover a reação. Retornamos sucesso apenas
+      // se a API aceitou o request, mas avisamos no error.
+      if (!response.ok) {
+        return { success: false, error: data?.error?.message || `HTTP ${response.status}` };
+      }
+      return { success: true, warning: 'Meta Cloud API não permite apagar mensagens para o destinatário; apagada apenas localmente.' };
      } catch (error) {
        return { success: false, error: error.message };
      }
@@ -72,26 +80,18 @@
      return wapiProvider.deleteMessage(connection.instance_id, resolvedToken, messageId, phone);
    }
  
-    if (provider === 'uazapi') {
-      try {
-        const response = await fetch(`${connection.uazapi_url}/message/editMessage`, {
-          method: 'POST',
-          headers: {
-            token: connection.uazapi_token,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            number: phone.replace(/\D/g, ''),
-            text: newText,
-            messageId: messageId,
-          }),
-        });
-        const data = await response.json().catch(() => ({}));
-        return { success: response.ok, error: data?.error || data?.message };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
+  if (provider === 'uazapi') {
+    if (!connection.uazapi_url || !connection.uazapi_token) {
+      return { success: false, error: 'Credenciais UAZAPI não configuradas para esta conexão' };
     }
+    return uazapiProvider.deleteMessage(
+      connection.uazapi_url,
+      connection.uazapi_token,
+      phone,
+      messageId,
+      { originalText: options?.originalText }
+    );
+  }
 
     if (provider === 'evolution') {
      try {
