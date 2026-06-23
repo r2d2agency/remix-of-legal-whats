@@ -69,6 +69,29 @@ function normalizeChatId(value) {
   return `${digits}@s.whatsapp.net`;
 }
 
+async function findExistingConversationForUazapi(connectionId, message) {
+  let conversationResult = await query(
+    `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`,
+    [connectionId, message.chatId]
+  );
+
+  if (conversationResult.rows.length === 0 && !message.isGroup && message.phone) {
+    // Phone/JID formats can change between providers/events (+55, @lid, @s.whatsapp.net).
+    // The platform standard is to match people by the last 9 digits to avoid duplicate chats.
+    conversationResult = await query(
+      `SELECT id FROM conversations
+       WHERE connection_id = $1
+         AND COALESCE(is_group, false) = false
+         AND RIGHT(REGEXP_REPLACE(COALESCE(contact_phone, remote_jid, ''), '\\D', '', 'g'), 9) = RIGHT($2, 9)
+       ORDER BY last_message_at DESC NULLS LAST, updated_at DESC NULLS LAST
+       LIMIT 1`,
+      [connectionId, message.phone]
+    );
+  }
+
+  return conversationResult;
+}
+
 function extractMessagePayload(payload) {
   return payload?.message || payload?.data?.message || payload?.data || payload;
 }
@@ -569,58 +592,49 @@ async function persistIncomingMessage(connection, payload) {
     }
 
     if (message.fromMe) {
-      // Find conversation first (by remote_jid or by phone)
-      let convLookup = await query(
-        `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`,
-        [connection.id, message.chatId]
-      );
-      if (convLookup.rows.length === 0 && !message.isGroup && message.phone) {
-        convLookup = await query(
-          `SELECT id FROM conversations
-           WHERE connection_id = $1 AND contact_phone = $2 AND COALESCE(is_group, false) = false
-           ORDER BY last_message_at DESC
-           LIMIT 1`,
-          [connection.id, message.phone]
-        );
-      }
+      // Reconcile webhook echoes from messages sent in the web chat.
+      // Sometimes UAZAPI returns one id in the send response and a different id in the webhook;
+      // in that case exact message_id dedupe is not enough, so match the recent optimistic row too.
+      const convLookup = await findExistingConversationForUazapi(connection.id, message);
       if (convLookup.rows.length > 0) {
         const convId = convLookup.rows[0].id;
         const pending = await query(
-          `SELECT id FROM chat_messages
+          `SELECT id, message_id FROM chat_messages
            WHERE conversation_id = $1
              AND from_me = true
-             AND (message_id LIKE 'temp_%' OR message_id IS NULL)
-             AND status IN ('pending','sent')
-             AND timestamp > NOW() - INTERVAL '120 seconds'
-           ORDER BY timestamp DESC
+             AND COALESCE(is_deleted, false) = false
+             AND timestamp > NOW() - INTERVAL '180 seconds'
+             AND (
+               ((message_id LIKE 'temp_%' OR message_id IS NULL) AND status IN ('pending','sent'))
+               OR (sender_id IS NOT NULL AND status IN ('pending','sent') AND message_type = $2 AND COALESCE(content, '') = COALESCE($3, ''))
+             )
+           ORDER BY
+             CASE WHEN message_id LIKE 'temp_%' OR message_id IS NULL OR status = 'pending' THEN 0 ELSE 1 END,
+             timestamp DESC
            LIMIT 1`,
-          [convId]
+          [convId, message.messageType, message.content || '']
         );
         if (pending.rows.length > 0) {
-          await query(
-            `UPDATE chat_messages SET message_id = $1, status = 'sent' WHERE id = $2`,
-            [message.messageId, pending.rows[0].id]
-          );
+          const existing = pending.rows[0];
+          if (!existing.message_id || String(existing.message_id).startsWith('temp_')) {
+            await query(
+              `UPDATE chat_messages
+               SET message_id = $1,
+                   status = 'sent',
+                   content = COALESCE($3, content),
+                   media_url = COALESCE($4, media_url),
+                   media_mimetype = COALESCE($5, media_mimetype)
+               WHERE id = $2`,
+              [message.messageId, existing.id, message.content || null, message.mediaUrl || null, message.mediaMimetype || null]
+            );
+          }
           return { skipped: true, reason: 'reconciled' };
         }
       }
     }
   }
 
-  let conversationResult = await query(
-    `SELECT id FROM conversations WHERE connection_id = $1 AND remote_jid = $2 LIMIT 1`,
-    [connection.id, message.chatId]
-  );
-
-  if (conversationResult.rows.length === 0 && !message.isGroup && message.phone) {
-    conversationResult = await query(
-      `SELECT id FROM conversations
-       WHERE connection_id = $1 AND contact_phone = $2 AND COALESCE(is_group, false) = false
-       ORDER BY last_message_at DESC
-       LIMIT 1`,
-      [connection.id, message.phone]
-    );
-  }
+  let conversationResult = await findExistingConversationForUazapi(connection.id, message);
 
   let conversationId;
   if (conversationResult.rows.length === 0) {
@@ -657,14 +671,19 @@ async function persistIncomingMessage(connection, payload) {
     await query(
       `UPDATE conversations
        SET last_message_at = NOW(),
-           unread_count = unread_count + 1,
+            unread_count = CASE WHEN $5::boolean THEN unread_count ELSE unread_count + 1 END,
            contact_name = COALESCE($2, contact_name),
            group_name = CASE WHEN COALESCE(is_group, false) = true THEN COALESCE($3, group_name) ELSE group_name END,
-            attendance_status = CASE WHEN attendance_status = 'finished' THEN 'waiting' ELSE attendance_status END,
+            attendance_status = CASE
+              WHEN $5::boolean AND attendance_status = 'waiting' THEN 'attending'
+              WHEN NOT $5::boolean AND attendance_status = 'finished' THEN 'waiting'
+              ELSE attendance_status
+            END,
+            accepted_at = CASE WHEN $5::boolean AND attendance_status = 'waiting' THEN COALESCE(accepted_at, NOW()) ELSE accepted_at END,
             connection_id = COALESCE($4, connection_id),
             updated_at = NOW()
         WHERE id = $1`,
-       [conversationId, message.senderName, message.groupName, connection.id]
+       [conversationId, message.senderName, message.groupName, connection.id, message.fromMe]
     );
 
     // Modo híbrido: se o atendente respondeu pelo WhatsApp diretamente (fromMe),
