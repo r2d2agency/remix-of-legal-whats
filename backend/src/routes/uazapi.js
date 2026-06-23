@@ -590,7 +590,7 @@ async function persistIncomingMessage(connection, payload) {
 
     const createdConversation = await query(
       `INSERT INTO conversations (connection_id, remote_jid, contact_name, contact_phone, is_group, group_name, last_message_at, unread_count, attendance_status)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW(), 1, 'waiting')
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8)
        RETURNING id`,
       [
         connection.id,
@@ -599,6 +599,8 @@ async function persistIncomingMessage(connection, payload) {
         message.isGroup ? null : message.phone,
         message.isGroup,
         message.isGroup ? message.groupName : null,
+        message.fromMe ? 0 : 1,
+        message.fromMe ? 'attending' : 'waiting',
       ]
     );
     conversationId = createdConversation.rows[0].id;
@@ -624,6 +626,19 @@ async function persistIncomingMessage(connection, payload) {
         WHERE id = $1`,
        [conversationId, message.senderName, message.groupName, connection.id]
     );
+
+    // Modo híbrido: se o atendente respondeu pelo WhatsApp diretamente (fromMe),
+    // muda automaticamente de 'waiting' para 'attending'.
+    if (message.fromMe) {
+      await query(
+        `UPDATE conversations
+         SET attendance_status = 'attending',
+             accepted_at = COALESCE(accepted_at, NOW()),
+             updated_at = NOW()
+         WHERE id = $1 AND attendance_status = 'waiting'`,
+        [conversationId]
+      );
+    }
 
     // SALES SEO: Detecta lead e atualiza evolução
     try {
