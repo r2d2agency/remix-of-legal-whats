@@ -380,7 +380,7 @@ webhookRouter.get('/', (req, res) => {
   return res.sendStatus(403);
 });
 
-webhookRouter.post('/', express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }), async (req, res) => {
+webhookRouter.post('/', async (req, res) => {
   try {
     // Signature validation (skip silently if secret not configured yet)
     const secret = process.env.META_APP_SECRET;
