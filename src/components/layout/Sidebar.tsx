@@ -13,6 +13,7 @@ import {
   ClipboardList,
   FileSignature,
   FileText,
+  Facebook,
   GitBranch,
   Kanban,
   LayoutDashboard,
