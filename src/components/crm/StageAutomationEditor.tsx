@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,7 +14,7 @@ import { useCRMFunnels, CRMStage } from "@/hooks/use-crm";
 import { api } from "@/lib/api";
 import { 
   Zap, ChevronDown, ChevronUp, Clock, ArrowRight, Loader2, Trash2, Calendar, 
-  GitBranch, Plus, ThumbsUp, ThumbsDown 
+  GitBranch, Plus, ThumbsUp, ThumbsDown, MessageCircle 
 } from "lucide-react";
 
 const DAYS_OF_WEEK = [
@@ -81,6 +82,9 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
     condition_false_flow_id: null,
     condition_false_stage_id: null,
     outside_hours_flow_id: null,
+    welcome_message_enabled: false,
+    welcome_message_text: '',
+    welcome_message_delay_seconds: 0,
   });
 
   const { data: existingAutomation, isLoading: loadingAutomation } = useStageAutomation(stage.id || null);
@@ -174,6 +178,9 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
         condition_false_flow_id: ea.condition_false_flow_id || null,
         condition_false_stage_id: ea.condition_false_stage_id || null,
         outside_hours_flow_id: ea.outside_hours_flow_id || null,
+        welcome_message_enabled: !!ea.welcome_message_enabled,
+        welcome_message_text: ea.welcome_message_text || '',
+        welcome_message_delay_seconds: Number(ea.welcome_message_delay_seconds) || 0,
       });
     }
   }, [existingAutomation]);
