@@ -167,7 +167,18 @@ router.get('/status', async (req, res) => {
     }
 
     const token = result.rows[0];
-    const tokenExpired = new Date(token.expires_at) < new Date();
+    let tokenExpired = new Date(token.expires_at) < new Date();
+
+    // Try to refresh proactively if expired but refresh_token exists
+    if (token.is_active && tokenExpired && token.refresh_token) {
+      try {
+        await getValidAccessToken(req.userId);
+        tokenExpired = false;
+      } catch (e) {
+        logError('Auto-refresh failed in status:', e.message);
+        tokenExpired = true;
+      }
+    }
 
     // Fetch available calendars from Google (best-effort, async)
     let availableCalendars = [];
