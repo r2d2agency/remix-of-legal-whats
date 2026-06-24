@@ -302,6 +302,63 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
             </div>
           ) : (
             <>
+              {/* Welcome message on stage entry */}
+              <div className="space-y-2 p-2 bg-background rounded border border-primary/30">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs flex items-center gap-1 font-medium">
+                    <MessageCircle className="h-3 w-3 text-primary" />
+                    Mensagem de boas-vindas
+                  </Label>
+                  <Switch
+                    checked={!!localConfig.welcome_message_enabled}
+                    onCheckedChange={(v) => setLocalConfig(prev => ({ ...prev, welcome_message_enabled: v }))}
+                  />
+                </div>
+                {localConfig.welcome_message_enabled && (
+                  <>
+                    <Textarea
+                      value={localConfig.welcome_message_text || ''}
+                      onChange={(e) => setLocalConfig(prev => ({ ...prev, welcome_message_text: e.target.value }))}
+                      placeholder="Olá {nome}, tudo bem? Sou {vendedor} e vou te ajudar a partir de agora 👋"
+                      rows={3}
+                      className="text-xs"
+                    />
+                    <div className="flex flex-wrap gap-1">
+                      {['{nome}', '{primeiro_nome}', '{vendedor}', '{empresa}', '{deal_title}', '{deal_value}'].map(v => (
+                        <Badge
+                          key={v}
+                          variant="secondary"
+                          className="cursor-pointer hover:bg-primary hover:text-primary-foreground text-[9px] h-4 px-1"
+                          onClick={() => setLocalConfig(prev => ({
+                            ...prev,
+                            welcome_message_text: `${prev.welcome_message_text || ''}${v}`,
+                          }))}
+                        >
+                          {v}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] text-muted-foreground">Atraso (segundos)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={60}
+                        value={localConfig.welcome_message_delay_seconds ?? 0}
+                        onChange={(e) => setLocalConfig(prev => ({
+                          ...prev,
+                          welcome_message_delay_seconds: Math.max(0, Math.min(60, Number(e.target.value) || 0)),
+                        }))}
+                        className="h-7 text-xs w-20"
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      💬 Quando o lead cair nesta coluna, enviamos esta mensagem automaticamente pelo WhatsApp usando a conexão do <strong>vendedor responsável</strong> (cai para a conexão do funil ou da organização se o vendedor não tiver). A mensagem aparece no chat normalmente.
+                    </p>
+                  </>
+                )}
+              </div>
+
               {/* Default Flow Selection */}
               <div className="space-y-1">
                 <Label className="text-xs">Fluxo padrão (sem condição)</Label>
