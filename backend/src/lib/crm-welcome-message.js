@@ -182,9 +182,23 @@ export async function sendStageWelcomeMessage(dealId, stageId, organizationId) {
     }
 
     // 4) Resolve connection
-    const { connection, source } = await resolveConnection(deal, organizationId);
+    const { connection, source, reason } = await resolveConnection(deal, organizationId);
     if (!connection) {
-      logError(`[welcome-msg] nenhuma conexão ativa para org ${organizationId} (deal ${dealId})`);
+      logError(`[welcome-msg] sem conexão padrão UAZAPI do vendedor (deal ${dealId}) — motivo=${reason}`);
+      await query(
+        `INSERT INTO crm_automation_logs (deal_id, action, details)
+         VALUES ($1, 'welcome_message_skipped', $2)`,
+        [
+          dealId,
+          JSON.stringify({
+            stage_id: stageId,
+            reason: reason || 'no_connection',
+            assigned_to: deal.assigned_to || deal.owner_id || null,
+            seller_name: deal.seller_name || null,
+            requirement: 'Conexão padrão UAZAPI do vendedor responsável',
+          }),
+        ]
+      );
       return false;
     }
 
