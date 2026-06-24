@@ -104,7 +104,15 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 
-app.use(express.json({ limit: '200mb' }));
+app.use(express.json({
+  limit: '200mb',
+  verify: (req, _res, buf) => {
+    // capture raw body for webhook signature verification (Meta etc.)
+    if (req.originalUrl && req.originalUrl.startsWith('/api/meta/webhook')) {
+      req.rawBody = buf;
+    }
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
 // Request-scoped context + correlation id for structured logs
