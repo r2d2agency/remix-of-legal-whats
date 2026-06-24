@@ -26,6 +26,7 @@ import Admin from "./pages/Admin";
 import AdminMetaSaas from "./pages/AdminMetaSaas";
 import MetaConnect from "./pages/MetaConnect";
 import MetaLeadAds from "./pages/MetaLeadAds";
+import MetaOnboarding from "./pages/MetaOnboarding";
 import Configuracoes from "./pages/Configuracoes";
 import Agendamentos from "./pages/Agendamentos";
 import Tags from "./pages/Tags";
@@ -142,6 +143,7 @@ const App = () => (
             <Route path="/admin/meta-saas" element={<ProtectedRoute><AdminMetaSaas /></ProtectedRoute>} />
             <Route path="/conectar-meta" element={<ProtectedRoute><MetaConnect /></ProtectedRoute>} />
             <Route path="/meta-lead-ads" element={<ProtectedRoute><MetaLeadAds /></ProtectedRoute>} />
+            <Route path="/onboarding-meta" element={<ProtectedRoute><MetaOnboarding /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
             <Route path="/chatbots" element={<ProtectedRoute><Chatbots /></ProtectedRoute>} />
             <Route path="/fluxos" element={<ProtectedRoute><Fluxos /></ProtectedRoute>} />
