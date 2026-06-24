@@ -1207,11 +1207,7 @@ export function ChatArea({
               <DropdownMenuItem onClick={() => { setSignMessages(!signMessages); }}>
                 <PenLine className="h-4 w-4 mr-2" />{signMessages ? 'Desativar assinatura' : 'Ativar assinatura'}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { toggleConversationMute(conversation.id); toast.success(isConversationMuted(conversation.id) ? 'Notificações ativadas' : 'Conversa silenciada'); }}>
-                {isConversationMuted(conversation.id) ? <Bell className="h-4 w-4 mr-2" /> : <BellOff className="h-4 w-4 mr-2" />}
-              {isConversationMuted(conversation.id) ? 'Ativar notificações' : 'Silenciar conversa'}
-              </DropdownMenuItem>
-              {conversation.is_group && notifSettings.muteGroups && (
+              {conversation.is_group && notifSettings.muteGroups ? (
                 <DropdownMenuItem onClick={() => {
                   const allowed = notifSettings.allowedGroups || [];
                   const isAllowed = allowed.includes(conversation.id);
@@ -1221,7 +1217,12 @@ export function ChatArea({
                 }}>
                   {(notifSettings.allowedGroups || []).includes(conversation.id)
                     ? (<><BellOff className="h-4 w-4 mr-2" />Silenciar este grupo</>)
-                    : (<><Bell className="h-4 w-4 mr-2" />Permitir som deste grupo</>)}
+                    : (<><Bell className="h-4 w-4 mr-2" />Reativar notificações</>)}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => { toggleConversationMute(conversation.id); toast.success(isConversationMuted(conversation.id) ? 'Notificações ativadas' : 'Conversa silenciada'); }}>
+                  {isConversationMuted(conversation.id) ? <Bell className="h-4 w-4 mr-2" /> : <BellOff className="h-4 w-4 mr-2" />}
+                  {isConversationMuted(conversation.id) ? 'Ativar notificações' : 'Silenciar conversa'}
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
