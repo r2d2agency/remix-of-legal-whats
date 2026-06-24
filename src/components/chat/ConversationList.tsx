@@ -55,6 +55,7 @@ import {
   Building2,
   Smartphone,
   BellOff,
+  Bell,
   Pin,
   Star,
   Zap,
