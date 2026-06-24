@@ -30,66 +30,45 @@ function renderTemplate(template, vars) {
 
 /**
  * Resolve the connection to use for the welcome message.
- * Hierarchy:
- *   1) Seller (deal.assigned_to / deal.owner_id) default connection
- *   2) Funnel default connection
- *   3) Any active org connection
+ * REGRA ESTRITA (definida pelo cliente):
+ *   - Usa SOMENTE a conexão PADRÃO do vendedor responsável
+ *     (connection_members.is_default = true).
+ *   - A conexão precisa ser do provedor UAZAPI e estar conectada.
+ *   - SEM fallback para funil/organização — se o vendedor não tiver
+ *     conexão padrão UAZAPI ativa, a mensagem NÃO é enviada.
  */
 async function resolveConnection(deal, organizationId) {
   const assignedTo = deal.assigned_to || deal.owner_id || null;
+  if (!assignedTo) {
+    logError('[welcome-msg] deal sem vendedor responsável (assigned_to/owner_id) — não enviado');
+    return { connection: null, source: null, reason: 'no_assigned_user' };
+  }
 
-  // Funnel default (used as tie-breaker for seller match too)
-  const funnelConnRes = await query(
-    `SELECT connection_id FROM crm_funnels WHERE id = $1`,
-    [deal.funnel_id]
+  const sellerConn = await query(
+    `SELECT c.*
+       FROM connections c
+       JOIN connection_members cm ON cm.connection_id = c.id
+      WHERE c.organization_id = $1
+        AND cm.user_id = $2
+        AND cm.is_default = true
+        AND cm.can_send = true
+        AND c.status = 'connected'
+        AND (
+              LOWER(COALESCE(c.provider, '')) = 'uazapi'
+              OR c.uazapi_url IS NOT NULL
+            )
+      LIMIT 1`,
+    [organizationId, assignedTo]
   );
-  const funnelConnectionId = funnelConnRes.rows[0]?.connection_id || null;
 
-  // 1) Seller connection
-  if (assignedTo) {
-    const sellerConn = await query(
-      `SELECT c.*, cm.is_default
-         FROM connections c
-         JOIN connection_members cm ON cm.connection_id = c.id
-        WHERE c.organization_id = $1
-          AND cm.user_id = $2
-          AND cm.can_send = true
-          AND c.status = 'connected'
-        ORDER BY cm.is_default DESC, (c.id = $3) DESC, cm.created_at ASC
-        LIMIT 1`,
-      [organizationId, assignedTo, funnelConnectionId]
-    );
-    if (sellerConn.rows[0]) {
-      return { connection: sellerConn.rows[0], source: 'assigned_user' };
-    }
-    logInfo(
-      `[welcome-msg] vendedor ${assignedTo} sem conexão ativa — caindo para fallback`
-    );
+  if (sellerConn.rows[0]) {
+    return { connection: sellerConn.rows[0], source: 'seller_default_uazapi' };
   }
 
-  // 2) Funnel default
-  if (funnelConnectionId) {
-    const funnelConn = await query(
-      `SELECT * FROM connections WHERE id = $1 AND status = 'connected' LIMIT 1`,
-      [funnelConnectionId]
-    );
-    if (funnelConn.rows[0]) {
-      return { connection: funnelConn.rows[0], source: 'funnel_default' };
-    }
-  }
-
-  // 3) Any active org connection
-  const anyConn = await query(
-    `SELECT * FROM connections
-      WHERE organization_id = $1 AND status = 'connected'
-      ORDER BY created_at DESC LIMIT 1`,
-    [organizationId]
+  logError(
+    `[welcome-msg] vendedor ${assignedTo} não possui conexão PADRÃO UAZAPI ativa — mensagem não enviada (sem fallback).`
   );
-  if (anyConn.rows[0]) {
-    return { connection: anyConn.rows[0], source: 'org_fallback' };
-  }
-
-  return { connection: null, source: null };
+  return { connection: null, source: null, reason: 'no_default_uazapi_connection' };
 }
 
 /**
