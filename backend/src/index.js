@@ -46,6 +46,7 @@ import taskBoardsRoutes from './routes/task-boards.js';
 import leadGleegoRoutes from './routes/lead-gleego.js';
 import globalAgentsRoutes from './routes/global-agents.js';
 import metaTemplatesRoutes from './routes/meta-templates.js';
+import metaLeadAdsRoutes, { webhookRouter as metaWebhookRouter } from './routes/meta-lead-ads.js';
 import docSignaturesRoutes from './routes/doc-signatures.js';
 import telehealthRoutes from './routes/telehealth.js';
 import linkPreviewRoutes from './routes/link-preview.js';
@@ -103,7 +104,15 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 
-app.use(express.json({ limit: '200mb' }));
+app.use(express.json({
+  limit: '200mb',
+  verify: (req, _res, buf) => {
+    // capture raw body for webhook signature verification (Meta etc.)
+    if (req.originalUrl && req.originalUrl.startsWith('/api/meta/webhook')) {
+      req.rawBody = buf;
+    }
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
 // Request-scoped context + correlation id for structured logs
@@ -896,6 +905,8 @@ app.use('/api/task-boards', taskBoardsRoutes);
 app.use('/api/lead-gleego', leadGleegoRoutes);
 app.use('/api/global-agents', globalAgentsRoutes);
 app.use('/api/meta', metaTemplatesRoutes);
+app.use('/api/meta/lead-ads', metaLeadAdsRoutes);
+app.use('/api/meta/webhook', metaWebhookRouter);
 app.use('/api/doc-signatures', docSignaturesRoutes);
 app.use('/api/telehealth', telehealthRoutes);
 app.use('/api/sales-seo', salesSeoRoutes);
