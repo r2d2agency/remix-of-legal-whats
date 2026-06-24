@@ -353,7 +353,7 @@ export function StageAutomationEditor({ stage, allStages, funnelId }: StageAutom
                       />
                     </div>
                     <p className="text-[10px] text-muted-foreground">
-                      💬 Quando o lead cair nesta coluna, enviamos esta mensagem automaticamente pelo WhatsApp usando a conexão do <strong>vendedor responsável</strong> (cai para a conexão do funil ou da organização se o vendedor não tiver). A mensagem aparece no chat normalmente.
+                      💬 Quando o lead cair nesta coluna, enviamos esta mensagem pelo WhatsApp usando <strong>exclusivamente a conexão UAZAPI padrão do vendedor responsável</strong>. Se o vendedor não tiver uma conexão UAZAPI padrão ativa, a mensagem <strong>não é enviada</strong> (sem fallback). A mensagem aparece no chat normalmente.
                     </p>
                   </>
                 )}
