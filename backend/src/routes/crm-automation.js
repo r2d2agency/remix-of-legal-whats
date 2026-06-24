@@ -84,14 +84,18 @@ router.put('/stages/:stageId/automation', async (req, res) => {
       follow_up_flow_id,
       timeout_hours,
       next_stage_on_timeout,
-      outside_hours_flow_id
+      outside_hours_flow_id,
+      // Welcome message on stage entry
+      welcome_message_enabled,
+      welcome_message_text,
+      welcome_message_delay_seconds,
     } = req.body;
 
     // Upsert automation
     const result = await query(
       `INSERT INTO crm_stage_automations 
-       (stage_id, flow_id, wait_hours, next_stage_id, fallback_funnel_id, fallback_stage_id, is_active, execute_immediately, schedule_days, schedule_start_time, schedule_end_time, conditions, condition_logic, condition_true_flow_id, condition_true_stage_id, condition_false_flow_id, condition_false_stage_id, follow_up_minutes, follow_up_flow_id, timeout_hours, next_stage_on_timeout, outside_hours_flow_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+       (stage_id, flow_id, wait_hours, next_stage_id, fallback_funnel_id, fallback_stage_id, is_active, execute_immediately, schedule_days, schedule_start_time, schedule_end_time, conditions, condition_logic, condition_true_flow_id, condition_true_stage_id, condition_false_flow_id, condition_false_stage_id, follow_up_minutes, follow_up_flow_id, timeout_hours, next_stage_on_timeout, outside_hours_flow_id, welcome_message_enabled, welcome_message_text, welcome_message_delay_seconds)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
        ON CONFLICT (stage_id) 
        DO UPDATE SET
          flow_id = EXCLUDED.flow_id,
@@ -115,6 +119,9 @@ router.put('/stages/:stageId/automation', async (req, res) => {
          timeout_hours = EXCLUDED.timeout_hours,
          next_stage_on_timeout = EXCLUDED.next_stage_on_timeout,
          outside_hours_flow_id = EXCLUDED.outside_hours_flow_id,
+         welcome_message_enabled = EXCLUDED.welcome_message_enabled,
+         welcome_message_text = EXCLUDED.welcome_message_text,
+         welcome_message_delay_seconds = EXCLUDED.welcome_message_delay_seconds,
          updated_at = NOW()
        RETURNING *`,
       [
@@ -139,7 +146,10 @@ router.put('/stages/:stageId/automation', async (req, res) => {
         follow_up_flow_id || null,
         timeout_hours ?? null,
         next_stage_on_timeout || null,
-        outside_hours_flow_id || null
+        outside_hours_flow_id || null,
+        welcome_message_enabled === true,
+        welcome_message_text || null,
+        Number.isFinite(Number(welcome_message_delay_seconds)) ? Number(welcome_message_delay_seconds) : 0,
       ]
     );
 
