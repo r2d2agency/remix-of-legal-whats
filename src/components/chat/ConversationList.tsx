@@ -209,7 +209,7 @@ export function ConversationList({
   const [myDepartments, setMyDepartments] = useState<Department[]>([]);
   const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const { toast } = useToast();
-  const { isConversationMuted } = useNotificationSound();
+  const { isConversationMuted, isGroupMuted, settings: notifSettings, toggleGroupAllowed } = useNotificationSound();
 
   // Load departments
   useEffect(() => {
@@ -950,7 +950,7 @@ export function ConversationList({
                       )}
 
                       {/* Muted indicator */}
-                      {isConversationMuted(conv.id) && (
+                      {(isConversationMuted(conv.id) || isGroupMuted(conv.is_group, conv.id)) && (
                         <BellOff className="h-3 w-3 text-muted-foreground" />
                       )}
 
@@ -1055,7 +1055,7 @@ export function ConversationList({
                             {conv.is_favorite ? 'Remover favorito' : 'Favoritar'}
                           </DropdownMenuItem>
                         )}
-                        {onMuteConversation && (
+                        {onMuteConversation && !(conv.is_group && notifSettings.muteGroups) && (
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1064,6 +1064,20 @@ export function ConversationList({
                           >
                             <BellOff className={cn("h-4 w-4 mr-2", conv.is_muted && "text-muted-foreground")} />
                             {conv.is_muted ? 'Reativar notificações' : 'Silenciar notificações'}
+                          </DropdownMenuItem>
+                        )}
+                        {conv.is_group && notifSettings.muteGroups && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleGroupAllowed(conv.id);
+                            }}
+                          >
+                            {(notifSettings.allowedGroups || []).includes(conv.id) ? (
+                              <><BellOff className="h-4 w-4 mr-2 text-muted-foreground" />Silenciar este grupo</>
+                            ) : (
+                              <><Bell className="h-4 w-4 mr-2" />Reativar notificações</>
+                            )}
                           </DropdownMenuItem>
                         )}
                         {isAdmin && (
