@@ -1,6 +1,7 @@
 import { query } from './db.js';
 import { logInfo, logError } from './logger.js';
 import { emitLeadEvent, processPendingLeadEvents } from './lib/event-bus.js';
+import { sendStageWelcomeMessage } from './lib/crm-welcome-message.js';
 
 // Execute flow for a deal automation
 // Helper: Get next business day/time respecting schedule
@@ -889,6 +890,15 @@ function evaluateConditions(conditions, conditionLogic, dealData) {
 // Trigger automation when a deal enters a new stage
 export async function onDealStageChanged(dealId, newStageId, organizationId) {
   try {
+     // Welcome message on stage entry (independent of flow_id).
+     // Fired BEFORE the conditional routing logic so that even stages
+     // without a flow can greet the lead automatically.
+     try {
+       await sendStageWelcomeMessage(dealId, newStageId, organizationId);
+     } catch (welcomeErr) {
+       logError('[CRM-Auto] welcome message error', welcomeErr);
+     }
+
      // Check if new stage has automation (fetch even if not execute_immediately to handle conditional routing)
      const automationConfig = await query(
        `SELECT * FROM crm_stage_automations 
