@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Layout } from "@/components/layout/Layout";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -172,7 +172,7 @@ export default function MetaLeadAds() {
   const [editing, setEditing] = useState<MetaLeadForm | null>(null);
 
   return (
-    <Layout>
+    <MainLayout>
       <div className="container max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
         <header className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -300,6 +300,6 @@ export default function MetaLeadAds() {
 
         {editing && <FormConfigDialog form={editing} onClose={() => setEditing(null)} />}
       </div>
-    </Layout>
+    </MainLayout>
   );
 }
