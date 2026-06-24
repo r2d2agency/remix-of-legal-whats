@@ -3854,6 +3854,76 @@ const migrationSteps = [
   { name: 'Lead Webhooks', sql: step40LeadWebhooks, critical: false },
   { name: 'Meta Message Templates', sql: step41MetaTemplates, critical: false },
   { name: 'Sales & SEO Module', sql: step42SalesSEO, critical: false },
+  { name: 'Meta SaaS + Lead Ads', sql: `
+    CREATE TABLE IF NOT EXISTS meta_oauth_connections (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider TEXT NOT NULL CHECK (provider IN ('facebook','instagram','whatsapp')),
+      fb_user_id TEXT,
+      access_token TEXT NOT NULL,
+      token_expires_at TIMESTAMPTZ,
+      scopes TEXT[] DEFAULT '{}',
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS meta_pages (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      oauth_connection_id UUID REFERENCES meta_oauth_connections(id) ON DELETE CASCADE,
+      kind TEXT NOT NULL CHECK (kind IN ('facebook_page','instagram_account','whatsapp_number')),
+      external_id TEXT NOT NULL,
+      external_name TEXT,
+      page_access_token TEXT,
+      waba_id TEXT,
+      phone_number TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (organization_id, kind, external_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_meta_pages_external ON meta_pages (kind, external_id);
+
+    CREATE TABLE IF NOT EXISTS meta_lead_forms (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      meta_page_id UUID NOT NULL REFERENCES meta_pages(id) ON DELETE CASCADE,
+      form_id TEXT NOT NULL,
+      form_name TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      funnel_id UUID,
+      stage_id UUID,
+      assignee_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      distribution_rule_id UUID,
+      trigger_flow_id UUID,
+      connection_id UUID REFERENCES connections(id) ON DELETE SET NULL,
+      open_chat BOOLEAN NOT NULL DEFAULT false,
+      field_mapping JSONB NOT NULL DEFAULT '{}',
+      default_tags TEXT[] NOT NULL DEFAULT '{}',
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (meta_page_id, form_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS meta_lead_events (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      meta_lead_form_id UUID REFERENCES meta_lead_forms(id) ON DELETE SET NULL,
+      leadgen_id TEXT NOT NULL UNIQUE,
+      ad_id TEXT, adset_id TEXT, campaign_id TEXT,
+      raw_payload JSONB NOT NULL DEFAULT '{}',
+      prospect_id UUID REFERENCES crm_prospects(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'received',
+      error TEXT,
+      received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      processed_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS idx_meta_lead_events_org_received ON meta_lead_events (organization_id, received_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_meta_lead_events_status ON meta_lead_events (status);
+  `, critical: false },
   { name: 'Wait Reply Flow Sessions', sql: `
     ALTER TABLE flow_sessions ADD COLUMN IF NOT EXISTS wait_reply_expires_at TIMESTAMPTZ DEFAULT NULL;
     ALTER TABLE flow_sessions ADD COLUMN IF NOT EXISTS wait_reply_variable TEXT DEFAULT NULL;
