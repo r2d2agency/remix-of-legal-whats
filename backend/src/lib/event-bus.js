@@ -53,6 +53,10 @@ import { logInfo, logError } from '../logger.js';
     // Outside business hours flow (fired once per lead/stage when current time is outside schedule)
     await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS outside_hours_flow_id UUID`);
     await query(`ALTER TABLE crm_deal_automations ADD COLUMN IF NOT EXISTS outside_hours_sent_at TIMESTAMP WITH TIME ZONE`);
+    // Welcome message on stage entry (uses responsible seller's connection)
+    await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS welcome_message_enabled BOOLEAN DEFAULT false`);
+    await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS welcome_message_text TEXT`);
+    await query(`ALTER TABLE crm_stage_automations ADD COLUMN IF NOT EXISTS welcome_message_delay_seconds INTEGER DEFAULT 0`);
     logInfo('[event-bus] schema ready');
   } catch (err) {
     logError('[event-bus] self-heal failed', err);
