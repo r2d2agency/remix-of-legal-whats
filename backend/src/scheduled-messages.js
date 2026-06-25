@@ -19,6 +19,15 @@ function getLocalMessageId(msg, result, suffix = '') {
 }
 
 async function insertScheduledChatMessage({ msg, result, suffix = '', content = null, messageType, mediaUrl = null, mediaMimetype = null }) {
+  const provider = whatsappProvider.detectProvider(msg);
+
+  // For W-API, the provider sends an outgoing webhook echo after the send.
+  // If we also insert here, the chat shows the local copy first and then the
+  // webhook copy about a minute later. Let the webhook be the single source.
+  if (provider === 'wapi') {
+    return;
+  }
+
   await query(
     `INSERT INTO chat_messages 
       (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, status, timestamp)
