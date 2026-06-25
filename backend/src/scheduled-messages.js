@@ -6,6 +6,50 @@ async function sendWhatsAppMessage(connection, phone, content, messageType, medi
   return whatsappProvider.sendMessage(connection, phone, content, messageType, mediaUrl);
 }
 
+function getLocalMessageId(msg, result, suffix = '') {
+  const provider = whatsappProvider.detectProvider(msg);
+
+  // W-API often echoes outgoing messages by webhook using a different final id.
+  // Keep a temporary scheduled id so the webhook can reconcile instead of inserting a duplicate.
+  if (provider === 'wapi') {
+    return `temp_scheduled_${msg.id}${suffix ? `_${suffix}` : ''}`;
+  }
+
+  return result?.messageId || `temp_scheduled_${msg.id}${suffix ? `_${suffix}` : ''}`;
+}
+
+async function insertScheduledChatMessage({ msg, result, suffix = '', content = null, messageType, mediaUrl = null, mediaMimetype = null }) {
+  const provider = whatsappProvider.detectProvider(msg);
+
+  // For W-API, the provider sends an outgoing webhook echo after the send.
+  // If we also insert here, the chat shows the local copy first and then the
+  // webhook copy about a minute later. Let the webhook be the single source.
+  if (provider === 'wapi') {
+    return;
+  }
+
+  await query(
+    `INSERT INTO chat_messages 
+      (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, status, timestamp)
+     VALUES ($1, $2, true, $3, $4, $5, $6, $7, 'sent', NOW())
+     ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%'
+     DO UPDATE SET
+       status = 'sent',
+       content = COALESCE(EXCLUDED.content, chat_messages.content),
+       media_url = COALESCE(EXCLUDED.media_url, chat_messages.media_url),
+       media_mimetype = COALESCE(EXCLUDED.media_mimetype, chat_messages.media_mimetype)`,
+    [
+      msg.conversation_id,
+      getLocalMessageId(msg, result, suffix),
+      msg.sender_id,
+      content,
+      messageType,
+      mediaUrl,
+      mediaMimetype,
+    ]
+  );
+}
+
 // Main function to execute scheduled messages
 export async function executeScheduledMessages() {
   console.log('📅 [CRON] Checking scheduled messages...');
@@ -17,6 +61,14 @@ export async function executeScheduledMessages() {
   };
 
   try {
+    // Recover messages claimed by a previous crashed/aborted worker.
+    await query(`
+      UPDATE scheduled_messages
+      SET status = 'pending', updated_at = NOW()
+      WHERE status = 'processing'
+        AND updated_at < NOW() - INTERVAL '10 minutes'
+    `);
+
     // Get all pending scheduled messages that are due
     // For W-API, accept connections with instance_id/wapi_token even if status not 'connected'
     const pendingMessages = await query(`
@@ -51,6 +103,19 @@ export async function executeScheduledMessages() {
     for (const msg of pendingMessages.rows) {
       stats.processed++;
       try {
+      const claim = await query(
+        `UPDATE scheduled_messages
+         SET status = 'processing', updated_at = NOW()
+         WHERE id = $1 AND status = 'pending'
+         RETURNING id`,
+        [msg.id]
+      );
+
+      if (claim.rows.length === 0) {
+        console.log(`  ↷ Scheduled message ${msg.id} already claimed by another worker`);
+        continue;
+      }
+
       // Check if connection is still active
       // For W-API, accept if has instance_id and wapi_token
       const provider = whatsappProvider.detectProvider(msg);
@@ -107,19 +172,15 @@ export async function executeScheduledMessages() {
         }
 
         // Save media message to chat_messages
-        await query(
-          `INSERT INTO chat_messages 
-            (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, status, timestamp)
-           VALUES ($1, $2, true, $3, NULL, $4, $5, $6, 'sent', NOW())`,
-          [
-            msg.conversation_id,
-            mediaResult.messageId || null,
-            msg.sender_id,
-            msg.message_type,
-            msg.media_url,
-            msg.media_mimetype,
-          ]
-        );
+        await insertScheduledChatMessage({
+          msg,
+          result: mediaResult,
+          suffix: 'media',
+          content: null,
+          messageType: msg.message_type,
+          mediaUrl: msg.media_url,
+          mediaMimetype: msg.media_mimetype,
+        });
 
         // Small delay between the two messages
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -140,17 +201,13 @@ export async function executeScheduledMessages() {
 
         // Save text message to chat_messages
         if (textResult.success) {
-          await query(
-            `INSERT INTO chat_messages 
-              (conversation_id, message_id, from_me, sender_id, content, message_type, status, timestamp)
-             VALUES ($1, $2, true, $3, $4, 'text', 'sent', NOW())`,
-            [
-              msg.conversation_id,
-              textResult.messageId || null,
-              msg.sender_id,
-              msg.content,
-            ]
-          );
+          await insertScheduledChatMessage({
+            msg,
+            result: textResult,
+            suffix: 'text',
+            content: msg.content,
+            messageType: 'text',
+          });
         }
 
         // Update scheduled message as sent
@@ -193,20 +250,14 @@ export async function executeScheduledMessages() {
         );
 
         // Save message to chat_messages
-        await query(
-          `INSERT INTO chat_messages 
-            (conversation_id, message_id, from_me, sender_id, content, message_type, media_url, media_mimetype, status, timestamp)
-           VALUES ($1, $2, true, $3, $4, $5, $6, $7, 'sent', NOW())`,
-          [
-            msg.conversation_id,
-            result.messageId || null,
-            msg.sender_id,
-            msg.content,
-            msg.message_type,
-            msg.media_url,
-            msg.media_mimetype,
-          ]
-        );
+        await insertScheduledChatMessage({
+          msg,
+          result,
+          content: msg.content,
+          messageType: msg.message_type,
+          mediaUrl: msg.media_url,
+          mediaMimetype: msg.media_mimetype,
+        });
       }
 
       // Update conversation last_message_at
@@ -222,20 +273,24 @@ export async function executeScheduledMessages() {
       );
       const contactName = convInfo.rows[0]?.contact_name || convInfo.rows[0]?.contact_phone || 'Contato';
       
-      await query(
-        `INSERT INTO user_alerts (user_id, type, title, message, metadata)
-         VALUES ($1, 'scheduled_message_sent', $2, $3, $4)`,
-        [
-          msg.sender_id,
-          '📅 Mensagem agendada enviada',
-          `Mensagem enviada para ${contactName}`,
-          JSON.stringify({
-            conversation_id: msg.conversation_id,
-            scheduled_message_id: msg.id,
-            message_preview: msg.content?.substring(0, 100),
-          })
-        ]
-      );
+      try {
+        await query(
+          `INSERT INTO user_alerts (user_id, type, title, message, metadata)
+           VALUES ($1, 'scheduled_message_sent', $2, $3, $4)`,
+          [
+            msg.sender_id,
+            '📅 Mensagem agendada enviada',
+            `Mensagem enviada para ${contactName}`,
+            JSON.stringify({
+              conversation_id: msg.conversation_id,
+              scheduled_message_id: msg.id,
+              message_preview: msg.content?.substring(0, 100),
+            })
+          ]
+        );
+      } catch (alertError) {
+        console.error(`📅 [CRON] Failed to create sent alert for ${msg.id}:`, alertError);
+      }
 
       stats.sent++;
       console.log(`  ✓ Sent scheduled message ${msg.id}`);
@@ -248,7 +303,7 @@ export async function executeScheduledMessages() {
           await query(
             `UPDATE scheduled_messages
              SET status = 'failed', error_message = $1, updated_at = NOW()
-             WHERE id = $2 AND status = 'pending'`,
+             WHERE id = $2 AND status IN ('pending', 'processing')`,
             [String(iterErr?.message || iterErr).slice(0, 500), msg.id]
           );
         } catch (e) {
