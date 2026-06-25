@@ -153,31 +153,49 @@ export function ScheduleMessageDialog({
           send_text_separate: trimmedContent ? sendTextSeparate : undefined,
         });
       } else {
-        // Multiple attachments — schedule each as its own message (spaced by 1s),
-        // text goes either on first attachment as caption, or as last separate message.
+        // Multiple attachments — schedule each with tiny (50ms) spacing so they all
+        // become due in the SAME cron tick and get sent together (the cron loop
+        // already paces sends serially). Text goes either as caption on the first
+        // attachment or as a final separate message.
         const baseMs = scheduledDate.getTime();
         const useSeparateText = sendTextSeparate || !trimmedContent;
+        const SPACING_MS = 50;
 
+        let failures = 0;
         for (let i = 0; i < attachments.length; i++) {
           const att = attachments[i];
-          const at = new Date(baseMs + i * 1000).toISOString();
+          const at = new Date(baseMs + i * SPACING_MS).toISOString();
           const caption = !useSeparateText && i === 0 ? trimmedContent : undefined;
-          await onSchedule({
-            content: caption,
-            message_type: att.type,
-            media_url: att.url,
-            media_mimetype: att.mimetype,
-            scheduled_at: at,
-          });
+          try {
+            await onSchedule({
+              content: caption,
+              message_type: att.type,
+              media_url: att.url,
+              media_mimetype: att.mimetype,
+              scheduled_at: at,
+            });
+          } catch (err) {
+            console.error(`Falha ao agendar anexo ${i + 1}/${attachments.length}:`, err);
+            failures++;
+          }
         }
 
         if (useSeparateText && trimmedContent) {
-          const at = new Date(baseMs + attachments.length * 1000).toISOString();
-          await onSchedule({
-            content: trimmedContent,
-            message_type: "text",
-            scheduled_at: at,
-          });
+          const at = new Date(baseMs + attachments.length * SPACING_MS).toISOString();
+          try {
+            await onSchedule({
+              content: trimmedContent,
+              message_type: "text",
+              scheduled_at: at,
+            });
+          } catch (err) {
+            console.error("Falha ao agendar texto final:", err);
+            failures++;
+          }
+        }
+
+        if (failures > 0) {
+          toast.error(`${failures} item(ns) não foram agendados`);
         }
       }
     } catch (error) {
