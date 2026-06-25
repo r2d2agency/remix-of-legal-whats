@@ -50,7 +50,7 @@ export async function executeScheduledMessages() {
 
     for (const msg of pendingMessages.rows) {
       stats.processed++;
-
+      try {
       // Check if connection is still active
       // For W-API, accept if has instance_id and wapi_token
       const provider = whatsappProvider.detectProvider(msg);
@@ -242,6 +242,23 @@ export async function executeScheduledMessages() {
 
       // Small delay between messages to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (iterErr) {
+        console.error(`📅 [CRON] Iteration error for message ${msg.id}:`, iterErr);
+        try {
+          await query(
+            `UPDATE scheduled_messages
+             SET status = 'failed', error_message = $1, updated_at = NOW()
+             WHERE id = $2 AND status = 'pending'`,
+            [String(iterErr?.message || iterErr).slice(0, 500), msg.id]
+          );
+        } catch (e) {
+          console.error('📅 [CRON] Failed to mark message as failed:', e);
+        }
+        stats.failed++;
+        // Continue to next message — do NOT abort the whole batch
+        await new Promise(resolve => setTimeout(resolve, 200));
+        continue;
+      }
     }
 
     console.log(`📅 [CRON] Scheduled messages execution complete:`, stats);
