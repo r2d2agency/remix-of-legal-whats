@@ -64,6 +64,7 @@ export function MessageNotifications() {
   const [activeTab, setActiveTab] = useState("messages");
   const previousUnreadRef = useRef<number>(0);
   const previousConversationIdsRef = useRef<Set<string>>(new Set());
+  const previousUnreadByConversationRef = useRef<Map<string, number>>(new Map());
   
   const { playSound, playNewConversationSound, settings, isConnectionMuted, isConversationMuted, isGroupMuted } = useNotificationSound();
 
@@ -86,6 +87,7 @@ export function MessageNotifications() {
       
       const newTotal = data.reduce((sum, c) => sum + c.unread_count, 0);
       const currentIds = new Set(data.map(c => c.id));
+      const previousUnreadByConversation = previousUnreadByConversationRef.current;
       
       // Check for brand new conversations (IDs that weren't in previous list)
       const newConversationIds = [...currentIds].filter(id => !previousConversationIdsRef.current.has(id));
@@ -100,11 +102,19 @@ export function MessageNotifications() {
           && !isGroupMuted(conv.is_group, conv.id);
       });
       
-      // Check for new messages in existing conversations
-      const hasNewMessagesInExisting = newTotal > previousUnreadRef.current && !hasNewConversations;
+      // Check for new unread count only in the conversations that actually increased.
+      // Previously this used the global unread total and then checked if ANY unmuted
+      // conversation had unread messages; that allowed a muted group increase to play
+      // sound when another unmuted chat was already unread.
+      const conversationsWithUnreadIncrease = data.filter(conv => {
+        if (newConversationIds.includes(conv.id)) return false;
+        const previousUnread = previousUnreadByConversation.get(conv.id) || 0;
+        return (conv.unread_count || 0) > previousUnread;
+      });
+      const hasNewMessagesInExisting = conversationsWithUnreadIncrease.length > 0;
       
       // Check if new messages are from non-muted connections
-      const hasUnmutedNewMessages = hasNewMessagesInExisting && data.some(conv => {
+      const hasUnmutedNewMessages = hasNewMessagesInExisting && conversationsWithUnreadIncrease.some(conv => {
         return conv.unread_count > 0
           && !isConnectionMuted(conv.connection_id)
           && !isConversationMuted(conv.id)
@@ -126,6 +136,7 @@ export function MessageNotifications() {
       }
       
       previousConversationIdsRef.current = currentIds;
+      previousUnreadByConversationRef.current = new Map(data.map(c => [c.id, c.unread_count || 0]));
       previousUnreadRef.current = newTotal;
       setTotalUnread(newTotal);
     } catch (error) {
