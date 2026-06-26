@@ -64,14 +64,14 @@ export function NotificationConnectionSettings() {
               <div>
                 <p className="text-sm font-medium">Silenciar todos os grupos</p>
                 <p className="text-xs text-muted-foreground">
-                  Não toca som para nenhum grupo. Você pode liberar grupos específicos
-                  desativando esta opção e silenciando individualmente no chat.
+                  Não toca som para nenhum grupo. Depois, você pode reativar o som
+                  apenas nos grupos específicos pelo menu do próprio grupo no chat.
                 </p>
               </div>
             </div>
             <Switch
               checked={settings.muteGroups}
-              onCheckedChange={(checked) => updateSettings({ muteGroups: checked })}
+              onCheckedChange={(checked) => updateSettings(checked ? { muteGroups: true, allowedGroups: [] } : { muteGroups: false })}
             />
           </div>
         </div>
