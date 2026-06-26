@@ -77,6 +77,23 @@ async function findExistingConversationForUazapi(connectionId, message) {
     [connectionId, message.chatId]
   );
 
+  if (conversationResult.rows.length === 0 && message.isGroup && message.chatId) {
+    // Some old UAZAPI webhook formats arrived without @g.us and were previously
+    // normalized as @s.whatsapp.net. Match the group by its base id to avoid
+    // creating a duplicate and to fix the is_group flag on the existing chat.
+    conversationResult = await query(
+      `SELECT id FROM conversations
+       WHERE connection_id = $1
+         AND (
+           split_part(COALESCE(remote_jid, ''), '@', 1) = split_part($2, '@', 1)
+           OR REGEXP_REPLACE(COALESCE(remote_jid, ''), '\D', '', 'g') = REGEXP_REPLACE($2, '\D', '', 'g')
+         )
+       ORDER BY last_message_at DESC NULLS LAST, updated_at DESC NULLS LAST
+       LIMIT 1`,
+      [connectionId, message.chatId]
+    );
+  }
+
   if (conversationResult.rows.length === 0 && !message.isGroup && message.phone) {
     // Phone/JID formats can change between providers/events (+55, @lid, @s.whatsapp.net).
     // The platform standard is to match people by the last 9 digits to avoid duplicate chats.
