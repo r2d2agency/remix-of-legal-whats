@@ -162,11 +162,18 @@ function extractMessageData(payload) {
     payload?.is_group ??
     payload?.group ??
     payload?.is_group_message ??
+    payload?.chat?.isGroup ??
+    payload?.chat?.is_group ??
     msg?.isGroup ??
     msg?.is_group ??
     msg?.group ??
-    msg?.is_group_message
-  );
+    msg?.is_group_message ??
+    msg?.chat?.isGroup ??
+    msg?.chat?.is_group
+  ) ||
+  String(payload?.chatType || payload?.chat_type || payload?.typeChat || msg?.chatType || msg?.chat_type || msg?.typeChat || '')
+    .toLowerCase()
+    .includes('group');
 
   const chatId = normalizeChatId(rawChatId, explicitIsGroup || String(rawChatId || '').includes('@g.us'));
 
