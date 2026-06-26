@@ -45,6 +45,8 @@ interface NotificationSoundSettings {
 }
 
 const SETTINGS_KEY = 'notification-sound-settings';
+const SETTINGS_DB_NAME = 'gleego-notification-settings';
+const SETTINGS_STORE_NAME = 'settings';
 
 const defaultSettings: NotificationSoundSettings = {
   soundEnabled: true,
@@ -59,6 +61,35 @@ const defaultSettings: NotificationSoundSettings = {
   muteGroups: false,
   allowedGroups: [],
 };
+
+function syncNotificationSettingsForServiceWorker(settings: NotificationSoundSettings) {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) return;
+
+  try {
+    const request = indexedDB.open(SETTINGS_DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(SETTINGS_STORE_NAME)) {
+        db.createObjectStore(SETTINGS_STORE_NAME);
+      }
+    };
+
+    request.onsuccess = () => {
+      const db = request.result;
+      try {
+        const tx = db.transaction(SETTINGS_STORE_NAME, 'readwrite');
+        tx.objectStore(SETTINGS_STORE_NAME).put(settings, SETTINGS_KEY);
+        tx.oncomplete = () => db.close();
+        tx.onerror = () => db.close();
+      } catch {
+        db.close();
+      }
+    };
+  } catch {
+    // IndexedDB may be unavailable in private mode; localStorage still works for in-app sounds.
+  }
+}
 
 // Detect if current device is mobile
 function isMobileDevice(): boolean {
@@ -94,6 +125,13 @@ export function useNotificationSound() {
 
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default');
 
+  // Keep a copy of the local notification preferences in IndexedDB so the
+  // service worker can also suppress push sound/vibration for muted groups
+  // when the app is in the background or closed.
+  useEffect(() => {
+    syncNotificationSettingsForServiceWorker(settings);
+  }, [settings]);
+
   // Check push permission on mount
   useEffect(() => {
     if ('Notification' in window) {
@@ -105,6 +143,7 @@ export function useNotificationSound() {
     setSettingsState(prev => {
       const newSettings = { ...prev, ...updates };
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
+      syncNotificationSettingsForServiceWorker(newSettings);
       // Notify other hook instances in the same tab
       window.dispatchEvent(new CustomEvent('notification-settings-changed', { detail: newSettings }));
       return newSettings;
