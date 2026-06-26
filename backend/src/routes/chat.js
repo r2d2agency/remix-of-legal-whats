@@ -146,9 +146,9 @@ router.get('/conversations/attendance-counts', authenticate, async (req, res) =>
 
     let groupFilter = '';
     if (is_group === 'true') {
-      groupFilter = ` AND COALESCE(conv.is_group, false) = true`;
+      groupFilter = ` AND (COALESCE(conv.is_group, false) = true OR conv.remote_jid LIKE '%@g.us')`;
     } else if (is_group === 'false') {
-      groupFilter = ` AND COALESCE(conv.is_group, false) = false`;
+      groupFilter = ` AND COALESCE(conv.is_group, false) = false AND conv.remote_jid NOT LIKE '%@g.us'`;
     }
 
     // Check if org has shared_conversations enabled
@@ -254,9 +254,9 @@ router.get('/conversations/attendance-stats', authenticate, async (req, res) => 
 
     let groupFilter = '';
     if (is_group === 'true') {
-      groupFilter = ` AND COALESCE(conv.is_group, false) = true`;
+      groupFilter = ` AND (COALESCE(conv.is_group, false) = true OR conv.remote_jid LIKE '%@g.us')`;
     } else if (is_group === 'false') {
-      groupFilter = ` AND COALESCE(conv.is_group, false) = false`;
+      groupFilter = ` AND COALESCE(conv.is_group, false) = false AND conv.remote_jid NOT LIKE '%@g.us'`;
     }
 
     try {
@@ -647,9 +647,9 @@ router.get('/conversations', authenticate, async (req, res) => {
       }
     }
     if (is_group === 'true') {
-      filter += ` AND COALESCE(conv.is_group, false) = true`;
+      filter += ` AND (COALESCE(conv.is_group, false) = true OR conv.remote_jid LIKE '%@g.us')`;
     } else if (is_group === 'false') {
-      filter += ` AND COALESCE(conv.is_group, false) = false`;
+      filter += ` AND COALESCE(conv.is_group, false) = false AND conv.remote_jid NOT LIKE '%@g.us'`;
     }
 
     if (show_archived) {
@@ -697,7 +697,7 @@ router.get('/conversations', authenticate, async (req, res) => {
 
     // Execute the final query
     const result = await query(
-      `SELECT conv.*, conn.name as connection_name, u.name as assigned_name, d.name as department_name,
+      `SELECT conv.*, (COALESCE(conv.is_group, false) OR conv.remote_jid LIKE '%@g.us') AS is_group, conn.name as connection_name, u.name as assigned_name, d.name as department_name,
         COALESCE(
           (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
            FROM conversation_tag_links ctl
