@@ -722,9 +722,11 @@ async function persistIncomingMessage(connection, payload) {
             END,
             accepted_at = CASE WHEN $5::boolean AND attendance_status = 'waiting' THEN COALESCE(accepted_at, NOW()) ELSE accepted_at END,
             connection_id = COALESCE($4, connection_id),
+            remote_jid = CASE WHEN $6::boolean THEN COALESCE($7, remote_jid) ELSE remote_jid END,
+            contact_phone = CASE WHEN $6::boolean THEN NULL ELSE contact_phone END,
             updated_at = NOW()
         WHERE id = $1`,
-       [conversationId, message.senderName, message.groupName, connection.id, message.fromMe, message.isGroup]
+       [conversationId, message.senderName, message.groupName, connection.id, message.fromMe, message.isGroup, message.chatId]
     );
 
     // Modo híbrido: se o atendente respondeu pelo WhatsApp diretamente (fromMe),
