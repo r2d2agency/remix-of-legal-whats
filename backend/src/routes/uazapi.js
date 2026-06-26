@@ -125,10 +125,13 @@ function extractMessageData(payload) {
     payload?.remoteJid ||
     payload?.key?.remoteJid ||
     payload?.data?.key?.remoteJid ||
+    payload?.message?.key?.remoteJid ||
+    payload?.data?.message?.key?.remoteJid ||
     msg?.chatId ||
     msg?.chatid ||
     msg?.remoteJid ||
     msg?.key?.remoteJid ||
+    msg?.message?.key?.remoteJid ||
     msg?.chat?.id ||
     msg?.chat?.jid ||
     payload?.from ||
@@ -141,9 +144,11 @@ function extractMessageData(payload) {
     payload?.isGroup ??
     payload?.is_group ??
     payload?.group ??
+    payload?.is_group_message ??
     msg?.isGroup ??
     msg?.is_group ??
-    msg?.group
+    msg?.group ??
+    msg?.is_group_message
   );
 
   const chatId = normalizeChatId(rawChatId, explicitIsGroup || String(rawChatId || '').includes('@g.us'));
