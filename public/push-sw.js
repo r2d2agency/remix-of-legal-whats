@@ -1,6 +1,72 @@
 // Push notification service worker handler
 // This file is imported by the workbox-generated service worker
 
+const NOTIFICATION_SETTINGS_DB = 'gleego-notification-settings';
+const NOTIFICATION_SETTINGS_STORE = 'settings';
+const NOTIFICATION_SETTINGS_KEY = 'notification-sound-settings';
+
+function openNotificationSettingsDb() {
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.open(NOTIFICATION_SETTINGS_DB, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(NOTIFICATION_SETTINGS_STORE)) {
+          db.createObjectStore(NOTIFICATION_SETTINGS_STORE);
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function getNotificationSettings() {
+  const db = await openNotificationSettingsDb();
+  if (!db) return null;
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(NOTIFICATION_SETTINGS_STORE, 'readonly');
+      const req = tx.objectStore(NOTIFICATION_SETTINGS_STORE).get(NOTIFICATION_SETTINGS_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+      tx.oncomplete = () => db.close();
+      tx.onerror = () => db.close();
+    } catch {
+      try { db.close(); } catch {}
+      resolve(null);
+    }
+  });
+}
+
+function asBoolean(value) {
+  return value === true || value === 1 || String(value).toLowerCase() === 'true';
+}
+
+async function shouldSuppressByLocalMuteSettings(pushPayload) {
+  const notificationData = pushPayload?.data || {};
+  const conversationId = notificationData.conversation_id || notificationData.conversationId;
+  const isGroup = asBoolean(notificationData.is_group || notificationData.isGroup);
+
+  if (!conversationId && !isGroup) return false;
+
+  const settings = await getNotificationSettings();
+  if (!settings) return false;
+
+  const mutedConversations = Array.isArray(settings.mutedConversations) ? settings.mutedConversations : [];
+  if (conversationId && mutedConversations.includes(conversationId)) return true;
+
+  if (isGroup && settings.muteGroups) {
+    const allowedGroups = Array.isArray(settings.allowedGroups) ? settings.allowedGroups : [];
+    return !conversationId || !allowedGroups.includes(conversationId);
+  }
+
+  return false;
+}
+
 self.addEventListener('push', function(event) {
   if (!event.data) return;
 
@@ -15,6 +81,10 @@ self.addEventListener('push', function(event) {
       // Exception: explicit test pushes (tag === 'push-test') always show.
       const isTest = data.tag === 'push-test';
       if (!isTest) {
+        if (await shouldSuppressByLocalMuteSettings(data)) {
+          return; // muted locally — skip OS notification, sound and vibration
+        }
+
         const clientsList = await self.clients.matchAll({
           type: 'window',
           includeUncontrolled: true,

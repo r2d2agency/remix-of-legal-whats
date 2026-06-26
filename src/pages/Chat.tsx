@@ -230,7 +230,7 @@ const Chat = () => {
     const counts = await getAttendanceCounts(isGroup);
     
     // Check if waiting count increased (new conversation arrived)
-    if (counts.waiting > prevWaitingCountRef.current && prevWaitingCountRef.current > 0) {
+    if (counts.waiting > prevWaitingCountRef.current && prevWaitingCountRef.current > 0 && !(isGroup && settings.muteGroups)) {
       const newCount = counts.waiting - prevWaitingCountRef.current;
       const message = newCount === 1 
         ? 'Nova conversa aguardando atendimento!' 
@@ -253,7 +253,7 @@ const Chat = () => {
     // Update ref for next comparison
     prevWaitingCountRef.current = counts.waiting;
     setAttendanceCounts(counts);
-  }, [activeTab, getAttendanceCounts, notify]);
+  }, [activeTab, getAttendanceCounts, notify, settings.muteGroups]);
 
   const checkUserRole = async () => {
     try {

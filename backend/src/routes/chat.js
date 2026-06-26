@@ -442,7 +442,7 @@ router.get('/messages/search', authenticate, async (req, res) => {
         conv.contact_name,
         conv.contact_phone,
         conv.group_name,
-        conv.is_group,
+        (COALESCE(conv.is_group, false) OR conv.remote_jid LIKE '%@g.us') AS is_group,
         conv.attendance_status
       FROM chat_messages m
       JOIN conversations conv ON conv.id = m.conversation_id

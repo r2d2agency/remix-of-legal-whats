@@ -59,10 +59,12 @@ function normalizePhone(value) {
   return digits || null;
 }
 
-function normalizeChatId(value) {
+function normalizeChatId(value, isGroup = false) {
   const raw = String(value || '').trim();
   if (!raw) return null;
   if (raw.includes('@')) return raw;
+
+  if (isGroup) return `${raw.replace(/\s/g, '')}@g.us`;
 
   const digits = raw.replace(/\D/g, '');
   if (!digits) return null;
@@ -117,20 +119,36 @@ function extractMessageData(payload) {
     msg?.key?.fromMe
   );
 
-  const chatId = normalizeChatId(
+  const rawChatId = (
     payload?.chatId ||
     payload?.chatid ||
     payload?.remoteJid ||
-    payload?.from ||
+    payload?.key?.remoteJid ||
+    payload?.data?.key?.remoteJid ||
     msg?.chatId ||
     msg?.chatid ||
     msg?.remoteJid ||
+    msg?.key?.remoteJid ||
+    msg?.chat?.id ||
+    msg?.chat?.jid ||
+    payload?.from ||
     msg?.from ||
     msg?.jid ||
     msg?.id
   );
 
-  const isGroup = String(chatId || '').includes('@g.us');
+  const explicitIsGroup = isTruthy(
+    payload?.isGroup ??
+    payload?.is_group ??
+    payload?.group ??
+    msg?.isGroup ??
+    msg?.is_group ??
+    msg?.group
+  );
+
+  const chatId = normalizeChatId(rawChatId, explicitIsGroup || String(rawChatId || '').includes('@g.us'));
+
+  const isGroup = explicitIsGroup || String(chatId || '').includes('@g.us');
   const phone = normalizePhone(
     payload?.phone ||
     payload?.number ||
@@ -673,7 +691,8 @@ async function persistIncomingMessage(connection, payload) {
        SET last_message_at = NOW(),
             unread_count = CASE WHEN $5::boolean THEN unread_count ELSE unread_count + 1 END,
            contact_name = COALESCE($2, contact_name),
-           group_name = CASE WHEN COALESCE(is_group, false) = true THEN COALESCE($3, group_name) ELSE group_name END,
+            is_group = CASE WHEN $6::boolean THEN true ELSE COALESCE(is_group, false) END,
+            group_name = CASE WHEN ($6::boolean OR COALESCE(is_group, false) = true OR remote_jid LIKE '%@g.us') THEN COALESCE($3, group_name) ELSE group_name END,
             attendance_status = CASE
               WHEN $5::boolean AND attendance_status = 'waiting' THEN 'attending'
               WHEN NOT $5::boolean AND attendance_status = 'finished' THEN 'waiting'
@@ -683,7 +702,7 @@ async function persistIncomingMessage(connection, payload) {
             connection_id = COALESCE($4, connection_id),
             updated_at = NOW()
         WHERE id = $1`,
-       [conversationId, message.senderName, message.groupName, connection.id, message.fromMe]
+       [conversationId, message.senderName, message.groupName, connection.id, message.fromMe, message.isGroup]
     );
 
     // Modo híbrido: se o atendente respondeu pelo WhatsApp diretamente (fromMe),
@@ -758,7 +777,7 @@ async function persistIncomingMessage(connection, payload) {
     (async () => {
       try {
         const convInfo = await query(
-          `SELECT is_muted, is_group, group_name, contact_name, contact_phone FROM conversations WHERE id = $1`,
+          `SELECT is_muted, (COALESCE(is_group, false) OR remote_jid LIKE '%@g.us') AS is_group, group_name, contact_name, contact_phone FROM conversations WHERE id = $1`,
           [conversationId]
         );
         const conv = convInfo.rows[0];
@@ -779,7 +798,7 @@ async function persistIncomingMessage(connection, payload) {
           body: `${senderPrefix}${preview}`,
           url: '/chat',
           tag: `conv-${conversationId}`,
-          data: { conversation_id: conversationId, type: 'new_message' },
+          data: { conversation_id: conversationId, type: 'new_message', is_group: !!conv.is_group },
         });
       } catch (e) {
         console.error('[UAZAPI] push notify error:', e.message);

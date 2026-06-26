@@ -2078,7 +2078,7 @@ async function handleMessageUpsert(connection, data) {
           (async () => {
             try {
               const convInfo = await query(
-                `SELECT is_muted, is_group, group_name, contact_name, contact_phone FROM conversations WHERE id = $1`,
+                `SELECT is_muted, (COALESCE(is_group, false) OR remote_jid LIKE '%@g.us') AS is_group, group_name, contact_name, contact_phone FROM conversations WHERE id = $1`,
                 [conversationId]
               );
               const conv = convInfo.rows[0];
@@ -2099,7 +2099,7 @@ async function handleMessageUpsert(connection, data) {
                 body: `${senderPrefix}${preview}`,
                 url: '/chat',
                 tag: `conv-${conversationId}`,
-                data: { conversation_id: conversationId, type: 'new_message' },
+                data: { conversation_id: conversationId, type: 'new_message', is_group: !!conv.is_group },
               });
             } catch (e) {
               console.error('[Evolution] push notify error:', e.message);
