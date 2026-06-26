@@ -516,7 +516,7 @@ router.get('/conversations/unread', authenticate, async (req, res) => {
         conv.unread_count,
         conv.last_message_at,
         conv.attendance_status,
-        conv.is_group,
+        (COALESCE(conv.is_group, false) OR conv.remote_jid LIKE '%@g.us') AS is_group,
         conv.created_at,
         conv.connection_id,
         conn.name as connection_name,
