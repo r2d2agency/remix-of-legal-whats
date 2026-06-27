@@ -486,15 +486,7 @@ async function processMessageInternal({
     // 12. Save assistant message
     await saveAgentMessage(session.id, 'assistant', responseText, result.tokensUsed || 0, toolCallsExecuted);
 
-    // 13. Send typing indicator + human-like delay, then send response
-    try {
-      await whatsappProvider.sendPresenceComposing(connection, contactPhone);
-      // Human-like delay: 1-3 seconds based on response length
-      const typingDelay = Math.min(3000, Math.max(1000, responseText.length * 15));
-      await sleep(typingDelay);
-    } catch (e) {
-      // Non-critical
-    }
+    // 13. Send response (sendAgentMessage handles per-chunk typing + human-like delays)
     await sendAgentMessage(connection, contactPhone, responseText, session.id);
 
     // 14. Notify external number if enabled (only on first message of session)
