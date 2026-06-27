@@ -202,7 +202,7 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
                           errorMessage.toLowerCase().includes('key');
       
       const errorContent = needsApiKey 
-        ? `⚠️ ${errorMessage}\n\nPara treinar e testar o agente, configure uma chave de API válida do ${agent.ai_provider === 'openai' ? 'OpenAI' : agent.ai_provider === 'gemini' ? 'Google Gemini' : 'OpenRouter'} nas configurações do agente.`
+        ? `⚠️ ${errorMessage}\n\nPara treinar e testar o agente, configure uma chave de API válida do ${agent.ai_provider === 'openai' ? 'OpenAI' : agent.ai_provider === 'gemini' ? 'Google Gemini' : 'OpenRouter'} em Ajustes → IA da organização ou informe uma chave específica nas configurações do agente.`
         : `Erro: ${errorMessage}`;
 
       setMessages(prev => [...prev, {
@@ -214,7 +214,7 @@ export function AgentTestChatDialog({ open, onOpenChange, agent }: AgentTestChat
       }]);
 
       if (needsApiKey) {
-        toast.error('Configure uma chave de API para testar o agente');
+        toast.error('Configure a chave de IA da organização ou do agente');
       }
     } finally {
       setLoading(false);

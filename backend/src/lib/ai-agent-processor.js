@@ -16,6 +16,7 @@ import { searchKnowledge } from './knowledge-processor.js';
 import * as whatsappProvider from './whatsapp-provider.js';
 import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, getAppBarberToolResultStatus, inferAppBarberToolSource, isAppBarberToolResultFailure } from './appbarber-intent.js';
 import { normalizeBrazilDateTime } from './timezone.js';
+import { getAgentAIConfig } from './ai-config.js';
 
 // ==================== MESSAGE BATCHING ====================
 // Collects multiple messages from same contact within a window before processing
@@ -2244,29 +2245,6 @@ async function updateAgentStats(agentId, tokensUsed, responseTimeMs, toolCalls) 
   }
 }
 
-// ==================== AI CONFIG ====================
-
-async function getAgentAIConfig(agent, organizationId) {
-  if (agent.ai_api_key) {
-    return { provider: agent.ai_provider, model: agent.ai_model, apiKey: agent.ai_api_key };
-  }
-
-  const orgResult = await query(
-    `SELECT ai_provider, ai_model, ai_api_key FROM organizations WHERE id = $1`,
-    [organizationId]
-  );
-  const org = orgResult.rows[0];
-  if (!org?.ai_api_key || org.ai_provider === 'none') {
-    throw new Error('Nenhuma chave de API configurada para o agente.');
-  }
-
-  return {
-    provider: org.ai_provider || agent.ai_provider,
-    model: agent.ai_model || org.ai_model || 'gpt-4o-mini',
-    apiKey: org.ai_api_key,
-  };
-}
-
 // ==================== MANUAL SESSION CONTROL ====================
 
 /**
@@ -2285,11 +2263,19 @@ export async function startAgentSession(agentId, conversationId, contactPhone, c
 
   // Seed session with recent chat_messages so the AI can read conversation context
   try {
+    const agentConfig = await query(
+      `SELECT context_window FROM ai_agents WHERE id = $1`,
+      [agentId]
+    );
+    const historyLimit = Math.max(parseInt(agentConfig.rows[0]?.context_window, 10) || 10, 30);
+
     const recentMessages = await query(`
       SELECT content, from_me, created_at FROM chat_messages
-      WHERE conversation_id = $1 AND content IS NOT NULL AND content != ''
-      ORDER BY created_at DESC LIMIT 10
-    `, [conversationId]);
+      WHERE conversation_id = $1 
+        AND content IS NOT NULL AND content != ''
+        AND COALESCE(is_deleted, false) = false
+      ORDER BY created_at DESC LIMIT $2
+    `, [conversationId, historyLimit]);
 
     if (recentMessages.rows.length > 0) {
       // Insert in chronological order (oldest first)
@@ -2341,7 +2327,7 @@ export async function triggerAgentFirstMessage(agentId, conversationId) {
     const organizationId = connection.organization_id;
 
     // Load seeded history
-    const history = await getSessionHistory(session.id, agent.context_window || 10);
+    const history = await getSessionHistory(session.id, Math.max(parseInt(agent.context_window, 10) || 10, 30));
     if (history.length === 0) {
       logInfo('ai_agent_processor.first_message_no_history', { conversationId });
       return null;

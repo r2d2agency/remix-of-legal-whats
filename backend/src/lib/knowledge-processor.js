@@ -12,6 +12,7 @@ import { query } from '../db.js';
 import { logInfo, logError } from '../logger.js';
 import { createHash } from 'crypto';
 import { fetchWithRetry } from './retry-fetch.js';
+import { getAgentAIConfig } from './ai-config.js';
 
 // ==================== CONSTANTS ====================
 
@@ -78,7 +79,7 @@ export async function processKnowledgeSource(sourceId) {
     const limitedChunks = chunks.slice(0, MAX_CHUNKS);
 
     // 3. Get AI config for embeddings
-    const aiConfig = getEmbeddingConfig(source);
+    const aiConfig = await getEmbeddingConfig(source);
 
     // 4. Generate embeddings
     logInfo('knowledge_processor.embedding', { sourceId, chunkCount: limitedChunks.length });
@@ -328,19 +329,12 @@ function chunkText(text, chunkSize = CHUNK_SIZE, overlap = CHUNK_OVERLAP) {
 
 // ==================== EMBEDDINGS ====================
 
-function getEmbeddingConfig(source) {
-  // Prefer agent-level API key, then org-level
-  const provider = source.ai_provider !== 'openai' && source.ai_provider !== 'gemini'
-    ? (source.org_ai_provider || 'openai')
-    : source.ai_provider;
-    
-  const apiKey = source.ai_api_key || source.org_ai_api_key;
-
-  if (!apiKey) {
-    throw new Error('Nenhuma API key de IA configurada. Configure no agente ou nas configurações da organização.');
+async function getEmbeddingConfig(source) {
+  const aiConfig = await getAgentAIConfig(source, source.organization_id);
+  if (!['openai', 'gemini'].includes(aiConfig.provider)) {
+    throw new Error(`Provedor de embeddings não suportado: ${aiConfig.provider}`);
   }
-
-  return { provider, apiKey };
+  return aiConfig;
 }
 
 /**
