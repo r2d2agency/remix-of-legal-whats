@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { query } from '../db.js';
 import { authenticate } from '../middleware/auth.js';
+import { cleanAIKey, getOrganizationAIConfig } from '../lib/ai-config.js';
 
 const router = Router();
 router.use(authenticate);
@@ -806,10 +807,22 @@ router.get('/ai-config', async (req, res) => {
     }
 
     const org = orgResult.rows[0];
+    const orgKey = cleanAIKey(org.ai_api_key);
+    if (!orgKey) {
+      const fallbackConfig = await getOrganizationAIConfig(org.id, org.ai_provider, org.ai_model).catch(() => null);
+      if (fallbackConfig?.apiKey) {
+        return res.json({
+          ai_provider: fallbackConfig.provider || 'none',
+          ai_model: fallbackConfig.model || '',
+          ai_api_key: '••••••••' + fallbackConfig.apiKey.slice(-4),
+        });
+      }
+    }
+
     res.json({
       ai_provider: org.ai_provider || 'none',
       ai_model: org.ai_model || '',
-      ai_api_key: org.ai_api_key ? '••••••••' + org.ai_api_key.slice(-4) : '',
+      ai_api_key: orgKey ? '••••••••' + orgKey.slice(-4) : '',
     });
   } catch (error) {
     // If columns don't exist, return defaults instead of error
@@ -851,9 +864,9 @@ router.put('/ai-config', async (req, res) => {
 
     // Determine the actual API key to save
     // If the key is masked (starts with ••), keep the existing one
-    let actualApiKey = ai_api_key;
+    let actualApiKey = cleanAIKey(ai_api_key);
     if (ai_api_key && ai_api_key.startsWith('••')) {
-      actualApiKey = existingKey;
+      actualApiKey = cleanAIKey(existingKey);
     }
 
     await query(
@@ -886,10 +899,10 @@ router.post('/ai-config/test', async (req, res) => {
     }
 
     // If key is masked, get the real one from DB
-    let actualApiKey = ai_api_key;
+    let actualApiKey = cleanAIKey(ai_api_key);
     if (ai_api_key.startsWith('••')) {
       const orgResult = await query(
-        `SELECT o.ai_api_key
+        `SELECT o.id, o.ai_api_key
          FROM organizations o
          JOIN organization_members om ON om.organization_id = o.id
          WHERE om.user_id = $1
@@ -897,10 +910,18 @@ router.post('/ai-config/test', async (req, res) => {
          LIMIT 1`,
         [req.userId]
       );
-      if (orgResult.rows.length === 0 || !orgResult.rows[0].ai_api_key) {
+      if (orgResult.rows.length === 0) {
         return res.status(400).json({ error: 'API Key não encontrada' });
       }
-      actualApiKey = orgResult.rows[0].ai_api_key;
+      actualApiKey = cleanAIKey(orgResult.rows[0].ai_api_key);
+      if (!actualApiKey) {
+        const fallbackConfig = await getOrganizationAIConfig(orgResult.rows[0].id, ai_provider, ai_model).catch(() => null);
+        actualApiKey = fallbackConfig?.apiKey || null;
+      }
+    }
+
+    if (!actualApiKey) {
+      return res.status(400).json({ error: 'API Key válida não encontrada. Informe a chave novamente.' });
     }
 
     // Test the connection based on provider
