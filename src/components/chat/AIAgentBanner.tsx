@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bot, X, Pause, Play, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +45,11 @@ export function AIAgentBanner({ conversationId, isGroup, className, onSessionCha
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [showAgentSelect, setShowAgentSelect] = useState(false);
+  const onSessionChangeRef = useRef(onSessionChange);
+
+  useEffect(() => {
+    onSessionChangeRef.current = onSessionChange;
+  }, [onSessionChange]);
 
   const fetchSession = useCallback(async () => {
     try {
@@ -52,11 +57,11 @@ export function AIAgentBanner({ conversationId, isGroup, className, onSessionCha
         `/api/chat/conversations/${conversationId}/agent-session`
       );
       setSession(data);
-      onSessionChange?.(data);
+      onSessionChangeRef.current?.(data);
     } catch {
       // silently fail
     }
-  }, [conversationId, onSessionChange]);
+  }, [conversationId]);
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -89,7 +94,7 @@ export function AIAgentBanner({ conversationId, isGroup, className, onSessionCha
         { method: 'POST', body: { agent_id: agentId } }
       );
       setSession(data);
-      onSessionChange?.(data);
+      onSessionChangeRef.current?.(data);
       setShowAgentSelect(false);
       toast.success('Agente IA ativado para esta conversa');
     } catch (err: any) {
@@ -106,7 +111,7 @@ export function AIAgentBanner({ conversationId, isGroup, className, onSessionCha
         method: 'DELETE',
       });
       setSession(null);
-      onSessionChange?.(null);
+      onSessionChangeRef.current?.(null);
       toast.success('Agente IA desativado');
     } catch (err: any) {
       toast.error(err.message || 'Erro ao desativar agente');

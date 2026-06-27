@@ -497,6 +497,12 @@ export function ChatArea({
 
   useEffect(() => { if (showSearch) searchInputRef.current?.focus(); }, [showSearch]);
 
+  const handleAIAgentSessionChange = useCallback((session: any) => {
+    const active = !!(session && !session.human_takeover);
+    setAiAgentActive(active);
+    if (active) setShowExtras(false);
+  }, []);
+
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') { e.preventDefault(); navigateSearch(e.shiftKey ? -1 : 1); }
     else if (e.key === 'Escape') { setShowSearch(false); setSearchQuery(""); }
@@ -1260,9 +1266,9 @@ export function ChatArea({
         </div>
       </div>
 
-      {/* AI Agent Banner - collapsible */}
-      {!conversation.is_group && showExtras && (
-        <AIAgentBanner conversationId={conversation.id} isGroup={conversation.is_group} onSessionChange={(s) => setAiAgentActive(!!(s && !s.human_takeover))} />
+      {/* AI Agent Banner - always visible so takeover/reactivation state is clear */}
+      {!conversation.is_group && (
+        <AIAgentBanner conversationId={conversation.id} isGroup={conversation.is_group} onSessionChange={handleAIAgentSessionChange} />
       )}
 
       {/* Mobile Quick Actions */}

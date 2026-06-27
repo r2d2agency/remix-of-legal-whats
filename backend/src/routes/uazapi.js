@@ -14,6 +14,7 @@ import { handleAutoReplies } from '../lib/auto-reply-service.js';
 import { analyzeGroupMessage } from '../lib/group-secretary.js';
 import { sendPushToOrgUsers } from './push.js';
 import { recordSecretaryEvent, getSecretaryEvents, clearSecretaryEvents } from '../lib/group-secretary-diagnostic.js';
+import { processIncomingWithAgent } from '../lib/ai-agent-processor.js';
 
 const router = Router();
 
@@ -1032,13 +1033,38 @@ async function handleWebhook(req, res, routeMeta = {}) {
             }
           }
 
+          let flowHandled = false;
           if (message.content && typeof message.content === 'string') {
             console.log(`[UAZAPI Webhook] Attempting to continue flow for conversation ${persistence.conversationId}`);
             const cont = await continueActiveFlow(persistence.conversationId, message.content);
             console.log(`[UAZAPI Webhook] Flow continuation result: ${cont.continued ? 'Success' : 'Not continued'}`);
+            flowHandled = !!cont.continued;
             
             if (!cont.continued) {
-              await checkAndTriggerFlow(connection, persistence.conversationId, message.content);
+              flowHandled = await checkAndTriggerFlow(connection, persistence.conversationId, message.content);
+            }
+          }
+
+          if (!flowHandled) {
+            const aiSupportedTypes = ['text', 'image', 'audio', 'video', 'document', 'sticker'];
+            if (aiSupportedTypes.includes(message.messageType) && (message.content || message.mediaUrl)) {
+              processIncomingWithAgent({
+                connection,
+                conversationId: persistence.conversationId,
+                contactPhone: message.phone || message.chatId,
+                contactName: message.senderName || message.phone || 'Contato',
+                messageContent: message.content,
+                messageType: message.messageType,
+                mediaUrl: message.mediaUrl || null,
+                mediaMimetype: message.mediaMimetype || null,
+                mediaFilename: message.originalFilename || null,
+              }).then(result => {
+                if (result.handled) {
+                  console.log('[UAZAPI] AI Agent handled message, agent:', result.agentId, 'type:', message.messageType);
+                }
+              }).catch(err => {
+                console.error('[UAZAPI] AI Agent processing error:', err.message);
+              });
             }
           }
         }
