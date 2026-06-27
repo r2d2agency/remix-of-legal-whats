@@ -17,6 +17,7 @@ import * as whatsappProvider from './whatsapp-provider.js';
 import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, getAppBarberToolResultStatus, inferAppBarberToolSource, isAppBarberToolResultFailure } from './appbarber-intent.js';
 import { normalizeBrazilDateTime } from './timezone.js';
 import { getAgentAIConfig } from './ai-config.js';
+import { setLocalTypingStatus } from '../routes/evolution.js';
 
 // ==================== MESSAGE BATCHING ====================
 // Collects multiple messages from same contact within a window before processing
@@ -485,15 +486,7 @@ async function processMessageInternal({
     // 12. Save assistant message
     await saveAgentMessage(session.id, 'assistant', responseText, result.tokensUsed || 0, toolCallsExecuted);
 
-    // 13. Send typing indicator + human-like delay, then send response
-    try {
-      await whatsappProvider.sendPresenceComposing(connection, contactPhone);
-      // Human-like delay: 1-3 seconds based on response length
-      const typingDelay = Math.min(3000, Math.max(1000, responseText.length * 15));
-      await sleep(typingDelay);
-    } catch (e) {
-      // Non-critical
-    }
+    // 13. Send response (sendAgentMessage handles per-chunk typing + human-like delays)
     await sendAgentMessage(connection, contactPhone, responseText, session.id);
 
     // 14. Notify external number if enabled (only on first message of session)
@@ -891,8 +884,78 @@ async function handleHandoff(session, agent, connection, contactPhone, reason) {
 // ==================== SEND MESSAGE ====================
 
 async function sendAgentMessage(connection, contactPhone, text, sessionId, maxRetries = 3) {
+  // Look up conversation up-front so we can flag the chat UI as "typing"
+  // while we drip-feed chunks just like a human would.
+  let conversationId = null;
+  try {
+    const convRow = await query(
+      `SELECT id FROM conversations WHERE connection_id = $1 AND contact_phone = $2 LIMIT 1`,
+      [connection.id, contactPhone]
+    );
+    conversationId = convRow.rows[0]?.id || null;
+  } catch (_) { /* non-critical */ }
+
+  // Split response into human-like chunks of ~2 lines (paragraph-first, then line groups).
+  const chunks = splitIntoHumanChunks(text);
+  let lastResult = { success: false, error: 'no chunks' };
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+
+    // Show "digitando..." in the chat UI + WhatsApp presence
+    try {
+      if (conversationId) setLocalTypingStatus(conversationId, true);
+      await whatsappProvider.sendPresenceComposing(connection, contactPhone);
+    } catch (_) {}
+
+    // Human-like typing delay (capped). First chunk has a small head-start, others wait ~2s.
+    const baseDelay = i === 0 ? 800 : 2000;
+    const typingDelay = Math.min(3500, baseDelay + Math.min(2000, chunk.length * 25));
+    await sleep(typingDelay);
+
+    lastResult = await sendSingleAgentMessage(connection, contactPhone, chunk, sessionId, maxRetries);
+
+    // Clear typing flag between chunks; next chunk will re-enable it.
+    try {
+      if (conversationId) setLocalTypingStatus(conversationId, false);
+    } catch (_) {}
+
+    if (!lastResult.success) break;
+  }
+
+  return lastResult;
+}
+
+/**
+ * Split a response into human-like chunks.
+ * - Respects explicit paragraph breaks (double newline).
+ * - Otherwise groups lines in pairs (~2 lines per chunk).
+ * - Never breaks mid-line; preserves order.
+ * - Falls back to single chunk for very short messages.
+ */
+function splitIntoHumanChunks(text) {
+  if (!text || typeof text !== 'string') return [text || ''];
+  const trimmed = text.trim();
+  if (trimmed.length <= 120 && !trimmed.includes('\n')) return [trimmed];
+
+  // Prefer explicit paragraph breaks.
+  const paragraphs = trimmed.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  if (paragraphs.length > 1) return paragraphs;
+
+  // Otherwise group every 2 non-empty lines.
+  const lines = trimmed.split(/\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length <= 2) return [trimmed];
+
+  const chunks = [];
+  for (let i = 0; i < lines.length; i += 2) {
+    chunks.push(lines.slice(i, i + 2).join('\n'));
+  }
+  return chunks;
+}
+
+async function sendSingleAgentMessage(connection, contactPhone, text, sessionId, maxRetries = 3) {
   let lastError = null;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const result = await whatsappProvider.sendMessage(connection, contactPhone, text, 'text', null);

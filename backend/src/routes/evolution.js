@@ -21,6 +21,15 @@ const router = Router();
 // In-memory cache for typing status (cleared after 10 seconds)
 const typingStatus = new Map(); // Map<conversationId, { isTyping: boolean, timestamp: number }>
 
+/**
+ * Public helper so other modules (e.g. AI agent processor) can flag a conversation
+ * as "typing" in the chat UI without going through Evolution webhooks.
+ */
+export function setLocalTypingStatus(conversationId, isTyping) {
+  if (!conversationId) return;
+  typingStatus.set(String(conversationId), { isTyping: !!isTyping, timestamp: Date.now() });
+}
+
 // Lightweight in-memory diagnostics: last webhook received per instance
 const lastWebhookByInstance = new Map(); // Map<instanceName, { at: string, event: string|null, dataKeys: string[] }>
 
