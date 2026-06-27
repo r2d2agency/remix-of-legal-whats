@@ -111,8 +111,8 @@ export async function processKnowledgeSource(sourceId) {
     }
 
     // 7. Update source status
-    const embeddingModel = aiConfig.provider === 'openai' ? 'text-embedding-3-small' : 'text-embedding-004';
-    const embeddingDimensions = aiConfig.provider === 'openai' ? 1536 : 768;
+    const embeddingModel = aiConfig.provider === 'gemini' ? 'text-embedding-004' : 'text-embedding-3-small';
+    const embeddingDimensions = aiConfig.provider === 'gemini' ? 768 : 1536;
 
     await query(
       `UPDATE ai_knowledge_sources 
