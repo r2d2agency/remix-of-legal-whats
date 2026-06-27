@@ -807,18 +807,16 @@ router.get('/ai-config', async (req, res) => {
     }
 
     const org = orgResult.rows[0];
-    const orgKey = cleanAIKey(org.ai_api_key);
-    if (!orgKey) {
-      const fallbackConfig = await getOrganizationAIConfig(org.id, org.ai_provider, org.ai_model).catch(() => null);
-      if (fallbackConfig?.apiKey) {
-        return res.json({
-          ai_provider: fallbackConfig.provider || 'none',
-          ai_model: fallbackConfig.model || '',
-          ai_api_key: '••••••••' + fallbackConfig.apiKey.slice(-4),
-        });
-      }
+    const resolvedConfig = await getOrganizationAIConfig(org.id, org.ai_provider, org.ai_model).catch(() => null);
+    if (resolvedConfig?.apiKey) {
+      return res.json({
+        ai_provider: resolvedConfig.provider || 'none',
+        ai_model: resolvedConfig.model || '',
+        ai_api_key: '••••••••' + resolvedConfig.apiKey.slice(-4),
+      });
     }
 
+    const orgKey = cleanAIKey(org.ai_api_key);
     res.json({
       ai_provider: org.ai_provider || 'none',
       ai_model: org.ai_model || '',
@@ -894,30 +892,33 @@ router.post('/ai-config/test', async (req, res) => {
   try {
     const { ai_provider, ai_model, ai_api_key } = req.body;
 
-    if (!ai_provider || ai_provider === 'none' || !ai_api_key) {
-      return res.status(400).json({ error: 'Provedor e API Key são obrigatórios' });
+    const orgResult = await query(
+      `SELECT o.id, o.ai_api_key
+       FROM organizations o
+       JOIN organization_members om ON om.organization_id = o.id
+       WHERE om.user_id = $1
+       ORDER BY om.created_at
+       LIMIT 1`,
+      [req.userId]
+    );
+
+    if (orgResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Organização não encontrada' });
     }
 
-    // If key is masked, get the real one from DB
     let actualApiKey = cleanAIKey(ai_api_key);
-    if (ai_api_key.startsWith('••')) {
-      const orgResult = await query(
-        `SELECT o.id, o.ai_api_key
-         FROM organizations o
-         JOIN organization_members om ON om.organization_id = o.id
-         WHERE om.user_id = $1
-         ORDER BY om.created_at
-         LIMIT 1`,
-        [req.userId]
-      );
-      if (orgResult.rows.length === 0) {
-        return res.status(400).json({ error: 'API Key não encontrada' });
-      }
-      actualApiKey = cleanAIKey(orgResult.rows[0].ai_api_key);
-      if (!actualApiKey) {
-        const fallbackConfig = await getOrganizationAIConfig(orgResult.rows[0].id, ai_provider, ai_model).catch(() => null);
-        actualApiKey = fallbackConfig?.apiKey || null;
-      }
+    const fallbackConfig = await getOrganizationAIConfig(orgResult.rows[0].id, ai_provider, ai_model).catch(() => null);
+
+    // If key is masked, empty, placeholder, or absent, get the real key from DB/legacy org config.
+    if (!actualApiKey) {
+      actualApiKey = fallbackConfig?.apiKey || cleanAIKey(orgResult.rows[0].ai_api_key);
+    }
+
+    const resolvedProvider = (ai_provider && ai_provider !== 'none') ? ai_provider : fallbackConfig?.provider;
+    const resolvedModel = ai_model || fallbackConfig?.model;
+
+    if (!resolvedProvider || resolvedProvider === 'none') {
+      return res.status(400).json({ error: 'Provedor de IA não configurado' });
     }
 
     if (!actualApiKey) {
@@ -926,7 +927,7 @@ router.post('/ai-config/test', async (req, res) => {
 
     // Test the connection based on provider
     let testResponse;
-    if (ai_provider === 'openai') {
+    if (resolvedProvider === 'openai') {
       testResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -934,13 +935,13 @@ router.post('/ai-config/test', async (req, res) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: ai_model || 'gpt-4o-mini',
+          model: resolvedModel || 'gpt-4o-mini',
           messages: [{ role: 'user', content: 'Diga apenas "OK"' }],
           max_tokens: 5,
         }),
       });
-    } else if (ai_provider === 'gemini') {
-      const geminiModel = ai_model || 'gemini-1.5-flash';
+    } else if (resolvedProvider === 'gemini') {
+      const geminiModel = resolvedModel || 'gemini-1.5-flash';
       testResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${actualApiKey}`,
         {
@@ -952,7 +953,7 @@ router.post('/ai-config/test', async (req, res) => {
           }),
         }
       );
-    } else if (ai_provider === 'openrouter') {
+    } else if (resolvedProvider === 'openrouter') {
       testResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -962,7 +963,7 @@ router.post('/ai-config/test', async (req, res) => {
           'X-Title': 'Glee-go Whats',
         },
         body: JSON.stringify({
-          model: ai_model || 'openai/gpt-4o-mini',
+          model: resolvedModel || 'openai/gpt-4o-mini',
           messages: [{ role: 'user', content: 'Diga apenas "OK"' }],
           max_tokens: 5,
         }),
@@ -994,8 +995,8 @@ router.post('/ai-config/test', async (req, res) => {
         .slice(0, 400);
 
       console.error('AI test failed:', {
-        provider: ai_provider,
-        model: ai_model,
+        provider: resolvedProvider,
+        model: resolvedModel,
         upstreamStatus,
         upstreamMessage,
       });
@@ -1020,8 +1021,8 @@ router.post('/ai-config/test', async (req, res) => {
       return res.status(upstreamStatus >= 400 && upstreamStatus <= 599 ? upstreamStatus : 400).json({
         error: friendly,
         details: upstreamMessage || undefined,
-        provider: ai_provider,
-        model: ai_model || undefined,
+        provider: resolvedProvider,
+        model: resolvedModel || undefined,
       });
     }
 
