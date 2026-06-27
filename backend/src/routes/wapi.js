@@ -2313,6 +2313,7 @@ async function handleOutgoingMessage(connection, payload) {
             AND (
               ((message_id LIKE 'temp_%' OR message_id IS NULL) AND status IN ('pending','sent'))
               OR (sender_id IS NOT NULL AND status IN ('pending','sent') AND message_type = $3 AND COALESCE(content, '') = COALESCE($4, ''))
+              OR (message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' AND status IN ('pending','sent') AND message_type = $3 AND COALESCE(content, '') = COALESCE($4, ''))
             )
           )
        ORDER BY
