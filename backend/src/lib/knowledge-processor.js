@@ -330,11 +330,25 @@ function chunkText(text, chunkSize = CHUNK_SIZE, overlap = CHUNK_OVERLAP) {
 // ==================== EMBEDDINGS ====================
 
 async function getEmbeddingConfig(source) {
-  const aiConfig = await getAgentAIConfig(source, source.organization_id);
-  if (!['openai', 'gemini'].includes(aiConfig.provider)) {
-    throw new Error(`Provedor de embeddings não suportado: ${aiConfig.provider}`);
+  try {
+    const aiConfig = await getAgentAIConfig(source, source.organization_id);
+    if (['openai', 'gemini'].includes(aiConfig.provider) && aiConfig.apiKey) {
+      return aiConfig;
+    }
+  } catch (err) {
+    logInfo('knowledge_processor.embedding_config_fallback', { reason: err.message });
   }
-  return aiConfig;
+  // Fallback: Lovable AI Gateway (no user key required)
+  const lovableKey = process.env.LOVABLE_API_KEY;
+  if (lovableKey) {
+    return {
+      provider: 'lovable',
+      apiKey: lovableKey,
+      model: 'openai/text-embedding-3-small',
+      keySource: 'lovable_ai_gateway',
+    };
+  }
+  throw new Error('Nenhuma chave de API válida configurada para embeddings. Configure em Ajustes → IA ou no agente.');
 }
 
 /**
@@ -352,6 +366,8 @@ async function generateEmbeddings(texts, config) {
       batchEmbeddings = await generateOpenAIEmbeddings(batch, apiKey);
     } else if (provider === 'gemini') {
       batchEmbeddings = await generateGeminiEmbeddings(batch, apiKey);
+    } else if (provider === 'lovable') {
+      batchEmbeddings = await generateLovableEmbeddings(batch, apiKey);
     } else {
       throw new Error(`Provedor de embeddings não suportado: ${provider}`);
     }
@@ -384,6 +400,30 @@ async function generateOpenAIEmbeddings(texts, apiKey) {
     throw new Error(`OpenAI Embeddings error ${response.status}: ${error}`);
   }
 
+  const data = await response.json();
+  return data.data.map(d => d.embedding);
+}
+
+async function generateLovableEmbeddings(texts, apiKey) {
+  const response = await fetchWithRetry(
+    'https://ai.gateway.lovable.dev/v1/embeddings',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'openai/text-embedding-3-small',
+        input: texts,
+      }),
+    },
+    { label: 'lovable-embeddings', retries: 2 }
+  );
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Lovable AI Embeddings error ${response.status}: ${error}`);
+  }
   const data = await response.json();
   return data.data.map(d => d.embedding);
 }
