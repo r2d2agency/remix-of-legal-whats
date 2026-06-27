@@ -16,6 +16,7 @@ import { searchKnowledge } from './knowledge-processor.js';
 import * as whatsappProvider from './whatsapp-provider.js';
 import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, getAppBarberToolResultStatus, inferAppBarberToolSource, isAppBarberToolResultFailure } from './appbarber-intent.js';
 import { normalizeBrazilDateTime } from './timezone.js';
+import { getAgentAIConfig } from './ai-config.js';
 
 // ==================== MESSAGE BATCHING ====================
 // Collects multiple messages from same contact within a window before processing
@@ -2242,29 +2243,6 @@ async function updateAgentStats(agentId, tokensUsed, responseTimeMs, toolCalls) 
     // Stats update is non-critical
     logError('ai_agent_processor.stats_update_error', error);
   }
-}
-
-// ==================== AI CONFIG ====================
-
-async function getAgentAIConfig(agent, organizationId) {
-  if (agent.ai_api_key) {
-    return { provider: agent.ai_provider, model: agent.ai_model, apiKey: agent.ai_api_key };
-  }
-
-  const orgResult = await query(
-    `SELECT ai_provider, ai_model, ai_api_key FROM organizations WHERE id = $1`,
-    [organizationId]
-  );
-  const org = orgResult.rows[0];
-  if (!org?.ai_api_key || org.ai_provider === 'none') {
-    throw new Error('Nenhuma chave de API configurada para o agente.');
-  }
-
-  return {
-    provider: org.ai_provider || agent.ai_provider,
-    model: agent.ai_model || org.ai_model || 'gpt-4o-mini',
-    apiKey: org.ai_api_key,
-  };
 }
 
 // ==================== MANUAL SESSION CONTROL ====================
