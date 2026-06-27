@@ -487,16 +487,16 @@ export function AgentEditorDialog({ open, onOpenChange, agent, onSaved }: AgentE
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="apiKey">Chave de API (opcional)</Label>
+                    <Label htmlFor="apiKey">Chave de API do agente (opcional)</Label>
                     <Input
                       id="apiKey"
                       type="password"
-                      placeholder="Deixe vazio para usar a chave padrão da organização"
+                      placeholder="Deixe vazio para usar a chave da organização"
                       value={formData.ai_api_key}
                       onChange={(e) => setFormData(prev => ({ ...prev, ai_api_key: e.target.value }))}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Use uma chave específica para este agente ou deixe vazio para usar a configuração global
+                      Use uma chave específica só para este agente. Se deixar vazio, o sistema usa automaticamente a chave configurada em Ajustes → IA da organização.
                     </p>
                   </div>
 
