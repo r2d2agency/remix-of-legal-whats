@@ -90,9 +90,9 @@ export function CRMAIAgentsSection({
         body: { agent_id: agent.id },
         auth: true,
       });
-      toast.success(`Agente "${agent.name}" ativado para esta conversa!`);
-    } catch {
-      toast.error("Erro ao ativar agente de IA");
+      toast.success(`Agente "${agent.name}" ativado. Ele vai ler o histórico e continuar o atendimento.`);
+    } catch (error: any) {
+      toast.error(error?.message || "Erro ao ativar agente de IA");
     } finally {
       setActivatingAgent(null);
     }
@@ -116,8 +116,8 @@ export function CRMAIAgentsSection({
       });
       setConsultResponse(data.response || 'Sem resposta');
       setShowResponseModal(true);
-    } catch {
-      toast.error("Erro ao consultar agente de IA");
+    } catch (error: any) {
+      toast.error(error?.message || "Erro ao consultar agente de IA");
       setConsultResponse("");
     } finally {
       setConsulting(false);
@@ -135,7 +135,7 @@ export function CRMAIAgentsSection({
       <AccordionTrigger className="py-2 hover:no-underline">
         <div className="flex items-center gap-2 text-sm">
           <Bot className="h-4 w-4 text-primary" />
-          <span>Agentes IA</span>
+          <span>Ativar Agente de IA</span>
           {aiAgents.length > 0 && (
             <Badge variant="secondary" className="text-[10px] px-1.5">{aiAgents.length}</Badge>
           )}
@@ -207,12 +207,15 @@ export function CRMAIAgentsSection({
             <div className="pt-2 border-t">
               <Button size="sm" variant="default" className="w-full h-7 text-[10px] gap-1" onClick={() => handleActivateAgent(consultAgent)} disabled={activatingAgent === consultAgent.id}>
                 {activatingAgent === consultAgent.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                Ativar atendimento autônomo
+                Ativar Agente de IA
               </Button>
             </div>
           </div>
         ) : (
           <div className="space-y-2">
+            <p className="text-[11px] text-muted-foreground leading-relaxed px-1">
+              Escolha o agente que vai assumir a conversa. Ao ativar, ele lê o histórico recente antes de responder.
+            </p>
             {aiAgents.map(agent => (
               <div key={agent.id} className="flex items-center gap-2 p-2 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer" onClick={() => setConsultAgent(agent)}>
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -222,14 +225,38 @@ export function CRMAIAgentsSection({
                   <p className="text-xs font-medium truncate">{agent.name}</p>
                   {agent.description && <p className="text-[10px] text-muted-foreground truncate">{agent.description}</p>}
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {agent.capabilities.slice(0, 3).map(cap => (
+                    {(agent.capabilities || []).slice(0, 3).map(cap => (
                       <Badge key={cap} variant="outline" className="text-[9px] px-1 py-0">
                         {cap === 'respond_messages' ? 'Respostas' : cap === 'qualify_leads' ? 'Qualificar' : cap === 'create_deals' ? 'Negociações' : cap === 'summarize_history' ? 'Resumos' : cap === 'suggest_actions' ? 'Sugestões' : cap === 'generate_content' ? 'Conteúdo' : cap === 'schedule_meetings' ? 'Reuniões' : cap === 'read_files' ? 'Arquivos' : cap}
                       </Badge>
                     ))}
                   </div>
                 </div>
-                <Brain className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex flex-col gap-1 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    className="h-7 px-2 text-[10px] gap-1"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleActivateAgent(agent);
+                    }}
+                    disabled={activatingAgent === agent.id}
+                  >
+                    {activatingAgent === agent.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                    Ativar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setConsultAgent(agent);
+                    }}
+                  >
+                    Consultar
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
