@@ -91,6 +91,8 @@ export function CRMAIAgentsSection({
         auth: true,
       });
       toast.success(`Agente "${agent.name}" ativado. Ele vai ler o histórico e continuar o atendimento.`);
+      // Notify AIAgentBanner to refresh immediately instead of waiting for 10s poll
+      window.dispatchEvent(new CustomEvent('ai-agent-session-changed', { detail: { conversationId } }));
     } catch (error: any) {
       toast.error(error?.message || "Erro ao ativar agente de IA");
     } finally {
