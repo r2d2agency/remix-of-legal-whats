@@ -482,13 +482,20 @@ export async function searchKnowledge(agentId, queryText, aiConfig, topK = 5) {
 
     // Generate embedding for the query
     let queryEmbedding;
-    if (aiConfig.provider === 'openai') {
-      const embeddings = await generateOpenAIEmbeddings([queryText], aiConfig.apiKey);
+    let effectiveConfig = aiConfig;
+    if (!effectiveConfig?.apiKey && process.env.LOVABLE_API_KEY) {
+      effectiveConfig = { provider: 'lovable', apiKey: process.env.LOVABLE_API_KEY };
+    }
+    if (effectiveConfig.provider === 'openai') {
+      const embeddings = await generateOpenAIEmbeddings([queryText], effectiveConfig.apiKey);
+      queryEmbedding = embeddings[0];
+    } else if (effectiveConfig.provider === 'lovable') {
+      const embeddings = await generateLovableEmbeddings([queryText], effectiveConfig.apiKey);
       queryEmbedding = embeddings[0];
     } else {
       // For Gemini query embedding, use RETRIEVAL_QUERY task type
       const response = await fetchWithRetry(
-        `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${aiConfig.apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${effectiveConfig.apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
