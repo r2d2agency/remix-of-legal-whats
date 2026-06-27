@@ -70,7 +70,15 @@ export function AIAgentBanner({ conversationId, isGroup, className, onSessionCha
   useEffect(() => {
     fetchSession();
     const interval = setInterval(fetchSession, 10000); // poll every 10s
-    return () => clearInterval(interval);
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || detail.conversationId === conversationId) fetchSession();
+    };
+    window.addEventListener('ai-agent-session-changed', handler);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('ai-agent-session-changed', handler);
+    };
   }, [fetchSession]);
 
   const handleStartAgent = async (agentId: string) => {
