@@ -53,6 +53,7 @@ import linkPreviewRoutes from './routes/link-preview.js';
 import salesSeoRoutes from './routes/sales-seo.js';
 import { handleAutoReplies } from './lib/auto-reply-service.js';
 import { executeFlow, continueFlowWithInput } from './lib/flow-executor.js';
+import { processIncomingWithAgent } from './lib/ai-agent-processor.js';
 import supervisorRoutes from './routes/supervisor.js';
 import agentModesRoutes from './routes/agent-modes.js';
 import { startAgentModesScheduler } from './agent-modes-scheduler.js';
@@ -758,6 +759,7 @@ app.post('/api/meta/webhook', async (req, res) => {
             if ((effectiveType === 'text' || msgType === 'text') && content) {
               (async () => {
                 try {
+                  let flowHandled = false;
                   // 1) Continue active flow session if any
                   const activeSess = await dbQuery(
                     `SELECT id, flow_id, current_node_id FROM flow_sessions
@@ -768,11 +770,11 @@ app.post('/api/meta/webhook', async (req, res) => {
                     console.log('[Meta][Flow] Continuing active flow session for conversation', conversationId);
                     const r = await continueFlowWithInput(conversationId, content);
                     console.log('[Meta][Flow] continueFlowWithInput result:', JSON.stringify(r));
-                    return;
+                    flowHandled = !!r?.success;
                   }
 
                   // 2) No active session - check keyword-triggered flows
-                  if (connection.organization_id) {
+                  if (!flowHandled && connection.organization_id) {
                     const flowsRes = await dbQuery(
                       `SELECT id, name, trigger_keywords FROM flows
                        WHERE organization_id = $1 AND is_active = true
@@ -785,12 +787,33 @@ app.post('/api/meta/webhook', async (req, res) => {
                       if (kws.some(k => lc === k || lc.includes(k))) {
                         console.log(`[Meta][Flow] Keyword match -> triggering flow ${flow.id} (${flow.name})`);
                         await executeFlow(flow.id, conversationId, 'start');
-                        return;
+                        flowHandled = true;
+                        break;
                       }
                     }
                   }
+
+                  if (!flowHandled) {
+                    processIncomingWithAgent({
+                      connection,
+                      conversationId,
+                      contactPhone: normalizedPhone,
+                      contactName,
+                      messageContent: content,
+                      messageType: effectiveType,
+                      mediaUrl: finalMediaUrl || null,
+                      mediaMimetype: mediaMimetype || null,
+                      mediaFilename: msgType === 'document' ? message.document?.filename || null : null,
+                    }).then(result => {
+                      if (result.handled) {
+                        console.log('[Meta] AI Agent handled message, agent:', result.agentId, 'type:', effectiveType);
+                      }
+                    }).catch(err => {
+                      console.error('[Meta] AI Agent processing error:', err.message);
+                    });
+                  }
                 } catch (flowErr) {
-                  console.error('[Meta][Flow] Error continuing/triggering flow:', flowErr.message);
+                  console.error('[Meta][Flow/AI] Error continuing flow or processing AI:', flowErr.message);
                 }
               })();
             }
