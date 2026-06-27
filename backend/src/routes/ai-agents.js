@@ -5,6 +5,7 @@ import { logInfo, logError, getRecentLogs } from '../logger.js';
 import { callAI, callAIWithTools } from '../lib/ai-caller.js';
 import { processKnowledgeSource, searchKnowledge } from '../lib/knowledge-processor.js';
 import { buildAppBarberGuardrailResponse, detectAppBarberRequiredTool, getAppBarberToolResultStatus, inferAppBarberToolSource, isAppBarberToolResultFailure } from '../lib/appbarber-intent.js';
+import { getAgentAIConfig } from '../lib/ai-config.js';
 
 const router = Router();
 
@@ -567,14 +568,9 @@ router.post('/:id/knowledge/search', authenticate, async (req, res) => {
     }
 
     const agent = agentResult.rows[0];
-    const provider = agent.ai_provider || agent.org_ai_provider || 'openai';
-    const apiKey = agent.ai_api_key || agent.org_ai_api_key;
+    const aiConfig = await getAgentAIConfig(agent, userCtx.organization_id);
 
-    if (!apiKey) {
-      return res.status(400).json({ error: 'Nenhuma API key configurada' });
-    }
-
-    const results = await searchKnowledge(req.params.id, searchQuery, { provider, apiKey }, top_k);
+    const results = await searchKnowledge(req.params.id, searchQuery, aiConfig, top_k);
     res.json({ results });
   } catch (error) {
     logError('ai_agents.knowledge_search_error', error);
@@ -622,27 +618,7 @@ router.post('/:id/consult', authenticate, async (req, res) => {
     }
 
     const agent = agentResult.rows[0];
-    const provider = agent.ai_provider || agent.org_ai_provider || 'openai';
-    let apiKey = agent.ai_api_key || agent.org_ai_api_key;
-
-    // Fallback: organization_ai_config (used pela configuração global de IA)
-    if (!apiKey) {
-      try {
-        const cfg = await query(
-          `SELECT openai_api_key, gemini_api_key, openrouter_api_key
-             FROM organization_ai_config WHERE organization_id = $1 LIMIT 1`,
-          [userCtx.organization_id]
-        );
-        const row = cfg.rows[0] || {};
-        apiKey = provider === 'openai' ? row.openai_api_key
-               : provider === 'openrouter' ? row.openrouter_api_key
-               : row.gemini_api_key;
-      } catch { /* tabela pode não existir */ }
-    }
-
-    if (!apiKey) {
-      return res.status(400).json({ error: 'Nenhuma API key de IA configurada. Configure em Configurações → IA.' });
-    }
+    const aiConfig = await getAgentAIConfig(agent, userCtx.organization_id);
 
     // Build conversation context string
     const conversationContext = chatMessages
@@ -654,7 +630,7 @@ router.post('/:id/consult', authenticate, async (req, res) => {
     let knowledgeContext = '';
     if (custom_prompt) {
       try {
-        const knowledgeResults = await searchKnowledge(req.params.id, custom_prompt, { provider, apiKey }, 3);
+        const knowledgeResults = await searchKnowledge(req.params.id, custom_prompt, aiConfig, 3);
         if (knowledgeResults.length > 0) {
           knowledgeContext = '\n\n--- Base de Conhecimento ---\n' +
             knowledgeResults.map(r => r.content).join('\n---\n');
@@ -687,7 +663,7 @@ ${conversationContext}
     ];
 
     const result = await callAI(
-      { provider, model: agent.ai_model, apiKey },
+      aiConfig,
       aiMessages,
       { temperature: parseFloat(agent.temperature) || 0.7, maxTokens: parseInt(agent.max_tokens) || 1500 }
     );
@@ -870,36 +846,6 @@ router.get('/:id/stats', authenticate, async (req, res) => {
 });
 
 // ==================== PROCESSAR MENSAGEM (TEST & PRODUÇÃO) ====================
-
-/**
- * Get AI config for an agent (agent-specific key or org fallback)
- */
-async function getAgentAIConfig(agent, organizationId) {
-  if (agent.ai_api_key) {
-    return {
-      provider: agent.ai_provider,
-      model: agent.ai_model,
-      apiKey: agent.ai_api_key,
-    };
-  }
-
-  // Fallback to org AI config
-  const orgResult = await query(
-    `SELECT ai_provider, ai_model, ai_api_key FROM organizations WHERE id = $1`,
-    [organizationId]
-  );
-  const org = orgResult.rows[0];
-
-  if (!org || !org.ai_api_key || org.ai_provider === 'none') {
-    throw new Error('Nenhuma chave de API configurada. Configure uma API Key no agente ou nas configurações da organização.');
-  }
-
-  return {
-    provider: org.ai_provider || agent.ai_provider,
-    model: agent.ai_model || org.ai_model || (org.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gemini-1.5-flash'),
-    apiKey: org.ai_api_key,
-  };
-}
 
 /**
  * Build the call_agent tool definition for OpenAI/Gemini
