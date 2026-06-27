@@ -907,7 +907,8 @@ async function sendAgentMessage(connection, contactPhone, text, sessionId, maxRe
         if (conversationResult.rows[0]) {
           await query(
             `INSERT INTO chat_messages (conversation_id, message_id, content, message_type, from_me, status, timestamp)
-             VALUES ($1, $2, $3, 'text', true, 'sent', NOW())`,
+             VALUES ($1, $2, $3, 'text', true, 'sent', NOW())
+             ON CONFLICT (message_id) WHERE message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' DO NOTHING`,
             [conversationResult.rows[0].id, result.messageId || `ai-agent-${Date.now()}`, text]
           );
         }
