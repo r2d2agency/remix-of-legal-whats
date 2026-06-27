@@ -1,0 +1,156 @@
+import { query } from '../db.js';
+import { logError } from '../logger.js';
+
+export function normalizeProvider(value) {
+  const provider = String(value || '').trim().toLowerCase();
+  return ['openai', 'gemini', 'openrouter'].includes(provider) ? provider : null;
+}
+
+export function cleanAIKey(value) {
+  const key = String(value || '').trim();
+  if (!key) return null;
+
+  // Valores mascarados/placeholder nunca devem ser enviados para o provedor.
+  if (key.startsWith('••')) return null;
+  if (/^\*+$/.test(key)) return null;
+  if (['null', 'undefined', 'none', 'api_key', 'your_api_key', 'sua_api_key'].includes(key.toLowerCase())) return null;
+  if (key === '@N3tw0rk$') return null;
+
+  return key;
+}
+
+export function inferProviderFromKey(apiKey, fallbackProvider = null) {
+  const key = String(apiKey || '').trim();
+  if (key.startsWith('sk-or-')) return 'openrouter';
+  if (key.startsWith('AIza')) return 'gemini';
+  if (key.startsWith('sk-')) return 'openai';
+  return normalizeProvider(fallbackProvider) || null;
+}
+
+export function defaultModelForProvider(provider) {
+  if (provider === 'gemini') return 'gemini-2.5-flash';
+  if (provider === 'openrouter') return 'openai/gpt-4o-mini';
+  return 'gpt-4o-mini';
+}
+
+export function modelMatchesProvider(provider, model) {
+  const m = String(model || '').trim().toLowerCase();
+  if (!m) return false;
+  if (provider === 'gemini') return m.startsWith('gemini-');
+  if (provider === 'openrouter') return m.includes('/');
+  if (provider === 'openai') return !m.includes('/') && !m.startsWith('gemini-');
+  return false;
+}
+
+export function resolveModelForProvider(provider, ...models) {
+  const matching = models.map(m => String(m || '').trim()).find(m => modelMatchesProvider(provider, m));
+  return matching || defaultModelForProvider(provider);
+}
+
+function pickLegacyAIConfig(row, preferredProvider = null, preferredModel = null) {
+  if (!row) return null;
+
+  const providerPriority = [
+    normalizeProvider(preferredProvider),
+    normalizeProvider(row.ai_provider),
+    normalizeProvider(row.provider),
+    normalizeProvider(row.default_provider),
+    'openai',
+    'gemini',
+    'openrouter',
+  ].filter(Boolean);
+
+  const keyAliases = {
+    openai: ['openai_api_key', 'openai_key', 'OPENAI_API_KEY'],
+    gemini: ['gemini_api_key', 'google_api_key', 'gemini_key', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
+    openrouter: ['openrouter_api_key', 'openrouter_key', 'OPENROUTER_API_KEY'],
+  };
+
+  for (const provider of [...new Set(providerPriority)]) {
+    const aliases = keyAliases[provider] || [];
+    const keyField = aliases.find(field => cleanAIKey(row[field]));
+    const apiKey = keyField ? cleanAIKey(row[keyField]) : null;
+    if (!apiKey) continue;
+
+    return {
+      provider,
+      model: resolveModelForProvider(provider, preferredModel, row[`${provider}_model`], row.ai_model, row.model),
+      apiKey,
+      keySource: `organization_ai_config.${keyField}`,
+    };
+  }
+
+  return null;
+}
+
+export async function getOrganizationAIConfig(organizationId, preferredProvider = null, preferredModel = null) {
+  const orgResult = await query(
+    `SELECT ai_provider, ai_model, ai_api_key
+       FROM organizations
+      WHERE id = $1
+      LIMIT 1`,
+    [organizationId]
+  ).catch((error) => {
+    logError('ai_config.organization_lookup_error', error);
+    return { rows: [] };
+  });
+
+  const org = orgResult.rows[0];
+  const orgApiKey = cleanAIKey(org?.ai_api_key);
+  if (orgApiKey) {
+    const provider = normalizeProvider(org?.ai_provider) || inferProviderFromKey(orgApiKey, preferredProvider) || 'openai';
+    return {
+      provider,
+      model: resolveModelForProvider(provider, preferredModel, org?.ai_model),
+      apiKey: orgApiKey,
+      keySource: 'organizations.ai_api_key',
+    };
+  }
+
+  const legacyResult = await query(
+    `SELECT *
+       FROM organization_ai_config
+      WHERE organization_id = $1
+      LIMIT 1`,
+    [organizationId]
+  ).catch((error) => {
+    // A tabela existe apenas em algumas instalações antigas/novas.
+    if (error?.code !== '42P01') logError('ai_config.legacy_lookup_error', error);
+    return { rows: [] };
+  });
+
+  const legacyConfig = pickLegacyAIConfig(legacyResult.rows[0], org?.ai_provider || preferredProvider, preferredModel || org?.ai_model);
+  if (legacyConfig) return legacyConfig;
+
+  const provider = normalizeProvider(org?.ai_provider) || normalizeProvider(preferredProvider);
+  if (provider) {
+    return {
+      provider,
+      model: resolveModelForProvider(provider, preferredModel, org?.ai_model),
+      apiKey: null,
+      keySource: 'organizations.ai_provider',
+    };
+  }
+
+  return null;
+}
+
+export async function getAgentAIConfig(agent, organizationId) {
+  const agentApiKey = cleanAIKey(agent?.ai_api_key);
+  if (agentApiKey) {
+    const provider = normalizeProvider(agent?.ai_provider) || inferProviderFromKey(agentApiKey) || 'openai';
+    return {
+      provider,
+      model: resolveModelForProvider(provider, agent?.ai_model),
+      apiKey: agentApiKey,
+      keySource: 'ai_agents.ai_api_key',
+    };
+  }
+
+  const orgConfig = await getOrganizationAIConfig(organizationId, agent?.ai_provider, agent?.ai_model);
+  if (!orgConfig?.apiKey) {
+    throw new Error('Nenhuma chave de API válida configurada. Configure a chave da organização em Ajustes → IA ou informe uma chave específica no agente.');
+  }
+
+  return orgConfig;
+}
