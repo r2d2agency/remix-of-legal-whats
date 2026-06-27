@@ -46,12 +46,6 @@ import {
   Reply,
   Send,
   Upload,
-  Bot,
-  Brain,
-  Sparkles,
-  MessageSquare,
-  Copy,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -80,7 +74,6 @@ import { CompanyDialog } from "@/components/crm/CompanyDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { CRMAIAgentsSection } from "./CRMAIAgentsSection";
 import { CRMProjectsSection } from "./CRMProjectsSection";
-import { useAIAgents, AIAgent } from "@/hooks/use-ai-agents";
 import { useProjects, useProjectStages, useProjectTemplates, useProjectMutations, useProjectNoteMutations, useProjectAttachmentMutations, useProjectNotes } from "@/hooks/use-projects";
 import { useUpload } from "@/hooks/use-upload";
 import { api } from "@/lib/api";
@@ -139,18 +132,6 @@ export function CRMSidePanel({
   const [newNote, setNewNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const { getNotes, createNote } = useChat();
-
-  // AI Agents
-  const { getAgents } = useAIAgents();
-  const [aiAgents, setAiAgents] = useState<AIAgent[]>([]);
-  const [loadingAgents, setLoadingAgents] = useState(false);
-  const [activatingAgent, setActivatingAgent] = useState<string | null>(null);
-
-  // AI Consultation
-  const [consultAgent, setConsultAgent] = useState<AIAgent | null>(null);
-  const [consultPrompt, setConsultPrompt] = useState("");
-  const [consultResponse, setConsultResponse] = useState("");
-  const [consulting, setConsulting] = useState(false);
 
   // Edit states
   const [isEditingDeal, setIsEditingDeal] = useState(false);
@@ -310,7 +291,6 @@ export function CRMSidePanel({
   useEffect(() => {
     if (isOpen && conversationId) {
       loadNotes();
-      loadAgents();
     }
   }, [isOpen, conversationId]);
 
@@ -324,78 +304,6 @@ export function CRMSidePanel({
     } finally {
       setLoadingNotes(false);
     }
-  };
-
-  const loadAgents = async () => {
-    setLoadingAgents(true);
-    try {
-      const data = await getAgents();
-      setAiAgents(
-        data.filter(
-          (a: any) => a.is_active && ((a as any).agent_mode || 'standard') === 'standard'
-        )
-      );
-    } catch (error) {
-      console.error("Error loading AI agents:", error);
-    } finally {
-      setLoadingAgents(false);
-    }
-  };
-
-  const handleActivateAgent = async (agent: AIAgent) => {
-    setActivatingAgent(agent.id);
-    try {
-      // Start an AI agent session for this conversation
-      await api('/api/ai-agents/' + agent.id + '/sessions', {
-        method: 'POST',
-        body: {
-          conversation_id: conversationId,
-          contact_phone: contactPhone,
-          contact_name: contactName,
-        },
-        auth: true,
-      });
-      toast.success(`Agente "${agent.name}" ativado para esta conversa!`);
-    } catch (error) {
-      console.error("Error activating agent:", error);
-      toast.error("Erro ao ativar agente de IA");
-    } finally {
-      setActivatingAgent(null);
-    }
-  };
-
-  const handleConsultAgent = async (prompt?: string) => {
-    if (!consultAgent) return;
-    const actualPrompt = prompt || consultPrompt.trim();
-    if (!actualPrompt && !chatMessages.length) return;
-
-    setConsulting(true);
-    setConsultResponse("");
-    try {
-      const data = await api<{ response: string; agent_name: string }>(`/api/ai-agents/${consultAgent.id}/consult`, {
-        method: 'POST',
-        body: {
-          messages: chatMessages.slice(-30).map(m => ({
-            content: m.content,
-            sender: m.sender,
-          })),
-          custom_prompt: actualPrompt || undefined,
-        },
-        auth: true,
-      });
-      setConsultResponse(data.response || 'Sem resposta');
-    } catch (error) {
-      console.error("Error consulting agent:", error);
-      toast.error("Erro ao consultar agente de IA");
-      setConsultResponse("");
-    } finally {
-      setConsulting(false);
-    }
-  };
-
-  const handleCopyResponse = () => {
-    navigator.clipboard.writeText(consultResponse);
-    toast.success("Resposta copiada!");
   };
 
   const handleCreateNote = async () => {
