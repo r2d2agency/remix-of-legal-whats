@@ -655,6 +655,7 @@ async function persistIncomingMessage(connection, payload) {
              AND (
                ((message_id LIKE 'temp_%' OR message_id IS NULL) AND status IN ('pending','sent'))
                OR (sender_id IS NOT NULL AND status IN ('pending','sent') AND message_type = $2 AND COALESCE(content, '') = COALESCE($3, ''))
+               OR (message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' AND status IN ('pending','sent') AND message_type = $2 AND COALESCE(content, '') = COALESCE($3, ''))
              )
            ORDER BY
              CASE WHEN message_id LIKE 'temp_%' OR message_id IS NULL OR status = 'pending' THEN 0 ELSE 1 END,
