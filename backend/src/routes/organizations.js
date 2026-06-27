@@ -865,6 +865,10 @@ router.put('/ai-config', async (req, res) => {
     let actualApiKey = cleanAIKey(ai_api_key);
     if (ai_api_key && ai_api_key.startsWith('••')) {
       actualApiKey = cleanAIKey(existingKey);
+      if (!actualApiKey) {
+        const fallbackConfig = await getOrganizationAIConfig(orgId, ai_provider, ai_model).catch(() => null);
+        actualApiKey = fallbackConfig?.apiKey || null;
+      }
     }
 
     await query(
