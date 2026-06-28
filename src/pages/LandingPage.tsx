@@ -334,7 +334,7 @@ const pricingPlans = [
   {
     name: "Starter",
     description: "Para pequenas empresas e empreendedores",
-    price: "R$ 380",
+    price: "R$ 480",
     period: "/mês",
     popular: false,
     cta: "Começar Agora",
