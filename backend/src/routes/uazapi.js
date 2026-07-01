@@ -570,7 +570,7 @@ function extractMessageData(payload) {
   const needsProxy = !!(mediaObj && (!rawMediaUrl || String(rawMediaUrl).includes('.enc') || String(rawMediaUrl).includes('mmg.whatsapp.net') || String(rawMediaUrl).includes('uazapi.com/files')));
   const mediaUrl = needsProxy ? `__UAZAPI_DOWNLOAD__:${messageId}` : (rawMediaUrl || null);
   return {
-    chatId,
+    chatId: normalizedChatId,
     phone,
     isGroup,
     fromMe,
