@@ -1632,7 +1632,7 @@ async function continueActiveFlow(connection, conversationId, userInput) {
 async function handleIncomingMessage(connection, payload) {
   try {
     // W-API format: chat.id is the chat identifier (can be phone or group JID)
-    const chatId = payload.chat?.id || payload.phone || payload.from || payload.remoteJid;
+    let chatId = payload.chat?.id || payload.phone || payload.from || payload.remoteJid;
     const messageId = payload.messageId || payload.id || payload.key?.id || crypto.randomUUID();
 
     if (!chatId) {
@@ -1642,6 +1642,23 @@ async function handleIncomingMessage(connection, payload) {
 
     // Check if this is a group message
       const isGroup = String(chatId).includes('@g.us') || (String(chatId).includes('-') && !String(chatId).match(/^\d+$/));
+
+    // If the provider addressed the message via @lid (linked-device id) instead
+    // of the real phone JID, try to resolve the real phone from auxiliary fields
+    // to avoid creating a duplicate conversation for the same contact.
+    if (!isGroup && String(chatId).includes('@lid')) {
+      const realPhone = digitsOnly(
+        payload.senderPn || payload.sender_pn || payload.lidPn ||
+        payload.participant_pn || payload.participantPn || payload.pn ||
+        payload.phoneNumber ||
+        payload.sender?.pn || payload.sender?.phoneNumber ||
+        payload.chat?.pn || payload.chat?.phoneNumber ||
+        ''
+      );
+      if (realPhone) {
+        chatId = `${realPhone}@s.whatsapp.net`;
+      }
+    }
     
     // Check if connection allows group messages
     if (isGroup && !connection.show_groups) {
