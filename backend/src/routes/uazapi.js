@@ -654,8 +654,20 @@ async function persistIncomingMessage(connection, payload) {
              AND timestamp > NOW() - INTERVAL '180 seconds'
              AND (
                ((message_id LIKE 'temp_%' OR message_id IS NULL) AND status IN ('pending','sent'))
-               OR (sender_id IS NOT NULL AND status IN ('pending','sent') AND message_type = $2 AND COALESCE(content, '') = COALESCE($3, ''))
-               OR (message_id IS NOT NULL AND message_id NOT LIKE 'temp_%' AND status IN ('pending','sent') AND message_type = $2 AND COALESCE(content, '') = COALESCE($3, ''))
+               OR (
+                 status IN ('pending','sent')
+                 AND message_type = $2
+                 AND (
+                   -- Text: match by exact content (safe: distinct texts don't collide)
+                   ($2 = 'text' AND sender_id IS NOT NULL AND COALESCE(content,'') = COALESCE($3,''))
+                   -- Media sent from the web chat: match by type within window
+                   -- (content placeholders like '[Áudio]' from the webhook differ from '')
+                   OR ($2 <> 'text' AND sender_id IS NOT NULL AND timestamp > NOW() - INTERVAL '120 seconds')
+                   -- AI-sent messages (sender_id NULL, real id): dedupe echo by content
+                   OR (sender_id IS NULL AND message_id IS NOT NULL AND message_id NOT LIKE 'temp_%'
+                       AND COALESCE(content,'') = COALESCE($3,''))
+                 )
+               )
              )
            ORDER BY
              CASE WHEN message_id LIKE 'temp_%' OR message_id IS NULL OR status = 'pending' THEN 0 ELSE 1 END,
