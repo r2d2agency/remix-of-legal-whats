@@ -179,14 +179,42 @@ function extractMessageData(payload) {
   const chatId = normalizeChatId(rawChatId, explicitIsGroup || String(rawChatId || '').includes('@g.us'));
 
   const isGroup = explicitIsGroup || String(chatId || '').includes('@g.us');
+  // Some UAZAPI/Baileys events arrive addressed by @lid (linked-device id) instead
+  // of the real phone JID. That causes the SAME contact to create a duplicate
+  // conversation (one under @lid, another under @s.whatsapp.net). Prefer the
+  // real phone whenever the provider ships it in an auxiliary field.
+  const lidRealPhone = normalizePhone(
+    payload?.senderPn ||
+    payload?.sender_pn ||
+    payload?.lidPn ||
+    payload?.participant_pn ||
+    payload?.participantPn ||
+    payload?.pn ||
+    payload?.phoneNumber ||
+    msg?.senderPn ||
+    msg?.sender_pn ||
+    msg?.lidPn ||
+    msg?.participant_pn ||
+    msg?.participantPn ||
+    msg?.pn ||
+    msg?.phoneNumber ||
+    msg?.sender?.pn ||
+    payload?.sender?.pn ||
+    null
+  );
+  const chatIdIsLid = String(rawChatId || '').includes('@lid');
+  const normalizedChatId = (!isGroup && chatIdIsLid && lidRealPhone)
+    ? `${lidRealPhone}@s.whatsapp.net`
+    : chatId;
   const phone = normalizePhone(
+    (!isGroup && chatIdIsLid && lidRealPhone) ? lidRealPhone :
     payload?.phone ||
     payload?.number ||
     payload?.from ||
     msg?.phone ||
     msg?.number ||
     msg?.from ||
-    chatId
+    normalizedChatId
   );
 
   const messageId = getMessageId(payload, msg);
